@@ -1,0 +1,14 @@
+# Sohbetteki ilk örnek: hâl ekleri parametrenin rolünü belirler.
+sayılar = [3, 8, 1]
+5'i sayılara ekle.
+sayılar'ı sırala.
+sayıları ekrana yaz.
+
+her sayı için sayılardan:
+    eğer sayı 4'ten büyükse:
+        sayı'yı ekrana yaz.
+
+# Parametre sırası önemsiz: aşağıdaki iki satır aynı işi yapar.
+10'u sayılara ekle.
+sayılara 20'yi ekle.
+sayıların uzunluğunu yaz.

@@ -1,0 +1,15 @@
+# Metin listeleri Türk alfabesine göre sıralanır.
+isimler = ["Zeynep", "Çağrı", "Ahmet", "Şule", "Can", "Ömer", "Ozan", "İlker", "Irmak"]
+isimleri sırala.
+isimleri yaz.
+
+kitap = "Nutuk"
+kitabı yaz.
+"Uzunluk: " + uzunluk(kitap)'ı yaz.
+
+sayaç = 0
+sayaç 3'ten küçükken:
+    sayaç += 1
+    eğer sayaç 2'ye eşitse:
+        sürdür
+    sayaç'ı yaz.

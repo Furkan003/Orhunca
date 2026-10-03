@@ -1,0 +1,7 @@
+işlev faktöriyel(n):
+    eğer n 1'den küçük veya eşitse:
+        döndür 1
+    döndür n * faktöriyel(n - 1)
+
+her i için 1'den 10'a kadar:
+    "faktöriyel(" + i + ") = " + faktöriyel(i)'yi yaz.

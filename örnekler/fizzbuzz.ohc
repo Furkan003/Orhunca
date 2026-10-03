@@ -1,0 +1,9 @@
+her i için 1'den 15'e kadar:
+    eğer i % 15 == 0 ise:
+        "FizzBuzz"'ı yaz.
+    değilse eğer i % 3 == 0:
+        "Fizz"'i yaz.
+    değilse eğer i % 5 == 0:
+        "Buzz"'ı yaz.
+    değilse:
+        i'yi yaz.

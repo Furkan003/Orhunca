@@ -1,0 +1,621 @@
+//! Kod üretici: söz dizimi ağacını Cranelift ara gösterimine, oradan da makine
+//! kodu içeren bir nesne dosyasına (.o / .obj) çevirir.
+//!
+//! Tüm değerler 64 bitlik tamsayıdır: sayı, mantık (0/1), metin (işaretçi) ve
+//! liste (işaretçi). Metin ve liste işlemleri çalışma zamanı kütüphanesine çağrıdır.
+
+use crate::agac::*;
+use cranelift_codegen::ir::condcodes::IntCC;
+use cranelift_codegen::ir::{types, AbiParam, Function, InstBuilder, UserFuncName, Value};
+use cranelift_codegen::isa::OwnedTargetIsa;
+use cranelift_codegen::settings::{self, Configurable};
+use cranelift_codegen::Context;
+use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext, Variable};
+use cranelift_module::{DataDescription, DataId, FuncId, Linkage, Module};
+use cranelift_object::{ObjectBuilder, ObjectModule};
+use std::collections::HashMap;
+use target_lexicon::Triple;
+
+const I64: types::Type = types::I64;
+
+/// Çalışma zamanı işlevleri: ad, parametre sayısı, değer döndürür mü.
+const CALISMA_ZAMANI: &[(&str, usize, bool)] = &[
+    ("ohc_basla", 0, false),
+    ("ohc_yaz", 2, false),
+    ("ohc_bol", 3, true),
+    ("ohc_mod", 3, true),
+    ("ohc_metin_birlestir", 2, true),
+    ("ohc_metne_cevir", 2, true),
+    ("ohc_metin_esit", 2, true),
+    ("ohc_metin_uzunluk", 1, true),
+    ("ohc_metinden_sayi", 2, true),
+    ("ohc_oku", 0, true),
+    ("ohc_liste_yeni", 0, true),
+    ("ohc_liste_ekle", 2, false),
+    ("ohc_liste_uzunluk", 1, true),
+    ("ohc_liste_al", 3, true),
+    ("ohc_liste_koy", 4, false),
+    ("ohc_liste_sirala", 2, false),
+];
+
+pub fn isa_kur(triple: Triple) -> Result<OwnedTargetIsa, String> {
+    let mut ayarlar = settings::builder();
+    ayarlar
+        .set("opt_level", "speed")
+        .map_err(|e| e.to_string())?;
+    ayarlar.set("is_pic", "true").map_err(|e| e.to_string())?;
+    let isa = cranelift_codegen::isa::lookup(triple.clone())
+        .map_err(|e| format!("'{triple}' hedefi desteklenmiyor: {e}"))?;
+    isa.finish(settings::Flags::new(ayarlar))
+        .map_err(|e| e.to_string())
+}
+
+/// Sembol adlarında yalnızca ASCII kullanılır: `çarp` → `ohc_k_u00e7arp`.
+fn sembol(ad: &str) -> String {
+    let mut s = String::from("ohc_k_");
+    for c in ad.chars() {
+        if c.is_ascii_alphanumeric() {
+            s.push(c);
+        } else if c == '_' {
+            s.push_str("__");
+        } else {
+            s.push_str(&format!("_u{:04x}", c as u32));
+        }
+    }
+    s
+}
+
+struct Ortak {
+    module: ObjectModule,
+    calisma: HashMap<&'static str, FuncId>,
+    islevler: HashMap<String, (FuncId, bool)>,
+    metinler: HashMap<String, DataId>,
+}
+
+impl Ortak {
+    fn metin_verisi(&mut self, m: &str) -> Result<DataId, String> {
+        if let Some(id) = self.metinler.get(m) {
+            return Ok(*id);
+        }
+        let ad = format!("ohc_metin_{}", self.metinler.len());
+        let id = self
+            .module
+            .declare_data(&ad, Linkage::Local, false, false)
+            .map_err(|e| e.to_string())?;
+        let mut d = DataDescription::new();
+        let mut baytlar = m.as_bytes().to_vec();
+        baytlar.push(0);
+        d.define(baytlar.into_boxed_slice());
+        self.module.define_data(id, &d).map_err(|e| e.to_string())?;
+        self.metinler.insert(m.to_string(), id);
+        Ok(id)
+    }
+}
+
+pub fn uret(p: &Program, isa: OwnedTargetIsa) -> Result<Vec<u8>, String> {
+    let builder = ObjectBuilder::new(isa, "orhunca", cranelift_module::default_libcall_names())
+        .map_err(|e| e.to_string())?;
+    let mut ortak = Ortak {
+        module: ObjectModule::new(builder),
+        calisma: HashMap::new(),
+        islevler: HashMap::new(),
+        metinler: HashMap::new(),
+    };
+
+    for (ad, n, doner) in CALISMA_ZAMANI {
+        let mut sig = ortak.module.make_signature();
+        sig.params
+            .extend(std::iter::repeat_n(AbiParam::new(I64), *n));
+        if *doner {
+            sig.returns.push(AbiParam::new(I64));
+        }
+        let id = ortak
+            .module
+            .declare_function(ad, Linkage::Import, &sig)
+            .map_err(|e| e.to_string())?;
+        ortak.calisma.insert(ad, id);
+    }
+
+    let mut imzalar = Vec::new();
+    for f in &p.islevler {
+        let doner = f.donus.as_ref().is_some_and(|t| *t != Tip::Bos);
+        let mut sig = ortak.module.make_signature();
+        sig.params
+            .extend(f.parametreler.iter().map(|_| AbiParam::new(I64)));
+        if doner {
+            sig.returns.push(AbiParam::new(I64));
+        }
+        let id = ortak
+            .module
+            .declare_function(&sembol(&f.ad), Linkage::Local, &sig)
+            .map_err(|e| e.to_string())?;
+        ortak.islevler.insert(f.ad.clone(), (id, doner));
+        imzalar.push(sig);
+    }
+
+    let mut ctx = ortak.module.make_context();
+    let mut fctx = FunctionBuilderContext::new();
+
+    for (f, sig) in p.islevler.iter().zip(imzalar) {
+        let (id, doner) = ortak.islevler[&f.ad];
+        ctx.func = Function::with_name_signature(UserFuncName::user(0, id.as_u32()), sig);
+        islev_uret(
+            &mut ortak,
+            &mut ctx,
+            &mut fctx,
+            &f.yereller,
+            &f.parametreler,
+            &f.govde,
+            Some(doner),
+        )?;
+        ortak
+            .module
+            .define_function(id, &mut ctx)
+            .map_err(|e| format!("'{}': {e:?}", f.ad))?;
+        ortak.module.clear_context(&mut ctx);
+    }
+
+    // main: C çalışma zamanının giriş noktası.
+    let mut sig = ortak.module.make_signature();
+    sig.returns.push(AbiParam::new(types::I32));
+    let id = ortak
+        .module
+        .declare_function("main", Linkage::Export, &sig)
+        .map_err(|e| e.to_string())?;
+    ctx.func = Function::with_name_signature(UserFuncName::user(0, id.as_u32()), sig);
+    islev_uret(
+        &mut ortak,
+        &mut ctx,
+        &mut fctx,
+        &p.ana_yereller,
+        &[],
+        &p.ana,
+        None,
+    )?;
+    ortak
+        .module
+        .define_function(id, &mut ctx)
+        .map_err(|e| format!("ana program: {e:?}"))?;
+    ortak.module.clear_context(&mut ctx);
+
+    let urun = ortak.module.finish();
+    urun.emit().map_err(|e| e.to_string())
+}
+
+/// `donus`: `None` ana program (main), `Some(true)` değer döndüren işlev.
+fn islev_uret(
+    ortak: &mut Ortak,
+    ctx: &mut Context,
+    fctx: &mut FunctionBuilderContext,
+    yereller: &[(String, Tip)],
+    parametreler: &[(String, Tip)],
+    govde: &[Deyim],
+    donus: Option<bool>,
+) -> Result<(), String> {
+    let mut b = FunctionBuilder::new(&mut ctx.func, fctx);
+    let giris = b.create_block();
+    b.append_block_params_for_function_params(giris);
+    b.switch_to_block(giris);
+
+    let mut degiskenler = HashMap::new();
+    let sifir = b.ins().iconst(I64, 0);
+    for (ad, _) in yereller {
+        let v = b.declare_var(I64);
+        b.def_var(v, sifir);
+        degiskenler.insert(ad.clone(), v);
+    }
+    let parametre_degerleri = b.block_params(giris).to_vec();
+    for ((ad, _), deger) in parametreler.iter().zip(parametre_degerleri) {
+        b.def_var(degiskenler[ad], deger);
+    }
+
+    let mut u = Uretici {
+        b,
+        ortak,
+        degiskenler,
+        donguler: Vec::new(),
+        cagri_onbellek: HashMap::new(),
+        donus,
+    };
+    if donus.is_none() {
+        u.cz("ohc_basla", &[]);
+    }
+    for d in govde {
+        u.deyim(d)?;
+    }
+    // Gövdenin sonuna düşülürse
+    match donus {
+        None => {
+            let s = u.b.ins().iconst(types::I32, 0);
+            u.b.ins().return_(&[s]);
+        }
+        Some(true) => {
+            let s = u.b.ins().iconst(I64, 0);
+            u.b.ins().return_(&[s]);
+        }
+        Some(false) => {
+            u.b.ins().return_(&[]);
+        }
+    }
+    u.b.seal_all_blocks();
+    let hedef = u.ortak.module.target_config();
+    u.b.finalize(hedef);
+    Ok(())
+}
+
+struct Uretici<'a, 'b> {
+    b: FunctionBuilder<'b>,
+    ortak: &'a mut Ortak,
+    degiskenler: HashMap<String, Variable>,
+    /// (sürdür hedefi, dur hedefi)
+    donguler: Vec<(cranelift_codegen::ir::Block, cranelift_codegen::ir::Block)>,
+    cagri_onbellek: HashMap<FuncId, cranelift_codegen::ir::FuncRef>,
+    donus: Option<bool>,
+}
+
+impl Uretici<'_, '_> {
+    fn cagir(&mut self, id: FuncId, arg: &[Value]) -> Option<Value> {
+        let fref = *self
+            .cagri_onbellek
+            .entry(id)
+            .or_insert_with(|| self.ortak.module.declare_func_in_func(id, self.b.func));
+        let inst = self.b.ins().call(fref, arg);
+        self.b.inst_results(inst).first().copied()
+    }
+
+    /// Çalışma zamanı çağrısı.
+    fn cz(&mut self, ad: &str, arg: &[Value]) -> Option<Value> {
+        let id = self.ortak.calisma[ad];
+        self.cagir(id, arg)
+    }
+
+    fn sabit(&mut self, n: i64) -> Value {
+        self.b.ins().iconst(I64, n)
+    }
+
+    /// Dönüş/dur/sürdür sonrası ulaşılamayan kod için yeni bir blok açar.
+    fn olu_blok(&mut self) {
+        let blok = self.b.create_block();
+        self.b.switch_to_block(blok);
+    }
+
+    fn blok(&mut self, govde: &[Deyim]) -> Result<(), String> {
+        for d in govde {
+            self.deyim(d)?;
+        }
+        Ok(())
+    }
+
+    fn deyim(&mut self, d: &Deyim) -> Result<(), String> {
+        match d {
+            Deyim::Atama { hedef, deger, .. } => {
+                let v = self.ifade(deger)?;
+                self.b.def_var(self.degiskenler[hedef], v);
+            }
+            Deyim::IndeksAtama {
+                liste,
+                indeks,
+                deger,
+            } => {
+                let l = self.ifade(liste)?;
+                let i = self.ifade(indeks)?;
+                let v = self.ifade(deger)?;
+                let s = self.sabit(indeks.konum.satir as i64);
+                self.cz("ohc_liste_koy", &[l, i, v, s]);
+            }
+            Deyim::Yaz(i) => {
+                let v = self.ifade(i)?;
+                let kod = self.sabit(i.tip.kod());
+                self.cz("ohc_yaz", &[v, kod]);
+            }
+            Deyim::Ekle { oge, liste } => {
+                let o = self.ifade(oge)?;
+                let l = self.ifade(liste)?;
+                self.cz("ohc_liste_ekle", &[l, o]);
+            }
+            Deyim::Sirala(l) => {
+                let v = self.ifade(l)?;
+                let kod = match &l.tip {
+                    Tip::Liste(ic) => ic.kod(),
+                    _ => 0,
+                };
+                let kod = self.sabit(kod);
+                self.cz("ohc_liste_sirala", &[v, kod]);
+            }
+            Deyim::Eger {
+                kosul,
+                govde,
+                degilse,
+            } => {
+                let k = self.ifade(kosul)?;
+                let evet = self.b.create_block();
+                let hayir = self.b.create_block();
+                let son = self.b.create_block();
+                self.b.ins().brif(k, evet, &[], hayir, &[]);
+                self.b.switch_to_block(evet);
+                self.blok(govde)?;
+                self.b.ins().jump(son, &[]);
+                self.b.switch_to_block(hayir);
+                self.blok(degilse)?;
+                self.b.ins().jump(son, &[]);
+                self.b.switch_to_block(son);
+            }
+            Deyim::Surece { kosul, govde } => {
+                let bas = self.b.create_block();
+                let ic = self.b.create_block();
+                let son = self.b.create_block();
+                self.b.ins().jump(bas, &[]);
+                self.b.switch_to_block(bas);
+                let k = self.ifade(kosul)?;
+                self.b.ins().brif(k, ic, &[], son, &[]);
+                self.b.switch_to_block(ic);
+                self.donguler.push((bas, son));
+                self.blok(govde)?;
+                self.donguler.pop();
+                self.b.ins().jump(bas, &[]);
+                self.b.switch_to_block(son);
+            }
+            Deyim::HerAralik {
+                degisken,
+                bas,
+                son,
+                govde,
+                ..
+            } => {
+                let dv = self.degiskenler[degisken];
+                let ilk = self.ifade(bas)?;
+                let sinir = self.ifade(son)?;
+                let sinir_v = self.b.declare_var(I64);
+                self.b.def_var(sinir_v, sinir);
+                // Ayrı bir sayaç: gövde döngü değişkenini değiştirse de döngü bozulmaz.
+                let sayac = self.b.declare_var(I64);
+                self.b.def_var(sayac, ilk);
+                self.dongu(
+                    sayac,
+                    |u| {
+                        let i = u.b.use_var(sayac);
+                        let s = u.b.use_var(sinir_v);
+                        Ok(u.b.ins().icmp(IntCC::SignedLessThanOrEqual, i, s))
+                    },
+                    |u| {
+                        let i = u.b.use_var(sayac);
+                        u.b.def_var(dv, i);
+                        u.blok(govde)
+                    },
+                )?;
+            }
+            Deyim::HerListe {
+                degisken,
+                liste,
+                govde,
+                ..
+            } => {
+                let dv = self.degiskenler[degisken];
+                let l = self.ifade(liste)?;
+                let lv = self.b.declare_var(I64);
+                self.b.def_var(lv, l);
+                let sayac = self.b.declare_var(I64);
+                let sifir = self.sabit(0);
+                self.b.def_var(sayac, sifir);
+                let satir = liste.konum.satir as i64;
+                self.dongu(
+                    sayac,
+                    |u| {
+                        let i = u.b.use_var(sayac);
+                        let l = u.b.use_var(lv);
+                        let n = u.cz("ohc_liste_uzunluk", &[l]).unwrap();
+                        Ok(u.b.ins().icmp(IntCC::SignedLessThan, i, n))
+                    },
+                    |u| {
+                        let i = u.b.use_var(sayac);
+                        let l = u.b.use_var(lv);
+                        let s = u.sabit(satir);
+                        let o = u.cz("ohc_liste_al", &[l, i, s]).unwrap();
+                        u.b.def_var(dv, o);
+                        u.blok(govde)
+                    },
+                )?;
+            }
+            Deyim::Dondur(deger, _) => {
+                match (deger, self.donus) {
+                    (Some(i), Some(true)) => {
+                        let v = self.ifade(i)?;
+                        self.b.ins().return_(&[v]);
+                    }
+                    (Some(i), _) => {
+                        // Değeri olmayan (boş) işlev çağrısı döndürülüyor.
+                        self.ifade(i)?;
+                        self.b.ins().return_(&[]);
+                    }
+                    (None, Some(true)) => {
+                        let s = self.sabit(0);
+                        self.b.ins().return_(&[s]);
+                    }
+                    (None, _) => {
+                        self.b.ins().return_(&[]);
+                    }
+                }
+                self.olu_blok();
+            }
+            Deyim::Dur(_) => {
+                let (_, son) = *self.donguler.last().unwrap();
+                self.b.ins().jump(son, &[]);
+                self.olu_blok();
+            }
+            Deyim::Surdur(_) => {
+                let (devam, _) = *self.donguler.last().unwrap();
+                self.b.ins().jump(devam, &[]);
+                self.olu_blok();
+            }
+            Deyim::IfadeDeyimi(i) => {
+                self.ifade(i)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Sayaçlı döngü: koşul → gövde → sayaç += 1.
+    fn dongu(
+        &mut self,
+        sayac: Variable,
+        kosul: impl FnOnce(&mut Self) -> Result<Value, String>,
+        govde: impl FnOnce(&mut Self) -> Result<(), String>,
+    ) -> Result<(), String> {
+        let bas = self.b.create_block();
+        let ic = self.b.create_block();
+        let artir = self.b.create_block();
+        let son = self.b.create_block();
+        self.b.ins().jump(bas, &[]);
+        self.b.switch_to_block(bas);
+        let k = kosul(self)?;
+        self.b.ins().brif(k, ic, &[], son, &[]);
+        self.b.switch_to_block(ic);
+        self.donguler.push((artir, son));
+        govde(self)?;
+        self.donguler.pop();
+        self.b.ins().jump(artir, &[]);
+        self.b.switch_to_block(artir);
+        let i = self.b.use_var(sayac);
+        let i = self.b.ins().iadd_imm_s(i, 1);
+        self.b.def_var(sayac, i);
+        self.b.ins().jump(bas, &[]);
+        self.b.switch_to_block(son);
+        Ok(())
+    }
+
+    fn mantik(&mut self, cc: IntCC, a: Value, b: Value) -> Value {
+        let c = self.b.ins().icmp(cc, a, b);
+        self.b.ins().uextend(I64, c)
+    }
+
+    fn metne(&mut self, v: Value, t: &Tip) -> Value {
+        let kod = self.sabit(t.kod());
+        self.cz("ohc_metne_cevir", &[v, kod]).unwrap()
+    }
+
+    fn ifade(&mut self, e: &Ifade) -> Result<Value, String> {
+        Ok(match &e.tur {
+            IfadeTuru::Sayi(n) => self.sabit(*n),
+            IfadeTuru::Mantik(m) => self.sabit(*m as i64),
+            IfadeTuru::Metin(m) => {
+                let id = self.ortak.metin_verisi(m)?;
+                let gv = self.ortak.module.declare_data_in_func(id, self.b.func);
+                self.b.ins().symbol_value(I64, gv)
+            }
+            IfadeTuru::Isim(ad) => self.b.use_var(self.degiskenler[ad]),
+            IfadeTuru::Liste(ogeler) => {
+                let l = self.cz("ohc_liste_yeni", &[]).unwrap();
+                for o in ogeler {
+                    let v = self.ifade(o)?;
+                    self.cz("ohc_liste_ekle", &[l, v]);
+                }
+                l
+            }
+            IfadeTuru::Tekli(TekliOp::Eksi, ic) => {
+                let v = self.ifade(ic)?;
+                self.b.ins().ineg(v)
+            }
+            IfadeTuru::Tekli(TekliOp::Degil, ic) => {
+                let v = self.ifade(ic)?;
+                self.b.ins().bxor_imm_u(v, 1)
+            }
+            IfadeTuru::Ikili(op @ (IkiliOp::Ve | IkiliOp::Veya), sol, sag) => {
+                // Kısa devre: 've' için sol yanlışsa, 'veya' için sol doğruysa sağ hesaplanmaz.
+                let sonuc = self.b.declare_var(I64);
+                let a = self.ifade(sol)?;
+                self.b.def_var(sonuc, a);
+                let sag_blok = self.b.create_block();
+                let son = self.b.create_block();
+                if *op == IkiliOp::Ve {
+                    self.b.ins().brif(a, sag_blok, &[], son, &[]);
+                } else {
+                    self.b.ins().brif(a, son, &[], sag_blok, &[]);
+                }
+                self.b.switch_to_block(sag_blok);
+                let b = self.ifade(sag)?;
+                self.b.def_var(sonuc, b);
+                self.b.ins().jump(son, &[]);
+                self.b.switch_to_block(son);
+                self.b.use_var(sonuc)
+            }
+            IfadeTuru::Ikili(op, sol, sag) => {
+                let mut a = self.ifade(sol)?;
+                let mut b = self.ifade(sag)?;
+                let satir = e.konum.satir as i64;
+                match op {
+                    IkiliOp::Topla if e.tip == Tip::Metin => {
+                        if sol.tip != Tip::Metin {
+                            a = self.metne(a, &sol.tip);
+                        }
+                        if sag.tip != Tip::Metin {
+                            b = self.metne(b, &sag.tip);
+                        }
+                        self.cz("ohc_metin_birlestir", &[a, b]).unwrap()
+                    }
+                    IkiliOp::Topla => self.b.ins().iadd(a, b),
+                    IkiliOp::Cikar => self.b.ins().isub(a, b),
+                    IkiliOp::Carp => self.b.ins().imul(a, b),
+                    IkiliOp::Bol | IkiliOp::Mod => {
+                        let s = self.sabit(satir);
+                        let ad = if *op == IkiliOp::Bol {
+                            "ohc_bol"
+                        } else {
+                            "ohc_mod"
+                        };
+                        self.cz(ad, &[a, b, s]).unwrap()
+                    }
+                    IkiliOp::Esit | IkiliOp::EsitDegil if sol.tip == Tip::Metin => {
+                        let esit = self.cz("ohc_metin_esit", &[a, b]).unwrap();
+                        if *op == IkiliOp::Esit {
+                            esit
+                        } else {
+                            self.b.ins().bxor_imm_u(esit, 1)
+                        }
+                    }
+                    IkiliOp::Esit => self.mantik(IntCC::Equal, a, b),
+                    IkiliOp::EsitDegil => self.mantik(IntCC::NotEqual, a, b),
+                    IkiliOp::Kucuk => self.mantik(IntCC::SignedLessThan, a, b),
+                    IkiliOp::Buyuk => self.mantik(IntCC::SignedGreaterThan, a, b),
+                    IkiliOp::KucukEsit => self.mantik(IntCC::SignedLessThanOrEqual, a, b),
+                    IkiliOp::BuyukEsit => self.mantik(IntCC::SignedGreaterThanOrEqual, a, b),
+                    IkiliOp::Ve | IkiliOp::Veya => unreachable!(),
+                }
+            }
+            IfadeTuru::Indeks(l, i) => {
+                let lv = self.ifade(l)?;
+                let iv = self.ifade(i)?;
+                let s = self.sabit(e.konum.satir as i64);
+                self.cz("ohc_liste_al", &[lv, iv, s]).unwrap()
+            }
+            IfadeTuru::Cagri(ad, arg) => {
+                let mut degerler = Vec::new();
+                for a in arg {
+                    degerler.push(self.ifade(a)?);
+                }
+                if let Some((id, doner)) = self.ortak.islevler.get(ad).copied() {
+                    let v = self.cagir(id, &degerler);
+                    if doner {
+                        v.unwrap()
+                    } else {
+                        self.sabit(0)
+                    }
+                } else {
+                    match ad.as_str() {
+                        "uzunluk" if arg[0].tip == Tip::Metin => {
+                            self.cz("ohc_metin_uzunluk", &degerler).unwrap()
+                        }
+                        "uzunluk" => self.cz("ohc_liste_uzunluk", &degerler).unwrap(),
+                        "metin" => self.metne(degerler[0], &arg[0].tip),
+                        "sayı" if arg[0].tip == Tip::Sayi => degerler[0],
+                        "sayı" => {
+                            let s = self.sabit(e.konum.satir as i64);
+                            self.cz("ohc_metinden_sayi", &[degerler[0], s]).unwrap()
+                        }
+                        "oku" => self.cz("ohc_oku", &[]).unwrap(),
+                        _ => return Err(format!("bilinmeyen işlev '{ad}'")),
+                    }
+                }
+            }
+        })
+    }
+}

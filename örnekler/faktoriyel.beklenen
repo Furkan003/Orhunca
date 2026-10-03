@@ -1,0 +1,10 @@
+faktöriyel(1) = 1
+faktöriyel(2) = 2
+faktöriyel(3) = 6
+faktöriyel(4) = 24
+faktöriyel(5) = 120
+faktöriyel(6) = 720
+faktöriyel(7) = 5040
+faktöriyel(8) = 40320
+faktöriyel(9) = 362880
+faktöriyel(10) = 3628800

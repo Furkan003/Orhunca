@@ -1,0 +1,17 @@
+# 50'ye kadar asal sayılar
+işlev asal_mı(n) -> mantık:
+    eğer n 2'den küçükse:
+        döndür yanlış
+    bölen = 2
+    bölen * bölen n'den küçük veya eşit olduğu sürece:
+        eğer n % bölen 0'a eşitse:
+            döndür yanlış
+        bölen += 1
+    döndür doğru
+
+asallar = []
+her n için 1'den 50'ye kadar:
+    eğer asal_mı(n) ise:
+        n'yi asallara ekle.
+asalları ekrana yaz.
+"Toplam: " + uzunluk(asallar)'ı yaz.

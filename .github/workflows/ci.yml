@@ -1,0 +1,20 @@
+name: CI
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+      - name: Windows .exe çapraz derleme
+        run: |
+          sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64
+          cargo run -- derle örnekler/asal.ohc --hedef windows -o asal.exe
+          file asal.exe
