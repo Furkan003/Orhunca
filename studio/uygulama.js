@@ -95,7 +95,7 @@
   // =====================================================================
   // Orhunca sözdizimi renklendirme
   // =====================================================================
-  const ANAHTAR_KELIMELER = new Set(['eğer', 'değilse', 'ise', 'her', 'için', 'kadar', 'işlev', 'fiil', 'döndür', 'dur', 'sürdür', 'dene', 'yakala', 've', 'veya', 'değil', 'olduğu', 'sürece', 'iken', 'kullan', 'sabit', 'doğru', 'yanlış', 'ekrana', 'tıklanınca', 'değişince', 'gönderilince', 'çalınca']);
+  const ANAHTAR_KELIMELER = new Set(['eğer', 'değilse', 'ise', 'her', 'için', 'kadar', 'işlev', 'fiil', 'döndür', 'dur', 'sürdür', 'dene', 'yakala', 'seçenek', 've', 'veya', 'değil', 'olduğu', 'sürece', 'iken', 'kullan', 'sabit', 'doğru', 'yanlış', 'ekrana', 'tıklanınca', 'değişince', 'gönderilince', 'çalınca']);
   // Arayüz dilinin kapsayıcı öğeleri (`satır:`) parantezsiz de yazılır.
   const KAPSAYICILAR = new Set(['satır', 'sütun', 'kart', 'kutu', 'ızgara']);
   const YERLESIK_FIILLER = new Set(['yaz', 'ekle', 'sırala', 'çıkar', 'kaydet']);
@@ -449,6 +449,7 @@
     ['ve / veya / değil', 'and / or / not', 'eğer a ve değil b ise:'],
     ['kullan', 'import', 'kullan "araçlar.ohc"'],
     ['model', 'class / struct', 'model Ürün:'],
+    ['seçenek', 'enum', 'seçenek Renk: kırmızı, yeşil'],
     ["… 'i kaydet", 'save', "ürün'ü kaydet."],
     ['al / gönder "/yol":', 'GET / POST route', 'al "/ürünler":'],
     ['görünüm("ad", x)', 'render view', 'döndür görünüm("ürünler", liste)'],

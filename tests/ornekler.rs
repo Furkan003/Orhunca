@@ -251,3 +251,39 @@ fn tipi_yazilmis_degiskenler_ve_karakter_kodlari() {
         "{hata}"
     );
 }
+
+#[test]
+fn secenek_hatalari_turkce() {
+    let on = "seçenek Renk: kırmızı, mavi\nseçenek Boy: kısa, uzun\n";
+    for (kaynak, beklenen) in [
+        (
+            "Renk.mor'u yaz.\n",
+            "'Renk' türünde 'mor' diye bir değer yok",
+        ),
+        ("(Renk.mavi == Boy.uzun)'u yaz.\n", "eşitlik"),
+        ("(Renk.mavi == \"mavi\")'yı yaz.\n", "eşitlik"),
+        ("x = Renk\n", "'Renk' bir seçenek türü"),
+        ("Renk.sil()'i yaz.\n", "yalnızca Renk.hepsi()"),
+        ("r: Renk = \"mavi\"\n", "Renk"),
+    ] {
+        let (ok, _, hata) = calistir(&format!("{on}{kaynak}"));
+        assert!(!ok, "{kaynak}");
+        assert!(hata.contains(beklenen), "{kaynak}: {hata}");
+    }
+    let (ok, _, hata) = calistir("seçenek Renk: kırmızı, kırmızı\n");
+    assert!(!ok && hata.contains("iki kez"), "{hata}");
+    let (ok, _, hata) = calistir("seçenek Renk: a\nRenk(\"b\")'yi yaz.\n");
+    assert!(
+        !ok && hata.contains("'b' bir Renk değeri değil (değerler: a)"),
+        "{hata}"
+    );
+}
+
+#[test]
+fn indeksli_birlesik_atama() {
+    let (ok, cikti, hata) = calistir(
+        "l = [1, 2]\nl[1] += 5\nl[0] -= 1\ns = {\"a\": 1}\ns[\"a\"] += 2\nl'yi yaz.\ns'yi yaz.\n",
+    );
+    assert!(ok, "{hata}");
+    assert_eq!(cikti, "[0, 7]\n{\"a\": 3}\n");
+}

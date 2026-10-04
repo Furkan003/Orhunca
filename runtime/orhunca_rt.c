@@ -1586,6 +1586,7 @@ typedef struct {
     int zorunlu, e_posta;
     int en_az_var, en_fazla_var;
     double en_az, en_fazla;
+    char *secenekler; /* seçenek türündeki alanın geçerli değerleri: "a|b|c" (yoksa NULL) */
 } AlanBilgisi;
 
 typedef struct ModelBilgisi {
@@ -1606,8 +1607,8 @@ static char *kopya_n(const char *s, size_t n) {
 }
 
 /* Derleyicinin ürettiği tanım metni: ilk satır modelin adı, sonra her alan için
- * "ad<TAB>tip kodu<TAB>kurallar<TAB>en az<TAB>en fazla<TAB>etiket" (kurallar:
- * 1 zorunlu, 2 e-posta biçimi). Her tanım bir kez çözülür. */
+ * "ad<TAB>tip kodu<TAB>kurallar<TAB>en az<TAB>en fazla<TAB>etiket[<TAB>seçenekler]"
+ * (kurallar: 1 zorunlu, 2 e-posta biçimi; seçenekler: "a|b|c"). Her tanım bir kez çözülür. */
 static ModelBilgisi *model_bilgisi(const char *tanim) {
     for (ModelBilgisi *m = model_bilgileri; m; m = m->sonraki)
         if (m->tanim == tanim) return m;
@@ -1625,11 +1626,11 @@ static ModelBilgisi *model_bilgisi(const char *tanim) {
     while (*p) {
         son = strchr(p, '\n');
         if (!son) son = p + strlen(p);
-        const char *parca[6] = {"", "0", "0", "", "", ""};
-        size_t uz[6] = {0, 1, 1, 0, 0, 0};
+        const char *parca[7] = {"", "0", "0", "", "", "", ""};
+        size_t uz[7] = {0, 1, 1, 0, 0, 0, 0};
         int k = 0;
         const char *b = p;
-        for (const char *q = p; q <= son && k < 6; q++) {
+        for (const char *q = p; q <= son && k < 7; q++) {
             if (q == son || *q == '\t') {
                 parca[k] = b;
                 uz[k] = (size_t)(q - b);
@@ -1645,6 +1646,7 @@ static ModelBilgisi *model_bilgisi(const char *tanim) {
         a->zorunlu = kurallar & 1;
         a->e_posta = (kurallar & 2) != 0;
         a->etiket = uz[5] ? kopya_n(parca[5], uz[5]) : NULL;
+        a->secenekler = uz[6] ? kopya_n(parca[6], uz[6]) : NULL;
         if (uz[3]) {
             a->en_az_var = 1;
             a->en_az = strtod(parca[3], NULL);
@@ -2338,6 +2340,44 @@ static int e_posta_mi(const char *s) {
     return 1;
 }
 
+/* `deger`, "a|b|c" biçimindeki seçeneklerden biri mi? */
+static int secenek_mi(const char *secenekler, const char *deger) {
+    size_t n = strlen(deger);
+    const char *p = secenekler;
+    while (1) {
+        const char *son = strchr(p, '|');
+        size_t uz = son ? (size_t)(son - p) : strlen(p);
+        if (uz == n && !strncmp(p, deger, n)) return 1;
+        if (!son) return 0;
+        p = son + 1;
+    }
+}
+
+/* `Renk("mavi")`: metni seçenek türüne çevirir; geçerli değilse çalışma hatası. */
+int64_t ohc_secenek_cevir(int64_t m, int64_t secenekler, int64_t tur, int64_t satir) {
+    if (secenek_mi(M(secenekler), M(m))) return m;
+    Tampon t = {0};
+    t_yaz(&t, "'");
+    t_yaz(&t, M(m));
+    t_yaz(&t, "' bir ");
+    t_yaz(&t, M(tur));
+    t_yaz(&t, " değeri değil (değerler: ");
+    for (const char *c = M(secenekler); *c; c++) {
+        if (*c == '|')
+            t_yaz(&t, ", ");
+        else
+            t_ekle(&t, c, 1);
+    }
+    t_yaz(&t, ")");
+    static char mesaj[1024];
+    size_t n = t.n < sizeof mesaj - 1 ? t.n : sizeof mesaj - 1;
+    memcpy(mesaj, t.v, n);
+    mesaj[n] = 0;
+    free(t.v);
+    hata(satir, mesaj);
+    return 0;
+}
+
 int64_t ohc_model_hatalar(int64_t n) {
     int64_t sonuc = ohc_liste_yeni();
     if (!n) return sonuc;
@@ -2356,7 +2396,16 @@ int64_t ohc_model_hatalar(int64_t n) {
             const char *s = M(d);
             while (*s && bosluk(*s)) s++;
             double uz = (double)ohc_metin_uzunluk(d);
-            if (!*s) {
+            if (a->secenekler && !secenek_mi(a->secenekler, M(d))) {
+                gorunen_ad(&t, a);
+                t_yaz(&t, " şunlardan biri olmalı: ");
+                for (const char *c = a->secenekler; *c; c++) {
+                    if (*c == '|')
+                        t_yaz(&t, ", ");
+                    else
+                        t_ekle(&t, c, 1);
+                }
+            } else if (!*s) {
                 if (a->zorunlu) {
                     gorunen_ad(&t, a);
                     t_yaz(&t, " boş bırakılamaz");

@@ -181,6 +181,7 @@ const ANAHTAR_KELIMELER: &[(&str, &str)] = &[
     ("çıkar", "Fiil: `5'i sayılardan çıkar.` — ilk eşleşen öğeyi siler"),
     ("ekrana", "`yaz` fiilinin hedefi (isteğe bağlı)"),
     ("model", "Veri modeli: `model Ürün:` ve altında `ad: metin, zorunlu` gibi alanlar"),
+    ("seçenek", "Seçenek türü (numaralandırma): `seçenek Renk: kırmızı, yeşil, mavi` — değer: `Renk.kırmızı`, hepsi: `Renk.hepsi()`, metinden: `Renk(m)`"),
     ("zorunlu", "Model alanı boş bırakılamaz"),
     ("en_az", "Model alanı kuralı: sayılarda en küçük değer, metinlerde en az karakter"),
     ("en_fazla", "Model alanı kuralı: sayılarda en büyük değer, metinlerde en çok karakter"),
@@ -260,6 +261,10 @@ fn tanimlar(metin: &str) -> Vec<Tanim> {
         } else if let Some(r) = govde.strip_prefix("model ").filter(|_| girinti == 0) {
             if let Some(ad) = r.trim_end().strip_suffix(':').map(str::trim) {
                 ekle(&mut cikti, "model", ad);
+            }
+        } else if let Some(r) = govde.strip_prefix("seçenek ").filter(|_| girinti == 0) {
+            if let Some((ad, _)) = r.split_once(':') {
+                ekle(&mut cikti, "seçenek", ad.trim());
             }
         } else if let Some(kalip) = rota_satiri(satir) {
             ekle(&mut cikti, "yol", &kalip);
@@ -576,6 +581,11 @@ impl Sunucu {
                 "gönder \"/${1:yol}\":\n    ${2:x} = ${3:Model}.formdan(istek)\n    $0",
             ),
             ("durum", "durum ${1:sayaç} = ${2:0}"),
+            (
+                "seçenek",
+                "seçenek ${1:Renk}: ${2:kırmızı}, ${3:yeşil}, ${4:mavi}",
+            ),
+            ("dene … yakala", "dene:\n    $1\nyakala ${2:hata}:\n    $0"),
             ("arayüz", "arayüz:\n    başlık(\"${1:Başlık}\")\n    $0"),
             (
                 "bileşen",
@@ -622,6 +632,7 @@ impl Sunucu {
                     "fiil" => 2,
                     "sabit" => 21,
                     "model" => 7,
+                    "seçenek" => 13,
                     "bileşen" => 7,
                     "yol" | "arayüz" => continue,
                     _ => 6,
@@ -675,6 +686,7 @@ impl Sunucu {
                     "fiil" => 6,
                     "sabit" => 14,
                     "model" => 23,
+                    "seçenek" => 10,
                     "yol" => 7,
                     "bileşen" => 5,
                     "arayüz" => 2,

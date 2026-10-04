@@ -1,0 +1,48 @@
+# Seçenek türleri (numaralandırma)
+seçenek Renk: kırmızı, yeşil, mavi
+
+seçenek Gün:
+    pazartesi, salı, çarşamba
+    perşembe, cuma
+
+işlev anlamı(r: Renk) -> metin:
+    eğer r == Renk.kırmızı ise:
+        döndür "dur"
+    değilse eğer r == Renk.yeşil ise:
+        döndür "geç"
+    döndür "dikkat"
+
+ışık = Renk.yeşil
+(ışık + ": " + anlamı(ışık))'ı yaz.
+Renk.hepsi()'ni yaz.
+
+her g için Gün.hepsi()'nden:
+    eğer g != Gün.çarşamba ise:
+        g'yi yaz.
+
+# Metinden çevirme: geçersizse çalışma hatası
+seçilen = Renk("mavi")
+(seçilen == Renk.mavi)'yı yaz.
+dene:
+    Renk("mor")'u yaz.
+yakala h:
+    h'yi yaz.
+
+# Model alanı: varsayılan ilk değerdir; kayıtlarda ve JSON'da adıyla saklanır.
+model Araba:
+    marka: metin
+    renk: Renk
+
+a = Araba(marka: "Anadol")
+a.renk'i yaz.
+a.renk = Renk.kırmızı
+a.json()'u yaz.
+
+# Sözlük anahtarı ve liste öğesi olarak
+sayım: sözlük<Renk, sayı> = {}
+her r için [Renk.mavi, Renk.kırmızı, Renk.mavi]'den:
+    eğer içerir(sayım, r) ise:
+        sayım[r] += 1
+    değilse:
+        sayım[r] = 1
+sayım'ı yaz.

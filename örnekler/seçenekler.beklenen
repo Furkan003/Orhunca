@@ -1,0 +1,11 @@
+yeşil: geç
+["kırmızı", "yeşil", "mavi"]
+pazartesi
+salı
+perşembe
+cuma
+doğru
+'mor' bir Renk değeri değil (değerler: kırmızı, yeşil, mavi)
+kırmızı
+{"marka":"Anadol","renk":"kırmızı"}
+{"mavi": 2, "kırmızı": 1}

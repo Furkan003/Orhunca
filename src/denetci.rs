@@ -38,6 +38,8 @@ pub struct Denetci {
     sabitler: HashMap<String, Ifade>,
     /// Varsayılan değerleri denetlenmiş model tanımları.
     modeller: HashMap<String, Model>,
+    /// Seçenek türleri ve değerleri
+    secenekler: HashMap<String, Vec<String>>,
     /// Bir web yolunun gövdesi denetleniyor: `döndür` değerleri yanıta çevrilir.
     rotada: bool,
     /// `durum` değişkenleri: her yerden görülür.
@@ -63,6 +65,7 @@ pub fn denetle(p: &mut Program) -> Sonuc<()> {
         islevde: false,
         sabitler: HashMap::new(),
         modeller: HashMap::new(),
+        secenekler: HashMap::new(),
         rotada: false,
         durumlar: HashMap::new(),
         arayuzde: false,
@@ -91,6 +94,18 @@ pub fn denetle(p: &mut Program) -> Sonuc<()> {
     for m in &p.modeller {
         d.modeller.insert(m.ad.clone(), m.clone());
     }
+    for s in &p.secenekler {
+        if d.modeller.contains_key(&s.ad) || d.sabitler.contains_key(&s.ad) {
+            return Err(Hata::yeni(
+                s.konum,
+                format!(
+                    "'{}' hem bir seçenek türünün hem bir model ya da sabitin adı",
+                    s.ad
+                ),
+            ));
+        }
+        d.secenekler.insert(s.ad.clone(), s.degerler.clone());
+    }
     for f in &p.islevler {
         if d.imzalar.contains_key(&f.ad) {
             let mesaj = match &f.rota {
@@ -99,10 +114,13 @@ pub fn denetle(p: &mut Program) -> Sonuc<()> {
             };
             return Err(Hata::yeni(f.konum, mesaj));
         }
-        if d.modeller.contains_key(&f.ad) {
+        if d.modeller.contains_key(&f.ad) || d.secenekler.contains_key(&f.ad) {
             return Err(Hata::yeni(
                 f.konum,
-                format!("'{}' bir modelin adı; işleve başka bir ad verin", f.ad),
+                format!(
+                    "'{}' bir modelin ya da seçenek türünün adı; işleve başka bir ad verin",
+                    f.ad
+                ),
             ));
         }
         d.imzalar.insert(
@@ -284,6 +302,17 @@ impl Denetci {
                 genislet(v, &a.tip);
                 v.tip = a.tip.clone();
             }
+            if let Tip::Secenek(s) = &a.tip {
+                a.secenekler = self.secenekler.get(s).cloned().unwrap_or_default();
+                if a.varsayilan.is_none() {
+                    // Varsayılan: ilk değer
+                    a.varsayilan = Some(Ifade {
+                        tur: IfadeTuru::Metin(a.secenekler[0].clone()),
+                        konum: a.konum,
+                        tip: a.tip.clone(),
+                    });
+                }
+            }
         }
         Ok(())
     }
@@ -442,6 +471,82 @@ impl Denetci {
             )
         };
         Hata::yeni(konum, format!("'{g}' görünümü bulunamadı")).ipucu(ipucu)
+    }
+
+    /// Seçenek türü kullanımları: `Renk.kırmızı` (değer), `Renk.hepsi()` (tüm
+    /// değerler) ve `Renk(m)` (metinden çevirme, geçersizse çalışma hatası).
+    fn secenek_ifadesi(&mut self, e: &mut Ifade) -> Sonuc<Option<Tip>> {
+        let konum = e.konum;
+        let metin = |m: &str, tip: Tip| Ifade {
+            tur: IfadeTuru::Metin(m.to_string()),
+            konum,
+            tip,
+        };
+        let yeni = match &mut e.tur {
+            IfadeTuru::Alan(n, ad, _) => {
+                let IfadeTuru::ModelAdi(s) = &n.tur else {
+                    return Ok(None);
+                };
+                let Some(degerler) = self.secenekler.get(s) else {
+                    return Ok(None);
+                };
+                if !degerler.contains(ad) {
+                    return Err(Hata::yeni(
+                        konum,
+                        format!("'{s}' türünde '{ad}' diye bir değer yok"),
+                    )
+                    .ipucu(format!("değerler: {}", degerler.join(", "))));
+                }
+                let t = Tip::Secenek(s.clone());
+                (IfadeTuru::Metin(ad.clone()), t)
+            }
+            IfadeTuru::Metod(n, ad, arg) => {
+                let IfadeTuru::ModelAdi(s) = &n.tur else {
+                    return Ok(None);
+                };
+                let Some(degerler) = self.secenekler.get(s) else {
+                    return Ok(None);
+                };
+                if ad != "hepsi" || !arg.is_empty() {
+                    return Err(Hata::yeni(
+                        konum,
+                        format!("'{s}' bir seçenek türü; yalnızca {s}.hepsi() çağrılabilir"),
+                    ));
+                }
+                let t = Tip::Secenek(s.clone());
+                let ogeler = degerler.iter().map(|d| metin(d, t.clone())).collect();
+                (IfadeTuru::Liste(ogeler), Tip::Liste(Box::new(t)))
+            }
+            IfadeTuru::Cagri(ad, arg)
+                if self.secenekler.contains_key(ad.as_str())
+                    && !self.imzalar.contains_key(ad.as_str()) =>
+            {
+                let s = ad.clone();
+                let t = Tip::Secenek(s.clone());
+                if arg.len() != 1 {
+                    return Err(Hata::yeni(konum, format!("{s}(m) tek bir metin alır")));
+                }
+                let mut a = arg.remove(0);
+                let at = self.ifade(&mut a)?;
+                if at != Tip::Metin && at != t {
+                    return Err(Hata::yeni(
+                        a.konum,
+                        format!("{s}(...) metin bekler, {at} verildi"),
+                    ));
+                }
+                let degerler = self.secenekler[&s].join("|");
+                let args = vec![a, metin(&degerler, Tip::Metin), metin(&s, Tip::Metin)];
+                (IfadeTuru::Cagri(SECENEK_CEVIR.into(), args), t)
+            }
+            // Yeniden denetlenen çevirme
+            IfadeTuru::Cagri(ad, arg) if ad == SECENEK_CEVIR => match &arg[2].tur {
+                IfadeTuru::Metin(s) => return Ok(Some(Tip::Secenek(s.clone()))),
+                _ => return Ok(None),
+            },
+            _ => return Ok(None),
+        };
+        e.tur = yeni.0;
+        Ok(Some(yeni.1))
     }
 
     fn metod(&mut self, e: &mut Ifade) -> Sonuc<Tip> {
@@ -716,10 +821,10 @@ impl Denetci {
                             format!("anahtar {a} olmalı, {kt} bulundu"),
                         ));
                     }
-                    if !matches!(kt, Tip::Sayi | Tip::Metin) {
+                    if !matches!(kt, Tip::Sayi | Tip::Metin | Tip::Secenek(_)) {
                         return Err(Hata::yeni(
                             indeks.konum,
-                            "sözlük anahtarları sayı ya da metin olmalı",
+                            "sözlük anahtarları sayı, metin ya da seçenek olmalı",
                         ));
                     }
                     let t = self.ifade(deger)?;
@@ -1024,12 +1129,17 @@ impl Denetci {
                 Beklenen::Metin => t == Tip::Metin,
                 Beklenen::Sayi => t == Tip::Sayi,
                 Beklenen::Sayisal => t.sayisal(),
-                Beklenen::MetinListesi => Tip::Liste(Box::new(Tip::Metin)).kabul_eder(&t),
+                Beklenen::MetinListesi => {
+                    Tip::Liste(Box::new(Tip::Metin)).kabul_eder(&t)
+                        || matches!(&t, Tip::Liste(ic) if matches!(**ic, Tip::Secenek(_)))
+                }
                 Beklenen::Bag(tur) => {
                     self.bag_hedefi(a, &o.ad)?;
                     bag = Some(tur);
                     match tur {
-                        BagTuru::Yazi => matches!(t, Tip::Metin | Tip::Sayi | Tip::Ondalik),
+                        BagTuru::Yazi => {
+                            matches!(t, Tip::Metin | Tip::Sayi | Tip::Ondalik | Tip::Secenek(_))
+                        }
                         BagTuru::Metin => t == Tip::Metin,
                         BagTuru::Mantik => t == Tip::Mantik,
                         BagTuru::Sayisal => t.sayisal(),
@@ -1206,6 +1316,10 @@ impl Denetci {
                 }
             }
         }
+        if let Some(t) = self.secenek_ifadesi(e)? {
+            e.tip = t.clone();
+            return Ok(t);
+        }
         if let IfadeTuru::Metod(..) = &e.tur {
             let t = self.metod(e)?;
             e.tip = t.clone();
@@ -1348,10 +1462,12 @@ impl Denetci {
                 let (mut a, mut d) = (Tip::Bilinmeyen, Tip::Bilinmeyen);
                 for (k, v) in ciftler.iter_mut() {
                     let kt = self.ifade(k)?;
-                    if !matches!(kt, Tip::Sayi | Tip::Metin) {
+                    if !matches!(kt, Tip::Sayi | Tip::Metin | Tip::Secenek(_)) {
                         return Err(Hata::yeni(
                             k.konum,
-                            format!("sözlük anahtarları sayı ya da metin olmalı, {kt} bulundu"),
+                            format!(
+                                "sözlük anahtarları sayı, metin ya da seçenek olmalı, {kt} bulundu"
+                            ),
                         ));
                     }
                     a = a.birlestir(&kt).ok_or_else(|| {
@@ -1754,6 +1870,8 @@ fn bag_atamasi(hedef: Ifade, tur: BagTuru) -> Deyim {
         ))),
         (_, Tip::Sayi) => kosullu("sayı_mı", "sayı"),
         (_, Tip::Ondalik) => kosullu("ondalık_mı", "ondalık"),
+        // Seçenek: seçilen metin seçenek türüne çevrilir (geçersizse çalışma hatası).
+        (_, Tip::Secenek(ad)) => ata(cagri(ad, deger())),
         _ => ata(deger()),
     }
 }
@@ -1808,14 +1926,15 @@ pub fn ikili_tip(op: IkiliOp, a: &Tip, b: &Tip) -> Option<Tip> {
     match (op, a, b) {
         (Topla | Cikar | Carp, _, _) if sayisal => Some(karisik),
         (Bol, _, _) if sayisal => Some(Ondalik),
-        (Topla, Metin, Sayi | Ondalik | Metin | Mantik)
-        | (Topla, Sayi | Ondalik | Mantik, Metin) => Some(Metin),
+        (Topla, Metin, Sayi | Ondalik | Metin | Mantik | Secenek(_))
+        | (Topla, Sayi | Ondalik | Mantik | Secenek(_), Metin) => Some(Metin),
         (TamBol | Mod, Sayi, Sayi) => Some(Sayi),
         (Kucuk | Buyuk | KucukEsit | BuyukEsit, _, _) if sayisal => Some(Mantik),
         (Kucuk | Buyuk | KucukEsit | BuyukEsit, Metin, Metin) => Some(Mantik),
         (Esit | EsitDegil, _, _) if sayisal => Some(Mantik),
         (Esit | EsitDegil, Metin, Metin) | (Esit | EsitDegil, Mantik, Mantik) => Some(Mantik),
         (Esit | EsitDegil, Model(a), Model(b)) if a == b => Some(Mantik),
+        (Esit | EsitDegil, Secenek(a), Secenek(b)) if a == b => Some(Mantik),
         (Ve | Veya, Mantik, Mantik) => Some(Mantik),
         _ => None,
     }

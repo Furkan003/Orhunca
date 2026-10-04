@@ -118,6 +118,7 @@ pub(crate) const CALISMA_ZAMANI: &[(&str, usize, bool)] = &[
     ("ohc_dene", 2, true),
     ("ohc_hata_mesaji", 0, true),
     ("ohc_hata_ver", 2, false),
+    ("ohc_secenek_cevir", 4, true),
 ];
 
 /// `dene:` bloğunun işlevinin dönüş kodları (çalışma hatasında -1).
@@ -1299,7 +1300,7 @@ impl Uretici<'_, '_> {
                         };
                         self.cz(ad, &[a, b, s]).unwrap()
                     }
-                    IkiliOp::Esit | IkiliOp::EsitDegil if sol.tip == Tip::Metin => {
+                    IkiliOp::Esit | IkiliOp::EsitDegil if sol.tip.metin_gibi() => {
                         let esit = self.cz("ohc_metin_esit", &[a, b]).unwrap();
                         if *op == IkiliOp::Esit {
                             esit
@@ -1385,6 +1386,14 @@ impl Uretici<'_, '_> {
                             self.cz("ohc_metinden_sayi", &[degerler[0], s]).unwrap()
                         }
                         "oku" => self.cz("ohc_oku", &[]).unwrap(),
+                        SECENEK_CEVIR => {
+                            let s = self.sabit(e.konum.satir as i64);
+                            self.cz(
+                                "ohc_secenek_cevir",
+                                &[degerler[0], degerler[1], degerler[2], s],
+                            )
+                            .unwrap()
+                        }
                         _ => {
                             let v = self.yerlesik(ad, arg, &degerler, e)?;
                             return Ok(v.unwrap_or_else(|| self.sabit(0)));

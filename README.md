@@ -398,6 +398,28 @@ Nitelikler: `zorunlu`, `en_az N`, `en_fazla N` (metinde karakter, listede öğe 
 (biçim denetimi), `etiket "Görünen ad"` (hata mesajlarında). Hata mesajlarında alan adındaki `_`
 boşluk olur: `doğum_tarihi` → "Doğum tarihi".
 
+### Seçenekler (numaralandırma)
+
+```
+seçenek Renk: kırmızı, yeşil, mavi
+
+seçenek Gün:
+    pazartesi, salı, çarşamba
+    perşembe, cuma
+
+r = Renk.yeşil
+eğer r == Renk.kırmızı ise:
+    "dur"'u yaz.
+Renk.hepsi()'ni yaz.            # ["kırmızı", "yeşil", "mavi"]
+seçilen = Renk("mavi")          # metinden; geçersizse çalışma hatası
+
+model Araba:
+    renk: Renk                  # varsayılan: ilk değer
+```
+Seçenek değerleri yalnızca aynı türden değerlerle karşılaştırılabilir; metne eklenebilir, yazılabilir,
+sözlük anahtarı ve liste öğesi olabilir. Kayıtlarda ve JSON'da adıyla saklanır; formdan gelen
+geçersiz değer `hatalar()` listesine girer. Arayüzde: `seçim(renk, Renk.hepsi())`.
+
 ### Kalıcı kayıtlar
 
 Modeller `veri/<Model>.json` dosyasına kaydedilir (okunabilir JSON; `ORHUNCA_VERI` ile klasör değişir):

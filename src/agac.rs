@@ -15,6 +15,9 @@ pub enum Tip {
     Sozluk(Box<Tip>, Box<Tip>),
     /// Kullanıcı tanımlı ya da yerleşik model: `Ürün`, `İstek`, `Yanıt`.
     Model(String),
+    /// Seçenek türü (numaralandırma): `seçenek Renk: kırmızı, yeşil, mavi`.
+    /// Çalışma zamanında değer, seçeneğin adıdır (metin).
+    Secenek(String),
     /// Değer döndürmeyen işlev.
     Bos,
     /// Henüz bilinmiyor (ör. boş liste `[]`).
@@ -28,11 +31,11 @@ impl Tip {
     /// (modelin tanımı nesnenin kendisinde durur).
     pub fn kod(&self) -> i64 {
         match self {
-            Tip::Metin => 1,
+            Tip::Metin | Tip::Secenek(_) => 1,
             Tip::Mantik => 2,
             Tip::Ondalik => 3,
             Tip::Liste(t) => 4 + 8 * t.kod(),
-            Tip::Sozluk(a, d) => 5 + 8 * ((**a == Tip::Metin) as i64 + 2 * d.kod()),
+            Tip::Sozluk(a, d) => 5 + 8 * (a.metin_gibi() as i64 + 2 * d.kod()),
             Tip::Model(_) => 6,
             _ => 0,
         }
@@ -60,6 +63,11 @@ impl Tip {
     /// kendiliğinden çevrilir.
     pub fn kabul_eder(&self, t: &Tip) -> bool {
         (*self == Tip::Ondalik && *t == Tip::Sayi) || self.birlestir(t).is_some()
+    }
+
+    /// Çalışma zamanında metin olarak taşınan tip mi (metin ya da seçenek)?
+    pub fn metin_gibi(&self) -> bool {
+        matches!(self, Tip::Metin | Tip::Secenek(_))
     }
 
     pub fn sayisal(&self) -> bool {
@@ -90,7 +98,7 @@ impl fmt::Display for Tip {
             Tip::Mantik => write!(f, "mantık"),
             Tip::Liste(t) => write!(f, "liste<{t}>"),
             Tip::Sozluk(a, d) => write!(f, "sözlük<{a}, {d}>"),
-            Tip::Model(ad) => write!(f, "{ad}"),
+            Tip::Model(ad) | Tip::Secenek(ad) => write!(f, "{ad}"),
             Tip::Bos => write!(f, "boş"),
             Tip::Bilinmeyen => write!(f, "?"),
         }
@@ -477,6 +485,8 @@ pub struct AlanTanimi {
     pub etiket: Option<String>,
     /// Değerin biçimi: `e_posta`
     pub e_posta: bool,
+    /// Seçenek türündeki alanın geçerli değerleri (denetçi doldurur)
+    pub secenekler: Vec<String>,
     pub konum: Konum,
 }
 
@@ -509,14 +519,15 @@ impl Model {
 
     /// Çalışma zamanının okuduğu tanım metni: ilk satırda modelin adı, sonra her
     /// alan için `ad<TAB>tip kodu<TAB>kurallar<TAB>en az<TAB>en fazla<TAB>etiket`.
-    /// Kurallar bit alanıdır: 1 zorunlu, 2 e-posta biçimi.
+    /// Kurallar bit alanıdır: 1 zorunlu, 2 e-posta biçimi. Seçenek alanlarında
+    /// yedinci sütun geçerli değerlerdir (`|` ile ayrılmış).
     pub fn tanim_metni(&self) -> String {
         let mut s = self.ad.clone();
         s.push('\n');
         let sinir = |x: Option<f64>| x.map(|x| x.to_string()).unwrap_or_default();
         for a in &self.alanlar {
             s.push_str(&format!(
-                "{}\t{}\t{}\t{}\t{}\t{}\n",
+                "{}\t{}\t{}\t{}\t{}\t{}",
                 a.ad,
                 a.tip.kod(),
                 a.zorunlu as u8 | (a.e_posta as u8) << 1,
@@ -524,15 +535,33 @@ impl Model {
                 sinir(a.en_fazla),
                 a.etiket.as_deref().unwrap_or_default()
             ));
+            if !a.secenekler.is_empty() {
+                s.push('\t');
+                s.push_str(&a.secenekler.join("|"));
+            }
+            s.push('\n');
         }
         s
     }
 }
 
+/// `seçenek Renk: kırmızı, yeşil, mavi`
+#[derive(Debug, Clone)]
+pub struct SecenekTanimi {
+    pub ad: String,
+    pub degerler: Vec<String>,
+    pub konum: Konum,
+}
+
+/// Seçenek türüne çevirme işlevinin (denetçinin ürettiği) adı:
+/// `Renk("mavi")` → `‹seçenek›("mavi", "kırmızı|yeşil|mavi", "Renk")`.
+pub const SECENEK_CEVIR: &str = "‹seçenek›";
+
 #[derive(Debug, Clone, Default)]
 pub struct Program {
     pub islevler: Vec<Islev>,
     pub modeller: Vec<Model>,
+    pub secenekler: Vec<SecenekTanimi>,
     /// `sabit PI = 3.14159`: her yerden görülebilen değişmez değerler.
     pub sabitler: Vec<(String, Ifade)>,
     /// `durum sayaç = 0`: arayüz programlarının değişkenleri.

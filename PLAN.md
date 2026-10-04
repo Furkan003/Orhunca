@@ -105,6 +105,12 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
   Yerelde çalışma zamanı `setjmp/longjmp` ile, WebAssembly'de yükleyici bir JavaScript
   istisnasıyla geri sarar. `döndür`, `dur`, `sürdür` ve iç içe bloklar desteklenir.
 
+### 9b – Seçenek türleri (numaralandırma)
+- `seçenek Renk: kırmızı, yeşil, mavi` (tek satır ya da blok); `Renk.kırmızı`, `Renk.hepsi()`,
+  `Renk("mavi")` (geçersizse çalışma hatası). Tip denetimi ayrı türdür; çalışma zamanında değer
+  adıdır (metin). Model alanı (varsayılan ilk değer, form doğrulaması), sözlük anahtarı, arayüzde
+  `seçim` bağlama. Ayrıca `liste[i] += 1` gibi indeksli birleşik atama.
+
 ## Henüz yapılmayanlar
 
 - **Çalışma zamanı C ile yazılı** (`runtime/orhunca_rt.c`). Bağlama zaten bir C araç zinciri

@@ -119,7 +119,7 @@
           }
         },
         {
-          "match": "^\\s*(model)\\s+([\\p{L}_][\\p{L}\\p{N}_]*)\\s*(:)",
+          "match": "^\\s*(model|seçenek)\\s+([\\p{L}_][\\p{L}\\p{N}_]*)\\s*(:)",
           "captures": {
             "1": {
               "name": "keyword.declaration.class.orhunca"

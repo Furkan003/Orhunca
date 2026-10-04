@@ -1829,7 +1829,7 @@ impl Uretici<'_> {
                 };
                 self.cagri(ad, &[Arg::I(sol), Arg::I(sag), Arg::S(satir)])?;
             }
-            IkiliOp::Esit | IkiliOp::EsitDegil if sol.tip == Tip::Metin => {
+            IkiliOp::Esit | IkiliOp::EsitDegil if sol.tip.metin_gibi() => {
                 self.cagri("ohc_metin_esit", &iki)?;
                 if op == IkiliOp::EsitDegil {
                     self.sabit(1);
@@ -1894,6 +1894,15 @@ impl Uretici<'_> {
             "yuvarla" if t0 == Tip::Sayi => self.ifade(&arg[0])?,
             "yuvarla" => self.cagri("ohc_yuvarla", &[Arg::I(&arg[0])])?,
             "oku" => self.cagri("ohc_oku", &[])?,
+            SECENEK_CEVIR => self.cagri(
+                "ohc_secenek_cevir",
+                &[
+                    Arg::I(&arg[0]),
+                    Arg::I(&arg[1]),
+                    Arg::I(&arg[2]),
+                    Arg::S(satir),
+                ],
+            )?,
             _ => self.yerlesik(e, ad, arg, &t0)?,
         }
         Ok(())
