@@ -170,7 +170,7 @@ jobs:
         run: |
           hedef=""
           [ "${{ matrix.ad }}" = macos ] && hedef="--target universal-apple-darwin"
-          npx --yes @tauri-apps/cli@^2 build --config tauri.surum.conf.json $hedef
+          npx --yes @tauri-apps/cli@^2 build --verbose --config tauri.surum.conf.json $hedef
       - name: Dosyaları adlandır
         shell: bash
         run: |
@@ -182,7 +182,7 @@ jobs:
               cp $k/release/bundle/appimage/*.AppImage cikti/Orhunca-Studyo-Linux.AppImage
               cp $k/release/bundle/rpm/*.rpm cikti/orhunca-studyo.x86_64.rpm
               # .deb orhunca komutunu da kurar
-              dpkg -c cikti/orhunca-studyo_amd64.deb | grep -q "usr/bin/orhunca$"
+              dpkg -c cikti/orhunca-studyo_amd64.deb > icerik.txt && grep "usr/bin/orhunca$" icerik.txt
               ;;
             windows-x86_64)
               cp $k/release/bundle/nsis/*.exe cikti/Orhunca-Studyo-Windows-Kurulum.exe

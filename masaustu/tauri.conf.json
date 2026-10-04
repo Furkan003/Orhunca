@@ -40,6 +40,9 @@
         "installMode": "both"
       },
       "wix": {
+        "language": [
+          "tr-TR"
+        ],
         "fragmentPaths": [
           "windows/yol.wxs"
         ],
@@ -68,7 +71,7 @@
         "mimeType": "application/x-orhunca-proje"
       }
     ],
-    "homepage": "https://furkan003.github.io/orhunca/",
+    "homepage": "https://furkan003.github.io/Orhunca/",
     "macOS": {
       "minimumSystemVersion": "10.15"
     }
