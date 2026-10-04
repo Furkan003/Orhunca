@@ -1,6 +1,6 @@
 //! `orhunca` komut aracı: derle, çalıştır, denetle, yeni.
 
-use orhunca::{bicimlendirici, derleme, dil_sunucusu, paket, studyo, SURUM};
+use orhunca::{bicimlendirici, derleme, dil_sunucusu, etkilesim, paket, studyo, SURUM};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
@@ -11,6 +11,7 @@ Kullanım:
   orhunca derle [dosya.ohc] [-o çıktı] [--hedef linux|windows|web|<üçlü>]
   orhunca çalıştır [dosya.ohc] [--hedef web] [-- programın argümanları]
   orhunca denetle [dosya.ohc]
+  orhunca etkileşim           (satır satır deneme: yazdığınız her satır hemen çalışır)
   orhunca paketle [dosya.ohc] [-o çıktı] [--hedef linux|windows]
   orhunca biçimlendir [dosya.ohc ...] [--denetle]
   orhunca dil-sunucusu        (düzenleyiciler için LSP, stdin/stdout)
@@ -38,6 +39,7 @@ fn main() -> ExitCode {
         "çalıştır" | "calistir" => calistir_komutu(kalan),
         "denetle" => denetle_komutu(kalan).map(|_| ExitCode::SUCCESS),
         "paketle" => paketle_komutu(kalan).map(|_| ExitCode::SUCCESS),
+        "etkileşim" | "etkilesim" | "repl" => etkilesim::calistir().map(|_| ExitCode::SUCCESS),
         "yeni" => yeni_komutu(kalan).map(|_| ExitCode::SUCCESS),
         "stüdyo" | "studyo" => studyo::calistir(kalan).map(|_| ExitCode::SUCCESS),
         "biçimlendir" | "bicimlendir" => bicimlendir_komutu(kalan),

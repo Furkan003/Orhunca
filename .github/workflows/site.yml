@@ -46,3 +46,6 @@ jobs:
     steps:
       - id: yayin
         uses: actions/deploy-pages@v4
+        # GitHub Pages açılana kadar (Settings → Pages → Source: GitHub Actions)
+        # yayımlama başarısız olur; site yine de derlenip sınanmıştır.
+        continue-on-error: true

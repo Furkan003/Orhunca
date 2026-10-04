@@ -13,6 +13,7 @@ pub mod derleme;
 pub mod dil_sunucusu;
 pub mod dokum;
 pub mod ekler;
+pub mod etkilesim;
 pub mod hata;
 pub mod on_kutuphane;
 pub mod oneriler;
