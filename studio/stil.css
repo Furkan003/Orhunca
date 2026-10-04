@@ -85,10 +85,8 @@ input::placeholder { color: var(--soluk4); }
   padding-left: 16px; background: var(--koyu); border-bottom: 1px solid var(--cizgi); user-select: none;
 }
 .logo { display: flex; align-items: center; gap: 10px; cursor: default; }
-.logo-kutu {
-  width: 26px; height: 26px; border-radius: 7px; background: var(--vurgu); color: var(--vurgu-koyu);
-  display: flex; align-items: center; justify-content: center; font-size: 17px; line-height: 1;
-}
+.logo-kutu { width: 26px; height: 26px; flex-shrink: 0; }
+.logo-kutu img { width: 100%; height: 100%; display: block; }
 .logo-ad { font-weight: 600; font-size: 14px; letter-spacing: 0.01em; }
 .menuler { display: flex; gap: 2px; font-size: 13px; color: var(--ikincil); white-space: nowrap; flex-shrink: 1; min-width: 0; }
 .menu-baslik { position: relative; padding: 5px 9px; border-radius: 5px; cursor: default; }
@@ -522,3 +520,37 @@ h1, h2 { margin: 0; }
 .onizleme { position: relative; }
 .onizleme-tutamac { position: absolute; left: -3px; top: 0; bottom: 0; width: 6px; cursor: col-resize; z-index: 2; }
 .onizleme-tutamac:hover { background: var(--vurgu-17); }
+
+/* Açılış animasyonu (acilis.js) */
+.acilis { position: fixed; inset: 0; z-index: 1000; background: #0a0c0f; color: #e6e9ee; overflow: hidden; cursor: pointer; transition: opacity 0.25s; }
+.acilis.kapaniyor { opacity: 0; pointer-events: none; }
+.acilis-isik, .acilis-izgara, .acilis-karartma { position: absolute; inset: 0; }
+.acilis-izgara {
+  background-image: linear-gradient(#1a1f26 1px, transparent 1px), linear-gradient(90deg, #1a1f26 1px, transparent 1px);
+  background-size: 80px 80px;
+  -webkit-mask-image: radial-gradient(circle at 50% 46%, #000, transparent 60%); mask-image: radial-gradient(circle at 50% 46%, #000, transparent 60%);
+}
+.acilis-karartma { background: #0a0c0f; opacity: 0; pointer-events: none; }
+.acilis-sahne { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; transform-origin: center; font-family: 'IBM Plex Sans', sans-serif; }
+.acilis-ust { position: absolute; left: 0; right: 0; top: 390px; display: flex; justify-content: center; }
+.acilis-satir { display: flex; align-items: center; gap: 56px; }
+.acilis-karo {
+  position: relative; width: 220px; height: 220px; border-radius: 52px; background: oklch(0.79 0.12 188);
+  display: flex; align-items: center; justify-content: center; gap: 2px; color: #062221; overflow: hidden;
+}
+.acilis-ayrac { font-family: 'JetBrains Mono', monospace; font-size: 80px; margin-top: -9px; display: inline-block; }
+.acilis-harf { position: relative; display: inline-block; width: 76px; height: 92px; }
+.acilis-oyma, .acilis-dolgu { position: absolute; left: 0; top: 0; font-family: 'Noto Sans Old Turkic', sans-serif; font-size: 92px; line-height: 1; }
+.acilis-oyma { color: transparent; -webkit-text-stroke: 2px #062221; }
+.acilis-dolgu { color: #062221; }
+.acilis-karo-imlec { position: absolute; left: 30px; top: 8px; width: 6px; height: 76px; background: #062221; }
+.acilis-kelime { display: flex; align-items: center; height: 170px; font-weight: 600; font-size: 150px; letter-spacing: -0.025em; color: #eef0f3; min-width: 620px; }
+.acilis-imlec { width: 10px; height: 120px; margin-left: 8px; background: oklch(0.79 0.12 188); }
+.acilis-panel { position: absolute; left: 510px; width: 900px; top: 620px; border-radius: 18px; background: #0f1216; border: 1px solid #262b33; overflow: hidden; }
+.acilis-panel-baslik { display: flex; gap: 12px; align-items: center; padding: 18px 22px; border-bottom: 1px solid #1a1f26; }
+.acilis-panel-baslik i { width: 14px; height: 14px; border-radius: 7px; background: #262b33; }
+.acilis-panel-baslik span { margin-left: 12px; font-family: 'JetBrains Mono', monospace; font-size: 20px; color: #6b7482; }
+.acilis-kod { padding: 26px 30px; font-family: 'JetBrains Mono', monospace; font-size: 38px; display: flex; gap: 28px; height: 96px; align-items: center; white-space: pre; }
+.acilis-no { color: #4a525e; }
+.acilis-kod-imlec { color: oklch(0.79 0.12 188); }
+.acilis-cikti { padding: 0 30px 26px 76px; font-family: 'JetBrains Mono', monospace; font-size: 30px; color: #8b94a3; height: 56px; }

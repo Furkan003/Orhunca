@@ -26,6 +26,8 @@ use wry::{WebContext, WebViewBuilder};
 
 const YUK_IMI: &[u8; 8] = b"OHCKABUK";
 const SON_IMI: &[u8; 8] = b"ORHUNCA!";
+/// Pencere simgesi: Orhunca logosu, 64×64 RGBA (docs/marka/logo.svg).
+const SIMGE: &[u8] = include_bytes!("../simge/simge64.rgba");
 
 struct Uygulama {
     baslik: String,
@@ -160,6 +162,7 @@ fn calistir(uygulama: Uygulama) -> Result<(), String> {
         .with_title(&uygulama.baslik)
         .with_inner_size(tao::dpi::LogicalSize::new(1100.0, 760.0))
         .with_min_inner_size(tao::dpi::LogicalSize::new(360.0, 300.0))
+        .with_window_icon(tao::window::Icon::from_rgba(SIMGE.to_vec(), 64, 64).ok())
         .build(&olaylar)
         .map_err(|e| e.to_string())?;
 

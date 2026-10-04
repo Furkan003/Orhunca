@@ -73,6 +73,7 @@
     menu: null, modal: null, bildirim: null,
     yaziBoyutu: ayarOku('yaziBoyutu', 13),
     yazarkenDenetle: ayarOku('yazarkenDenetle', true),
+    acilis: ayarOku('acilis', true),
   };
 
   const ayrac = () => D.bilgi.ayrac || '/';
@@ -269,7 +270,7 @@
     // Masaüstü uygulamasında (Tauri) başlık çubuğunun boş yerleri pencereyi taşır.
     const tasi = TAURI ? ' data-tauri-drag-region' : '';
     return `<div class="baslik-cubugu"${tasi}>
-      <div class="logo"${tasi}><div class="logo-kutu gokturk"${tasi}>${GOKTURK}</div><span class="logo-ad"${tasi}>Orhunca</span></div>
+      <div class="logo"${tasi}><div class="logo-kutu"${tasi}><img src="simge.svg" alt=""${tasi}></div><span class="logo-ad"${tasi}>Orhunca</span></div>
       ${duz ? `<div class="menuler">${MENULER.map(m => `<span class="menu-baslik ${D.menu === m.ad ? 'acik' : ''}" data-e="menuAc" data-a="${m.ad}">${m.ad}${D.menu === m.ad ? cizAcilir(m) : ''}</span>`).join('')}</div>
       <div class="pencere-adi"${tasi}>${kac(D.proje.ad)} — Orhunca</div>` : ''}
       <div style="flex:1;align-self:stretch"${tasi}></div>
@@ -522,7 +523,8 @@
       return kabuk('Ayarlar', `
         <div class="secenek" style="cursor:default"><div class="esnek"><div class="secenek-ad">Düzenleyici yazı boyutu</div><div class="secenek-alt">Kod ve satır numaraları</div></div>
           <div class="kare-dugme simge" style="width:32px;height:32px;font-size:18px" data-e="yaziKucult">remove</div><span class="mono" style="width:32px;text-align:center">${D.yaziBoyutu}</span><div class="kare-dugme simge" style="width:32px;height:32px;font-size:18px" data-e="yaziBuyut">add</div></div>
-        <div class="secenek" data-e="yazarkenDenetleDegistir"><div class="esnek"><div class="secenek-ad">Yazarken denetle</div><div class="secenek-alt">Hatalar siz yazarken altı çizili gösterilir.</div></div><div class="anahtar ${D.yazarkenDenetle ? 'acik' : ''}"><div></div></div></div>`,
+        <div class="secenek" data-e="yazarkenDenetleDegistir"><div class="esnek"><div class="secenek-ad">Yazarken denetle</div><div class="secenek-alt">Hatalar siz yazarken altı çizili gösterilir.</div></div><div class="anahtar ${D.yazarkenDenetle ? 'acik' : ''}"><div></div></div></div>
+        <div class="secenek" data-e="acilisDegistir"><div class="esnek"><div class="secenek-ad">Açılış animasyonu</div><div class="secenek-alt">Stüdyo açılırken Orhunca logosu canlandırılır.</div></div><div class="anahtar ${D.acilis ? 'acik' : ''}"><div></div></div></div>`,
         `<div class="dugme birincil" data-e="modalKapat">Tamam</div>`);
     }
     if (m.tur === 'guncelleme') {
@@ -539,7 +541,7 @@
       return kabuk('Klavye kısayolları', `<div class="kisayol-listesi">${k.map(([a, b]) => `<span>${a}</span><span>${b}</span>`).join('')}</div>`, `<div class="dugme birincil" data-e="modalKapat">Kapat</div>`);
     }
     if (m.tur === 'hakkinda') {
-      return kabuk('Hakkında', `<div style="display:flex;gap:16px;align-items:center"><div class="logo-kutu gokturk" style="width:48px;height:48px;font-size:30px;border-radius:12px">${GOKTURK}</div>
+      return kabuk('Hakkında', `<div style="display:flex;gap:16px;align-items:center"><div class="logo-kutu" style="width:48px;height:48px"><img src="simge.svg" alt=""></div>
         <div><div style="font-size:16px;font-weight:600">Orhunca Stüdyo</div><div class="panel-not">${kac(surumAdi())} (${kac(D.bilgi.surum)}) · ${kac(D.bilgi.isletim)}</div></div></div>
         <div class="panel-not">Türkçe tabanlı programlama dili Orhunca için geliştirme ortamı. Derleyici Rust ile yazılmıştır ve Cranelift ile doğrudan makine kodu üretir.</div>
         <div class="panel-not"><a href="https://github.com/furkan003/orhunca" target="_blank" rel="noopener">github.com/furkan003/orhunca</a></div>`, `<div class="dugme birincil" data-e="modalKapat">Kapat</div>`);
@@ -1596,6 +1598,7 @@
     },
     yaziBuyut() { D.yaziBoyutu = Math.min(20, D.yaziBoyutu + 1); ayarYaz('yaziBoyutu', D.yaziBoyutu); yaziDegisti(); },
     yaziKucult() { D.yaziBoyutu = Math.max(11, D.yaziBoyutu - 1); ayarYaz('yaziBoyutu', D.yaziBoyutu); yaziDegisti(); },
+    acilisDegistir() { D.acilis = !D.acilis; ayarYaz('acilis', D.acilis); katmanlariCiz(); },
     yazarkenDenetleDegistir() { D.yazarkenDenetle = !D.yazarkenDenetle; ayarYaz('yazarkenDenetle', D.yazarkenDenetle); katmanlariCiz(); },
 
     // düzenleyici
