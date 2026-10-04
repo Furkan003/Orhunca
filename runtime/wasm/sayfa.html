@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="Orhunca">
+<title>__BASLIK__</title>
+<style>
+  :root {
+    --arka: #0a0c0f;
+    --pano: #13161b;
+    --kenar: #262b33;
+    --yazi: #e6e9ee;
+    --soluk: #8b94a3;
+    --vurgu: #3fd0c6;
+    --hata: #ff8a7a;
+    --girdi: #f2c46d;
+    --mono: ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
+    --sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-tema="koyu"]) {
+      --arka: #f4f5f7;
+      --pano: #ffffff;
+      --kenar: #dde1e6;
+      --yazi: #16191d;
+      --soluk: #5f6873;
+      --vurgu: #0b8a83;
+      --hata: #c2402f;
+      --girdi: #8a5a00;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; background: var(--arka); color: var(--yazi); font-family: var(--sans); }
+  main { max-width: 960px; margin: 0 auto; padding: 24px 16px 40px; }
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .isaret { width: 28px; height: 28px; border-radius: 7px; background: var(--vurgu); color: var(--arka); display: grid; place-items: center; font-weight: 700; font-size: 15px; }
+  h1 { font-size: 17px; font-weight: 600; margin: 0; }
+  .durum { color: var(--soluk); font-size: 13px; }
+  .bosluk { flex: 1; }
+  button { font: inherit; font-size: 13px; color: var(--yazi); background: var(--pano); border: 1px solid var(--kenar); border-radius: 7px; padding: 6px 12px; cursor: pointer; }
+  button:hover { border-color: var(--vurgu); }
+  pre { margin: 0; min-height: 240px; padding: 16px 18px; background: var(--pano); border: 1px solid var(--kenar); border-radius: 10px; font: 14px/1.55 var(--mono); white-space: pre-wrap; word-break: break-word; overflow-x: auto; }
+  pre .hata { color: var(--hata); }
+  pre .girdi { color: var(--girdi); }
+  footer { margin-top: 12px; color: var(--soluk); font-size: 12px; }
+  footer a { color: var(--vurgu); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="isaret" aria-hidden="true">O</div>
+    <h1>__BASLIK__</h1>
+    <span class="durum" id="durum"></span>
+    <span class="bosluk"></span>
+    <button type="button" id="yeniden">Yeniden çalıştır</button>
+  </header>
+  <pre id="cikti" aria-live="polite"></pre>
+  <footer>Orhunca ile yazıldı · WebAssembly</footer>
+</main>
+<script>
+__YUKLEYICI__
+</script>
+<script>
+(function () {
+  'use strict';
+  var CALISMA_ZAMANI = '__CALISMA_ZAMANI__';
+  var PROGRAM = '__PROGRAM__';
+  var cikti = document.getElementById('cikti');
+  var durum = document.getElementById('durum');
+  var dugme = document.getElementById('yeniden');
+  var kuyruk = ''; // çıktının sonu: oku() penceresinde soru olarak gösterilir
+
+  function baytlar(b64) {
+    var s = atob(b64);
+    var b = new Uint8Array(s.length);
+    for (var i = 0; i < s.length; i++) b[i] = s.charCodeAt(i);
+    return b;
+  }
+
+  function ekle(metin, sinif) {
+    if (sinif) {
+      var s = document.createElement('span');
+      s.className = sinif;
+      s.textContent = metin;
+      cikti.appendChild(s);
+    } else {
+      cikti.appendChild(document.createTextNode(metin));
+    }
+    kuyruk = (kuyruk + metin).slice(-300);
+  }
+
+  function soru() {
+    var satirlar = kuyruk.replace(/\s+$/, '').split('\n');
+    return satirlar[satirlar.length - 1] || 'Girdi:';
+  }
+
+  async function calistir() {
+    cikti.textContent = '';
+    kuyruk = '';
+    durum.textContent = 'çalışıyor…';
+    dugme.disabled = true;
+    // Önce sayfa çizilsin; program ana iş parçacığında çalışır.
+    await new Promise(function (r) { setTimeout(r, 30); });
+    var cozuculer = { 1: new TextDecoder(), 2: new TextDecoder() };
+    var kod;
+    try {
+      kod = await Orhunca.calistir({
+        calismaZamani: baytlar(CALISMA_ZAMANI),
+        program: baytlar(PROGRAM),
+        cikti: function (akis, b) {
+          ekle(cozuculer[akis].decode(b, { stream: true }), akis === 2 ? 'hata' : null);
+        },
+        satirOku: function () {
+          var g = window.prompt(soru());
+          if (g !== null) ekle(g + '\n', 'girdi');
+          return g;
+        },
+        dosyalar: Orhunca.tarayiciDosyalari('orhunca:' + document.title + ':'),
+        ortam: {},
+        argumanlar: [],
+      });
+    } catch (h) {
+      ekle('Çalışma hatası: ' + h + '\n', 'hata');
+      kod = 1;
+    }
+    durum.textContent = kod === 0 ? 'bitti' : 'çıkış kodu ' + kod;
+    dugme.disabled = false;
+  }
+
+  dugme.addEventListener('click', calistir);
+  calistir();
+})();
+</script>
+</body>
+</html>

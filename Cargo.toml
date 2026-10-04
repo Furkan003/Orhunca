@@ -17,6 +17,10 @@ cranelift-object = "0.136"
 cranelift-native = "0.136"
 target-lexicon = "0.13"
 serde_json = "1"
+wasm-encoder = "0.261"
+
+[dev-dependencies]
+wasmparser = "0.261"
 
 [profile.release]
 opt-level = 3

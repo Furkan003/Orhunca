@@ -12,6 +12,10 @@
  * yığıttaki ve yazmaçlardaki her 64 bitlik sözcüğü olası bir işaretçi sayar,
  * ulaşılamayan nesneleri geri verir. Derleyicinin ayrıca bir şey yapması gerekmez.
  *
+ * WebAssembly: aynı kaynak wasm32'ye derlenir (araclar/wasm_calisma_zamani.sh);
+ * sistem işleri runtime/wasm/libc.c üzerinden JavaScript'e devredilir. Orada
+ * yığıt taranamadığından toplayıcı, derleyicinin tuttuğu "gölge yığıtı" tarar.
+ *
  * Tip kodları: 0 sayı, 1 metin, 2 mantık, 3 ondalık, 4 + 8*öğe = liste,
  * 5 + 8*(anahtar + 2*değer) = sözlük (anahtar: 0 sayı, 1 metin), 6 = model.
  *
@@ -21,6 +25,10 @@
  * Web: `ohc_sun` tek iş parçacıklı bir HTTP/1.1 sunucusu başlatır; derleyici
  * her `al "/yol":` tanımını `ohc_web_yol` ile kaydeder.
  */
+#ifdef __wasm__
+/* WebAssembly: sistem kütüphanesi yerine runtime/wasm/libc.h (JavaScript'e devreder) */
+#include "libc.h"
+#else
 #include <errno.h>
 #include <inttypes.h>
 #include <math.h>
@@ -46,6 +54,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #endif
+#endif /* __wasm__ */
 
 #define TUR_METIN 0
 #define TUR_LISTE 1
@@ -59,11 +68,13 @@
 #define KOD_MODEL 6
 
 #define M(x) ((const char *)(intptr_t)(x))
-#define D(p) ((int64_t)(intptr_t)(p))
+#define D(p) ((int64_t)(uintptr_t)(p))
 
 /* Web isteği işlenirken oluşan çalışma hataları sunucuyu durdurmaz: hata
  * isteğin başına geri sarılır ve tarayıcıya 500 sayfası gönderilir. */
-#if defined(__GNUC__)
+#if defined(__wasm__)
+/* WebAssembly'de web sunucusu yoktur; hata programı bitirir. */
+#elif defined(__GNUC__)
 typedef void *Tuzak[5];
 #define TUZAK_KUR(t) __builtin_setjmp(t)
 #define TUZAGA_DON(t) __builtin_longjmp(t, 1)
@@ -72,8 +83,10 @@ typedef jmp_buf Tuzak;
 #define TUZAK_KUR(t) setjmp(t)
 #define TUZAGA_DON(t) longjmp(t, 1)
 #endif
+#ifndef __wasm__
 static Tuzak istek_tuzagi;
 static volatile int tuzak_kurulu;
+#endif
 static char son_hata[1024];
 
 static void hata(int64_t satir, const char *mesaj) {
@@ -83,10 +96,12 @@ static void hata(int64_t satir, const char *mesaj) {
     else
         snprintf(son_hata, sizeof son_hata, "Çalışma hatası: %s", mesaj);
     fprintf(stderr, "%s\n", son_hata);
+#ifndef __wasm__
     if (tuzak_kurulu) {
         tuzak_kurulu = 0;
         TUZAGA_DON(istek_tuzagi);
     }
+#endif
     exit(1);
 }
 
@@ -129,7 +144,8 @@ typedef struct {
     int64_t dizin_kap;
 } Sozluk;
 
-#define BASLIK (sizeof(Nesne))
+/* Yükler 8 bayta hizalı kalsın (wasm32'de sizeof(Nesne) 12'dir). */
+#define BASLIK ((sizeof(Nesne) + 7) & ~(size_t)7)
 #define YUK(n) ((void *)((char *)(n) + BASLIK))
 #define NESNE(p) ((Nesne *)((char *)(p) - BASLIK))
 
@@ -141,7 +157,9 @@ static size_t canli_bayt;
 static size_t taban_esik = 8u << 20;
 static int sabit_esik;           /* test modu: eşik büyümez, toplayıcı sık çalışır */
 static size_t esik = 8u << 20;   /* bu kadar ayrılınca topla */
+#ifndef __wasm__
 static uintptr_t *yigin_dibi;
+#endif
 static size_t toplama_sayisi, en_yuksek_canli;
 
 static size_t karma(uintptr_t p) {
@@ -218,6 +236,22 @@ static void bekleyenleri_isle(void) {
 #define SATIR_ICI_DEGIL
 #endif
 
+#ifdef __wasm__
+/* WebAssembly'de yığıt ve yerel değişkenler taranamaz. Derleyici, çöp
+ * toplayıcının yönettiği her değeri (metin, liste, sözlük, model değişkenleri ve
+ * bir Orhunca çağrısı boyunca yaşayan ara değerler) bellekteki "gölge yığıtta"
+ * tutar. Toplama yalnızca güvenli noktalarda (işlev girişleri ve döngü başları)
+ * yapılır: o anda canlı her değer gölge yığıttadır. Ayırma yalnızca bayrağı
+ * kaldırır. */
+static int64_t *golge_taban, *golge_tepe;
+static volatile uint8_t toplama_gerekli;
+
+static void yigini_tara(void) {
+    for (int64_t *p = golge_taban; p < golge_tepe; p++)
+        if (!((uint64_t)*p >> 32)) aday((uintptr_t)*p);
+    bekleyenleri_isle();
+}
+#else
 /* Bu işlevin çerçevesi, yazmaçların kaydedildiği `topla` çerçevesinin altındadır;
  * buradan yığıt dibine kadar her sözcük taranır. */
 static SATIR_ICI_DEGIL void yigini_tara(void) {
@@ -225,6 +259,7 @@ static SATIR_ICI_DEGIL void yigini_tara(void) {
     for (uintptr_t *p = (uintptr_t *)&isaret; p < yigin_dibi; p++) aday(*p);
     bekleyenleri_isle();
 }
+#endif
 
 static void nesneyi_birak(Nesne *n) {
     if (n->tur == TUR_LISTE) {
@@ -258,14 +293,18 @@ static void supur(void) {
 }
 
 static SATIR_ICI_DEGIL void topla(void) {
+#ifdef __wasm__
+    toplama_gerekli = 0;
+#else
     jmp_buf yazmaclar; /* çağıranın yazmaçlarındaki işaretçiler buraya düşer */
     setjmp(yazmaclar);
+    (void)yazmaclar;
+#endif
     yigini_tara();
     supur();
     ayrilan_bayt = 0;
     esik = (!sabit_esik && canli_bayt * 2 > taban_esik) ? canli_bayt * 2 : taban_esik;
     toplama_sayisi++;
-    (void)yazmaclar;
 }
 
 static void hesapla(size_t n) {
@@ -281,7 +320,11 @@ static void buyume(void *yuk, size_t n) {
 }
 
 static void *gc_ayir(size_t boyut, uint8_t tur) {
+#ifdef __wasm__
+    if (ayrilan_bayt > esik) toplama_gerekli = 1;
+#else
     if (ayrilan_bayt > esik) topla();
+#endif
     Nesne *n = ham_ayir(BASLIK + boyut);
     n->tur = tur;
     n->isaretli = 0;
@@ -308,11 +351,14 @@ static int64_t metin_yap(const char *s, size_t n) {
 /* Giriş noktası                                                           */
 /* ====================================================================== */
 
+#ifndef __wasm__
 int ohc_ana(void);
+#endif
 
 static int arguman_sayisi;
 static char **argumanlar;
 
+#ifndef __wasm__
 static void argumanlari_kaydet(int argc, char **argv) {
 #ifdef _WIN32
     /* Windows'ta argv sistem kod sayfasındadır; UTF-8 için geniş karakterli
@@ -334,7 +380,60 @@ static void argumanlari_kaydet(int argc, char **argv) {
     arguman_sayisi = argc;
     argumanlar = argv;
 }
+#endif
 
+/* Çalıştırmaya hazırlık ve bitiş: yerel programda main, WebAssembly'de
+ * JavaScript yükleyicisi (orhunca.js) çağırır. */
+static void baslat(void) {
+    /* Test için: ORHUNCA_GC_ESIK=4096 toplayıcıyı çok sık çalıştırır. */
+    const char *e = getenv("ORHUNCA_GC_ESIK");
+    if (e && atol(e) > 0) {
+        taban_esik = esik = (size_t)atol(e);
+        sabit_esik = 1;
+    }
+    tabloyu_kur(0);
+}
+
+static void bitir(void) {
+    fflush(stdout);
+    if (getenv("ORHUNCA_BELLEK_RAPORU"))
+        fprintf(stderr, "bellek: %" PRIu64 " toplama, en yüksek canlı bellek %" PRIu64 " bayt\n",
+                (uint64_t)toplama_sayisi, (uint64_t)en_yuksek_canli);
+}
+
+#ifdef __wasm__
+#define DISA(ad) __attribute__((export_name(#ad)))
+
+DISA(ohc_wasm_baslat) void ohc_wasm_baslat(void) {
+    int n = js_arguman_sayisi();
+    argumanlar = ham_ayir(sizeof(char *) * (size_t)(n + 1));
+    for (int i = 0; i < n; i++) argumanlar[i] = js_arguman(i);
+    arguman_sayisi = n;
+    baslat();
+}
+
+DISA(ohc_wasm_bitir) void ohc_wasm_bitir(void) { bitir(); }
+
+/* Derleyicinin ürettiği programın kullandığı yardımcılar */
+DISA(ohc_wasm_ayir) int64_t ohc_wasm_ayir(int64_t bayt) { return D(ham_ayir((size_t)bayt)); }
+
+DISA(ohc_wasm_golge) int64_t ohc_wasm_golge(int64_t bayt) {
+    golge_taban = golge_tepe = ham_ayir((size_t)bayt);
+    memset(golge_taban, 0, (size_t)bayt);
+    return D(golge_taban);
+}
+
+DISA(ohc_wasm_bayrak) int64_t ohc_wasm_bayrak(void) { return D(&toplama_gerekli); }
+
+DISA(ohc_guvenli_nokta) void ohc_guvenli_nokta(int64_t tepe) {
+    golge_tepe = (int64_t *)(uintptr_t)tepe;
+    if (toplama_gerekli) topla();
+}
+
+DISA(ohc_yigin_tasti) void ohc_yigin_tasti(void) {
+    hata(0, "çok derin özyineleme: işlevler birbirini bitmeyecek kadar çok çağırıyor");
+}
+#else
 int main(int argc, char **argv) {
     volatile uintptr_t dip = 0;
     yigin_dibi = (uintptr_t *)&dip + 1;
@@ -343,20 +442,12 @@ int main(int argc, char **argv) {
     SetConsoleCP(CP_UTF8);
 #endif
     argumanlari_kaydet(argc, argv);
-    /* Test için: ORHUNCA_GC_ESIK=4096 toplayıcıyı çok sık çalıştırır. */
-    const char *e = getenv("ORHUNCA_GC_ESIK");
-    if (e && atol(e) > 0) {
-        taban_esik = esik = (size_t)atol(e);
-        sabit_esik = 1;
-    }
-    tabloyu_kur(0);
+    baslat();
     int kod = ohc_ana();
-    fflush(stdout);
-    if (getenv("ORHUNCA_BELLEK_RAPORU"))
-        fprintf(stderr, "bellek: %" PRIu64 " toplama, en yüksek canlı bellek %" PRIu64 " bayt\n",
-                (uint64_t)toplama_sayisi, (uint64_t)en_yuksek_canli);
+    bitir();
     return kod;
 }
+#endif
 
 void ohc_tasma(int64_t satir) {
     hata(satir, "tamsayı taşması: sonuç 64 bitlik sayı sınırını aştı (çok büyük değerler için ondalık kullanın)");
@@ -545,15 +636,32 @@ int64_t ohc_logaritma_taban(int64_t a, int64_t b, int64_t satir) {
     return bitlere(log(x) / log(t));
 }
 
+/* Taşma denetimli çarpma. 128 bitlik ara sonuç kullanmaz (wasm32'de bunun için
+ * derleyici kütüphanesi gerekirdi): mutlak değerler sınırla karşılaştırılır. */
+static int carp_tasar(int64_t a, int64_t b, int64_t *sonuc) {
+    uint64_t ma = a < 0 ? 0 - (uint64_t)a : (uint64_t)a;
+    uint64_t mb = b < 0 ? 0 - (uint64_t)b : (uint64_t)b;
+    uint64_t sinir = (a < 0) != (b < 0) ? (uint64_t)INT64_MAX + 1 : (uint64_t)INT64_MAX;
+    *sonuc = (int64_t)((uint64_t)a * (uint64_t)b);
+    return ma != 0 && mb > sinir / ma;
+}
+
+/* WebAssembly'de çarpma: derleyici küçük sayılarda doğrudan çarpar, büyüklerde bunu çağırır. */
+int64_t ohc_carp(int64_t a, int64_t b, int64_t satir) {
+    int64_t r;
+    if (carp_tasar(a, b, &r)) ohc_tasma(satir);
+    return r;
+}
+
 int64_t ohc_us_tam(int64_t a, int64_t b, int64_t satir) {
     if (b < 0) hata(satir, "tamsayılarda üs negatif olamaz; ondalık kullanın: üs(2.0, -1)");
     int64_t sonuc = 1, taban = a;
     while (b > 0) {
         if (b & 1) {
-            if (__builtin_mul_overflow(sonuc, taban, &sonuc)) ohc_tasma(satir);
+            if (carp_tasar(sonuc, taban, &sonuc)) ohc_tasma(satir);
         }
         b >>= 1;
-        if (b && __builtin_mul_overflow(taban, taban, &taban)) ohc_tasma(satir);
+        if (b && carp_tasar(taban, taban, &taban)) ohc_tasma(satir);
     }
     return sonuc;
 }
@@ -580,8 +688,12 @@ static uint64_t rng(void) {
         const char *t = getenv("ORHUNCA_TOHUM");
         uint64_t tohum = t ? (uint64_t)strtoull(t, NULL, 10) : 0;
         if (!tohum) {
+#ifdef __wasm__
+            tohum = (uint64_t)(js_zaman() * 1e6) ^ ((uint64_t)js_rastgele_tohum() << 20);
+#else
             volatile int yerel = 0;
             tohum = (uint64_t)time(NULL) ^ ((uint64_t)(uintptr_t)&yerel << 16) ^ (uint64_t)clock();
+#endif
         }
         rng_durum = tohum * 0x9E3779B97F4A7C15ull + 1;
         if (!rng_durum) rng_durum = 1;
@@ -594,11 +706,19 @@ static uint64_t rng(void) {
 
 int64_t ohc_rastgele(void) { return bitlere((double)(rng() >> 11) * (1.0 / 9007199254740992.0)); }
 
+/* 64 × 64 bitlik çarpımın üst 64 biti */
+static uint64_t ust_carpim(uint64_t a, uint64_t b) {
+    uint64_t a0 = (uint32_t)a, a1 = a >> 32, b0 = (uint32_t)b, b1 = b >> 32;
+    uint64_t p00 = a0 * b0, p01 = a0 * b1, p10 = a1 * b0, p11 = a1 * b1;
+    uint64_t orta = (p00 >> 32) + (uint32_t)p01 + (uint32_t)p10;
+    return p11 + (p01 >> 32) + (p10 >> 32) + (orta >> 32);
+}
+
 int64_t ohc_rastgele_aralik(int64_t a, int64_t b, int64_t satir) {
     if (a > b) hata(satir, "rastgele(a, b) için a, b'den büyük olamaz");
     uint64_t aralik = (uint64_t)b - (uint64_t)a + 1;
     if (aralik == 0) return (int64_t)rng();
-    return (int64_t)((uint64_t)a + (uint64_t)(((__uint128_t)rng() * aralik) >> 64));
+    return (int64_t)((uint64_t)a + ust_carpim(rng(), aralik));
 }
 
 /* ====================================================================== */
@@ -1324,7 +1444,9 @@ int64_t ohc_dosya_sil(int64_t yol) {
 /* ====================================================================== */
 
 int64_t ohc_zaman(void) {
-#ifdef _WIN32
+#if defined(__wasm__)
+    return bitlere(js_zaman());
+#elif defined(_WIN32)
     FILETIME ft;
     GetSystemTimeAsFileTime(&ft);
     uint64_t t = ((uint64_t)ft.dwHighDateTime << 32) | ft.dwLowDateTime; /* 1601'den beri 100 ns */
@@ -1337,6 +1459,11 @@ int64_t ohc_zaman(void) {
 }
 
 int64_t ohc_tarih(void) {
+#ifdef __wasm__
+    char t[32];
+    js_tarih(t);
+    return metin_yap(t, strlen(t));
+#else
     time_t simdi = time(NULL);
     struct tm yerel;
 #ifdef _WIN32
@@ -1347,13 +1474,16 @@ int64_t ohc_tarih(void) {
     char b[32];
     strftime(b, sizeof b, "%Y-%m-%d %H:%M:%S", &yerel);
     return metin_yap(b, strlen(b));
+#endif
 }
 
 void ohc_bekle(int64_t saniye) {
     double s = ondalik(saniye);
     if (!(s > 0)) return;
     fflush(stdout);
-#ifdef _WIN32
+#if defined(__wasm__)
+    js_bekle(s);
+#elif defined(_WIN32)
     Sleep((DWORD)(s * 1000.0));
 #else
     struct timespec ts;
@@ -2351,6 +2481,7 @@ int64_t ohc_url_kodla(int64_t m) {
     return t_metin(&t);
 }
 
+#ifndef __wasm__
 /* ====================================================================== */
 /* Web sunucusu                                                            */
 /* ====================================================================== */
@@ -2993,3 +3124,4 @@ void ohc_sun(int64_t kapi, int64_t istek_tanimi) {
         soket_kapat(s);
     }
 }
+#endif /* __wasm__ */

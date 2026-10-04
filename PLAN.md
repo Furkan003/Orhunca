@@ -14,7 +14,7 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 | 5 | Standart kütüphane ✅, paket yöneticisi ✅ (Git tabanlı, kilit dosyalı) | ✅ |
 | 6 | Modeller ✅, JSON veri deposu ✅, web sunucusu ✅, `.ohchtml` görünümleri ✅, Stüdyo web şablonları ve canlı önizleme ✅ | ✅ |
 | 7 | Orhunca Stüdyo: arayüz ✅ (tarayıcıda, `orhunca stüdyo`), Tauri masaüstü uygulaması ✅ (`masaustu/`) | ✅ |
-| 8 | WebAssembly, Türkçe arayüz dili, self-hosting | ⏳ |
+| 8 | WebAssembly ✅ (`--hedef web`), Türkçe arayüz dili ⏳, self-hosting ⏳ | ⏳ |
 
 ## v0.2'de eklenenler
 
@@ -57,6 +57,20 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
   adreste yenilenir), `.ohchtml`/CSS/JS renklendirme; `orhunca yeni <ad> --şablon <şablon>`.
 - Ek çözümleyicide ünlü düşmesi: `isim` → `ismi`, `metin` → `metni`.
 
+## Aşama 8a – WebAssembly
+
+- `--hedef web`: tek dosyalık HTML sayfası (iki wasm modülü base64 olarak gömülü); `-o x.wasm` ile ayrı
+  dosyalar; `çalıştır --hedef web` Node.js ile çalıştırır.
+- C çalışma zamanı aynı kaynaktan wasm32'ye derlenir (`#ifdef __wasm__`): sistem işleri küçük bir C
+  kütüphanesiyle (`runtime/wasm/libc.c`) JavaScript'e devredilir. `%g` biçimi JavaScript'te tam ondalık
+  açılımla (BigInt) yapılır; çıktılar glibc ile aynıdır. 128 bitlik çarpma kaldırıldı (wasm32'de
+  derleyici kütüphanesi gerekirdi); taşma denetimi her iki hedefte aynı taşınabilir kodla yapılır.
+- Çöp toplayıcı: yığıt taranamadığından gölge yığıt + güvenli noktalar. Derleyici, bir Orhunca işlevi
+  çağrılırken canlı kalan yönetilen ara değerleri gölge yığıta kaydeder (`tests/ara_degerler.ohc`
+  toplayıcı her ayırmada çalışırken bunu sınar).
+- Yapılmayanlar: web sunucusu (tarayıcıda anlamsız), programın ayrı bir iş parçacığında (Web Worker)
+  çalışması — şimdilik ana iş parçacığında, çıktı program bitince görünür.
+
 ## Henüz yapılmayanlar
 
 - **Çalışma zamanı C ile yazılı** (`runtime/orhunca_rt.c`). Bağlama zaten bir C araç zinciri
@@ -72,7 +86,7 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 
 ## Sıradaki adımlar (öneri sırası)
 
-1. **Aşama 8**: WebAssembly çıktısı, Türkçe arayüz dili, self-hosting.
+1. **Aşama 8**: Türkçe arayüz dili (WebAssembly + DOM), self-hosting ilk adımı.
 2. Windows'ta bağlayıcı gereksinimini kaldırmak (MinGW yerine hazır bağlayıcı ve çalışma zamanı).
 
 ## Çalışma şekli

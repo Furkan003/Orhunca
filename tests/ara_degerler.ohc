@@ -1,0 +1,52 @@
+# Bir Orhunca işlevi çağrılırken (çöp toplayıcı çalışabilir) yaşayan ara değerler
+işlev çöp(n) -> metin:
+    s = ""
+    her i için 1'den n'e kadar:
+        s = s + "x" + i
+        g = [s, s + "y"]
+    döndür "<" + uzunluk(s) + ">"
+
+işlev liste_ver(n) -> liste<metin>:
+    l = []
+    her i için 1'den n'e kadar:
+        ("e" + i)'yi l'ye ekle.
+    çöp(50)
+    döndür l
+
+işlev üçle(a: metin, b: metin, c: metin) -> metin:
+    döndür a + "|" + b + "|" + c
+
+model Kayıt:
+    ad: metin
+    notlar: liste<metin>
+
+a = "başlangıç-" + 42
+("ön" + metin(7)) + çöp(200)'ü yaz.
+[metin(1) + "a", çöp(100), metin(2) + "b", çöp(100)]'ı yaz.
+{"k" + 1: çöp(80), "k" + 2: "d" + çöp(80)}'yi yaz.
+üçle("x" + metin(3), çöp(150), "z" + metin(4))'ü yaz.
+k = Kayıt(ad: "ad-" + metin(9), notlar: [çöp(60), "n" + 1])
+k'yı yaz.
+liste_ver(5)[2 + uzunluk(çöp(70)) - 4]'ü yaz.
+eğer ("a" + metin(1)) < çöp(90) ise:
+    "küçük"'ü yaz.
+uzunluk(a + çöp(120))'yi yaz.
+üçle(üçle("1" + metin(1), çöp(30), "3"), üçle(çöp(40), "5" + metin(5), çöp(20)), "son")'u yaz.
+her e için liste_ver(4)'ten:
+    e + çöp(60)'ı yaz.
+her h için ("çğü" + metin(5))'ten:
+    h + çöp(10)'u yaz.
+sözlük = {"bir": liste_ver(2)}
+her anahtar için sözlükten:
+    anahtar + ": " + birleştir(sözlük[anahtar], ",") + çöp(25)'i yaz.
+liste = liste_ver(3)
+(metin(5) + "!")'i liste'ye ekle.
+liste'yi yaz.
+k.notlar = [çöp(30) + "!", "x" + çöp(30)]
+k.notlar'ı yaz.
+eğer (çöp(5) + "?") (çöp(5) + "?")'ya eşitse:
+    "eşit"'i yaz.
+toplam = 0
+her i için 1'den 300'e kadar:
+    toplam += uzunluk("a" + i + çöp(3))
+toplam'ı yaz.

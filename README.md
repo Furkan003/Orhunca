@@ -40,6 +40,7 @@ cargo build --release
 ./target/release/orhunca çalıştır örnekler/merhaba.ohc
 ./target/release/orhunca derle örnekler/asal.ohc               # → ./asal
 ./target/release/orhunca derle örnekler/asal.ohc --hedef windows  # → asal.exe
+./target/release/orhunca derle örnekler/asal.ohc --hedef web      # → asal.html (tarayıcıda açılır)
 ./target/release/orhunca denetle dosya.ohc                       # yalnızca hata denetimi
 ./target/release/orhunca yeni dükkan                             # yeni proje (.ohcproj)
 ./target/release/orhunca yeni dükkan --şablon tam_yigin          # web projesi (şablonlar: web_sitesi, web_api, ...)
@@ -47,6 +48,27 @@ cargo build --release
 ```
 
 Dosya verilmezse geçerli klasördeki `.ohcproj` dosyasının `giriş` dosyası kullanılır.
+
+## Tarayıcıda çalıştırma (WebAssembly)
+
+`--hedef web` programı WebAssembly'ye derler. Çıktı her şeyi içinde taşıyan tek bir HTML dosyasıdır:
+çift tıklayınca tarayıcıda açılır, program çalışır ve çıktısı sayfada görünür. `oku()` bir giriş
+penceresi açar (son yazılan satır soru olarak görünür); dosyalar ve model kayıtları tarayıcının yerel
+deposunda (localStorage) tutulur.
+
+```sh
+orhunca derle oyun.ohc --hedef web                 # → oyun.html
+orhunca derle oyun.ohc --hedef web -o oyun.wasm    # → oyun.wasm + orhunca_rt.wasm + orhunca.js
+node orhunca.js oyun.wasm                          # aynı modül Node.js'te
+orhunca çalıştır oyun.ohc --hedef web              # derler ve Node.js ile çalıştırır
+```
+
+- C derleyicisi gerekmez: çalışma zamanı önceden WebAssembly'ye derlenmiş olarak derleyicinin içindedir.
+- Çıktı yerel derlemeyle aynıdır (ondalık biçimleri, rastgele sayılar, hata mesajları dahil); bütün
+  örnekler iki yolla da test edilir.
+- Web sunucusu (`al "/"` yolları, `sun()`) tarayıcıda çalışmaz; böyle programlar yerel olarak derlenir.
+- Program tarayıcının ana iş parçacığında çalışır: çıktı program bitince görünür, `bekle()` sayfayı
+  bekletir.
 
 ## Orhunca Stüdyo
 
@@ -390,9 +412,19 @@ dosya.ohc
 [Ayrıştırıcı]             src/ayristirici.rs Türkçe cümle yapısı, hâl ekleri (src/ekler.rs)
 [Anlam ve tip denetimi]   src/denetci.rs    Türkçe hata mesajları
 [Kod üretici]             src/uretici.rs    Cranelift IR → nesne dosyası
+                          src/wasm_uretici.rs  ya da WebAssembly modülü (--hedef web)
    ↓
 [Bağlama]  nesne + runtime/orhunca_rt.c → Linux çalıştırılabilir dosyası / Windows .exe
+           wasm + runtime/wasm/orhunca_rt.wasm + orhunca.js → tek dosyalık HTML sayfası
 ```
+
+WebAssembly: program modülü, C çalışma zamanının wasm32 derlemesini (`runtime/wasm/orhunca_rt.wasm`;
+`araclar/wasm_calisma_zamani.sh` ile clang'la derlenir, küçük C kütüphanesi `runtime/wasm/libc.c`)
+içe aktarır: belleği ve `ohc_*` işlevlerini. `runtime/wasm/orhunca.js` iki modülü birleştirir ve
+çıktı, girdi, dosya ve zaman isteklerini tarayıcıda ya da Node.js'te karşılar; Wasm bağlayıcısı
+gerekmez. WebAssembly'de yığıt taranamadığı için derleyici metin, liste, sözlük ve model değerlerini
+bellekteki bir "gölge yığıtta" tutar (bir Orhunca işlevi çağrılırken yaşayan ara değerler dahil);
+toplayıcı yalnızca işlev girişlerinde ve döngü başlarında çalışır ve gölge yığıtı tarar.
 
 Görünümler: `src/sablon.rs` `.ohchtml` dosyalarını parçalara ayırır; ayrıştırıcı onları metin
 döndüren işlevlere çevirir. Web yolları da `istek` alıp `Yanıt` döndüren işlevlerdir; ana program
@@ -409,6 +441,7 @@ derleyicinin ürettiği koda ek bir şey gerekmez. Bir web isteğindeki çalış
 geri sarılır (`__builtin_setjmp`), sunucu durmaz.
 
 Testler: `cargo test` (birim testleri, `örnekler/` klasöründeki programları derleyip çalıştıran uçtan
-uca testler, gerçek HTTP istekleriyle web çatısı testi `tests/web.rs`, Stüdyo testleri).
+uca testler, gerçek HTTP istekleriyle web çatısı testi `tests/web.rs`, Stüdyo testleri, örnekleri
+WebAssembly'ye derleyip Node.js ile çalıştıran `tests/wasm.rs`).
 
 Yol haritası ve kararlar için: [PLAN.md](PLAN.md), sohbet özeti: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).

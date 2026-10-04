@@ -21,7 +21,7 @@ use target_lexicon::Triple;
 const I64: types::Type = types::I64;
 
 /// Çalışma zamanı işlevleri: ad, parametre sayısı, değer döndürür mü.
-const CALISMA_ZAMANI: &[(&str, usize, bool)] = &[
+pub(crate) const CALISMA_ZAMANI: &[(&str, usize, bool)] = &[
     ("ohc_yaz", 2, false),
     ("ohc_bol", 3, true),
     ("ohc_mod", 3, true),
@@ -115,7 +115,7 @@ const CALISMA_ZAMANI: &[(&str, usize, bool)] = &[
 ];
 
 /// Model nesnesinde ilk alanın (kimlik) yuvası: 0 tanım, 1 bağlama hataları.
-const ILK_ALAN: i64 = 2;
+pub(crate) const ILK_ALAN: i64 = 2;
 
 pub fn isa_kur(triple: Triple) -> Result<OwnedTargetIsa, String> {
     let mut ayarlar = settings::builder();

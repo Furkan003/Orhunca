@@ -8,8 +8,8 @@ const YARDIM: &str = "\
 Orhunca — Türkçe tabanlı programlama dili
 
 Kullanım:
-  orhunca derle [dosya.ohc] [-o çıktı] [--hedef linux|windows|<üçlü>]
-  orhunca çalıştır [dosya.ohc] [-- programın argümanları]
+  orhunca derle [dosya.ohc] [-o çıktı] [--hedef linux|windows|web|<üçlü>]
+  orhunca çalıştır [dosya.ohc] [--hedef web] [-- programın argümanları]
   orhunca denetle [dosya.ohc]
   orhunca biçimlendir [dosya.ohc ...] [--denetle]
   orhunca dil-sunucusu        (düzenleyiciler için LSP, stdin/stdout)
@@ -19,7 +19,9 @@ Kullanım:
   orhunca sürüm
 
 Dosya verilmezse geçerli klasördeki .ohcproj dosyasının giriş dosyası kullanılır.
-Bağlayıcıyı değiştirmek için ORHUNCA_CC ortam değişkenini kullanın.";
+Bağlayıcıyı değiştirmek için ORHUNCA_CC ortam değişkenini kullanın.
+--hedef web: WebAssembly; tarayıcıda açılan tek bir .html dosyası (-o x.wasm: ayrı
+dosyalar). 'çalıştır --hedef web' programı Node.js ile çalıştırır.";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -140,6 +142,9 @@ fn derle_komutu(args: &[String]) -> Result<(), String> {
 
 fn calistir_komutu(args: &[String]) -> Result<ExitCode, String> {
     let mut s = secenekleri_oku(args)?;
+    if derleme::web_hedefi_mi(s.hedef.as_deref()) {
+        return web_calistir(&s);
+    }
     if s.hedef.is_some() {
         return Err(
             "'çalıştır' yalnızca bu bilgisayar için derler; --hedef ile 'derle' kullanın".into(),
@@ -157,6 +162,32 @@ fn calistir_komutu(args: &[String]) -> Result<ExitCode, String> {
         .status()
         .map_err(|e| format!("program çalıştırılamadı: {e}"))?;
     let _ = std::fs::remove_dir_all(&gecici);
+    Ok(ExitCode::from(durum.code().unwrap_or(1).clamp(0, 255) as u8))
+}
+
+/// WebAssembly'ye derler ve Node.js ile çalıştırır (tarayıcıdaki ile aynı kod).
+fn web_calistir(s: &Secenekler) -> Result<ExitCode, String> {
+    let wasm = derleme::wasm_uret(&s.dosya).map_err(|h| h.metin)?;
+    let gecici = derleme::gecici_klasor("web")?;
+    let yaz = |ad: &str, veri: &[u8]| {
+        std::fs::write(gecici.join(ad), veri).map_err(|e| format!("'{ad}' yazılamadı: {e}"))
+    };
+    yaz("program.wasm", &wasm)?;
+    yaz("orhunca_rt.wasm", derleme::WASM_CALISMA_ZAMANI)?;
+    yaz("orhunca.js", derleme::WASM_YUKLEYICI.as_bytes())?;
+    let node = std::env::var("ORHUNCA_NODE").unwrap_or_else(|_| "node".into());
+    let durum = Command::new(&node)
+        .arg(gecici.join("orhunca.js"))
+        .arg(gecici.join("program.wasm"))
+        .args(&s.program_argumanlari)
+        .status();
+    let _ = std::fs::remove_dir_all(&gecici);
+    let durum = durum.map_err(|e| {
+        format!(
+            "Node.js ('{node}') çalıştırılamadı: {e}\nipucu: Node.js kurun ya da tarayıcıda açılacak bir sayfa üretin: orhunca derle {} --hedef web",
+            s.dosya.display()
+        )
+    })?;
     Ok(ExitCode::from(durum.code().unwrap_or(1).clamp(0, 255) as u8))
 }
 

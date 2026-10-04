@@ -1,7 +1,7 @@
 //! Derleme hattı: dosyaları yükleme, denetleme, makine kodu üretme ve bağlama.
 //! Komut aracı ve Orhunca Stüdyo bu modülü ortak kullanır.
 
-use crate::{agac, ayristirici, denetci, hata, sablon, sozcuk, uretici};
+use crate::{agac, ayristirici, denetci, hata, sablon, sozcuk, uretici, wasm_uretici};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -10,6 +10,12 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use target_lexicon::Triple;
 
 const CALISMA_ZAMANI_KAYNAGI: &str = include_str!("../runtime/orhunca_rt.c");
+
+/// WebAssembly: C çalışma zamanının wasm32 derlemesi (araclar/wasm_calisma_zamani.sh),
+/// iki modülü birleştiren yükleyici ve tarayıcı sayfası.
+pub const WASM_CALISMA_ZAMANI: &[u8] = include_bytes!("../runtime/wasm/orhunca_rt.wasm");
+pub const WASM_YUKLEYICI: &str = include_str!("../runtime/wasm/orhunca.js");
+const WASM_SAYFASI: &str = include_str!("../runtime/wasm/sayfa.html");
 
 /// Derleme sırasında oluşan hata: biçimlenmiş metin ve (varsa) konum bilgisi.
 #[derive(Debug, Clone)]
@@ -242,6 +248,9 @@ pub fn gecici_klasor(ad: &str) -> Result<PathBuf, String> {
 
 /// `dosya`yı `cikti` adlı çalıştırılabilir dosyaya derler.
 pub fn derle(dosya: &Path, cikti: &Path, hedef: Option<&str>) -> Result<(), DerlemeHatasi> {
+    if web_hedefi_mi(hedef) {
+        return derle_web(dosya, cikti);
+    }
     let program = yukle(dosya)?;
     let triple = hedef_uclusu(hedef)?;
     let windows = triple.operating_system == target_lexicon::OperatingSystem::Windows;
@@ -289,17 +298,92 @@ pub fn derle(dosya: &Path, cikti: &Path, hedef: Option<&str>) -> Result<(), Derl
     Ok(())
 }
 
-/// Çıktı adı verilmediğinde: `ana.ohc` → `ana` (Windows'ta `ana.exe`).
+/// Çıktı adı verilmediğinde: `ana.ohc` → `ana` (Windows'ta `ana.exe`, web için `ana.html`).
 pub fn varsayilan_cikti(dosya: &Path, hedef: Option<&str>) -> PathBuf {
     let kok = dosya
         .file_stem()
         .map(|k| k.to_os_string())
         .unwrap_or_else(|| "program".into());
     let mut c = PathBuf::from(kok);
-    if windows_mu(hedef) {
+    if web_hedefi_mi(hedef) {
+        c.set_extension("html");
+    } else if windows_mu(hedef) {
         c.set_extension("exe");
     }
     c
+}
+
+/// `--hedef web` (ya da `wasm`): WebAssembly'ye derlenir.
+pub fn web_hedefi_mi(hedef: Option<&str>) -> bool {
+    matches!(hedef, Some("web" | "wasm"))
+}
+
+/// Programı WebAssembly program modülüne derler.
+pub fn wasm_uret(dosya: &Path) -> Result<Vec<u8>, DerlemeHatasi> {
+    let program = yukle(dosya)?;
+    Ok(wasm_uretici::uret(&program)
+        .map_err(|e| format!("WebAssembly kod üretimi başarısız: {e}"))?)
+}
+
+/// WebAssembly'ye derler. Çıktı `.wasm` ise program modülünün yanına
+/// `orhunca_rt.wasm` ve `orhunca.js` yazılır; değilse her şeyi içinde taşıyan,
+/// tarayıcıda doğrudan açılan tek bir HTML sayfası.
+pub fn derle_web(dosya: &Path, cikti: &Path) -> Result<(), DerlemeHatasi> {
+    let wasm = wasm_uret(dosya)?;
+    let yaz = |yol: &Path, veri: &[u8]| {
+        std::fs::write(yol, veri).map_err(|e| format!("'{}' yazılamadı: {e}", yol.display()))
+    };
+    if cikti.extension().is_some_and(|u| u == "wasm") {
+        let klasor = cikti
+            .parent()
+            .filter(|k| !k.as_os_str().is_empty())
+            .unwrap_or(Path::new("."));
+        yaz(cikti, &wasm)?;
+        yaz(&klasor.join("orhunca_rt.wasm"), WASM_CALISMA_ZAMANI)?;
+        yaz(&klasor.join("orhunca.js"), WASM_YUKLEYICI.as_bytes())?;
+        return Ok(());
+    }
+    let baslik = dosya
+        .file_stem()
+        .map(|k| k.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "program".into());
+    yaz(cikti, web_sayfasi(&baslik, &wasm).as_bytes())?;
+    Ok(())
+}
+
+/// Programı ve çalışma zamanını (base64) içeren tarayıcı sayfası.
+pub fn web_sayfasi(baslik: &str, wasm: &[u8]) -> String {
+    let baslik = baslik
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;");
+    WASM_SAYFASI
+        .replace("__BASLIK__", &baslik)
+        .replace("__YUKLEYICI__", WASM_YUKLEYICI)
+        .replace("__CALISMA_ZAMANI__", &base64(WASM_CALISMA_ZAMANI))
+        .replace("__PROGRAM__", &base64(wasm))
+}
+
+fn base64(veri: &[u8]) -> String {
+    const ABECE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut s = String::with_capacity(veri.len().div_ceil(3) * 4);
+    for parca in veri.chunks(3) {
+        let b = [
+            parca[0],
+            *parca.get(1).unwrap_or(&0),
+            *parca.get(2).unwrap_or(&0),
+        ];
+        let n = (b[0] as u32) << 16 | (b[1] as u32) << 8 | b[2] as u32;
+        for i in 0..4 {
+            if i <= parca.len() {
+                s.push(ABECE[(n >> (18 - 6 * i) & 63) as usize] as char);
+            } else {
+                s.push('=');
+            }
+        }
+    }
+    s
 }
 
 /// Bir proje klasöründeki `.ohcproj` dosyasını bulur.
