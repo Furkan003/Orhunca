@@ -66,8 +66,9 @@ jobs:
               echo "ÇALIŞMADI: $f"; hata=1; continue
             fi
             tr -d '\r' < "$d/çıktı.txt" > "$d/düz.txt"
-            if ! diff -q "$d/düz.txt" "$b" > /dev/null; then
-              echo "FARK: $f"; diff "$d/düz.txt" "$b" | head -20; hata=1
+            tr -d '\r' < "$b" > "$d/beklenen.txt"
+            if ! diff -q "$d/düz.txt" "$d/beklenen.txt" > /dev/null; then
+              echo "FARK: $f"; diff "$d/düz.txt" "$d/beklenen.txt" | head -20 || true; hata=1
             fi
           done
           exit $hata
