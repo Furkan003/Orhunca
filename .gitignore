@@ -1,3 +1,5 @@
 target/
 *.o
 /derleme/
+_site/
+web/oyun/target/

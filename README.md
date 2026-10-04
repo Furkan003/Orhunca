@@ -1,21 +1,60 @@
-# Orhunca
+<p align="center">
+  <a href="https://furkan003.github.io/Orhunca/"><img src="docs/marka/logo-yatay.svg" alt="Orhunca" height="72"></a>
+</p>
 
-Türkçe tabanlı, derlenen bir programlama dili. Hâl ekleri parametrenin rolünü belirler,
-fiil sona gelir; derleyici Rust ile yazılmıştır ve **Cranelift** ile doğrudan makine kodu
-üretir (zincirde C++ yok).
+<h3 align="center">Türkçe düşün, Türkçe kodla.</h3>
 
+<p align="center">
+  Türkçenin hâl ekleriyle yazılan, derlenen bir programlama dili ve okullar için ücretsiz geliştirme ortamı.
+</p>
+
+<p align="center">
+  <a href="https://furkan003.github.io/Orhunca/#indir"><b>İndir</b></a> ·
+  <a href="https://furkan003.github.io/Orhunca/dene.html"><b>Tarayıcıda dene</b></a> ·
+  <a href="https://furkan003.github.io/Orhunca/dersler/"><b>Dersler</b></a> ·
+  <a href="https://github.com/Furkan003/Orhunca/releases">Sürümler</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Furkan003/Orhunca/actions/workflows/ci.yml"><img src="https://github.com/Furkan003/Orhunca/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/Furkan003/Orhunca/releases/latest"><img src="https://img.shields.io/github/v/release/Furkan003/Orhunca?label=s%C3%BCr%C3%BCm&color=45d3c9" alt="Sürüm"></a>
+  <img src="https://img.shields.io/badge/Windows%20%C2%B7%20Linux%20%C2%B7%20Pardus%20%C2%B7%20macOS-0f1216" alt="Windows · Linux · Pardus · macOS">
+</p>
+
+<p align="center">
+  <img src="docs/ekran/duzenleyici.png" alt="Orhunca Stüdyo" width="860">
+</p>
+
+```orhunca
+fiil (kişi: metin)'yi selamla:
+    ("Merhaba, " + kişi + "!")'yı yaz.
+
+"Ayşe"'yi selamla.
+
+notlar = [85, 92, 78, 64, 99]
+her n için notlar'dan:
+    eğer n 90'dan büyükse:
+        n'yi yaz.
 ```
-sayılar = [3, 8, 1]
-5'i sayılara ekle.
-sayılar'ı sırala.
-her sayı için sayılardan:
-    eğer sayı 4'ten büyükse:
-        sayı'yı ekrana yaz.
-```
+
+Hâl ekleri parametrenin rolünü belirler, fiil sona gelir. Derleyici Rust ile yazılmıştır ve
+**Cranelift** ile doğrudan makine kodu üretir; programlar tek dosyalık çalıştırılabilir dosyaya,
+tarayıcı için WebAssembly'ye ya da kendi penceresinde açılan masaüstü uygulamasına derlenir.
+
+## İndir
+
+| Sistem | Orhunca Stüdyo (önerilen) | Yalnızca `orhunca` komutu |
+|---|---|---|
+| **Windows 10/11** | [Kurulum (.exe)](https://github.com/Furkan003/Orhunca/releases/latest/download/Orhunca-Studyo-Windows-Kurulum.exe) · [MSI (okul/kurumsal)](https://github.com/Furkan003/Orhunca/releases/latest/download/Orhunca-Studyo-Windows.msi) | [.zip](https://github.com/Furkan003/Orhunca/releases/latest/download/orhunca-windows-x86_64.zip) · `irm https://furkan003.github.io/Orhunca/kur.ps1 \| iex` |
+| **Pardus, Ubuntu, Debian** | [.deb](https://github.com/Furkan003/Orhunca/releases/latest/download/orhunca-studyo_amd64.deb) · [AppImage](https://github.com/Furkan003/Orhunca/releases/latest/download/Orhunca-Studyo-Linux.AppImage) · [.rpm](https://github.com/Furkan003/Orhunca/releases/latest/download/orhunca-studyo.x86_64.rpm) | [.tar.gz](https://github.com/Furkan003/Orhunca/releases/latest/download/orhunca-linux-x86_64.tar.gz) · `curl -fsSL https://furkan003.github.io/Orhunca/kur.sh \| sh` |
+| **macOS 10.15+** | [.dmg](https://github.com/Furkan003/Orhunca/releases/latest/download/Orhunca-Studyo-macOS.dmg) (Apple işlemcili ve Intel) | [.tar.gz](https://github.com/Furkan003/Orhunca/releases/latest/download/orhunca-macos.tar.gz) |
+
+Stüdyo kurulumları `orhunca` komutunu da kurar. Kurulum yapmadan denemek için:
+**[tarayıcıda dene](https://furkan003.github.io/Orhunca/dene.html)**.
 
 Web uygulamaları da aynı dille yazılır (modeller, yollar, `.ohchtml` görünümleri):
 
-```
+```orhunca
 model Ürün:
     ad: metin, zorunlu, en_fazla 80
     fiyat: ondalık, en_az 0
@@ -31,7 +70,7 @@ gönder "/ürünler":
     döndür yönlendir("/ürünler")
 ```
 
-## Kurulum ve kullanım
+## Kaynaktan derleme ve kullanım
 
 Gerekenler: yalnızca Rust (cargo). Programları derlemek için C derleyicisi ya da bağlayıcı
 gerekmez: Linux ve Windows (x86-64) için çalışma zamanı derleyicinin içine gömülüdür, Windows `.exe`

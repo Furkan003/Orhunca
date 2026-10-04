@@ -1,0 +1,23 @@
+[package]
+name = "orhunca-oyun"
+version = "0.6.0"
+edition = "2021"
+description = "Tarayıcıda Orhunca: derleyicinin WebAssembly biçimi (deneme sayfası)"
+publish = false
+
+# Ana çalışma alanının parçası değildir; araclar/site.sh ile derlenir.
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+orhunca = { path = "../.." }
+serde_json = "1"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

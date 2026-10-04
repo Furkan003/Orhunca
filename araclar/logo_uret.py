@@ -29,14 +29,16 @@ def yazitipi(ad, kalinlik=None):
 
 
 def yol(font, metin, boyut, x, taban, aralik=0.0):
-    """Metni (x, taban çizgisi) noktasından başlayan SVG yoluna çevirir; genişliği döndürür."""
-    upm = font["head"].unitsPerEm
-    olcek = boyut / upm
-    cmap = font.getBestCmap()
-    glifler = font.getGlyphSet()
+    """Metni (x, taban çizgisi) noktasından başlayan SVG yoluna çevirir; genişliği döndürür.
+    `font` bir liste olabilir: harf ilkinde yoksa sonrakilerde aranır (Latin + Latin-ext)."""
+    fontlar = font if isinstance(font, list) else [font]
     parcalar = []
     for c in metin:
-        ad = cmap[ord(c)]
+        font = next(f for f in fontlar if ord(c) in f.getBestCmap())
+        upm = font["head"].unitsPerEm
+        olcek = boyut / upm
+        glifler = font.getGlyphSet()
+        ad = font.getBestCmap()[ord(c)]
         kalem = SVGPathPen(glifler)
         glifler[ad].draw(TransformPen(kalem, (olcek, 0, 0, -olcek, x, taban)))
         parcalar.append(kalem.getCommands())
@@ -133,3 +135,36 @@ for ad, (zk, yk, yr) in {
 # Simge (1024): kenarlarda boşluklu, macOS/Windows simge ızgarasına uygun
 yaz("simge.svg", karo(TURKUAZ, KOYU, 100, 100, 824), 1024, 1024)
 print("docs/marka/ güncellendi")
+
+# Paylaşım görseli (1200×630): sosyal ağlarda bağlantı önizlemesi
+plex4 = [
+    yazitipi("ibm-plex-sans-400-latin-1.woff2", 400),
+    yazitipi("ibm-plex-sans-400-latin-ext-0.woff2", 400),
+]
+ust, alt = kutu(plex, "orhunca", 120)
+p_ad, ad_son = yol(plex, "orhunca", 120, 0, 0, -0.025)
+gen = 210 + 40 + ad_son
+x0 = (1200 - gen) / 2
+p_ad, _ = yol(plex, "orhunca", 120, x0 + 250, 300 - (ust + alt) / 2, -0.025)
+alt_yazi = "Türkçe düşün, Türkçe kodla."
+_, ay_gen = yol(plex4, alt_yazi, 44, 0, 0)
+p_alt, _ = yol(plex4, alt_yazi, 44, (1200 - ay_gen) / 2, 470)
+alt2 = "Okullar için ücretsiz programlama dili ve geliştirme ortamı"
+_, a2 = yol(plex4, alt2, 26, 0, 0)
+p_alt2, _ = yol(plex4, alt2, 26, (1200 - a2) / 2, 530)
+izgara = "".join(
+    f'<path d="M{x} 0V630" stroke="#1a1f26"/>' for x in range(0, 1201, 80)
+) + "".join(f'<path d="M0 {y}H1200" stroke="#1a1f26"/>' for y in range(0, 631, 80))
+yaz(
+    "paylasim.svg",
+    '<defs><radialGradient id="i" cx="50%" cy="45%" r="55%"><stop offset="0" stop-color="#45d3c9" stop-opacity=".18"/>'
+    '<stop offset="1" stop-color="#45d3c9" stop-opacity="0"/></radialGradient>'
+    '<radialGradient id="m" cx="50%" cy="45%" r="60%"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>'
+    '<mask id="mm"><rect width="1200" height="630" fill="url(#m)"/></mask></defs>'
+    '<rect width="1200" height="630" fill="#0a0c0f"/>'
+    f'<g mask="url(#mm)">{izgara}</g><rect width="1200" height="630" fill="url(#i)"/>'
+    + karo(TURKUAZ, KOYU, x0, 195, 210)
+    + f'<path fill="#eef0f3" d="{p_ad}"/><path fill="#c3c9d2" d="{p_alt}"/><path fill="#8b94a3" d="{p_alt2}"/>',
+    1200,
+    630,
+)

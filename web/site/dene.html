@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tarayıcıda dene — Orhunca</title>
+<meta name="description" content="Orhunca'yı kurulum yapmadan tarayıcıda deneyin: yazın, çalıştırın, paylaşın.">
+<meta name="theme-color" content="#0a0c0f">
+<link rel="icon" href="marka/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="yazitipleri/yazitipleri.css">
+<link rel="stylesheet" href="stil.css">
+<style>
+  html, body { height: 100%; }
+  body { display: flex; flex-direction: column; overflow: hidden; }
+  .arac { display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 16px; border-bottom: 1px solid var(--kenar2); background: var(--arka); flex-shrink: 0; }
+  .arac .marka { font-size: 17px; }
+  .arac .marka img { width: 28px; height: 28px; }
+  .arac .ayrac { width: 1px; height: 24px; background: var(--kenar2); margin: 0 4px; }
+  .arac .baslik-yazi { color: var(--soluk); font-size: 14px; white-space: nowrap; }
+  .arac .bosluk { flex: 1; }
+  .arac select, .arac .dugme { height: 36px; padding: 0 14px; font-size: 14px; border-radius: 8px; }
+  .arac select { background: var(--pano); color: var(--yazi); border: 1px solid var(--kenar); font: 14px var(--sans); max-width: 220px; }
+  .arac .dugme svg { width: 16px; height: 16px; }
+  .kbd { font: 11px var(--mono); opacity: 0.7; margin-left: 2px; }
+  .ana { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
+  .duzenleyici { position: relative; min-height: 0; overflow: auto; background: var(--arka2); border-right: 1px solid var(--kenar2); }
+  .kod-ic { font-variant-ligatures: none; font-feature-settings: 'calt' 0, 'liga' 0; position: relative; min-height: 100%; width: max-content; min-width: 100%; padding: 14px 0 40px; font: 14.5px/22px var(--mono); }
+  .numaralar { position: absolute; left: 0; top: 14px; width: 52px; text-align: right; padding-right: 14px; color: var(--soluk2); user-select: none; }
+  .numaralar div { height: 22px; }
+  .numaralar div.hatali { color: var(--hata); }
+  .numaralar div.hatali::after { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 3px; background: var(--hata); margin-left: 6px; vertical-align: middle; }
+  .hata-satiri { position: absolute; left: 0; right: 0; height: 22px; background: color-mix(in oklab, var(--hata) 10%, transparent); pointer-events: none; }
+  .vurgu-kat { margin: 0 0 0 52px; padding: 0 24px 0 14px; font: inherit; white-space: pre; color: var(--yazi); pointer-events: none; min-height: 22px; tab-size: 4; }
+  textarea.kod { position: absolute; top: 14px; left: 52px; margin: 0; padding: 0 24px 0 14px; border: 0; outline: none; resize: none; overflow: hidden; background: transparent; color: transparent; caret-color: var(--yazi); font: inherit; line-height: 22px; white-space: pre; tab-size: 4; z-index: 2; }
+  textarea.kod::selection { background: oklch(0.79 0.12 188 / 0.28); color: transparent; }
+  .sag { display: flex; flex-direction: column; min-height: 0; background: var(--arka); }
+  .sekmeler-ust { display: flex; align-items: center; gap: 4px; height: 42px; padding: 0 12px; border-bottom: 1px solid var(--kenar2); flex-shrink: 0; }
+  .sekmeler-ust button { background: none; border: 0; color: var(--soluk); font: 500 13.5px var(--sans); padding: 7px 12px; border-radius: 7px; cursor: pointer; }
+  .sekmeler-ust button[aria-selected="true"] { color: var(--yazi); background: var(--pano); }
+  .sekmeler-ust .bilgi { margin-left: auto; color: var(--soluk2); font: 12px var(--mono); }
+  .panel { flex: 1; min-height: 0; overflow: auto; }
+  pre.cikti { margin: 0; padding: 16px 18px; font: 14px/1.6 var(--mono); white-space: pre-wrap; word-break: break-word; color: var(--yazi); }
+  pre.cikti .hata { color: var(--hata); }
+  pre.cikti .bilgi { color: var(--soluk2); }
+  pre.cikti .tamam { color: var(--vurgu); }
+  iframe.uygulama { width: 100%; height: 100%; border: 0; background: #fff; display: block; }
+  .girdi-kutu { border-top: 1px solid var(--kenar2); padding: 10px 14px 12px; flex-shrink: 0; }
+  .girdi-kutu label { display: block; font-size: 12.5px; color: var(--soluk); margin-bottom: 6px; }
+  .girdi-kutu textarea { width: 100%; height: 64px; resize: vertical; background: var(--arka2); color: var(--yazi); border: 1px solid var(--kenar2); border-radius: 8px; padding: 8px 10px; font: 13px/1.5 var(--mono); }
+  .bos-durum { padding: 28px 22px; color: var(--soluk); font-size: 14px; }
+  .bos-durum kbd { background: var(--pano); border: 1px solid var(--kenar); border-radius: 4px; padding: 1px 6px; font-size: 12px; }
+  .bildirim { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--pano); border: 1px solid var(--kenar); color: var(--yazi); padding: 10px 16px; border-radius: 10px; font-size: 14px; box-shadow: var(--golge); z-index: 50; }
+  @media (max-width: 860px) {
+    body { overflow: auto; height: auto; }
+    .ana { grid-template-columns: 1fr; }
+    .duzenleyici { height: 52vh; border-right: 0; border-bottom: 1px solid var(--kenar2); }
+    .sag { min-height: 60vh; }
+    .arac .baslik-yazi, .arac .ayrac, .arac .kbd { display: none; }
+    .arac { flex-wrap: wrap; height: auto; padding: 10px 12px; }
+  }
+</style>
+</head>
+<body>
+<header class="arac">
+  <a class="marka" href="./"><img src="marka/logo.svg" alt="">orhunca</a>
+  <span class="ayrac"></span>
+  <span class="baslik-yazi">Tarayıcıda dene</span>
+  <span class="bosluk"></span>
+  <label class="gorunmez" for="ornekler">Örnek</label>
+  <select id="ornekler" aria-label="Örnek seç"><option value="">Örnek seç…</option></select>
+  <button class="dugme" id="paylas" title="Kodu içeren bir bağlantı kopyalar">Paylaş</button>
+  <button class="dugme" id="durdur" hidden><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>Durdur</button>
+  <button class="dugme birincil" id="calistir"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4l12 8-12 8V4z"/></svg>Çalıştır <span class="kbd">Ctrl+Enter</span></button>
+</header>
+<main class="ana">
+  <div class="duzenleyici" id="duzenleyici">
+    <div class="kod-ic" id="kodIc">
+      <div id="hataKat"></div>
+      <div class="numaralar" id="numaralar" aria-hidden="true"></div>
+      <pre class="vurgu-kat" id="vurguKat" aria-hidden="true"></pre>
+      <textarea class="kod" id="kod" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off" aria-label="Orhunca kodu"></textarea>
+    </div>
+  </div>
+  <section class="sag" aria-label="Sonuç">
+    <div class="sekmeler-ust" role="tablist">
+      <button role="tab" id="sekmeCikti" aria-selected="true">Çıktı</button>
+      <button role="tab" id="sekmeUygulama" aria-selected="false" hidden>Uygulama</button>
+      <span class="bilgi" id="bilgi"></span>
+    </div>
+    <div class="panel" id="panelCikti"><pre class="cikti" id="cikti" aria-live="polite"><div class="bos-durum">Kodu yazın ve <kbd>Ctrl</kbd> + <kbd>Enter</kbd> ile (ya da <b>Çalıştır</b> düğmesiyle) çalıştırın.<br><br>Program bilgisayarınızda, tarayıcının içinde derlenir ve çalışır; hiçbir şey sunucuya gönderilmez.</div></pre></div>
+    <div class="panel" id="panelUygulama" hidden></div>
+    <div class="girdi-kutu">
+      <label for="girdi">Program girdisi — <code>oku()</code> her çağrıldığında bir satır alır</label>
+      <textarea id="girdi" spellcheck="false" placeholder="ör. Ayşe&#10;17"></textarea>
+    </div>
+  </section>
+</main>
+<script src="vurgula.js"></script>
+<script src="dene.js"></script>
+</body>
+</html>

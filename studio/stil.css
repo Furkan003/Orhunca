@@ -370,7 +370,7 @@ h1, h2 { margin: 0; }
 .sekme:hover .kirli::after { content: 'close'; font-family: 'Material Symbols Rounded'; font-size: 15px; color: var(--soluk4); }
 .kirinti { height: 28px; flex-shrink: 0; display: flex; align-items: center; padding: 0 16px; font-size: 12px; color: var(--soluk3); background: var(--pencere); white-space: nowrap; overflow: hidden; }
 .kod-kap { flex: 1; min-height: 0; overflow: auto; background: var(--pencere); position: relative; }
-.kod-ic { position: relative; min-width: 100%; width: max-content; padding: 4px 0 16px; font-family: var(--mono); font-size: var(--kod-boyut); line-height: 21px; }
+.kod-ic { font-variant-ligatures: none; font-feature-settings: 'calt' 0, 'liga' 0; position: relative; min-width: 100%; width: max-content; padding: 4px 0 16px; font-family: var(--mono); font-size: var(--kod-boyut); line-height: 21px; }
 .satir-nolari { position: absolute; left: 0; top: 4px; width: 56px; user-select: none; }
 .satir-nolari div { height: 21px; text-align: right; padding-right: 20px; color: var(--cok-soluk); }
 .satir-nolari div.etkin { color: var(--yazi2); }
