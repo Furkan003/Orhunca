@@ -252,6 +252,32 @@ pub enum Deyim {
     },
 }
 
+impl Deyim {
+    /// Deyimin kaynaktaki yeri (hata ayıklayıcının durduğu satır).
+    pub fn konum(&self) -> Option<crate::hata::Konum> {
+        Some(match self {
+            Deyim::Atama { konum, .. }
+            | Deyim::AlanAtama { konum, .. }
+            | Deyim::HerAralik { konum, .. }
+            | Deyim::HerListe { konum, .. }
+            | Deyim::Dene { konum, .. }
+            | Deyim::Dondur(_, konum)
+            | Deyim::Dur(konum)
+            | Deyim::Surdur(konum) => *konum,
+            Deyim::IndeksAtama { liste: e, .. }
+            | Deyim::Yaz(e)
+            | Deyim::Ekle { oge: e, .. }
+            | Deyim::Cikar { oge: e, .. }
+            | Deyim::DosyayaYaz { deger: e, .. }
+            | Deyim::Sirala(e)
+            | Deyim::Eger { kosul: e, .. }
+            | Deyim::Surece { kosul: e, .. }
+            | Deyim::IfadeDeyimi(e) => e.konum,
+            Deyim::Oge(_) => return None,
+        })
+    }
+}
+
 /// Bir gövdede adı geçen değişkenler (okunan, yazılan, döngü ve hata
 /// değişkenleri); iç içe bloklar dahil, ilk geçiş sırasıyla.
 pub fn gecen_adlar(govde: &[Deyim]) -> Vec<String> {
@@ -674,6 +700,8 @@ pub struct Program {
     pub durumlar: Vec<Durum>,
     pub ana: Vec<Deyim>,
     pub ana_yereller: Vec<(String, Tip)>,
+    /// Derlemedeki kaynak dosyaların yolları (`Konum::dosya` sırasıyla).
+    pub dosyalar: Vec<String>,
 }
 
 impl Program {

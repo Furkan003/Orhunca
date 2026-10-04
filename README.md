@@ -44,6 +44,7 @@ cargo build --release
 ./target/release/orhunca derle örnekler/asal.ohc               # → ./asal
 ./target/release/orhunca derle örnekler/asal.ohc --hedef windows  # → asal.exe
 ./target/release/orhunca derle örnekler/asal.ohc --hedef web      # → asal.html (tarayıcıda açılır)
+./target/release/orhunca paketle örnekler/arayüz/sayaç.ohc        # → sayaç (kendi penceresinde açılan uygulama)
 ./target/release/orhunca denetle dosya.ohc                       # yalnızca hata denetimi
 ./target/release/orhunca yeni dükkan                             # yeni proje (.ohcproj)
 ./target/release/orhunca yeni dükkan --şablon tam_yigin          # web projesi (şablonlar: web_sitesi, web_api, ...)
@@ -131,6 +132,20 @@ Seçenekler bütün öğelerde kullanılabilir: `renk`, `arka`, `boyut`, `kalın
 
 ![Orhunca Stüdyo — arayüz uygulaması canlı önizlemede](docs/ekran/arayuz.png)
 
+### Masaüstü uygulaması olarak paketleme
+
+```sh
+orhunca paketle sayaç.ohc                    # Linux → ./sayaç
+orhunca paketle sayaç.ohc --hedef windows    # Windows → sayaç.exe (Linux'tan da üretilebilir)
+```
+
+Çıkan tek dosya, uygulamayı tarayıcı olmadan **kendi penceresinde** açar (Windows'ta sistemdeki
+WebView2, Linux'ta WebKitGTK; Windows 10/11'de ve masaüstü Linux dağıtımlarında hazır bulunur).
+Programın dosyaları (`dosyaya_yaz`, `dosya_oku` …) kullanıcının veri klasöründe kalıcı olarak
+saklanır (`%APPDATA%\orhunca-<ad>`, `~/.local/share/orhunca-<ad>`). Stüdyo'da: Çalıştır menüsü →
+*Masaüstü uygulaması*. Pencere kabuğunun kaynağı [masaustu/kabuk/](masaustu/kabuk) (wry/tao);
+derleyici hazır kabukları içinde taşır, ek bir araç gerekmez.
+
 ## Öz-barındırma
 
 Derleyicinin parçaları Orhunca'ya taşınıyor:
@@ -163,7 +178,7 @@ Tarayıcıda Orhunca'nın geliştirme ortamını açar: son projeler, şablon si
 Sayı Tahmin Oyunu, Kütüphane; Boş Web Sayfası, Web Sitesi, Web Uygulaması, Açılış Sayfası, Web API,
 Tam Yığın Uygulama; Arayüz Uygulaması), sözdizimi renklendirmeli düzenleyici (`.ohc`, `.ohchtml`, CSS, JavaScript),
 yazarken hata gösterimi, F5 ile derleyip çalıştırma (programın girdisi terminalden verilir),
-Linux/Windows için dağıtım derlemesi ve Türkçe anahtar kelime rehberi. İnternet gerekmez; arayüz ve
+kesme noktalı hata ayıklayıcı, Linux/Windows için dağıtım derlemesi ve masaüstü paketleme ve Türkçe anahtar kelime rehberi. İnternet gerekmez; arayüz ve
 yazı tipleri ikili dosyanın içindedir.
 
 Web projelerinde F5 sunucuyu başlatır ve sayfa sağdaki **canlı önizlemede** açılır. Kaydettiğinizde
@@ -171,6 +186,16 @@ sunucu yeniden derlenir ve önizleme bulunduğu adreste yenilenir (yalnızca `st
 değiştiyse sayfa yenilenir). Stüdyo kapanınca başlattığı sunucular da kapanır. Arayüz
 uygulamalarında F5 programı WebAssembly'ye derler ve uygulama önizlemede (Stüdyo'dan yalıtılmış bir
 çerçevede) çalışır; kaydettiğinizde yeniden derlenir.
+
+**Hata ayıklama:** satır numarasına tıklayarak (ya da F9) kesme noktası koyun, F6 ile programı
+hata ayıklayarak başlatın. Program kesme noktasında durur; durulan satır vurgulanır, yan panelde
+o anki **değişkenler** (tipleri ve değerleriyle; listeler, sözlükler ve modeller dahil) ve **çağrı
+yığını** görünür; yığındaki bir işleve tıklayınca onun değişkenleri gösterilir. F5 devam, F10
+üstünden adım, F11 içine adım, ⇧F11 dışına adım; çalışırken *Duraklat* ile program bulunduğu
+yerde durdurulur ve kesme noktaları program çalışırken de eklenip kaldırılabilir. Yakalanmamış
+bir çalışma hatasında program kapanmadan önce hatanın olduğu satırda durur.
+
+![Orhunca Stüdyo — hata ayıklama](docs/ekran/hata-ayiklama.png)
 
 ![Orhunca Stüdyo — canlı önizleme](docs/ekran/canli-onizleme.png)
 

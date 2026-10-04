@@ -49,8 +49,16 @@ const UI_ISLEVLERI: &[(&str, usize)] = &[("ac", 1), ("ozellik", 2), ("olay", 2),
 /// Olay işlevlerinin ilk parametresi: çizim anında yakalanan değerlerin listesi.
 const YAKALANANLAR: &str = "‹yakalananlar›";
 
-/// Web sunucusu WebAssembly'de yoktur; `dene:` bloklarını JavaScript çalıştırır.
-const YALNIZ_YEREL: &[&str] = &["ohc_web_yol", "ohc_sun", "ohc_dene"];
+/// Web sunucusu ve hata ayıklama kancaları WebAssembly'de yoktur; `dene:` bloklarını
+/// JavaScript çalıştırır.
+const YALNIZ_YEREL: &[&str] = &[
+    "ohc_web_yol",
+    "ohc_sun",
+    "ohc_dene",
+    "ohc_ay_gir",
+    "ohc_ay_cik",
+    "ohc_ay_satir",
+];
 
 /// `dene:` bloklarının işlevlerinin tek parametresi: çevreleyen işlevin çerçevesi.
 const DENE_CERCEVESI: &str = "‹çerçeve›";

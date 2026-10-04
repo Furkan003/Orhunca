@@ -12,6 +12,8 @@ jobs:
           components: clippy, rustfmt
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
+      - name: Pencere sınaması için WebKitGTK ve sanal ekran
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-0 xvfb
       - run: cargo test
       - name: Windows .exe çapraz derleme (C derleyicisi olmadan)
         run: |
@@ -72,6 +74,13 @@ jobs:
             fi
           done
           exit $hata
+      - name: Masaüstü uygulaması (orhunca paketle, gerçek pencere)
+        shell: bash
+        run: |
+          target/debug/orhunca.exe paketle örnekler/arayüz/sayaç.ohc -o sayac.exe
+          ORHUNCA_KABUK_SINAMA=1 timeout 120 ./sayac.exe > pencere.txt
+          cat pencere.txt
+          grep -q "Şu anki değer: 0" pencere.txt
   kabuk:
     # Hazır pencere kabuklarını (orhunca paketle) kaynaktan derler, gerçek bir
     # pencerede açıp sayfanın yüklendiğini sınar ve çıktıları yükler.

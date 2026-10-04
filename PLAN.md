@@ -15,6 +15,7 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 | 6 | Modeller ✅, JSON veri deposu ✅, web sunucusu ✅, `.ohchtml` görünümleri ✅, Stüdyo web şablonları ve canlı önizleme ✅ | ✅ |
 | 7 | Orhunca Stüdyo: arayüz ✅ (tarayıcıda, `orhunca stüdyo`), Tauri masaüstü uygulaması ✅ (`masaustu/`) | ✅ |
 | 8 | WebAssembly ✅ (`--hedef web`), Türkçe arayüz dili ✅, öz-barındırmanın ilk adımı ✅ (Orhunca ile sözcük çözümleyici) | ✅ |
+| 9 | Hata yakalama, seçenekler, iç içe modeller, tip çıkarımı, Orhunca'da ayrıştırıcı ve metin kütüphanesi, eşzamanlı web sunucusu, C derleyicisiz derleme, masaüstü paketleme, hata ayıklayıcı | ✅ |
 
 ## v0.2'de eklenenler
 
@@ -154,6 +155,26 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 - CI: çalıştırıcılar kaynaktan yeniden derlenip testler onlarla çalışır; Windows işi örnekleri
   C derleyicisi olmadan derleyip çalıştırır.
 
+### 9i – Masaüstü paketleme (`orhunca paketle`)
+- `masaustu/kabuk/`: küçük pencere kabuğu (wry/tao; Windows'ta WebView2, Linux'ta WebKitGTK).
+  Derleyici arayüz programının tek dosyalık sayfasını kabuğun sonuna ekler
+  ("OHCKABUK" yükü + "ORHUNCA!" sonu); kabuk sayfayı `orhunca://` şemasından kendi penceresinde açar.
+- Programın dosyaları `window.orhuncaKabukDepo` ile kullanıcının veri klasöründe `depo.json`
+  dosyasında kalıcıdır. Sınama kipi (`ORHUNCA_KABUK_SINAMA=1`) sayfa metnini yazıp kapanır.
+- Hazır kabuklar `runtime/kabuk/`: Linux (Ubuntu 22.04'te, glibc 2.34+) ve Windows (MSVC; WebView2
+  yükleyicisi ve C çalışma zamanı gömülü, yalnızca sistem DLL'leri). CI kabukları kaynaktan derleyip
+  gerçek pencerede sınar; Windows işi `orhunca paketle` çıktısını açar. Stüdyo: Çalıştır menüsü.
+
+### 9j – Stüdyo hata ayıklayıcısı
+- `derle --ayıklama` (Stüdyo'da F6): her deyimden önce `ohc_ay_satir(satır, dosya, yuvalar, tanım)`,
+  işlev başında/sonunda `ohc_ay_gir`/`ohc_ay_cik`. Değişkenlerin değerleri yığıttaki bir yuvaya
+  yazılır; tanım metni adları, tip kodlarını ve tip adlarını taşır (`dene:` gövdesinde çerçeve).
+- Çalışma zamanı `ORHUNCA_AYIKLA` kapısından Stüdyo'ya bağlanır; satır tabanlı iletişim:
+  kesmeler, devam, adim, ustunden, cik, cerceve, duraklat. Çalışırken de kesme noktaları değişir.
+  Yakalanmamış çalışma hatasında program o satırda durur; yakalanan hatada yığın derinliği geri alınır.
+- Stüdyo: satır numarasında kesme noktaları (F9), durulan satırın vurgusu, değişkenler, çağrı yığını
+  (çerçeve seçimi), araç çubuğu (F5/F10/F11/⇧F11, duraklat). Test: tests/studyo.rs.
+
 ## Henüz yapılmayanlar
 
 - Çalışma zamanının çekirdeği (bellek ve çöp toplayıcı, listeler, sözlükler, dosyalar, ağ, JSON,
@@ -167,7 +188,8 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 ## Sıradaki adımlar (öneri sırası)
 
 1. Öz-barındırma: tip denetçisinin Orhunca'ya taşınması (`öz/BENİOKU.md`).
-2. Arayüz uygulamalarını yerel pencerede (Tauri) paketleme: `orhunca paketle`.
+2. Hata ayıklayıcıda koşullu kesme noktaları ve değişkenlerin ağaç görünümü.
+3. macOS için hazır çalıştırıcı ve pencere kabuğu.
 
 ## Çalışma şekli
 

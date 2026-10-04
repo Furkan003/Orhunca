@@ -98,6 +98,9 @@ typedef struct Yakalayici {
     int istek; /* web isteği: hata yine de yazılır */
 } Yakalayici;
 static Yakalayici *yakalayici;
+/* Hata ayıklamada çağrı yığınının derinliği (yakalanan hatada geri alınır) */
+static int ay_derinlik;
+static void ay_hatada_dur(const char *mesaj);
 #endif
 static char son_hata[1024];
 /* Son çalışma hatasının yalnızca mesajı (yakala bloğundaki değişkene gelir) */
@@ -119,6 +122,7 @@ static void hata(int64_t satir, const char *mesaj) {
         if (y->istek) fprintf(stderr, "%s\n", son_hata);
         TUZAGA_DON(y->tuzak);
     }
+    ay_hatada_dur(son_hata);
 #endif
     fprintf(stderr, "%s\n", son_hata);
     exit(1);
@@ -1475,7 +1479,11 @@ int64_t ohc_dene(int64_t govde, int64_t cerceve) {
     Yakalayici y;
     y.onceki = yakalayici;
     y.istek = 0;
-    if (TUZAK_KUR(y.tuzak)) return -1;
+    int derinlik = ay_derinlik;
+    if (TUZAK_KUR(y.tuzak)) {
+        ay_derinlik = derinlik;
+        return -1;
+    }
     yakalayici = &y;
     int64_t sonuc = ((int64_t(*)(int64_t))(intptr_t)govde)(cerceve);
     yakalayici = y.onceki;
@@ -3861,6 +3869,275 @@ void ohc_sun(int64_t kapi, int64_t istek_tanimi) {
             if (baglantilar[i].s != GECERSIZ_SOKET) baglantilar[j++] = baglantilar[i];
         sayi = j;
     }
+}
+
+/* ====================================================================== */
+/* Hata ayıklama (Stüdyo)                                                  */
+/* ====================================================================== */
+
+/* `--ayıklama` ile derlenen programlarda derleyici her deyimden önce
+ * ohc_ay_satir'ı, her işlevin başında ve sonunda ohc_ay_gir/ohc_ay_cik'ı
+ * çağırır. ORHUNCA_AYIKLA ortam değişkenindeki kapıya (127.0.0.1) bağlanılır;
+ * Stüdyo kesme noktalarını ve komutları satır satır gönderir:
+ *   kesmeler 0:3 0:7 · devam · adim · ustunden · cik · cerceve <i> · duraklat
+ * Program durduğunda gönderilen olay:
+ *   dur <neden> / ileti <hata> / cerceve <i> <dosya> <satır> <işlev> ... /
+ *   deg <ad>\t<tip>\t<değer> ... / son */
+
+typedef struct {
+    const char *ad;
+    int64_t dosya, satir;
+    int64_t *yuvalar;
+    const char *tanim;
+} AyCerceve;
+
+static AyCerceve *ay_yigin;
+static int ay_kap, ay_etkin = -1; /* -1: henüz bakılmadı */
+static Soket ay_soket = GECERSIZ_SOKET;
+enum { AY_DEVAM, AY_ADIM, AY_USTUNDEN, AY_CIK };
+static int ay_kip = AY_ADIM, ay_hedef;
+static int64_t *ay_kesmeler; /* (dosya, satır) çiftleri */
+static int ay_kesme_sayisi;
+static char ay_tampon[65536];
+static size_t ay_dolu;
+static unsigned ay_sayac;
+
+static void ay_gonder(Tampon *t) {
+    size_t g = 0;
+    while (g < t->n) {
+        int n = (int)send(ay_soket, t->v + g, (int)(t->n - g), 0);
+        if (n <= 0) exit(0); /* Stüdyo bağlantıyı kapattı: program durdurulur */
+        g += (size_t)n;
+    }
+    t->n = 0;
+}
+
+/* Bir sonraki komut satırı (bekler). */
+static char *ay_satir_oku(void) {
+    static char satir[65536];
+    for (;;) {
+        char *s = memchr(ay_tampon, '\n', ay_dolu);
+        if (s) {
+            size_t n = (size_t)(s - ay_tampon);
+            memcpy(satir, ay_tampon, n);
+            satir[n] = 0;
+            memmove(ay_tampon, s + 1, ay_dolu - n - 1);
+            ay_dolu -= n + 1;
+            return satir;
+        }
+        if (ay_dolu == sizeof ay_tampon) ay_dolu = 0;
+        int n = (int)recv(ay_soket, ay_tampon + ay_dolu, (int)(sizeof ay_tampon - ay_dolu), 0);
+        if (n <= 0) exit(0);
+        ay_dolu += (size_t)n;
+    }
+}
+
+static void ay_baglan(void) {
+    const char *k = getenv("ORHUNCA_AYIKLA");
+    ay_etkin = 0;
+    if (!k || !*k) return;
+#ifdef _WIN32
+    WSADATA w;
+    WSAStartup(MAKEWORD(2, 2), &w);
+#else
+    signal(SIGPIPE, SIG_IGN);
+#endif
+    Soket s = socket(AF_INET, SOCK_STREAM, 0);
+    struct sockaddr_in a;
+    memset(&a, 0, sizeof a);
+    a.sin_family = AF_INET;
+    a.sin_port = htons((unsigned short)atoi(k));
+    a.sin_addr.s_addr = htonl(0x7f000001);
+    if (s == GECERSIZ_SOKET || connect(s, (struct sockaddr *)&a, sizeof a) != 0) {
+        fprintf(stderr, "hata ayıklayıcıya bağlanılamadı (kapı %s)\n", k);
+        exit(1);
+    }
+    int bir = 1;
+    setsockopt(s, IPPROTO_TCP, 1 /* TCP_NODELAY */, (const char *)&bir, sizeof bir);
+    ay_soket = s;
+    ay_etkin = 1;
+}
+
+/* "0:3 0:7": (dosya, satır) çiftleri */
+static void ay_kesmeleri_oku(char *p) {
+    ay_kesme_sayisi = 0;
+    while (*p) {
+        while (*p == ' ') p++;
+        if (!*p) break;
+        char *son;
+        int64_t d = strtoll(p, &son, 10);
+        if (*son != ':') break;
+        int64_t st = strtoll(son + 1, &son, 10);
+        ay_kesmeler = ham_buyut(ay_kesmeler, sizeof(int64_t) * 2 * (size_t)(ay_kesme_sayisi + 1));
+        ay_kesmeler[2 * ay_kesme_sayisi] = d;
+        ay_kesmeler[2 * ay_kesme_sayisi + 1] = st;
+        ay_kesme_sayisi++;
+        p = son;
+    }
+}
+
+/* Değerin okunabilir biçimi (tek satır, en çok ~4000 bayt). */
+static void ay_deger(Tampon *t, int64_t d, int64_t kod) {
+    int k = (int)(kod % 8);
+    if (d == 0 && (k == KOD_METIN || k == 4 || k == 5 || k == KOD_MODEL)) {
+        t_yaz(t, "—");
+        return;
+    }
+    Tampon b = {0};
+    bicimle(&b, d, kod, 1);
+    size_t n = b.n > 4000 ? 4000 : b.n;
+    for (size_t i = 0; i < n; i++) {
+        char c = b.v[i];
+        if (c == '\n') t_yaz(t, "\\n");
+        else if (c == '\t') t_yaz(t, "\\t");
+        else if (c == '\r') t_yaz(t, "\\r");
+        else t_ekle(t, &c, 1);
+    }
+    if (n < b.n) t_yaz(t, "…");
+    free(b.v);
+}
+
+/* Çerçevenin değişkenleri: tanım satırları "ad\tkod\ttip" (yuva sırasıyla). */
+static void ay_degiskenler(Tampon *t, AyCerceve *c) {
+    if (!c->tanim) return;
+    const char *p = c->tanim;
+    for (int i = 0; *p; i++) {
+        const char *son = strchr(p, '\n');
+        if (!son) son = p + strlen(p);
+        const char *s1 = memchr(p, '\t', (size_t)(son - p));
+        const char *s2 = s1 ? memchr(s1 + 1, '\t', (size_t)(son - s1 - 1)) : NULL;
+        if (s2) {
+            t_yaz(t, "deg ");
+            t_ekle(t, p, (size_t)(s1 - p));
+            t_yaz(t, "\t");
+            t_ekle(t, s2 + 1, (size_t)(son - s2 - 1));
+            t_yaz(t, "\t");
+            ay_deger(t, c->yuvalar[i], atoll(s1 + 1));
+            t_yaz(t, "\n");
+        }
+        p = *son ? son + 1 : son;
+    }
+}
+
+/* Program durur: olayı gönderir, yürütme komutu gelene kadar bekler. */
+static void ay_dur(const char *neden, const char *ileti) {
+    Tampon t = {0};
+    char k[256];
+    fflush(stdout);
+    fflush(stderr);
+    snprintf(k, sizeof k, "dur %s\n", neden);
+    t_yaz(&t, k);
+    if (ileti) {
+        t_yaz(&t, "ileti ");
+        t_yaz(&t, ileti);
+        t_yaz(&t, "\n");
+    }
+    for (int i = ay_derinlik - 1; i >= 0; i--) {
+        AyCerceve *c = &ay_yigin[i];
+        snprintf(k, sizeof k, "cerceve %d %" PRId64 " %" PRId64 " ", ay_derinlik - 1 - i, c->dosya,
+                 c->satir);
+        t_yaz(&t, k);
+        t_yaz(&t, c->ad);
+        t_yaz(&t, "\n");
+    }
+    if (ay_derinlik) ay_degiskenler(&t, &ay_yigin[ay_derinlik - 1]);
+    t_yaz(&t, "son\n");
+    ay_gonder(&t);
+    for (;;) {
+        char *s = ay_satir_oku();
+        if (!strncmp(s, "kesmeler", 8)) {
+            ay_kesmeleri_oku(s + 8);
+        } else if (!strncmp(s, "cerceve ", 8)) {
+            int i = atoi(s + 8);
+            snprintf(k, sizeof k, "cdeg %d\n", i);
+            t_yaz(&t, k);
+            if (i >= 0 && i < ay_derinlik) ay_degiskenler(&t, &ay_yigin[ay_derinlik - 1 - i]);
+            t_yaz(&t, "son\n");
+            ay_gonder(&t);
+        } else if (!strcmp(s, "devam")) {
+            ay_kip = AY_DEVAM;
+            break;
+        } else if (!strcmp(s, "adim")) {
+            ay_kip = AY_ADIM;
+            break;
+        } else if (!strcmp(s, "ustunden")) {
+            ay_kip = AY_USTUNDEN;
+            ay_hedef = ay_derinlik;
+            break;
+        } else if (!strcmp(s, "cik")) {
+            ay_kip = AY_CIK;
+            ay_hedef = ay_derinlik;
+            break;
+        }
+    }
+    free(t.v);
+}
+
+static void ay_hatada_dur(const char *mesaj) {
+    if (ay_etkin == 1) ay_dur("hata", mesaj);
+}
+
+void ohc_ay_gir(int64_t ad) {
+    if (ay_etkin < 0) ay_baglan();
+    if (!ay_etkin) return;
+    if (ay_derinlik == ay_kap) {
+        ay_kap = ay_kap ? 2 * ay_kap : 64;
+        ay_yigin = ham_buyut(ay_yigin, sizeof(AyCerceve) * (size_t)ay_kap);
+    }
+    AyCerceve *c = &ay_yigin[ay_derinlik++];
+    c->ad = M(ad);
+    c->dosya = c->satir = 0;
+    c->yuvalar = NULL;
+    c->tanim = NULL;
+}
+
+void ohc_ay_cik(void) {
+    if (ay_etkin == 1 && ay_derinlik > 0) ay_derinlik--;
+}
+
+void ohc_ay_satir(int64_t satir, int64_t dosya, int64_t yuvalar, int64_t tanim) {
+    if (ay_etkin != 1 || !ay_derinlik) return;
+    AyCerceve *c = &ay_yigin[ay_derinlik - 1];
+    c->satir = satir;
+    c->dosya = dosya;
+    c->yuvalar = (int64_t *)(intptr_t)yuvalar;
+    c->tanim = M(tanim);
+    const char *neden = NULL;
+    if (ay_kip == AY_ADIM) neden = "adim";
+    else if (ay_kip == AY_USTUNDEN && ay_derinlik <= ay_hedef) neden = "adim";
+    else if (ay_kip == AY_CIK && ay_derinlik < ay_hedef) neden = "adim";
+    if (!neden)
+        for (int i = 0; i < ay_kesme_sayisi; i++)
+            if (ay_kesmeler[2 * i] == dosya && ay_kesmeler[2 * i + 1] == satir) {
+                neden = "kesme";
+                break;
+            }
+    /* Çalışırken gelen komutlar (arada bir, beklemeden bakılır): kesme
+     * noktalarının değişmesi ve "duraklat". */
+    if (!neden && (++ay_sayac & 255) == 0) {
+        size_t bos = sizeof ay_tampon - ay_dolu;
+#ifdef _WIN32
+        u_long bekleme = 1;
+        ioctlsocket(ay_soket, FIONBIO, &bekleme);
+        int n = bos ? recv(ay_soket, ay_tampon + ay_dolu, (int)bos, 0) : -1;
+        bekleme = 0;
+        ioctlsocket(ay_soket, FIONBIO, &bekleme);
+#else
+        int n = bos ? (int)recv(ay_soket, ay_tampon + ay_dolu, bos, MSG_DONTWAIT) : -1;
+#endif
+        if (n == 0) exit(0);
+        if (n > 0) ay_dolu += (size_t)n;
+        char *s;
+        while ((s = memchr(ay_tampon, '\n', ay_dolu))) {
+            *s = 0;
+            if (!strncmp(ay_tampon, "kesmeler", 8)) ay_kesmeleri_oku(ay_tampon + 8);
+            else if (!strcmp(ay_tampon, "duraklat")) neden = "duraklat";
+            size_t k = (size_t)(s - ay_tampon) + 1;
+            memmove(ay_tampon, s + 1, ay_dolu - k);
+            ay_dolu -= k;
+        }
+    }
+    if (neden) ay_dur(neden, NULL);
 }
 #endif /* __wasm__ */
 

@@ -421,11 +421,11 @@
     };
   }
 
-  /** Tarayıcıda dosyalar localStorage'da durur (yoksa bellekte). */
+  /** Tarayıcıda dosyalar localStorage'da durur (yoksa bellekte); masaüstü kabuğunda kalıcı depoda. */
   function tarayiciDosyalari(onek) {
     let depo = null;
     try {
-      depo = window.localStorage;
+      depo = window.orhuncaKabukDepo || window.localStorage;
       depo.getItem('orhunca');
     } catch (_) {
       return bellekDosyalari();

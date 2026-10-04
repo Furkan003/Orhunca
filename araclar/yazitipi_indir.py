@@ -20,6 +20,7 @@ folder_open fork_right grid_view home image info keyboard_return language lock
 menu_book more_horiz new_releases note_add palette play_arrow play_circle refresh remove
 rocket_launch save school search settings sports_esports stacks stop swap_vert terminal
 tune warning web code bug_report history open_in_new javascript html css visibility visibility_off
+redo arrow_downward pause task_alt select_window
 """.split()))
 
 # (dosya adı öneki, Google Fonts sorgusu, alınacak alt kümeler)

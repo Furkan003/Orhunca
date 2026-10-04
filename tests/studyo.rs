@@ -258,3 +258,137 @@ fn web_projesi_onizlemeyle_calisir() {
     assert!(yanit.contains("orhunca:yenile"), "{yanit}");
     s.api("/api/durdur", serde_json::json!({ "kimlik": kimlik }));
 }
+
+/// Hata ayıklayıcı: kesme noktası, değişkenler, çağrı yığını, adım adım
+/// yürütme ve yakalanmamış hatada durma.
+#[test]
+fn hata_ayiklayici() {
+    let s = baslat("ayikla");
+    let konum = s.ev.join("Projeler");
+    let r = s.api(
+        "/api/proje/olustur",
+        serde_json::json!({ "sablon": "konsol", "ad": "ayikla", "konum": konum, "git": false, "ornek": false }),
+    );
+    assert!(r["hata"].is_null(), "{r}");
+    let proje = konum.join("ayikla");
+    let dosya = proje.join("ana.ohc");
+    let kaynak = "işlev kare(n: sayı) -> sayı:\n    sonuç = n * n\n    döndür sonuç\n\ntoplam = 0\nadlar = [\"a\", \"b\"]\nher i için 1'den 3'e kadar:\n    toplam += kare(i)\ntoplam'ı yaz.\nadlar[5]'i yaz.\n";
+    let r = s.api(
+        "/api/dosya",
+        serde_json::json!({ "yol": dosya, "icerik": kaynak }),
+    );
+    assert!(r["hata"].is_null(), "{r}");
+
+    let r = s.api(
+        "/api/calistir",
+        serde_json::json!({ "dosya": dosya, "klasor": proje, "ayikla": true,
+            "kesmeler": [{ "dosya": dosya, "satir": 2 }] }),
+    );
+    let kimlik = r["kimlik"].as_u64().unwrap_or_else(|| panic!("{r}"));
+    let mut cikti = String::new();
+    let mut konum_ = 0;
+    let mut surum = 0;
+    // Bir sonraki durağı (ya da bitişi) bekler.
+    let mut bekle = |s: &Sunucu| -> serde_json::Value {
+        let bas = Instant::now();
+        loop {
+            let (_, g) = s.istek(
+                "GET",
+                &format!("/api/cikti?kimlik={kimlik}&konum={konum_}"),
+                None,
+                true,
+            );
+            let d: serde_json::Value = serde_json::from_str(&g).unwrap();
+            for p in d["parcalar"].as_array().unwrap() {
+                cikti.push_str(p["t"].as_str().unwrap());
+            }
+            konum_ = d["konum"].as_u64().unwrap();
+            let a = &d["ayiklama"];
+            if a["durdu"] == true && a["surum"].as_u64().unwrap() != surum {
+                surum = a["surum"].as_u64().unwrap();
+                return d;
+            }
+            if d["bitti"] == true {
+                return d;
+            }
+            assert!(bas.elapsed() < Duration::from_secs(20), "durmadı: {d}");
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    };
+    let komut = |k: &str| {
+        let r = s.api(
+            "/api/ayikla",
+            serde_json::json!({ "kimlik": kimlik, "komut": k }),
+        );
+        assert_eq!(r["tamam"], true, "{k}: {r}");
+    };
+
+    // Kesme noktası: kare'nin içinde, ilk çağrıda
+    let d = bekle(&s);
+    let a = &d["ayiklama"];
+    assert_eq!(a["neden"], "kesme", "{d}");
+    assert_eq!(a["yigin"][0]["islev"], "kare");
+    assert_eq!(a["yigin"][0]["satir"], 2);
+    assert_eq!(a["yigin"][1]["islev"], "ana");
+    assert_eq!(a["yigin"][1]["satir"], 8);
+    let deg = |a: &serde_json::Value, ad: &str| {
+        a["degiskenler"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|d| d["ad"] == ad)
+            .map(|d| d["deger"].as_str().unwrap().to_string())
+    };
+    assert_eq!(deg(a, "n").as_deref(), Some("1"), "{a}");
+
+    // Çağıranın çerçevesi
+    let r = s.api(
+        "/api/ayikla",
+        serde_json::json!({ "kimlik": kimlik, "komut": "cerceve", "cerceve": 1 }),
+    );
+    assert_eq!(r["tamam"], true);
+    let bas = Instant::now();
+    loop {
+        let (_, g) = s.istek(
+            "GET",
+            &format!("/api/cikti?kimlik={kimlik}&konum=0"),
+            None,
+            true,
+        );
+        let d: serde_json::Value = serde_json::from_str(&g).unwrap();
+        let a = &d["ayiklama"];
+        if a["cerceve"] == 1 && !a["degiskenler"].as_array().unwrap().is_empty() {
+            assert_eq!(deg(a, "adlar").as_deref(), Some("[\"a\", \"b\"]"), "{a}");
+            assert_eq!(deg(a, "i").as_deref(), Some("1"));
+            break;
+        }
+        assert!(bas.elapsed() < Duration::from_secs(10), "{d}");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+
+    // Kesme noktası kaldırılır; dışına adım → ana programda sonraki deyim
+    let r = s.api(
+        "/api/ayikla",
+        serde_json::json!({ "kimlik": kimlik, "komut": "kesmeler", "kesmeler": [] }),
+    );
+    assert_eq!(r["tamam"], true);
+    komut("cik");
+    let d = bekle(&s);
+    let a = &d["ayiklama"];
+    assert_eq!(a["yigin"][0]["islev"], "ana", "{d}");
+    assert_eq!(deg(a, "toplam").as_deref(), Some("1"), "{a}");
+
+    // Devam: yakalanmamış hatada durur, mesajı gösterir
+    komut("devam");
+    let d = bekle(&s);
+    let a = &d["ayiklama"];
+    assert_eq!(a["neden"], "hata", "{d}");
+    assert_eq!(a["yigin"][0]["satir"], 10);
+    assert!(a["ileti"].as_str().unwrap().contains("satır 10"), "{a}");
+
+    komut("devam");
+    let d = bekle(&s);
+    assert_eq!(d["bitti"], true, "{d}");
+    assert_eq!(d["kod"], 1);
+    assert!(cikti.contains("14"), "{cikti}");
+}

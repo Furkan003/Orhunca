@@ -11,6 +11,7 @@ Kullanım:
   orhunca derle [dosya.ohc] [-o çıktı] [--hedef linux|windows|web|<üçlü>]
   orhunca çalıştır [dosya.ohc] [--hedef web] [-- programın argümanları]
   orhunca denetle [dosya.ohc]
+  orhunca paketle [dosya.ohc] [-o çıktı] [--hedef linux|windows]
   orhunca biçimlendir [dosya.ohc ...] [--denetle]
   orhunca dil-sunucusu        (düzenleyiciler için LSP, stdin/stdout)
   orhunca yeni <proje_adı> [--şablon konsol|web_sitesi|tam_yigin|web_api|...]
@@ -20,6 +21,8 @@ Kullanım:
 
 Dosya verilmezse geçerli klasördeki .ohcproj dosyasının giriş dosyası kullanılır.
 C derleyicisi gerekmez (Linux ve Windows); sistemin C derleyicisiyle bağlamak için ORHUNCA_CC=cc.
+paketle: arayüz programını kendi penceresinde açılan masaüstü uygulamasına
+dönüştürür (Windows: WebView2, Linux: WebKitGTK).
 --hedef web: WebAssembly; tarayıcıda açılan tek bir .html dosyası (-o x.wasm: ayrı
 dosyalar). 'çalıştır --hedef web' programı Node.js ile çalıştırır.";
 
@@ -34,6 +37,7 @@ fn main() -> ExitCode {
         "derle" => derle_komutu(kalan).map(|_| ExitCode::SUCCESS),
         "çalıştır" | "calistir" => calistir_komutu(kalan),
         "denetle" => denetle_komutu(kalan).map(|_| ExitCode::SUCCESS),
+        "paketle" => paketle_komutu(kalan).map(|_| ExitCode::SUCCESS),
         "yeni" => yeni_komutu(kalan).map(|_| ExitCode::SUCCESS),
         "stüdyo" | "studyo" => studyo::calistir(kalan).map(|_| ExitCode::SUCCESS),
         "biçimlendir" | "bicimlendir" => bicimlendir_komutu(kalan),
@@ -134,9 +138,39 @@ fn derle(s: &Secenekler) -> Result<PathBuf, String> {
 }
 
 fn derle_komutu(args: &[String]) -> Result<(), String> {
-    let s = secenekleri_oku(args)?;
+    // --ayıklama: Stüdyo hata ayıklayıcısı için derler (ORHUNCA_AYIKLA=<kapı>).
+    let ayiklama = args.iter().any(|a| a == "--ayıklama" || a == "--ayiklama");
+    let args: Vec<String> = args
+        .iter()
+        .filter(|a| !matches!(a.as_str(), "--ayıklama" | "--ayiklama"))
+        .cloned()
+        .collect();
+    let s = secenekleri_oku(&args)?;
+    if ayiklama {
+        let cikti = s
+            .cikti
+            .clone()
+            .unwrap_or_else(|| derleme::varsayilan_cikti(&s.dosya, None));
+        derleme::derle_ayiklamali(&s.dosya, &cikti).map_err(|h| h.metin)?;
+        println!("derlendi: {}", cikti.display());
+        return Ok(());
+    }
     let cikti = derle(&s)?;
     println!("derlendi: {}", cikti.display());
+    Ok(())
+}
+
+fn paketle_komutu(args: &[String]) -> Result<(), String> {
+    let s = secenekleri_oku(args)?;
+    if derleme::web_hedefi_mi(s.hedef.as_deref()) {
+        return Err("paketle masaüstü içindir; web için: orhunca derle --hedef web".into());
+    }
+    let cikti = s
+        .cikti
+        .clone()
+        .unwrap_or_else(|| derleme::varsayilan_cikti(&s.dosya, s.hedef.as_deref()));
+    derleme::paketle(&s.dosya, &cikti, s.hedef.as_deref()).map_err(|h| h.metin)?;
+    println!("paketlendi: {}", cikti.display());
     Ok(())
 }
 

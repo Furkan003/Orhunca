@@ -174,6 +174,7 @@ pub fn yukle_ortulu(
     let mut program = ayristirici::ayristir_cok(sozcukler, sablonlar)
         .map_err(|h| DerlemeHatasi::konumlu(h, &dosyalar))?;
     denetci::denetle(&mut program).map_err(|h| DerlemeHatasi::konumlu(h, &dosyalar))?;
+    program.dosyalar = dosyalar.into_iter().map(|(y, _)| y).collect();
     Ok(program)
 }
 
@@ -253,6 +254,21 @@ pub fn derle(dosya: &Path, cikti: &Path, hedef: Option<&str>) -> Result<(), Derl
     if web_hedefi_mi(hedef) {
         return derle_web(dosya, cikti);
     }
+    derle_secenekli(dosya, cikti, hedef, false).map(|_| ())
+}
+
+/// Hata ayıklayıcı için derler (her deyimde kanca; bkz. çalışma zamanındaki
+/// ohc_ay_satir). Derlemedeki kaynak dosyaların yollarını döndürür.
+pub fn derle_ayiklamali(dosya: &Path, cikti: &Path) -> Result<Vec<String>, DerlemeHatasi> {
+    derle_secenekli(dosya, cikti, None, true)
+}
+
+fn derle_secenekli(
+    dosya: &Path,
+    cikti: &Path,
+    hedef: Option<&str>,
+    ayiklama: bool,
+) -> Result<Vec<String>, DerlemeHatasi> {
     let program = yukle(dosya)?;
     if program.arayuz_programi() {
         return Err(DerlemeHatasi::duz(format!(
@@ -264,7 +280,8 @@ pub fn derle(dosya: &Path, cikti: &Path, hedef: Option<&str>) -> Result<(), Derl
     let triple = hedef_uclusu(hedef)?;
     let windows = triple.operating_system == target_lexicon::OperatingSystem::Windows;
     let isa = uretici::isa_kur(triple.clone())?;
-    let nesne = uretici::uret(&program, isa).map_err(|e| format!("kod üretimi başarısız: {e}"))?;
+    let nesne = uretici::uret_secenekli(&program, isa, ayiklama)
+        .map_err(|e| format!("kod üretimi başarısız: {e}"))?;
 
     // Hazır çalıştırıcı: C derleyicisi ve bağlayıcı gerekmez (ORHUNCA_CC ile sistem
     // bağlayıcısı seçilebilir).
@@ -279,7 +296,7 @@ pub fn derle(dosya: &Path, cikti: &Path, hedef: Option<&str>) -> Result<(), Derl
                 use std::os::unix::fs::PermissionsExt;
                 let _ = std::fs::set_permissions(cikti, std::fs::Permissions::from_mode(0o755));
             }
-            return Ok(());
+            return Ok(program.dosyalar);
         }
     }
 
@@ -324,7 +341,7 @@ pub fn derle(dosya: &Path, cikti: &Path, hedef: Option<&str>) -> Result<(), Derl
             String::from_utf8_lossy(&sonuc.stderr)
         )));
     }
-    Ok(())
+    Ok(program.dosyalar)
 }
 
 /// Çıktı adı verilmediğinde: `ana.ohc` → `ana` (Windows'ta `ana.exe`, web için `ana.html`).
@@ -388,6 +405,56 @@ pub fn derle_web(dosya: &Path, cikti: &Path) -> Result<(), DerlemeHatasi> {
         .map(|k| k.to_string_lossy().into_owned())
         .unwrap_or_else(|| "program".into());
     yaz(cikti, web_sayfasi(&baslik, &wasm, arayuz).as_bytes())?;
+    Ok(())
+}
+
+/// Hazır pencere kabukları (masaustu/kabuk): `orhunca paketle` arayüz programının
+/// sayfasını bunların sonuna ekler; çıkan program sayfayı kendi penceresinde açar.
+const KABUK_LINUX: &[u8] = include_bytes!("../runtime/kabuk/linux-x86_64");
+const KABUK_WINDOWS: &[u8] = include_bytes!("../runtime/kabuk/windows-x86_64.exe");
+
+/// Kabuğun sonuna eklenen yük: "OHCKABUK" [u32 başlık uzunluğu] [başlık] [sayfa]
+/// "ORHUNCA!" [u64 yük uzunluğu].
+pub fn kabuga_ekle(kabuk: &[u8], baslik: &str, sayfa: &[u8]) -> Vec<u8> {
+    let mut yuk = b"OHCKABUK".to_vec();
+    yuk.extend((baslik.len() as u32).to_le_bytes());
+    yuk.extend(baslik.as_bytes());
+    yuk.extend(sayfa);
+    let mut v = Vec::with_capacity(kabuk.len() + yuk.len() + 16);
+    v.extend(kabuk);
+    v.extend(&yuk);
+    v.extend(b"ORHUNCA!");
+    v.extend((yuk.len() as u64).to_le_bytes());
+    v
+}
+
+/// Programı kendi penceresinde açılan bir masaüstü uygulamasına paketler
+/// (Windows'ta WebView2, Linux'ta WebKitGTK; ikisi de sistemde hazır bulunur).
+pub fn paketle(dosya: &Path, cikti: &Path, hedef: Option<&str>) -> Result<(), DerlemeHatasi> {
+    let triple = hedef_uclusu(hedef)?;
+    use target_lexicon::{Architecture, OperatingSystem};
+    let kabuk = match (triple.architecture, triple.operating_system) {
+        (Architecture::X86_64, OperatingSystem::Linux) => KABUK_LINUX,
+        (Architecture::X86_64, OperatingSystem::Windows) => KABUK_WINDOWS,
+        _ => {
+            return Err(DerlemeHatasi::duz(format!(
+                "'{triple}' için hazır pencere kabuğu yok (Linux ve Windows x86-64 destekleniyor)"
+            )))
+        }
+    };
+    let (wasm, arayuz) = wasm_derle(dosya)?;
+    let baslik = dosya
+        .file_stem()
+        .map(|k| k.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "program".into());
+    let sayfa = web_sayfasi(&baslik, &wasm, arayuz);
+    std::fs::write(cikti, kabuga_ekle(kabuk, &baslik, sayfa.as_bytes()))
+        .map_err(|e| format!("'{}' yazılamadı: {e}", cikti.display()))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(cikti, std::fs::Permissions::from_mode(0o755));
+    }
     Ok(())
 }
 

@@ -90,6 +90,7 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
             Yanit::json(&json!({ "tamam": true }))
         }
         ("POST", "/api/girdi") => girdi(&g),
+        ("POST", "/api/ayikla") => ayikla(&g),
         ("POST", "/api/durdur") => {
             calisma::durdur(g["kimlik"].as_u64().unwrap_or(0));
             Yanit::json(&json!({ "tamam": true }))
@@ -682,10 +683,32 @@ fn calistir(g: &Value) -> Yanit {
     } else {
         "program"
     });
-    if let Err(h) = derleme::derle(&dosya, &program, None) {
-        let _ = std::fs::remove_dir_all(&gecici);
-        return Yanit::json(&json!({ "derleme_hatasi": h.metin, "hatalar": teshis_json(&h) }));
-    }
+    // Hata ayıklama: her deyimde kanca; program Stüdyo'ya bağlanır.
+    let ayiklama = g["ayikla"].as_bool().unwrap_or(false);
+    let sonuc = if ayiklama {
+        derleme::derle_ayiklamali(&dosya, &program)
+    } else {
+        derleme::derle(&dosya, &program, None).map(|_| Vec::new())
+    };
+    let dosyalar = match sonuc {
+        Ok(d) => d,
+        Err(h) => {
+            let _ = std::fs::remove_dir_all(&gecici);
+            return Yanit::json(&json!({ "derleme_hatasi": h.metin, "hatalar": teshis_json(&h) }));
+        }
+    };
+    let ayiklama = if ayiklama {
+        match std::net::TcpListener::bind(("127.0.0.1", 0)) {
+            Ok(dinleyici) => Some(calisma::AyiklamaBaslangici {
+                dinleyici,
+                dosyalar,
+                kesmeler: kesme_noktalari(g),
+            }),
+            Err(e) => return hata(format!("hata ayıklayıcı başlatılamadı: {e}")),
+        }
+    } else {
+        None
+    };
     let derleme_ms = baslangic.elapsed().as_millis();
     // Web sunucuları için kapı: boşsa 3000, değilse sistemin verdiği boş bir kapı.
     let kapi = bos_kapi();
@@ -695,7 +718,14 @@ fn calistir(g: &Value) -> Yanit {
         // Stüdyo beklenmedik biçimde kapanırsa sunucu da kendini kapatır.
         ("ORHUNCA_EBEVEYN", std::process::id().to_string()),
     ];
-    match calisma::baslat(&program, &klasor, &argumanlar, &ortam, gecici.clone()) {
+    match calisma::baslat(
+        &program,
+        &klasor,
+        &argumanlar,
+        &ortam,
+        gecici.clone(),
+        ayiklama,
+    ) {
         Ok(kimlik) => {
             Yanit::json(&json!({ "kimlik": kimlik, "derleme_ms": derleme_ms, "kapi": kapi }))
         }
@@ -724,12 +754,49 @@ fn cikti(kimlik: &str, konum: &str) -> Yanit {
                 .into_iter()
                 .map(|(tur, t)| json!({ "tur": tur, "t": t }))
                 .collect();
+            let ayiklama = d.ayiklama.map(|a| {
+                json!({
+                    "bagli": a.bagli, "durdu": a.durdu, "neden": a.neden, "ileti": a.ileti,
+                    "cerceve": a.cerceve, "surum": a.surum,
+                    "yigin": a.yigin.iter().map(|(i, d, s)| json!({ "islev": i, "dosya": d, "satir": s })).collect::<Vec<_>>(),
+                    "degiskenler": a.degiskenler.iter().map(|(ad, t, d)| json!({ "ad": ad, "tip": t, "deger": d })).collect::<Vec<_>>(),
+                })
+            });
             Yanit::json(&json!({
                 "parcalar": parcalar, "konum": d.konum, "bitti": d.bitti,
-                "kod": d.kod, "sure_ms": d.sure_ms as u64,
+                "kod": d.kod, "sure_ms": d.sure_ms as u64, "ayiklama": ayiklama,
             }))
         }
         None => hata("çalıştırma bulunamadı"),
+    }
+}
+
+/// `kesmeler: [{dosya, satir}]`
+fn kesme_noktalari(g: &Value) -> Vec<(String, usize)> {
+    g["kesmeler"]
+        .as_array()
+        .map(|l| {
+            l.iter()
+                .filter_map(|k| {
+                    Some((
+                        k["dosya"].as_str()?.to_string(),
+                        k["satir"].as_u64()? as usize,
+                    ))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn ayikla(g: &Value) -> Yanit {
+    match calisma::ayiklama_komutu(
+        g["kimlik"].as_u64().unwrap_or(0),
+        metin(g, "komut"),
+        &kesme_noktalari(g),
+        g["cerceve"].as_u64().unwrap_or(0) as usize,
+    ) {
+        Ok(()) => Yanit::json(&json!({ "tamam": true })),
+        Err(e) => hata(e),
     }
 }
 
@@ -746,7 +813,9 @@ fn derle(dosya: &str, hedef: &str) -> Yanit {
     if !izinli_mi(&p) {
         return Yanit::hata(403, "bu dosyaya erişim yok");
     }
-    let hedef = (!hedef.is_empty()).then_some(hedef);
+    // "masaustu-linux" / "masaustu-windows": pencere kabuğuna paketlenir.
+    let masaustu = hedef.strip_prefix("masaustu-");
+    let hedef = masaustu.or((!hedef.is_empty()).then_some(hedef));
     let kok = izinli_kokler()
         .lock()
         .unwrap()
@@ -771,7 +840,12 @@ fn derle(dosya: &str, hedef: &str) -> Yanit {
         cikti.set_extension("exe");
     }
     let baslangic = Instant::now();
-    match derleme::derle(&p, &cikti, hedef) {
+    let sonuc = if masaustu.is_some() {
+        derleme::paketle(&p, &cikti, hedef)
+    } else {
+        derleme::derle(&p, &cikti, hedef)
+    };
+    match sonuc {
         Ok(()) => Yanit::json(&json!({
             "cikti": cikti.to_string_lossy(),
             "sure_ms": baslangic.elapsed().as_millis() as u64,
