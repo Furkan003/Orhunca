@@ -4,6 +4,16 @@ name: Site
 # İlk kez: Settings → Pages → Source: "GitHub Actions".
 on:
   push:
+    branches: ["claude/epic-albattani-xznfyk"]
+    paths:
+      - "web/**"
+      - "dersler/**"
+      - "örnekler/**"
+      - "runtime/**"
+      - "src/**"
+      - "araclar/site*"
+      - "araclar/dersler.py"
+      - ".github/workflows/site.yml"
   workflow_dispatch:
 
 permissions:

@@ -11,16 +11,11 @@ name: Sürüm
 # releases/latest/download/<ad> bağlantılarını kullanır.
 # `v*` etiketinde GitHub sürümü yayımlanır; dallarda (ilgili dosyalar değişince) yalnızca
 # derlenir ve sınanır.
+# Kurulum dosyaları (macOS dakikası 10 kat sayılır) yalnızca sürüm etiketinde
+# (git tag v0.6.0 && git push origin v0.6.0) ya da elle (Actions → Sürüm → Run workflow).
 on:
   push:
     tags: ["v*"]
-    branches: ["**"]
-    paths:
-      - "masaustu/**"
-      - "studio/**"
-      - "src/studyo/**"
-      - "kurulum/**"
-      - ".github/workflows/surum.yml"
   workflow_dispatch:
 
 permissions:
