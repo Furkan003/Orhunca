@@ -1,6 +1,7 @@
 //! Derleme hattı: dosyaları yükleme, denetleme, makine kodu üretme ve bağlama.
 //! Komut aracı ve Orhunca Stüdyo bu modülü ortak kullanır.
 
+use crate::baglayici;
 use crate::{agac, ayristirici, denetci, hata, sablon, sozcuk, uretici, wasm_uretici};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -262,8 +263,25 @@ pub fn derle(dosya: &Path, cikti: &Path, hedef: Option<&str>) -> Result<(), Derl
     }
     let triple = hedef_uclusu(hedef)?;
     let windows = triple.operating_system == target_lexicon::OperatingSystem::Windows;
-    let isa = uretici::isa_kur(triple)?;
+    let isa = uretici::isa_kur(triple.clone())?;
     let nesne = uretici::uret(&program, isa).map_err(|e| format!("kod üretimi başarısız: {e}"))?;
+
+    // Hazır çalıştırıcı: C derleyicisi ve bağlayıcı gerekmez (ORHUNCA_CC ile sistem
+    // bağlayıcısı seçilebilir).
+    if std::env::var_os("ORHUNCA_CC").is_none() {
+        if let Some(c) = baglayici::calistirici(&triple) {
+            let veri = baglayici::calistirilabilir(c, &nesne)
+                .map_err(|e| format!("bağlama başarısız: {e}"))?;
+            std::fs::write(cikti, veri)
+                .map_err(|e| format!("'{}' yazılamadı: {e}", cikti.display()))?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = std::fs::set_permissions(cikti, std::fs::Permissions::from_mode(0o755));
+            }
+            return Ok(());
+        }
+    }
 
     let gecici = gecici_klasor("derleme")?;
     let nesne_yolu = gecici.join(if windows { "program.obj" } else { "program.o" });

@@ -19,7 +19,7 @@ Kullanım:
   orhunca sürüm
 
 Dosya verilmezse geçerli klasördeki .ohcproj dosyasının giriş dosyası kullanılır.
-Bağlayıcıyı değiştirmek için ORHUNCA_CC ortam değişkenini kullanın.
+C derleyicisi gerekmez (Linux ve Windows); sistemin C derleyicisiyle bağlamak için ORHUNCA_CC=cc.
 --hedef web: WebAssembly; tarayıcıda açılan tek bir .html dosyası (-o x.wasm: ayrı
 dosyalar). 'çalıştır --hedef web' programı Node.js ile çalıştırır.";
 

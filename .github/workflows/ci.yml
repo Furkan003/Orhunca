@@ -13,9 +13,8 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
-      - name: Windows .exe çapraz derleme
+      - name: Windows .exe çapraz derleme (C derleyicisi olmadan)
         run: |
-          sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64
           cargo run -- derle örnekler/asal.ohc --hedef windows -o asal.exe
           file asal.exe
       - name: Biçim denetimi (Orhunca örnekleri)
@@ -36,6 +35,42 @@ jobs:
           araclar/wasm_calisma_zamani.sh
       - run: cargo test --test wasm --test oz
       - run: cargo test --lib wasm_uretici
+  calistirici:
+    # Hazır çalıştırıcıları kaynaktan yeniden derler ve örnekleri onlarla çalıştırır
+    # (depodaki runtime/calistirici/ dosyalarının kaynakla tutarlı olduğunu da gösterir).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Çalıştırıcıları derle
+        run: |
+          sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64
+          araclar/calistiricilar.sh
+      - run: cargo test --test ornekler --test web_sunucu --test web
+  windows:
+    # Windows'ta C derleyicisi ya da bağlayıcı olmadan: örnekler gömülü çalıştırıcıyla
+    # derlenir, çalıştırılır ve çıktıları beklenenle karşılaştırılır.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build
+      - name: Örnekler (hazır çalıştırıcı)
+        shell: bash
+        run: |
+          hata=0
+          for f in örnekler/*.ohc; do
+            b="${f%.ohc}.beklenen"
+            d=$(mktemp -d)
+            if ! (cd "$d" && "$GITHUB_WORKSPACE/target/debug/orhunca.exe" çalıştır "$GITHUB_WORKSPACE/$f" > çıktı.txt); then
+              echo "ÇALIŞMADI: $f"; hata=1; continue
+            fi
+            tr -d '\r' < "$d/çıktı.txt" > "$d/düz.txt"
+            if ! diff -q "$d/düz.txt" "$b" > /dev/null; then
+              echo "FARK: $f"; diff "$d/düz.txt" "$b" | head -20; hata=1
+            fi
+          done
+          exit $hata
   vscode:
     runs-on: ubuntu-latest
     steps:

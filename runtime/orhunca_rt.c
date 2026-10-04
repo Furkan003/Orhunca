@@ -53,6 +53,7 @@
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <poll.h>
+#include <sys/mman.h>
 #include <signal.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -460,6 +461,10 @@ DISA(ohc_yigin_tasti) void ohc_yigin_tasti(void) {
     hata(0, "çok derin özyineleme: işlevler birbirini bitmeyecek kadar çok çağırıyor");
 }
 #else
+#ifdef ORHUNCA_CALISTIRICI
+static int (*program_yukle(void))(void);
+#endif
+
 int main(int argc, char **argv) {
     volatile uintptr_t dip = 0;
     yigin_dibi = (uintptr_t *)&dip + 1;
@@ -469,7 +474,11 @@ int main(int argc, char **argv) {
 #endif
     argumanlari_kaydet(argc, argv);
     baslat();
+#ifdef ORHUNCA_CALISTIRICI
+    int kod = program_yukle()();
+#else
     int kod = ohc_ana();
+#endif
     bitir();
     return kod;
 }
@@ -3854,3 +3863,130 @@ void ohc_sun(int64_t kapi, int64_t istek_tanimi) {
     }
 }
 #endif /* __wasm__ */
+
+#ifdef ORHUNCA_CALISTIRICI
+/* ====================================================================== */
+/* Hazır çalıştırıcı                                                       */
+/* ====================================================================== */
+
+/* Derleyici C derleyicisi ve bağlayıcı olmadan da çalıştırılabilir dosya üretir:
+ * bu çalışma zamanı önceden derlenmiş bir "çalıştırıcı" olarak derleyiciye
+ * gömülüdür; derleyici programın makine kodunu (kendi içinde bağlayıp) dosyanın
+ * sonuna ekler. Program açılınca kod belleğe yüklenir, çalışma zamanı işlevlerinin
+ * adresleri yazılır ve çalıştırılır (src/baglayici.rs).
+ *
+ * Paket: "OHCGRT01" | u64 kod boyu | u64 giriş | u64 içe aktarım sayısı |
+ *        (u32 ad boyu, ad)* | u64 düzeltme sayısı | (u64 yer, u32 tür, u32 içe aktarım)* | kod
+ * Dosyanın sonu: paket | "ORHUNCA!" | u64 paket boyu
+ * Düzeltme türleri: 1 içe aktarılan işlevin adresi, 2 yere kodun başlangıç adresi eklenir. */
+
+typedef struct {
+    const char *ad;
+    void *adres;
+} IslevAdresi;
+
+#include "calistirici_islevleri.h"
+
+static void yukleme_hatasi(const char *m) {
+    fprintf(stderr, "Orhunca çalıştırıcısı: %s\n", m);
+    exit(70);
+}
+
+static uint64_t oku_u64(const unsigned char *p) {
+    uint64_t v = 0;
+    for (int i = 7; i >= 0; i--) v = (v << 8) | p[i];
+    return v;
+}
+
+static uint32_t oku_u32(const unsigned char *p) { return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24; }
+
+static int (*program_yukle(void))(void) {
+#ifdef _WIN32
+    static wchar_t yol[32768];
+    if (!GetModuleFileNameW(NULL, yol, 32768)) yukleme_hatasi("çalıştırılabilir dosyanın yolu bulunamadı");
+    FILE *f = _wfopen(yol, L"rb");
+#else
+    FILE *f = fopen("/proc/self/exe", "rb");
+#endif
+    if (!f) yukleme_hatasi("çalıştırılabilir dosya okunamadı");
+    unsigned char son[16];
+    if (fseek(f, -16, SEEK_END) != 0 || fread(son, 1, 16, f) != 16 || memcmp(son, "ORHUNCA!", 8) != 0)
+        yukleme_hatasi("programın kodu bulunamadı (dosya bozuk ya da yalnızca çalıştırıcı)");
+    uint64_t boy = oku_u64(son + 8);
+    unsigned char *p = ham_ayir((size_t)boy);
+    if (fseek(f, -(long)(16 + boy), SEEK_END) != 0 || fread(p, 1, (size_t)boy, f) != boy) yukleme_hatasi("kod okunamadı");
+    fclose(f);
+    const unsigned char *q = p, *bitis = p + boy;
+#define GEREK(n)                                                                                                       \
+    if ((size_t)(bitis - q) < (size_t)(n)) yukleme_hatasi("kod paketi bozuk")
+    GEREK(32);
+    if (memcmp(q, "OHCGRT01", 8) != 0) yukleme_hatasi("kod paketinin sürümü bu çalıştırıcıyla uyuşmuyor");
+    uint64_t kod_boyu = oku_u64(q + 8), giris = oku_u64(q + 16), ice_sayisi = oku_u64(q + 24);
+    q += 32;
+    void **adresler = ham_ayir(sizeof(void *) * (size_t)(ice_sayisi + 1));
+    size_t tablo_n = sizeof CALISTIRICI_ISLEVLERI / sizeof *CALISTIRICI_ISLEVLERI;
+    for (uint64_t i = 0; i < ice_sayisi; i++) {
+        GEREK(4);
+        uint32_t n = oku_u32(q);
+        q += 4;
+        GEREK(n);
+        adresler[i] = NULL;
+        for (size_t k = 0; k < tablo_n; k++)
+            if (strlen(CALISTIRICI_ISLEVLERI[k].ad) == n && !memcmp(CALISTIRICI_ISLEVLERI[k].ad, q, n))
+                adresler[i] = CALISTIRICI_ISLEVLERI[k].adres;
+        if (!adresler[i]) {
+            char m[300];
+            snprintf(m, sizeof m, "çalışma zamanında '%.*s' bulunamadı (derleyici ile çalıştırıcının sürümleri farklı)",
+                     (int)(n > 200 ? 200 : n), q);
+            yukleme_hatasi(m);
+        }
+        q += n;
+    }
+    GEREK(8);
+    uint64_t duzeltme_sayisi = oku_u64(q);
+    q += 8;
+    const unsigned char *duzeltmeler = q;
+    GEREK(duzeltme_sayisi * 16);
+    q += duzeltme_sayisi * 16;
+    GEREK(kod_boyu);
+    if (giris >= kod_boyu) yukleme_hatasi("kod paketi bozuk");
+    size_t alan = (size_t)kod_boyu ? (size_t)kod_boyu : 1;
+#ifdef _WIN32
+    unsigned char *taban = VirtualAlloc(NULL, alan, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    if (!taban) yukleme_hatasi("kod için bellek ayrılamadı");
+#else
+    unsigned char *taban = mmap(NULL, alan, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (taban == MAP_FAILED) yukleme_hatasi("kod için bellek ayrılamadı");
+#endif
+    memcpy(taban, q, (size_t)kod_boyu);
+    for (uint64_t i = 0; i < duzeltme_sayisi; i++) {
+        const unsigned char *d = duzeltmeler + 16 * i;
+        uint64_t yer = oku_u64(d);
+        uint32_t tur = oku_u32(d + 8), ice = oku_u32(d + 12);
+        if (yer + 8 > kod_boyu) yukleme_hatasi("kod paketi bozuk");
+        uint64_t deger;
+        memcpy(&deger, taban + yer, 8);
+        if (tur == 1 && ice < ice_sayisi)
+            deger += (uint64_t)(uintptr_t)adresler[ice];
+        else if (tur == 2)
+            deger += (uint64_t)(uintptr_t)taban;
+        else
+            yukleme_hatasi("kod paketi bozuk");
+        memcpy(taban + yer, &deger, 8);
+    }
+#undef GEREK
+#ifdef _WIN32
+    DWORD eski;
+    if (!VirtualProtect(taban, alan, PAGE_EXECUTE_READ, &eski)) yukleme_hatasi("kod çalıştırılabilir yapılamadı");
+    FlushInstructionCache(GetCurrentProcess(), taban, alan);
+#else
+    if (mprotect(taban, alan, PROT_READ | PROT_EXEC) != 0) yukleme_hatasi("kod çalıştırılabilir yapılamadı");
+#endif
+    free(p);
+    free(adresler);
+    int (*ana)(void);
+    void *giris_adresi = taban + giris;
+    memcpy(&ana, &giris_adresi, sizeof ana);
+    return ana;
+}
+#endif /* ORHUNCA_CALISTIRICI */

@@ -33,7 +33,10 @@ gönder "/ürünler":
 
 ## Kurulum ve kullanım
 
-Gerekenler: Rust (cargo) ve bağlama için bir C derleyicisi (`cc`; Windows hedefi için `x86_64-w64-mingw32-gcc`).
+Gerekenler: yalnızca Rust (cargo). Programları derlemek için C derleyicisi ya da bağlayıcı
+gerekmez: Linux ve Windows (x86-64) için çalışma zamanı derleyicinin içine gömülüdür, Windows `.exe`
+dosyaları Linux'tan da üretilebilir. Diğer sistemlerde (macOS) ya da `ORHUNCA_CC=cc` verilince
+sistemin C derleyicisiyle bağlanır.
 
 ```sh
 cargo build --release
@@ -588,7 +591,8 @@ dosya.ohc
 [Kod üretici]             src/uretici.rs    Cranelift IR → nesne dosyası
                           src/wasm_uretici.rs  ya da WebAssembly modülü (--hedef web)
    ↓
-[Bağlama]  nesne + runtime/orhunca_rt.c → Linux çalıştırılabilir dosyası / Windows .exe
+[Bağlama]  src/baglayici.rs: nesne + gömülü çalıştırıcı (runtime/calistirici/) → Linux / Windows .exe
+           (ORHUNCA_CC ya da macOS: nesne + runtime/orhunca_rt.c, sistemin C derleyicisiyle)
            wasm + runtime/wasm/orhunca_rt.wasm + orhunca.js → tek dosyalık HTML sayfası
 ```
 
@@ -606,6 +610,12 @@ gerekmez. WebAssembly'de yığıt taranamadığı için derleyici metin, liste, 
 bellekteki bir "gölge yığıtta" tutar (bir Orhunca işlevi çağrılırken yaşayan ara değerler dahil);
 toplayıcı yalnızca işlev girişlerinde ve döngü başlarında çalışır ve gölge yığıtı tarar.
 
+Yerleşik bağlayıcı: çalışma zamanı her hedef için önceden derlenmiş bir "çalıştırıcı"dır
+(`araclar/calistiricilar.sh`, gcc ve MinGW ile). Derleyici Cranelift'in nesne dosyasını (ELF ya da
+COFF) tek bir kod bloğuna yerleştirir, iç yerleşimleri çözer, çalışma zamanı işlevleri için atlama
+basamakları ve adres tablosu ekler ve bloğu çalıştırıcının sonuna yazar. Program açılınca çalıştırıcı
+bloğu belleğe yükler, çalışma zamanı işlevlerinin adreslerini yazar ve çalıştırır.
+
 Görünümler: `src/sablon.rs` `.ohchtml` dosyalarını parçalara ayırır; ayrıştırıcı onları metin
 döndüren işlevlere çevirir. Web yolları da `istek` alıp `Yanıt` döndüren işlevlerdir; ana program
 başlarken çalışma zamanına kaydedilir.
@@ -615,7 +625,7 @@ web şablonlarının dosyaları `src/studyo/sablon_dosyalari/`) ve `studio/` (ar
 bağımlılıksız JavaScript; `build.rs` ile ikili dosyaya gömülür).
 
 `runtime/orhunca_rt.c`: yazdırma, metin, liste ve sözlük işlemleri, çöp toplayıcı, model kayıtları
-(JSON), doğrulama ve tek iş parçacıklı HTTP/1.1 sunucusu (Windows'ta Winsock). Toplayıcı "tutucu" bir
+(JSON), doğrulama ve olay döngülü HTTP/1.1 sunucusu (Windows'ta Winsock; HTTPS için OpenSSL çalışırken yüklenir). Toplayıcı "tutucu" bir
 işaretle-süpür toplayıcıdır: yığıttaki ve yazmaçlardaki her sözcüğü olası bir işaretçi sayar, böylece
 derleyicinin ürettiği koda ek bir şey gerekmez. Bir web isteğindeki çalışma hatası isteğin başına
 geri sarılır (`__builtin_setjmp`), sunucu durmaz.

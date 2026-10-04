@@ -145,6 +145,15 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 - HTTPS: OpenSSL çalışma anında yüklenir (dlopen / LoadLibrary), `ORHUNCA_SERTIFIKA`,
   `ORHUNCA_ANAHTAR`. Testler: tests/web_sunucu.rs (keep-alive, yavaş istemci, oturum, yükleme, HTTPS).
 
+### 9h – C derleyicisi olmadan derleme
+- `runtime/calistirici/`: çalışma zamanının önceden derlenmiş "çalıştırıcı" biçimi (Linux x86-64,
+  Windows x86-64; `araclar/calistiricilar.sh`). `src/baglayici.rs` nesne dosyasını (ELF/COFF) tek
+  bloğa yerleştirir (iç yerleşimler, atlama basamakları, GOT) ve çalıştırıcının sonuna ekler;
+  çalıştırıcı bloğu belleğe yükleyip çalıştırır. Derleme çok hızlandı (çalışma zamanı her seferinde
+  derlenmiyor). macOS ve `ORHUNCA_CC` için sistem bağlayıcısı yolu sürer.
+- CI: çalıştırıcılar kaynaktan yeniden derlenip testler onlarla çalışır; Windows işi örnekleri
+  C derleyicisi olmadan derleyip çalıştırır.
+
 ## Henüz yapılmayanlar
 
 - Çalışma zamanının çekirdeği (bellek ve çöp toplayıcı, listeler, sözlükler, dosyalar, ağ, JSON,
@@ -159,7 +168,6 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 
 1. Öz-barındırma: tip denetçisinin Orhunca'ya taşınması (`öz/BENİOKU.md`).
 2. Arayüz uygulamalarını yerel pencerede (Tauri) paketleme: `orhunca paketle`.
-3. Windows'ta bağlayıcı gereksinimini kaldırmak (MinGW yerine hazır bağlayıcı ve çalışma zamanı).
 
 ## Çalışma şekli
 
