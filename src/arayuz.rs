@@ -14,6 +14,8 @@ pub enum Beklenen {
     Sayisal,
     /// `liste<metin>` (seçim kutusunun seçenekleri)
     MetinListesi,
+    /// Herhangi bir liste (iç içe de olabilir); JSON olarak gönderilir
+    Veri,
     /// Durum değişkenine bağlanan değer: kullanıcı değiştirince değişken güncellenir.
     Bag(BagTuru),
 }
@@ -188,6 +190,42 @@ pub const OGELER: &[OgeTanimi] = &[
         olaylar: &[],
         aciklama: "İlerleme çubuğu (varsayılan en fazla 100)",
         ornek: "ilerleme(yüzde)",
+    },
+    OgeTanimi {
+        ad: "tablo",
+        degerler: &[("satırlar", Veri)],
+        zorunlu: 1,
+        kapsayici: false,
+        olaylar: &[],
+        aciklama: "Tablo; ilk satır başlıktır (her satır bir liste)",
+        ornek: "tablo([[\"Ad\", \"Not\"], [\"Ayşe\", \"90\"]])",
+    },
+    OgeTanimi {
+        ad: "grafik",
+        degerler: &[("değerler", Veri), ("etiketler", MetinListesi), ("tür", Metin)],
+        zorunlu: 1,
+        kapsayici: false,
+        olaylar: &[],
+        aciklama: "Grafik: tür \"çubuk\" (varsayılan), \"çizgi\" ya da \"pasta\"",
+        ornek: "grafik([12, 19, 7], [\"Ocak\", \"Şubat\", \"Mart\"], \"çubuk\")",
+    },
+    OgeTanimi {
+        ad: "sekmeler",
+        degerler: &[("değer", Bag(BagTuru::Yazi)), ("seçenekler", MetinListesi)],
+        zorunlu: 2,
+        kapsayici: false,
+        olaylar: &["değişince"],
+        aciklama: "Sekme çubuğu; seçili sekmenin adı bir durum değişkenine bağlıdır",
+        ornek: "sekmeler(sekme, [\"Genel\", \"Ayarlar\"])",
+    },
+    OgeTanimi {
+        ad: "iletişim_kutusu",
+        degerler: &[("açık", Bag(BagTuru::Mantik)), ("başlık", Herhangi)],
+        zorunlu: 1,
+        kapsayici: true,
+        olaylar: &["değişince"],
+        aciklama: "Sayfanın üstünde açılan pencere; mantık değişkeni doğruyken görünür, kapatılınca yanlış olur",
+        ornek: "iletişim_kutusu(açık, \"Emin misiniz?\"):",
     },
     OgeTanimi {
         ad: "satır",

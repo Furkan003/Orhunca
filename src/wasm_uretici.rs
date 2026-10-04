@@ -1505,7 +1505,11 @@ impl Uretici<'_> {
         self.metin_adresi(&o.ad);
         self.ui("ac");
         for (a, (ad, beklenen)) in o.argumanlar.iter().zip(tanim.degerler) {
-            self.ozellik(ad, a, *beklenen == Beklenen::MetinListesi)?;
+            self.ozellik(
+                ad,
+                a,
+                matches!(beklenen, Beklenen::MetinListesi | Beklenen::Veri),
+            )?;
         }
         for (ad, d) in &o.secenekler {
             self.ozellik(ad, d, false)?;

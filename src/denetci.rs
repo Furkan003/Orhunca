@@ -1256,6 +1256,7 @@ impl Denetci {
                     Tip::Liste(Box::new(Tip::Metin)).kabul_eder(&t)
                         || matches!(&t, Tip::Liste(ic) if matches!(**ic, Tip::Secenek(_)))
                 }
+                Beklenen::Veri => matches!(t, Tip::Liste(_)),
                 Beklenen::Bag(tur) => {
                     self.bag_hedefi(a, &o.ad)?;
                     bag = Some(tur);
@@ -1276,6 +1277,7 @@ impl Denetci {
                     Beklenen::Sayi => "sayı".into(),
                     Beklenen::Sayisal => "sayı ya da ondalık".into(),
                     Beklenen::MetinListesi => "liste<metin>".into(),
+                    Beklenen::Veri => "liste".into(),
                     Beklenen::Bag(BagTuru::Yazi) => "metin, sayı ya da ondalık".into(),
                     Beklenen::Bag(BagTuru::Metin) => "metin".into(),
                     Beklenen::Bag(BagTuru::Mantik) => "mantık".into(),

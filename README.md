@@ -162,12 +162,16 @@ orhunca derle sayaç.ohc --hedef web       # → sayaç.html (tek dosya)
 | `resim`, `bağlantı`, `ilerleme`, `ayraç`, `boşluk` | `bağlantı("Orhunca", "https://...")` | tıklanınca |
 | `satır:`, `sütun:`, `kart:`, `kutu:`, `ızgara(3):` | içine öğe alan kapsayıcılar | tıklanınca |
 | `zamanlayıcı(1)` | `zamanlayıcı(1) çalınca:` (her saniye) | çalınca |
+| `tablo` | `tablo([["Ad", "Not"], ["Ayşe", "90"]])` (ilk satır başlık) | — |
+| `grafik` | `grafik(notlar, adlar, "çubuk")` (`"çizgi"`, `"pasta"`) | — |
+| `sekmeler` | `sekmeler(sekme, ["Genel", "Ayarlar"])` + `eğer sekme == "Genel" ise:` | değişince |
+| `iletişim_kutusu:` | `iletişim_kutusu(açık, "Emin misiniz?"):` (açık doğruyken görünür; kapatılınca yanlış olur) | değişince |
 
 Seçenekler bütün öğelerde kullanılabilir: `renk`, `arka`, `boyut`, `kalın`, `eğik`, `hizala`
 (`"sol"`, `"orta"`, `"sağ"`), `genişlik`, `yükseklik`, `boşluk`, `iç_boşluk`, `köşe`, `kenarlık`,
 `ipucu`, `etkin`, `gizli`, `sınıf`. Renkler Türkçe yazılabilir (`"kırmızı"`, `"lacivert"`,
 `"açık_gri"` …) ya da CSS biçiminde (`"#3366ff"`). Örnekler: [örnekler/arayüz/](örnekler/arayüz)
-(sayaç, yapılacaklar listesi, hesap makinesi).
+(sayaç, yapılacaklar listesi, hesap makinesi, sınıf defteri: tablo, grafik, sekmeler ve iletişim kutusu).
 
 ![Orhunca Stüdyo — arayüz uygulaması canlı önizlemede](docs/ekran/arayuz.png)
 
@@ -442,6 +446,10 @@ sabit KDV_ORANI = 0.20           # her yerden (işlevlerden de) görülür
 | Dosya | `dosya_oku` `dosyaya_yaz` `dosyaya_ekle` `dosya_var` `dosya_sil` |
 | Matematik | `karekök` `üs` `mutlak` `sinüs` `kosinüs` `tanjant` `logaritma(x)` `logaritma(x, taban)` `rastgele()` `rastgele(a, b)` |
 | Zaman ve sistem | `zaman()` `tarih()` `bekle(saniye)` `oku()` `argümanlar()` `ortam(ad)` `çık(kod)` `hata_ver(mesaj)` |
+| Tarih | `bugün()` `saat()` `gün_ekle(t, n)` `gün_farkı(t1, t2)` `haftanın_günü(t)` `tarih_yazısı(t)` — tarihler `"2026-10-04"` ya da `"04.10.2026"` |
+| Desenler | `eşleşir(m, desen)` (metnin tamamı) `desen_bul` `eşleşmeler` `desen_değiştir` `desen_böl` — `. \d \w \s [a-z] [^0-9] * + ? {n,m} ( \| ) ^ $ \b`; `\w` Türkçe harfleri tanır |
+| CSV ve JSON | `csv_oku(metin)` → `liste<liste<metin>>` (ayraç `,` `;` ya da sekme) `csv_yaz(tablo)` · `json_al(json, "öğrenciler.0.ad")` |
+| İnternet | `http_al(adres)` `http_gönder(adres, gövde)` — hata durumunda (bağlantı yok, HTTP 404 …) çalışma hatası; `dene:` ile yakalanır |
 
 - Metin üzerinde `her harf için metinden:` harf harf, sözlük üzerinde anahtar anahtar gezer.
 - Programa argüman: `orhunca çalıştır dosya.ohc -- bir iki`

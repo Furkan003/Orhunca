@@ -1,0 +1,62 @@
+# Sınıf defteri: sekmeler, tablo, grafik ve iletişim kutusu
+model Öğrenci:
+    ad: metin
+    not: sayı
+
+durum sınıf = [
+    Öğrenci(ad: "Ayşe", not: 92),
+    Öğrenci(ad: "Mehmet", not: 74),
+    Öğrenci(ad: "Elif", not: 88),
+    Öğrenci(ad: "Can", not: 45),
+]
+durum sekme = "Liste"
+durum grafik_türü = "çubuk"
+durum ekleme_açık = yanlış
+durum yeni_ad = ""
+durum yeni_not = ""
+
+işlev tablo_satırları() -> liste<liste<metin>>:
+    satırlar: liste<liste<metin>> = [["Öğrenci", "Not", "Durum"]]
+    her ö için sınıf'tan:
+        durum_ = "Geçti"
+        eğer ö.not < 50 ise:
+            durum_ = "Kaldı"
+        [ö.ad, metin(ö.not), durum_]'u satırlar'a ekle.
+    döndür satırlar
+
+işlev notlar() -> liste<sayı>:
+    l: liste<sayı> = []
+    her ö için sınıf'tan:
+        ö.not'u l'ye ekle.
+    döndür l
+
+işlev adlar() -> liste<metin>:
+    l: liste<metin> = []
+    her ö için sınıf'tan:
+        ö.ad'ı l'ye ekle.
+    döndür l
+
+arayüz:
+    başlık("Sınıf defteri")
+    sekmeler(sekme, ["Liste", "Grafik"])
+    eğer sekme == "Liste" ise:
+        tablo(tablo_satırları())
+        satır:
+            yazı("Ortalama: " + toplam(notlar()) / uzunluk(sınıf), renk: "gri")
+            boşluk()
+            düğme("Öğrenci ekle") tıklanınca:
+                ekleme_açık = doğru
+    değilse:
+        seçim(grafik_türü, ["çubuk", "çizgi", "pasta"])
+        grafik(notlar(), adlar(), grafik_türü)
+    iletişim_kutusu(ekleme_açık, "Yeni öğrenci"):
+        giriş(yeni_ad, "Ad")
+        giriş(yeni_not, "Not", tür: "sayı")
+        satır(hizala: "sağ"):
+            düğme("Vazgeç", arka: "açık_gri") tıklanınca:
+                ekleme_açık = yanlış
+            düğme("Ekle", etkin: yeni_ad != "" ve sayı_mı(yeni_not)) tıklanınca:
+                Öğrenci(ad: yeni_ad, not: sayı(yeni_not))'yi sınıf'a ekle.
+                yeni_ad = ""
+                yeni_not = ""
+                ekleme_açık = yanlış
