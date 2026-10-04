@@ -97,14 +97,20 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
   `karakter(n)`.
 - Sıradaki adımlar `öz/BENİOKU.md`'de: ayrıştırıcı, tip denetçisi, WebAssembly kod üretimi.
 
+## Aşama 9 – Eksiklerin giderilmesi
+
+### 9a – Hata yakalama
+- `dene:` / `yakala hata:` blokları ve `hata_ver(mesaj)`. Blok ayrı bir işleve çevrilir; bloğun
+  kullandığı değişkenler çevreleyen işlevin çerçevesinde durur (hatadan önceki atamalar kalır).
+  Yerelde çalışma zamanı `setjmp/longjmp` ile, WebAssembly'de yükleyici bir JavaScript
+  istisnasıyla geri sarar. `döndür`, `dur`, `sürdür` ve iç içe bloklar desteklenir.
+
 ## Henüz yapılmayanlar
 
 - **Çalışma zamanı C ile yazılı** (`runtime/orhunca_rt.c`). Bağlama zaten bir C araç zinciri
   istediğinden pratik bir seçim; self-hosting aşamasında Orhunca ile yeniden yazılabilir.
 - Model alanları başka bir model olamaz (ilişkiler kimlik alanıyla kurulur: `yazar_kimliği: sayı`).
 - Web sunucusu tek iş parçacıklıdır; oturum/çerez, dosya yükleme ve HTTPS yok (geliştirme için).
-- **Hata yakalama yok** (`dene / yakala`): üretilen kodun yığıtını güvenle geri sarmak için
-  çalışma zamanına destek gerekiyor.
 - Ünlü uyumu derleyicide hoşgörüyle kabul edilir; biçimlendirici ve dil sunucusu uyarır ve düzeltir.
   Metinlerde (yabancı kelimeler olabileceği için) yalnızca tampon harf ve ünsüz benzeşmesi denetlenir.
 - Fiil parametrelerinin tipi çağrılardan çıkarılmıyor; `sayı` dışındaki tipler yazılmalı.

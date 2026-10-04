@@ -31,6 +31,9 @@
     }
   }
 
+  /** `dene:` bloğunda oluşan çalışma hatası: `yakala` bloğuna geri sarar. */
+  class Yakalanan {}
+
   /* ---------------------------------------------------------------------- */
   /* printf'in %g, %f ve %e biçimleri (C ile aynı sonuç: tam ondalık açılım,  */
   /* yarımlarda çifte yuvarlama)                                             */
@@ -264,6 +267,28 @@
       rastgele_tohum: () => (Math.random() * 4294967296) >>> 0,
       arguman_sayisi: () => 1 + argumanlar.length,
       arguman: (i) => metinAyir(i === 0 ? 'program' : String(argumanlar[i - 1])),
+      hata_yakala() {
+        if (deneDerinligi > 0) throw new Yakalanan();
+      },
+    };
+
+    // `dene:` blokları: blok, programın tablosundaki bir işlevdir. Çalışma hatası
+    // olursa C yığıtının tepesi geri alınır ve -1 döner (yakala bloğu çalışır).
+    let deneDerinligi = 0;
+    const dn = {
+      dene(sira, cerceve) {
+        const tepe = rt.__stack_pointer.value;
+        deneDerinligi++;
+        try {
+          return prog.exports.ohc_tablo.get(sira)(cerceve);
+        } catch (h) {
+          if (!(h instanceof Yakalanan)) throw h;
+          rt.__stack_pointer.value = tepe;
+          return -1n;
+        } finally {
+          deneDerinligi--;
+        }
+      },
     };
 
     // Arayüz: çizim sırasında program öğe ağacını bu işlevlerle kurar.
@@ -288,7 +313,7 @@
     const rtOrnek = await ornekle(s.calismaZamani, { js });
     rt = rtOrnek.exports;
     bellek = rt.memory;
-    const prog = await ornekle(s.program, { rt, ui });
+    const prog = await ornekle(s.program, { rt, ui, dn });
 
     /** Çalışma hatasını yazar ve çıkış kodunu verir; başka hataları fırlatır. */
     const hataKodu = (h) => {

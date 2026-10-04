@@ -35,6 +35,9 @@ JS(bekle) void js_bekle(double saniye);
 JS(rastgele_tohum) uint32_t js_rastgele_tohum(void);
 JS(arguman_sayisi) int32_t js_arguman_sayisi(void); /* program adı dahil */
 JS(arguman) char *js_arguman(int32_t sira);         /* malloc'lu */
+/* Çalışma hatası: bir `dene:` bloğunun içindeysek JavaScript istisnası fırlatır
+ * (yakala bloğuna geri sarılır); değilse geri döner ve program biter. */
+JS(hata_yakala) void js_hata_yakala(void);
 
 /* ---- errno ---- */
 extern int errno;

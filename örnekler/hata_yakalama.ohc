@@ -1,0 +1,70 @@
+# Hata yakalama: dene / yakala ve hata_ver
+
+# Dönüştürme hatası yakalanır; atamalar hatadan önce yapıldıysa kalır.
+adım = 0
+dene:
+    adım = 1
+    yaş = sayı("on iki")
+    adım = 2
+yakala hata:
+    ("Yakalandı: " + hata)'yı yaz.
+("Adım: " + adım)'ı yaz.
+
+# İşlevin içinde: hata olursa varsayılan değer döndürülür.
+işlev güvenli_böl(a, b) -> sayı:
+    dene:
+        döndür a // b
+    yakala:
+        döndür 0
+
+güvenli_böl(17, 5)'i yaz.
+güvenli_böl(17, 0)'ı yaz.
+
+# Kendi hatalarımız: hata_ver
+işlev yaş_oku(metin_: metin) -> sayı:
+    eğer değil sayı_mı(metin_) ise:
+        hata_ver("'" + metin_ + "' bir yaş değil")
+    yaş = sayı(metin_)
+    eğer yaş < 0 veya yaş > 150 ise:
+        hata_ver(metin(yaş) + " geçerli bir yaş değil")
+    döndür yaş
+
+her girdi için ["42", "kırk", "-3", "7"]'den:
+    dene:
+        ("Yaş: " + yaş_oku(girdi))'yı yaz.
+    yakala h:
+        ("Geçersiz: " + h)'yi yaz.
+
+# Döngüde dur ve sürdür, iç içe dene
+sayılar = [10, 20, 30]
+toplam = 0
+her i için 0'dan 10'a kadar:
+    dene:
+        eğer i == 5 ise:
+            dur
+        toplam += sayılar[i]
+    yakala:
+        "  (liste bitti, atlanıyor)"'ı yaz.
+        sürdür
+("Toplam: " + toplam)'ı yaz.
+
+işlev iç_içe() -> metin:
+    dene:
+        dene:
+            hata_ver("içteki")
+        yakala e:
+            hata_ver("dıştaki <- " + e)
+    yakala e:
+        döndür e
+    döndür "olmadı"
+
+iç_içe()'yi yaz.
+
+# Çok sayıda nesne: çöp toplayıcı dene bloğundaki değerleri korur.
+parçalar: liste<metin> = []
+dene:
+    her i için 1'den 20000'e kadar:
+        parçalar'a ("parça " + i)'yi ekle.
+    hata_ver("bitti")
+yakala h:
+    (h + ": " + uzunluk(parçalar) + " " + parçalar[19999])'u yaz.

@@ -70,10 +70,11 @@
 #define M(x) ((const char *)(intptr_t)(x))
 #define D(p) ((int64_t)(uintptr_t)(p))
 
-/* Web isteği işlenirken oluşan çalışma hataları sunucuyu durdurmaz: hata
- * isteğin başına geri sarılır ve tarayıcıya 500 sayfası gönderilir. */
+/* Hata yakalama: `dene:` bloğu (ve web isteği) bir "yakalayıcı" kurar. Çalışma
+ * hatası olursa hata() en içteki yakalayıcıya geri sarar. Web isteği işlenirken
+ * oluşan ve yakalanmayan hatalar sunucuyu durdurmaz: tarayıcıya 500 sayfası gider.
+ * WebAssembly'de geri sarmayı JavaScript yapar (js_hata_yakala bir istisna fırlatır). */
 #if defined(__wasm__)
-/* WebAssembly'de web sunucusu yoktur; hata programı bitirir. */
 #elif defined(__GNUC__)
 typedef void *Tuzak[5];
 #define TUZAK_KUR(t) __builtin_setjmp(t)
@@ -84,24 +85,35 @@ typedef jmp_buf Tuzak;
 #define TUZAGA_DON(t) longjmp(t, 1)
 #endif
 #ifndef __wasm__
-static Tuzak istek_tuzagi;
-static volatile int tuzak_kurulu;
+typedef struct Yakalayici {
+    Tuzak tuzak;
+    struct Yakalayici *onceki;
+    int istek; /* web isteği: hata yine de yazılır */
+} Yakalayici;
+static Yakalayici *yakalayici;
 #endif
 static char son_hata[1024];
+/* Son çalışma hatasının yalnızca mesajı (yakala bloğundaki değişkene gelir) */
+static char son_mesaj[1024];
 
 static void hata(int64_t satir, const char *mesaj) {
     fflush(stdout);
+    snprintf(son_mesaj, sizeof son_mesaj, "%s", mesaj);
     if (satir > 0)
         snprintf(son_hata, sizeof son_hata, "Çalışma hatası (satır %" PRId64 "): %s", satir, mesaj);
     else
         snprintf(son_hata, sizeof son_hata, "Çalışma hatası: %s", mesaj);
-    fprintf(stderr, "%s\n", son_hata);
-#ifndef __wasm__
-    if (tuzak_kurulu) {
-        tuzak_kurulu = 0;
-        TUZAGA_DON(istek_tuzagi);
+#ifdef __wasm__
+    js_hata_yakala();
+#else
+    if (yakalayici) {
+        Yakalayici *y = yakalayici;
+        yakalayici = y->onceki;
+        if (y->istek) fprintf(stderr, "%s\n", son_hata);
+        TUZAGA_DON(y->tuzak);
     }
 #endif
+    fprintf(stderr, "%s\n", son_hata);
     exit(1);
 }
 
@@ -1537,6 +1549,33 @@ void ohc_cik(int64_t kod) {
 }
 
 /* ====================================================================== */
+/* Hata yakalama (dene / yakala)                                          */
+/* ====================================================================== */
+
+/* `dene:` bloğu: derleyici bloğu ayrı bir işleve çevirir; işlev, çevreleyen
+ * işlevin değişkenlerini `cerceve` adresindeki yuvalardan okur ve yazar.
+ * Sonuç: bloğun dönüş kodu (0 sona ulaştı, 1 döndür, 2 dur, 3 sürdür) ya da
+ * çalışma hatasında -1. WebAssembly'de bu işi JavaScript yükleyicisi yapar. */
+#ifndef __wasm__
+int64_t ohc_dene(int64_t govde, int64_t cerceve) {
+    Yakalayici y;
+    y.onceki = yakalayici;
+    y.istek = 0;
+    if (TUZAK_KUR(y.tuzak)) return -1;
+    yakalayici = &y;
+    int64_t sonuc = ((int64_t(*)(int64_t))(intptr_t)govde)(cerceve);
+    yakalayici = y.onceki;
+    return sonuc;
+}
+#endif
+
+/* Son çalışma hatasının mesajı (`yakala hata:`) */
+int64_t ohc_hata_mesaji(void) { return metin_yap(son_mesaj, strlen(son_mesaj)); }
+
+/* `hata_ver("mesaj")`: programın kendi çalışma hatası */
+void ohc_hata_ver(int64_t mesaj, int64_t satir) { hata(satir, M(mesaj)); }
+
+/* ====================================================================== */
 /* Modeller                                                                */
 /* ====================================================================== */
 
@@ -2869,13 +2908,16 @@ static int64_t son_istek_basarili;
 
 /* Yolun işlevini çalıştırır. Çalışma hatası olursa hata() buraya geri döner. */
 static SATIR_ICI_DEGIL int64_t yolu_calistir(int64_t (*islev)(int64_t), int64_t istek) {
+    Yakalayici y;
     son_istek_basarili = 0;
-    if (TUZAK_KUR(istek_tuzagi)) return 0;
-    tuzak_kurulu = 1;
-    int64_t y = islev(istek);
-    tuzak_kurulu = 0;
+    y.onceki = yakalayici;
+    y.istek = 1;
+    if (TUZAK_KUR(y.tuzak)) return 0;
+    yakalayici = &y;
+    int64_t sonuc = islev(istek);
+    yakalayici = y.onceki;
     son_istek_basarili = 1;
-    return y;
+    return sonuc;
 }
 
 

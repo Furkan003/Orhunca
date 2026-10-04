@@ -234,6 +234,155 @@ pub enum Deyim {
     IfadeDeyimi(Ifade),
     /// Arayüz öğesi (yalnızca `arayüz:` ve `bileşen` gövdelerinde): `düğme("Artır") tıklanınca:`
     Oge(Box<Oge>),
+    /// `dene:` ... `yakala hata:` ...: gövdede çalışma hatası olursa yakala bloğu
+    /// çalışır; `degisken` hatanın mesajını (metin) alır.
+    Dene {
+        govde: Vec<Deyim>,
+        degisken: Option<String>,
+        yakala: Vec<Deyim>,
+        konum: Konum,
+    },
+}
+
+/// Bir gövdede adı geçen değişkenler (okunan, yazılan, döngü ve hata
+/// değişkenleri); iç içe bloklar dahil, ilk geçiş sırasıyla.
+pub fn gecen_adlar(govde: &[Deyim]) -> Vec<String> {
+    fn ekle(adlar: &mut Vec<String>, ad: &str) {
+        if !adlar.iter().any(|a| a == ad) {
+            adlar.push(ad.to_string());
+        }
+    }
+    fn ifade(e: &Ifade, adlar: &mut Vec<String>) {
+        match &e.tur {
+            IfadeTuru::Isim(ad) => ekle(adlar, ad),
+            IfadeTuru::Liste(l) | IfadeTuru::Cagri(_, l) => l.iter().for_each(|x| ifade(x, adlar)),
+            IfadeTuru::Sozluk(c) => c.iter().for_each(|(a, d)| {
+                ifade(a, adlar);
+                ifade(d, adlar)
+            }),
+            IfadeTuru::Ikili(_, a, b) | IfadeTuru::Indeks(a, b) => {
+                ifade(a, adlar);
+                ifade(b, adlar)
+            }
+            IfadeTuru::Tekli(_, a) | IfadeTuru::Alan(a, ..) => ifade(a, adlar),
+            IfadeTuru::FiilCagri(_, l) => l.iter().for_each(|(_, x)| ifade(x, adlar)),
+            IfadeTuru::Kurucu(_, l) => l.iter().for_each(|(_, x)| ifade(x, adlar)),
+            IfadeTuru::Metod(a, _, l) => {
+                ifade(a, adlar);
+                l.iter().for_each(|x| ifade(x, adlar))
+            }
+            IfadeTuru::Sayi(_)
+            | IfadeTuru::Ondalik(_)
+            | IfadeTuru::Metin(_)
+            | IfadeTuru::Mantik(_)
+            | IfadeTuru::ModelAdi(_) => {}
+        }
+    }
+    fn blok(govde: &[Deyim], adlar: &mut Vec<String>) {
+        for d in govde {
+            match d {
+                Deyim::Atama { hedef, deger, .. } => {
+                    ifade(deger, adlar);
+                    ekle(adlar, hedef)
+                }
+                Deyim::IndeksAtama {
+                    liste,
+                    indeks,
+                    deger,
+                } => [liste, indeks, deger].iter().for_each(|x| ifade(x, adlar)),
+                Deyim::AlanAtama { nesne, deger, .. } => {
+                    ifade(nesne, adlar);
+                    ifade(deger, adlar)
+                }
+                Deyim::Yaz(e) | Deyim::Sirala(e) | Deyim::IfadeDeyimi(e) => ifade(e, adlar),
+                Deyim::Ekle { oge, liste } | Deyim::Cikar { oge, liste } => {
+                    ifade(oge, adlar);
+                    ifade(liste, adlar)
+                }
+                Deyim::DosyayaYaz { deger, yol } => {
+                    ifade(deger, adlar);
+                    ifade(yol, adlar)
+                }
+                Deyim::Eger {
+                    kosul,
+                    govde,
+                    degilse,
+                } => {
+                    ifade(kosul, adlar);
+                    blok(govde, adlar);
+                    blok(degilse, adlar)
+                }
+                Deyim::Surece { kosul, govde } => {
+                    ifade(kosul, adlar);
+                    blok(govde, adlar)
+                }
+                Deyim::HerAralik {
+                    degisken,
+                    bas,
+                    son,
+                    govde,
+                    ..
+                } => {
+                    ifade(bas, adlar);
+                    ifade(son, adlar);
+                    ekle(adlar, degisken);
+                    blok(govde, adlar)
+                }
+                Deyim::HerListe {
+                    degisken,
+                    liste,
+                    govde,
+                    ..
+                } => {
+                    ifade(liste, adlar);
+                    ekle(adlar, degisken);
+                    blok(govde, adlar)
+                }
+                Deyim::Dondur(e, _) => e.iter().for_each(|x| ifade(x, adlar)),
+                Deyim::Dur(_) | Deyim::Surdur(_) => {}
+                Deyim::Oge(o) => {
+                    o.argumanlar.iter().for_each(|x| ifade(x, adlar));
+                    o.secenekler.iter().for_each(|(_, x)| ifade(x, adlar));
+                    blok(&o.cocuklar, adlar);
+                    for olay in o.olay.iter().chain(&o.baglama) {
+                        for (ad, _) in &olay.yakalananlar {
+                            ekle(adlar, ad);
+                        }
+                    }
+                }
+                Deyim::Dene {
+                    govde,
+                    degisken,
+                    yakala,
+                    ..
+                } => {
+                    blok(govde, adlar);
+                    if let Some(d) = degisken {
+                        ekle(adlar, d);
+                    }
+                    blok(yakala, adlar)
+                }
+            }
+        }
+    }
+    let mut adlar = Vec::new();
+    blok(govde, &mut adlar);
+    adlar
+}
+
+/// Gövdede (iç içe bloklar dahil) bir `dene:` bloğu var mı?
+pub fn dene_var(govde: &[Deyim]) -> bool {
+    govde.iter().any(|d| match d {
+        Deyim::Dene { .. } => true,
+        Deyim::Eger { govde, degilse, .. } => dene_var(govde) || dene_var(degilse),
+        Deyim::Surece { govde, .. }
+        | Deyim::HerAralik { govde, .. }
+        | Deyim::HerListe { govde, .. } => dene_var(govde),
+        Deyim::Oge(o) => {
+            dene_var(&o.cocuklar) || o.olay.iter().chain(&o.baglama).any(|x| dene_var(&x.govde))
+        }
+        _ => false,
+    })
 }
 
 /// Bir arayüz öğesi: `yazı("Merhaba", renk: "mavi")`, `satır:` + çocuklar,

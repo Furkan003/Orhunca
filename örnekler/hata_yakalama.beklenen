@@ -1,0 +1,13 @@
+Yakalandı: 'on iki' bir sayı değil
+Adım: 1
+3
+0
+Yaş: 42
+Geçersiz: 'kırk' bir yaş değil
+Geçersiz: -3 geçerli bir yaş değil
+Yaş: 7
+  (liste bitti, atlanıyor)
+  (liste bitti, atlanıyor)
+Toplam: 60
+dıştaki <- içteki
+bitti: 20000 parça 20000

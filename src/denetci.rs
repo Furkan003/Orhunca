@@ -223,6 +223,7 @@ fn cagri_var(govde: &[Deyim], ad: &str) -> bool {
         } => ifadede(kosul, ad) || cagri_var(govde, ad) || cagri_var(degilse, ad),
         Deyim::Surece { kosul, govde } => ifadede(kosul, ad) || cagri_var(govde, ad),
         Deyim::HerAralik { govde, .. } | Deyim::HerListe { govde, .. } => cagri_var(govde, ad),
+        Deyim::Dene { govde, yakala, .. } => cagri_var(govde, ad) || cagri_var(yakala, ad),
         _ => false,
     })
 }
@@ -923,6 +924,24 @@ impl Denetci {
                 self.ifade(i)?;
             }
             Deyim::Oge(o) => self.oge(o)?,
+            Deyim::Dene {
+                govde,
+                degisken,
+                yakala,
+                konum,
+            } => {
+                self.blok(govde)?;
+                if let Some(d) = degisken {
+                    if self.durumlar.contains_key(d) && !self.kapsam.contains_key(d) {
+                        return Err(Hata::yeni(
+                            *konum,
+                            format!("'{d}' bir durum değişkeni; hata için başka bir ad verin"),
+                        ));
+                    }
+                    self.ata(d, Tip::Metin, *konum)?;
+                }
+                self.blok(yakala)?;
+            }
         }
         Ok(())
     }
@@ -1657,6 +1676,7 @@ impl Denetci {
             ("sun", []) | ("sun", [Sayi]) => Bos,
             ("ortam", [Metin]) => Metin,
             ("çık", [Sayi]) => Bos,
+            ("hata_ver", [Metin]) => Bos,
             _ if arayuz::oge(ad).is_some() => {
                 return Err(Hata::yeni(
                     konum,

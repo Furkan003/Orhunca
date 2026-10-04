@@ -360,7 +360,7 @@ sabit KDV_ORANI = 0.20           # her yerden (işlevlerden de) görülür
 | Sözlük | `s[a]` `içerir` `sil` `anahtarlar` `değerler` `uzunluk` |
 | Dosya | `dosya_oku` `dosyaya_yaz` `dosyaya_ekle` `dosya_var` `dosya_sil` |
 | Matematik | `karekök` `üs` `mutlak` `sinüs` `kosinüs` `tanjant` `logaritma(x)` `logaritma(x, taban)` `rastgele()` `rastgele(a, b)` |
-| Zaman ve sistem | `zaman()` `tarih()` `bekle(saniye)` `oku()` `argümanlar()` `ortam(ad)` `çık(kod)` |
+| Zaman ve sistem | `zaman()` `tarih()` `bekle(saniye)` `oku()` `argümanlar()` `ortam(ad)` `çık(kod)` `hata_ver(mesaj)` |
 
 - Metin üzerinde `her harf için metinden:` harf harf, sözlük üzerinde anahtar anahtar gezer.
 - Programa argüman: `orhunca çalıştır dosya.ohc -- bir iki`
@@ -474,6 +474,21 @@ hata: karşılaştırılan değer ayrılma hâlinde (-den) olmalı
 ipucu: x 4'ten büyükse
 ```
 Çalışma hataları da Türkçedir ve satır numarası verir (sıfıra bölme, liste sınırı...).
+
+### Hata yakalama
+
+```
+dene:
+    yaş = sayı(girdi)
+    eğer yaş < 0 ise:
+        hata_ver("yaş eksi olamaz")     # kendi hatanız
+yakala hata:
+    ("Geçersiz giriş: " + hata)'yı yaz.  # hata: mesaj (metin)
+```
+`dene:` bloğunda bir çalışma hatası (dönüştürme, sıfıra bölme, liste sınırı, dosya, `hata_ver`...)
+olursa blok orada bırakılır ve `yakala` bloğu çalışır. Hatadan önce yapılan atamalar kalır.
+Değişken adı isteğe bağlıdır (`yakala:`). `dene` blokları iç içe yazılabilir; blokta `döndür`,
+`dur` ve `sürdür` kullanılabilir. Web yolunda yakalanmayan hata yine 500 sayfası verir.
 
 ## Mimari
 

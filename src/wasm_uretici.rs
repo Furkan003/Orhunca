@@ -17,7 +17,9 @@ use crate::agac::*;
 use crate::arayuz::{self, Beklenen};
 use crate::denetci::OLAY_DEGERI;
 use crate::hata::Konum;
-use crate::uretici::{CALISMA_ZAMANI, ILK_ALAN};
+use crate::uretici::{
+    CALISMA_ZAMANI, DENE_DONDUR, DENE_DUR, DENE_SONA_ERDI, DENE_SURDUR, ILK_ALAN,
+};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use wasm_encoder::{
@@ -46,8 +48,11 @@ const UI_ISLEVLERI: &[(&str, usize)] = &[("ac", 1), ("ozellik", 2), ("olay", 2),
 /// Olay işlevlerinin ilk parametresi: çizim anında yakalanan değerlerin listesi.
 const YAKALANANLAR: &str = "‹yakalananlar›";
 
-/// Web sunucusu WebAssembly'de yoktur.
-const YALNIZ_YEREL: &[&str] = &["ohc_web_yol", "ohc_sun"];
+/// Web sunucusu WebAssembly'de yoktur; `dene:` bloklarını JavaScript çalıştırır.
+const YALNIZ_YEREL: &[&str] = &["ohc_web_yol", "ohc_sun", "ohc_dene"];
+
+/// `dene:` bloklarının işlevlerinin tek parametresi: çevreleyen işlevin çerçevesi.
+const DENE_CERCEVESI: &str = "‹çerçeve›";
 
 /// Gölge yığıtın boyutu (bayt; çalışma zamanının ayırıcısı ikinin kuvvetlerine yuvarlar).
 const GOLGE_BOYUTU: i64 = (1 << 20) - 64;
@@ -58,6 +63,7 @@ const G_SINIR: u32 = 1; // gölge yığıtın sonu (i32)
 const G_BAYRAK: u32 = 2; // "toplama gerekli" bayrağının adresi (i32)
 const G_METINLER: u32 = 3; // sabit metinlerin bellekteki başı (i64)
 const G_GENEL: u32 = 4; // durum değişkenlerinin ve olay listesinin yuvaları (i32)
+const G_METIN_BOYU: u32 = 5; // sabit metinlerin toplam boyu (i32, değişmez; en son bilinir)
 
 /// Bir değişkenin ya da ara değerin yeri.
 #[derive(Clone, Copy, Debug)]
@@ -66,6 +72,8 @@ enum Yer {
     Yuva(u32),
     /// Wasm yerel değişkeni (i64).
     Yerel(u32),
+    /// `dene:` bloğunun işlevinde: çevreleyen işlevin çerçevesindeki yuva (bayt ofseti).
+    Dis(u32),
 }
 
 /// Çalışma zamanı çağrısının bir değeri.
@@ -123,6 +131,26 @@ struct Ortak {
     ui: HashMap<&'static str, u32>,
     /// Öğenin (konum, olay adı) → olay işlevinin tablodaki sırası
     olay_sirasi: HashMap<(Konum, String), u32>,
+    /// JavaScript'ten içe aktarılan `dn.dene(tablodaki sıra, çerçeve) -> kod`
+    dene: Option<u32>,
+    /// `dene:` bloklarının işlevleri: tablodaki ilk sıra ve ilk işlev sırası
+    govde_tablo_basi: u32,
+    govde_islev_basi: u32,
+    /// Üretilmeyi bekleyen ve toplam `dene:` blokları
+    govdeler: Vec<DeneGovdesi>,
+    govde_sayisi: u32,
+}
+
+/// `dene:` bloğu ayrı bir işleve çevrilir: `(çerçeve) -> dönüş kodu`. Çerçeve,
+/// çevreleyen işlevin gölge yığıttaki yuvalarıdır: 0. yuva `döndür` değeri,
+/// sonrakiler bloğun kullandığı değişkenler. Blok bu değişkenleri doğrudan
+/// çerçevede okur ve yazar. Çalışma hatası JavaScript istisnasıdır; yükleyici
+/// (orhunca.js) onu yakalayıp -1 döndürür.
+struct DeneGovdesi {
+    govde: Vec<Deyim>,
+    yakalananlar: Vec<String>,
+    /// Asıl (en dıştaki) işlevin dönüşü: `None` ana program, `Some(true)` değer döndürür.
+    dis_donus: Option<bool>,
 }
 
 impl Ortak {
@@ -202,7 +230,13 @@ pub fn uret(p: &Program) -> Result<Vec<u8>, String> {
         olay_yuvasi: p.durumlar.len() as u32,
         ui: HashMap::new(),
         olay_sirasi: HashMap::new(),
+        dene: None,
+        govde_tablo_basi: 0,
+        govde_islev_basi: 0,
+        govdeler: Vec::new(),
+        govde_sayisi: 0,
     };
+    let dene_kullanilir = dene_var(&p.ana) || p.islevler.iter().any(|f| dene_var(&f.govde));
     let arayuz_var = p.islevler.iter().any(|f| f.arayuz && f.ad == ARAYUZ_ISLEVI);
     // Olay blokları ayrı işlevlere çevrilir; çizimde tabloya göre çağrılırlar.
     let mut olaylar = Vec::new();
@@ -240,6 +274,12 @@ pub fn uret(p: &Program) -> Result<Vec<u8>, String> {
             sira += 1;
         }
     }
+    if dene_kullanilir {
+        let t = o.tur_ekle(&[ValType::I32, ValType::I64], &[ValType::I64]);
+        ice.import("dn", "dene", EntityType::Function(t));
+        o.dene = Some(sira);
+        sira += 1;
+    }
 
     let mut islevler = FunctionSection::new();
     for f in p.islevler.iter().chain(&olaylar) {
@@ -258,12 +298,21 @@ pub fn uret(p: &Program) -> Result<Vec<u8>, String> {
         let t = o.tur_ekle(&[ValType::I32, ValType::I32], &[]);
         islevler.function(t); // ohc_olay
     }
+    o.govde_tablo_basi = olaylar.len() as u32;
+    o.govde_islev_basi = ana_sirasi + if arayuz_var { 3 } else { 1 };
 
     let mut kod = CodeSection::new();
     for f in p.islevler.iter().chain(&olaylar) {
         let (_, doner) = o.islevler[&f.ad];
-        let govde = islev_uret(&mut o, &f.yereller, &f.parametreler, &f.govde, Some(doner))
-            .map_err(|e| format!("'{}': {e}", f.ad))?;
+        let govde = islev_uret(
+            &mut o,
+            &f.yereller,
+            &f.parametreler,
+            &f.govde,
+            Some(doner),
+            None,
+        )
+        .map_err(|e| format!("'{}': {e}", f.ad))?;
         kod.function(&govde);
     }
     // Ana program en sona: sabit metinlerin tamamı ancak o zaman bilinir.
@@ -279,14 +328,44 @@ pub fn uret(p: &Program) -> Result<Vec<u8>, String> {
         })
         .collect();
     ana_govde.extend(p.ana.iter().cloned());
-    let ana = islev_uret(&mut o, &p.ana_yereller, &[], &ana_govde, None)?;
+    let ana = islev_uret(&mut o, &p.ana_yereller, &[], &ana_govde, None, None)?;
     kod.function(&ana);
     if arayuz_var {
         kod.function(&ciz_islevi(&o));
         kod.function(&olay_islevi(&o, olay_turu));
     }
+    // `dene:` blokları (sırayla; iç içe olanlar sona eklenir)
+    let mut uretilen = 0;
+    while uretilen < o.govdeler.len() {
+        let g = std::mem::replace(
+            &mut o.govdeler[uretilen],
+            DeneGovdesi {
+                govde: Vec::new(),
+                yakalananlar: Vec::new(),
+                dis_donus: None,
+            },
+        );
+        let parametre = [(DENE_CERCEVESI.to_string(), Tip::Sayi)];
+        let f = islev_uret(
+            &mut o,
+            &parametre,
+            &parametre,
+            &g.govde,
+            Some(true),
+            Some((&g.yakalananlar, g.dis_donus)),
+        )?;
+        let t = o.tur(1, true);
+        islevler.function(t);
+        kod.function(&f);
+        uretilen += 1;
+    }
+    let govde_islevleri: Vec<u32> = (0..o.govde_sayisi)
+        .map(|i| o.govde_islev_basi + i)
+        .collect();
+    let tablo_var = arayuz_var || !govde_islevleri.is_empty();
 
     let mut genel = GlobalSection::new();
+    let metin_boyu = o.metinler.len() as i32;
     for tur in [
         ValType::I32,
         ValType::I32,
@@ -308,15 +387,27 @@ pub fn uret(p: &Program) -> Result<Vec<u8>, String> {
             &ilk,
         );
     }
+    genel.global(
+        GlobalType {
+            val_type: ValType::I32,
+            mutable: false,
+            shared: false,
+        },
+        &ConstExpr::i32_const(metin_boyu),
+    );
     let mut disa = ExportSection::new();
     disa.export("ohc_ana", ExportKind::Func, ana_sirasi);
     if arayuz_var {
         disa.export("ohc_ciz", ExportKind::Func, ana_sirasi + 1);
         disa.export("ohc_olay", ExportKind::Func, ana_sirasi + 2);
     }
+    if !govde_islevleri.is_empty() {
+        disa.export("ohc_tablo", ExportKind::Table, 0);
+    }
 
-    // Olay işlevleri tablosu (call_indirect)
-    let olay_islevleri: Vec<u32> = olaylar.iter().map(|f| o.islevler[&f.ad].0).collect();
+    // Olay ve `dene:` işlevleri tablosu (call_indirect)
+    let mut olay_islevleri: Vec<u32> = olaylar.iter().map(|f| o.islevler[&f.ad].0).collect();
+    olay_islevleri.extend(&govde_islevleri);
     let mut tablo = TableSection::new();
     tablo.table(TableType {
         element_type: RefType::FUNCREF,
@@ -337,11 +428,11 @@ pub fn uret(p: &Program) -> Result<Vec<u8>, String> {
 
     let mut m = Module::new();
     m.section(&o.turler).section(&ice).section(&islevler);
-    if arayuz_var {
+    if tablo_var {
         m.section(&tablo);
     }
     m.section(&genel).section(&disa);
-    if arayuz_var && !olay_islevleri.is_empty() {
+    if tablo_var && !olay_islevleri.is_empty() {
         m.section(&ogeler);
     }
     m.section(&DataCountSection { count: 1 })
@@ -374,6 +465,10 @@ fn olaylari_topla(
             Deyim::Surece { govde, .. }
             | Deyim::HerAralik { govde, .. }
             | Deyim::HerListe { govde, .. } => olaylari_topla(govde, olaylar, sira),
+            Deyim::Dene { govde, yakala, .. } => {
+                olaylari_topla(govde, olaylar, sira);
+                olaylari_topla(yakala, olaylar, sira);
+            }
             _ => {}
         }
     }
@@ -489,12 +584,15 @@ fn olay_islevi(o: &Ortak, olay_turu: u32) -> Function {
 }
 
 /// `donus`: `None` ana program, `Some(true)` değer döndüren işlev.
+/// `dene_govdesi`: `dene:` bloğunun işlevi ise çerçevedeki değişkenler ve asıl
+/// işlevin dönüşü.
 fn islev_uret(
     o: &mut Ortak,
     yereller: &[(String, Tip)],
     parametreler: &[(String, Tip)],
     govde: &[Deyim],
     donus: Option<bool>,
+    dene_govdesi: Option<(&[String], Option<bool>)>,
 ) -> Result<Function, String> {
     let param_sayisi = parametreler.len() as u32;
     let mut u = Uretici {
@@ -510,6 +608,7 @@ fn islev_uret(
         derinlik: 0,
         donguler: Vec::new(),
         donus,
+        govde: dene_govdesi.map(|(_, d)| d),
         k: [0; 3],
     };
     u.k = [u.yeni_yerel(), u.yeni_yerel(), u.yeni_yerel()];
@@ -530,6 +629,12 @@ fn islev_uret(
         };
         u.degiskenler.insert(ad.clone(), yer);
     }
+    if let Some((yakalananlar, _)) = dene_govdesi {
+        for (i, ad) in yakalananlar.iter().enumerate() {
+            u.degiskenler
+                .insert(ad.clone(), Yer::Dis(8 * (i as u32 + 1)));
+        }
+    }
 
     for d in govde {
         u.deyim(d)?;
@@ -537,7 +642,7 @@ fn islev_uret(
     // Gövdenin sonuna düşülürse
     u.cerceveyi_birak();
     if donus == Some(true) {
-        u.kod.push(K::I64Const(0));
+        u.kod.push(K::I64Const(DENE_SONA_ERDI));
     }
 
     // Giriş: çerçeveyi kur, sıfırla, parametreleri yerleştir, güvenli nokta.
@@ -601,6 +706,8 @@ struct Uretici<'a> {
     /// Döngüler: (sürdür hedefinin derinliği, dur hedefinin derinliği)
     donguler: Vec<(u32, u32)>,
     donus: Option<bool>,
+    /// `dene:` bloğunun işlevinde: asıl işlevin dönüşü
+    govde: Option<Option<bool>>,
     /// Düz kod parçalarında (iç içe değerlendirme olmadan) kullanılan yereller
     k: [u32; 3],
 }
@@ -634,7 +741,14 @@ impl Uretici<'_> {
         match y {
             Yer::Yuva(s) => self.bos_yuvalar.push(s),
             Yer::Yerel(l) => self.bos_yereller.push(l),
+            Yer::Dis(_) => {}
         }
+    }
+
+    /// `dene:` bloğunun işlevinde çevreleyen çerçevenin adresi (i32)
+    fn dis_cerceve(&mut self) {
+        self.e(K::LocalGet(0));
+        self.e(K::I32WrapI64);
     }
 
     fn e(&mut self, k: K<'static>) {
@@ -687,6 +801,10 @@ impl Uretici<'_> {
                 self.e(K::I64Load(bellek(s * 8)));
             }
             Yer::Yerel(l) => self.e(K::LocalGet(l)),
+            Yer::Dis(o) => {
+                self.dis_cerceve();
+                self.e(K::I64Load(bellek(o)));
+            }
         }
     }
 
@@ -732,6 +850,11 @@ impl Uretici<'_> {
                 deger(self)?;
                 self.e(K::LocalSet(l));
             }
+            Yer::Dis(o) => {
+                self.dis_cerceve();
+                deger(self)?;
+                self.e(K::I64Store(bellek(o)));
+            }
         }
         Ok(())
     }
@@ -766,15 +889,18 @@ impl Uretici<'_> {
     /// Programın başında: sabit metinleri belleğe kopyalar, gölge yığıtı kurar.
     fn ana_hazirlik(&mut self, giris: &mut Vec<K<'static>>) {
         let c = |ad: &str| self.o.calisma[ad].0;
-        let n = self.o.metinler.len() as i64;
+        // Metinlerin boyu ancak tüm işlevler (`dene:` blokları dahil) üretilince bilinir.
         giris.extend([
-            K::I64Const(n.max(1)),
+            K::GlobalGet(G_METIN_BOYU),
+            K::I64ExtendI32U,
+            K::I64Const(1),
+            K::I64Add,
             K::Call(c("ohc_wasm_ayir")),
             K::GlobalSet(G_METINLER),
             K::GlobalGet(G_METINLER),
             K::I32WrapI64,
             K::I32Const(0),
-            K::I32Const(n as i32),
+            K::GlobalGet(G_METIN_BOYU),
             K::MemoryInit {
                 mem: 0,
                 data_index: 0,
@@ -1143,6 +1269,39 @@ impl Uretici<'_> {
                 self.birak(l);
                 self.bos_yereller.push(sayac);
             }
+            Deyim::Dondur(deger, _) if self.govde.is_some() => {
+                if let Some(i) = deger {
+                    if self.govde == Some(Some(true)) {
+                        self.dis_cerceve();
+                        self.ifade(i)?;
+                        self.e(K::I64Store(bellek(0)));
+                    } else {
+                        self.ifade(i)?;
+                        self.e(K::Drop);
+                    }
+                }
+                self.cerceveyi_birak();
+                self.sabit(DENE_DONDUR);
+                self.e(K::Return);
+            }
+            Deyim::Dur(_) | Deyim::Surdur(_)
+                if self.govde.is_some() && self.donguler.is_empty() =>
+            {
+                // Döngü bloğun dışında: çevreleyen işlev dallanır.
+                self.cerceveyi_birak();
+                self.sabit(if matches!(d, Deyim::Dur(_)) {
+                    DENE_DUR
+                } else {
+                    DENE_SURDUR
+                });
+                self.e(K::Return);
+            }
+            Deyim::Dene {
+                govde,
+                degisken,
+                yakala,
+                ..
+            } => self.dene(govde, degisken.as_deref(), yakala)?,
             Deyim::Dondur(deger, _) => {
                 match (deger, self.donus) {
                     (Some(i), Some(true)) => self.ifade(i)?,
@@ -1171,6 +1330,127 @@ impl Uretici<'_> {
             }
             Deyim::Oge(o) => self.oge(o)?,
         }
+        Ok(())
+    }
+
+    /// `dene:` bloğu: blok ayrı bir işleve çevrilir, JavaScript yükleyicisi
+    /// (`dn.dene`) onu tablodan çağırır. Bloğun kullandığı değişkenler önce gölge
+    /// yığıttaki bitişik yuvalara konur, sonra oradan geri okunur.
+    fn dene(
+        &mut self,
+        govde: &[Deyim],
+        degisken: Option<&str>,
+        yakala: &[Deyim],
+    ) -> Result<(), String> {
+        let ice = self.o.dene.ok_or("dene içe aktarılmamış")?;
+        let yakalananlar: Vec<String> = gecen_adlar(govde)
+            .into_iter()
+            .filter(|a| self.degiskenler.contains_key(a))
+            .collect();
+        let tablo = self.o.govde_tablo_basi + self.o.govde_sayisi;
+        self.o.govde_sayisi += 1;
+        self.o.govdeler.push(DeneGovdesi {
+            govde: govde.to_vec(),
+            yakalananlar: yakalananlar.clone(),
+            dis_donus: self.govde.unwrap_or(self.donus),
+        });
+
+        // Bitişik yuvalar (yeniden kullanılmaz)
+        let taban = self.yuva_sayisi;
+        self.yuva_sayisi += yakalananlar.len() as u32 + 1;
+        self.e(K::LocalGet(self.cerceve));
+        self.sabit(0);
+        self.e(K::I64Store(bellek(taban * 8)));
+        for (i, a) in yakalananlar.iter().enumerate() {
+            self.e(K::LocalGet(self.cerceve));
+            self.degisken_oku(a)?;
+            self.e(K::I64Store(bellek((taban + 1 + i as u32) * 8)));
+        }
+        // Hata olursa gölge yığıtın tepesi geri alınır.
+        let tepe = self.yerel_al();
+        self.e(K::GlobalGet(G_TEPE));
+        self.e(K::I64ExtendI32U);
+        self.e(K::LocalSet(tepe));
+        self.e(K::I32Const(tablo as i32));
+        self.e(K::LocalGet(self.cerceve));
+        self.e(K::I32Const((taban * 8) as i32));
+        self.e(K::I32Add);
+        self.e(K::I64ExtendI32U);
+        self.e(K::Call(ice));
+        let kod = self.yerel_al();
+        self.e(K::LocalSet(kod));
+        self.e(K::LocalGet(tepe));
+        self.e(K::I32WrapI64);
+        self.e(K::GlobalSet(G_TEPE));
+        for (i, a) in yakalananlar.iter().enumerate() {
+            let c = self.cerceve;
+            self.degiskene_yaz(a, |u| {
+                u.e(K::LocalGet(c));
+                u.e(K::I64Load(bellek((taban + 1 + i as u32) * 8)));
+                Ok(())
+            })?;
+        }
+
+        self.e(K::LocalGet(kod));
+        self.sabit(0);
+        self.e(K::I64LtS);
+        self.ac(K::If(BlockType::Empty));
+        if let Some(d) = degisken {
+            self.degiskene_yaz(d, |u| {
+                u.cz("ohc_hata_mesaji");
+                Ok(())
+            })?;
+        }
+        self.blok(yakala)?;
+        self.e(K::Else);
+        // döndür
+        self.e(K::LocalGet(kod));
+        self.sabit(DENE_DONDUR);
+        self.e(K::I64Eq);
+        self.ac(K::If(BlockType::Empty));
+        match (self.govde, self.donus) {
+            (Some(_), _) => {
+                self.dis_cerceve();
+                self.e(K::LocalGet(self.cerceve));
+                self.e(K::I64Load(bellek(taban * 8)));
+                self.e(K::I64Store(bellek(0)));
+                self.cerceveyi_birak();
+                self.sabit(DENE_DONDUR);
+            }
+            (None, Some(true)) => {
+                self.e(K::LocalGet(self.cerceve));
+                self.e(K::I64Load(bellek(taban * 8)));
+                self.cerceveyi_birak();
+            }
+            (None, _) => self.cerceveyi_birak(),
+        }
+        self.e(K::Return);
+        self.kapat();
+        // dur / sürdür (döngü bloğun dışındaysa)
+        for (k, dur) in [(DENE_DUR, true), (DENE_SURDUR, false)] {
+            let hedef = self
+                .donguler
+                .last()
+                .map(|(devam, son)| if dur { *son } else { *devam });
+            if hedef.is_none() && self.govde.is_none() {
+                continue;
+            }
+            self.e(K::LocalGet(kod));
+            self.sabit(k);
+            self.e(K::I64Eq);
+            self.ac(K::If(BlockType::Empty));
+            match hedef {
+                Some(h) => self.dallan(h, false),
+                None => {
+                    self.cerceveyi_birak();
+                    self.sabit(k);
+                    self.e(K::Return);
+                }
+            }
+            self.kapat();
+        }
+        self.kapat();
+        self.bos_yereller.extend([kod, tepe]);
         Ok(())
     }
 
@@ -1757,6 +2037,10 @@ impl Uretici<'_> {
             }
             "ortam" => self.cagri("ohc_ortam", &d)?,
             "çık" => self.cagri("ohc_cik", &d)?,
+            "hata_ver" => {
+                d.push(satir);
+                self.cagri("ohc_hata_ver", &d)?
+            }
             _ => return Err(format!("bilinmeyen işlev '{ad}'")),
         }
         Ok(())
@@ -1953,8 +2237,8 @@ mod testler {
         let rt = ozet(crate::derleme::WASM_CALISMA_ZAMANI);
         for (ad, wasm) in ornek_modulleri() {
             for (modul, isim, tur) in ozet(&wasm).ice {
-                if modul == "ui" {
-                    // Arayüz işlevleri JavaScript'ten gelir (orhunca.js).
+                if modul == "ui" || modul == "dn" {
+                    // Arayüz ve `dene:` işlevleri JavaScript'ten gelir (orhunca.js).
                     continue;
                 }
                 assert_eq!(modul, "rt", "{ad}");

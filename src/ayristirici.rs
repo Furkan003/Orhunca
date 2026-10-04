@@ -291,6 +291,12 @@ fn sozluk_kur(s: &[Sozcuk]) -> Tanimlar {
                 sozluk.ekle(k);
             }
         }
+        // `yakala hata:` → hata değişkeni
+        if satir_basi(i) && s[i].tok == Tok::Kelime("yakala".into()) {
+            if let (Some(k), Some(Tok::Op(":"))) = (kelime(i + 1), s.get(i + 2).map(|s| &s.tok)) {
+                sozluk.ekle(k);
+            }
+        }
         if s[i].tok == Tok::Kelime("sabit".into()) || s[i].tok == Tok::Kelime("durum".into()) {
             if let Some(k) = kelime(i + 1) {
                 sozluk.ekle(k);
@@ -1232,6 +1238,15 @@ impl Ayristirici {
         if self.kelime_mi("her") {
             return self.her();
         }
+        if self.kelime_mi("dene") && *self.bak_n(1) == Tok::Op(":") {
+            return self.dene();
+        }
+        if self.yakala_basi_mi() {
+            return Err(Hata::yeni(
+                konum,
+                "'yakala' bir 'dene' bloğundan hemen sonra gelmeli",
+            ));
+        }
         if self.kelime_mi("döndür") {
             self.ilerle();
             let deger = if self.deyim_sonu_mu() {
@@ -1464,6 +1479,40 @@ impl Ayristirici {
             kosul,
             govde,
             degilse,
+        })
+    }
+
+    /// `yakala:` ya da `yakala hata:` satırı mı?
+    fn yakala_basi_mi(&self) -> bool {
+        self.kelime_mi("yakala")
+            && (*self.bak_n(1) == Tok::Op(":")
+                || (matches!(self.bak_n(1), Tok::Kelime(_)) && *self.bak_n(2) == Tok::Op(":")))
+    }
+
+    /// `dene:` + blok, ardından `yakala hata:` (ya da `yakala:`) + blok
+    fn dene(&mut self) -> Sonuc<Deyim> {
+        let konum = self.konum();
+        self.bekle_kelime("dene")?;
+        let govde = self.blok()?;
+        if !self.yakala_basi_mi() {
+            return Err(Hata::yeni(
+                self.konum(),
+                "'dene' bloğundan sonra bir 'yakala' bloğu gelmeli",
+            )
+            .ipucu("dene:\n    ...\nyakala hata:\n    hata'yı yaz."));
+        }
+        self.ilerle();
+        let degisken = if self.op_mu(":") {
+            None
+        } else {
+            Some(self.isim_adi("hata değişkeni")?)
+        };
+        let yakala = self.blok()?;
+        Ok(Deyim::Dene {
+            govde,
+            degisken,
+            yakala,
+            konum,
         })
     }
 
@@ -2588,6 +2637,17 @@ mod testler {
 
     fn hata(k: &str) -> String {
         ayristir(sozcukle(k).unwrap()).unwrap_err().mesaj
+    }
+
+    #[test]
+    fn dene_yakala() {
+        let p = ayr("dene:\n    x = 1\nyakala hata:\n    hata'yı yaz.\ndene:\n    x = 2\nyakala:\n    x = 3\n");
+        assert!(matches!(&p.ana[0], Deyim::Dene { degisken: Some(d), .. } if d == "hata"));
+        assert!(matches!(&p.ana[1], Deyim::Dene { degisken: None, .. }));
+        assert!(hata("dene:\n    x = 1\nx = 2\n").contains("'yakala' bloğu gelmeli"));
+        assert!(hata("yakala h:\n    x = 1\n").contains("'dene' bloğundan hemen sonra"));
+        // `dene` ve `yakala` ayrılmış değildir: değişken adı olabilirler.
+        ayr("dene = 1\nyakala = dene + 1\nyakala'yı yaz.\n");
     }
 
     #[test]

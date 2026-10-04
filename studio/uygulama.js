@@ -95,7 +95,7 @@
   // =====================================================================
   // Orhunca sözdizimi renklendirme
   // =====================================================================
-  const ANAHTAR_KELIMELER = new Set(['eğer', 'değilse', 'ise', 'her', 'için', 'kadar', 'işlev', 'fiil', 'döndür', 'dur', 'sürdür', 've', 'veya', 'değil', 'olduğu', 'sürece', 'iken', 'kullan', 'sabit', 'doğru', 'yanlış', 'ekrana', 'tıklanınca', 'değişince', 'gönderilince', 'çalınca']);
+  const ANAHTAR_KELIMELER = new Set(['eğer', 'değilse', 'ise', 'her', 'için', 'kadar', 'işlev', 'fiil', 'döndür', 'dur', 'sürdür', 'dene', 'yakala', 've', 'veya', 'değil', 'olduğu', 'sürece', 'iken', 'kullan', 'sabit', 'doğru', 'yanlış', 'ekrana', 'tıklanınca', 'değişince', 'gönderilince', 'çalınca']);
   // Arayüz dilinin kapsayıcı öğeleri (`satır:`) parantezsiz de yazılır.
   const KAPSAYICILAR = new Set(['satır', 'sütun', 'kart', 'kutu', 'ızgara']);
   const YERLESIK_FIILLER = new Set(['yaz', 'ekle', 'sırala', 'çıkar', 'kaydet']);
@@ -443,6 +443,8 @@
     ['… olduğu sürece', 'while', "x 10'dan küçük olduğu sürece:"],
     ['dur / sürdür', 'break / continue', 'dur'],
     ['döndür', 'return', 'döndür sonuç'],
+    ['dene / yakala', 'try / catch', 'dene:  …  yakala hata:'],
+    ['hata_ver(mesaj)', 'throw', 'hata_ver("geçersiz değer")'],
     ["… 'i yaz", 'print', '"Merhaba"\'yı yaz.'],
     ['ve / veya / değil', 'and / or / not', 'eğer a ve değil b ise:'],
     ['kullan', 'import', 'kullan "araçlar.ohc"'],

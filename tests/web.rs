@@ -41,6 +41,13 @@ al "/selam":
 al "/hata":
     l = []
     döndür "x" + l[3]
+
+al "/güvenli":
+    dene:
+        l = [1]
+        döndür "değer " + l[5]
+    yakala h:
+        döndür yanıt(400, "yakalandı: " + h)
 "#;
 
 const DUZEN: &str = r#"<!DOCTYPE html>
@@ -258,6 +265,16 @@ fn web_cati_uctan_uca() {
         "{}",
         y.govde
     );
+
+    // Yolun içinde yakalanan hata 500 vermez; ardından yakalanmayan hata yine 500 verir.
+    let y = s.istek("GET", "/g%C3%BCvenli", None);
+    assert_eq!(y.durum, 400, "{}", y.govde);
+    assert!(
+        y.govde.starts_with("yakalandı: liste sınırı aşıldı"),
+        "{}",
+        y.govde
+    );
+    assert_eq!(s.istek("GET", "/hata", None).durum, 500);
 
     // Çok sayıda istek: çöp toplayıcı defalarca çalışır, veriler bozulmamalı.
     for i in 0..60 {

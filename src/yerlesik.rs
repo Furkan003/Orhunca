@@ -245,6 +245,11 @@ pub const YERLESIKLER: &[Yerlesik] = &[
     ),
     y!("ortam", "ortam(ad) → metin", "Ortam değişkeni; yoksa \"\"."),
     y!("çık", "çık(kod)", "Programı verilen çıkış koduyla bitirir."),
+    y!(
+        "hata_ver",
+        "hata_ver(mesaj)",
+        "Bir çalışma hatası oluşturur; 'dene' bloğundaysa 'yakala' bloğu çalışır, değilse program biter."
+    ),
     // Web
     y!(
         "json",

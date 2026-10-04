@@ -7,7 +7,8 @@
 use crate::agac::*;
 use cranelift_codegen::ir::condcodes::{FloatCC, IntCC};
 use cranelift_codegen::ir::{
-    types, AbiParam, Function, InstBuilder, MemFlagsData, UserFuncName, Value,
+    types, AbiParam, Function, InstBuilder, MemFlagsData, StackSlotData, StackSlotKind,
+    UserFuncName, Value,
 };
 use cranelift_codegen::isa::OwnedTargetIsa;
 use cranelift_codegen::settings::{self, Configurable};
@@ -114,7 +115,16 @@ pub(crate) const CALISMA_ZAMANI: &[(&str, usize, bool)] = &[
     ("ohc_model_doldur", 2, false),
     ("ohc_web_yol", 3, false),
     ("ohc_sun", 2, false),
+    ("ohc_dene", 2, true),
+    ("ohc_hata_mesaji", 0, true),
+    ("ohc_hata_ver", 2, false),
 ];
+
+/// `dene:` bloğunun işlevinin dönüş kodları (çalışma hatasında -1).
+pub(crate) const DENE_SONA_ERDI: i64 = 0;
+pub(crate) const DENE_DONDUR: i64 = 1;
+pub(crate) const DENE_DUR: i64 = 2;
+pub(crate) const DENE_SURDUR: i64 = 3;
 
 /// Model nesnesinde ilk alanın (kimlik) yuvası: 0 tanım, 1 bağlama hataları.
 pub(crate) const ILK_ALAN: i64 = 2;
@@ -152,6 +162,21 @@ struct Ortak {
     islevler: HashMap<String, (FuncId, bool)>,
     metinler: HashMap<String, DataId>,
     modeller: HashMap<String, Model>,
+    /// Üretilmeyi bekleyen `dene:` bloklarının işlevleri
+    govdeler: Vec<DeneGovdesi>,
+    govde_sayisi: usize,
+}
+
+/// `dene:` bloğu ayrı bir işleve çevrilir: `(çerçeve) -> dönüş kodu`. Çerçeve,
+/// çevreleyen işlevin yığıtındaki yuvalardır: 0. yuva `döndür` değeri, sonrakiler
+/// bloğun kullandığı değişkenler (`yakalananlar` sırasıyla). Blok bu değişkenleri
+/// doğrudan çerçevede okur ve yazar; böylece hata olsa da yapılan atamalar kalır.
+struct DeneGovdesi {
+    id: FuncId,
+    govde: Vec<Deyim>,
+    yakalananlar: Vec<String>,
+    /// Asıl (en dıştaki) işlevin dönüşü: `None` ana program, `Some(true)` değer döndürür.
+    dis_donus: Option<bool>,
 }
 
 impl Ortak {
@@ -182,6 +207,8 @@ pub fn uret(p: &Program, isa: OwnedTargetIsa) -> Result<Vec<u8>, String> {
         calisma: HashMap::new(),
         islevler: HashMap::new(),
         metinler: HashMap::new(),
+        govdeler: Vec::new(),
+        govde_sayisi: 0,
         modeller: p
             .modeller
             .iter()
@@ -249,6 +276,7 @@ pub fn uret(p: &Program, isa: OwnedTargetIsa) -> Result<Vec<u8>, String> {
             .define_function(id, &mut ctx)
             .map_err(|e| format!("'{}': {e:?}", f.ad))?;
         ortak.module.clear_context(&mut ctx);
+        govdeleri_uret(&mut ortak, &mut ctx, &mut fctx)?;
     }
 
     // main: C çalışma zamanının giriş noktası.
@@ -274,9 +302,56 @@ pub fn uret(p: &Program, isa: OwnedTargetIsa) -> Result<Vec<u8>, String> {
         .define_function(id, &mut ctx)
         .map_err(|e| format!("ana program: {e:?}"))?;
     ortak.module.clear_context(&mut ctx);
+    govdeleri_uret(&mut ortak, &mut ctx, &mut fctx)?;
 
     let urun = ortak.module.finish();
     urun.emit().map_err(|e| e.to_string())
+}
+
+/// Bekleyen `dene:` bloklarının işlevlerini üretir (iç içe bloklar sıraya eklenir).
+fn govdeleri_uret(
+    ortak: &mut Ortak,
+    ctx: &mut Context,
+    fctx: &mut FunctionBuilderContext,
+) -> Result<(), String> {
+    while let Some(g) = ortak.govdeler.pop() {
+        let mut sig = ortak.module.make_signature();
+        sig.params.push(AbiParam::new(I64));
+        sig.returns.push(AbiParam::new(I64));
+        ctx.func = Function::with_name_signature(UserFuncName::user(0, g.id.as_u32()), sig);
+        let mut b = FunctionBuilder::new(&mut ctx.func, fctx);
+        let giris = b.create_block();
+        b.append_block_params_for_function_params(giris);
+        b.switch_to_block(giris);
+        let cerceve = b.block_params(giris)[0];
+        let mut u = Uretici {
+            b,
+            ortak,
+            degiskenler: HashMap::new(),
+            dis: g
+                .yakalananlar
+                .iter()
+                .enumerate()
+                .map(|(i, a)| (a.clone(), 8 * (i as i32 + 1)))
+                .collect(),
+            govde: Some((cerceve, g.dis_donus)),
+            donguler: Vec::new(),
+            cagri_onbellek: HashMap::new(),
+            donus: Some(true),
+        };
+        u.blok(&g.govde)?;
+        let s = u.sabit(DENE_SONA_ERDI);
+        u.b.ins().return_(&[s]);
+        u.b.seal_all_blocks();
+        let hedef = u.ortak.module.target_config();
+        u.b.finalize(hedef);
+        ortak
+            .module
+            .define_function(g.id, ctx)
+            .map_err(|e| format!("dene bloğu: {e:?}"))?;
+        ortak.module.clear_context(ctx);
+    }
+    Ok(())
 }
 
 /// `donus`: `None` ana program (main), `Some(true)` değer döndüren işlev.
@@ -313,6 +388,8 @@ fn islev_uret(
         b,
         ortak,
         degiskenler,
+        dis: HashMap::new(),
+        govde: None,
         donguler: Vec::new(),
         cagri_onbellek: HashMap::new(),
         donus,
@@ -351,6 +428,10 @@ struct Uretici<'a, 'b> {
     b: FunctionBuilder<'b>,
     ortak: &'a mut Ortak,
     degiskenler: HashMap<String, Variable>,
+    /// `dene:` bloğunun işlevinde: çerçevedeki değişkenler (bayt ofseti)
+    dis: HashMap<String, i32>,
+    /// `dene:` bloğunun işlevinde: (çerçevenin adresi, asıl işlevin dönüşü)
+    govde: Option<(Value, Option<bool>)>,
     /// (sürdür hedefi, dur hedefi)
     donguler: Vec<(cranelift_codegen::ir::Block, cranelift_codegen::ir::Block)>,
     cagri_onbellek: HashMap<FuncId, cranelift_codegen::ir::FuncRef>,
@@ -394,7 +475,7 @@ impl Uretici<'_, '_> {
         match d {
             Deyim::Atama { hedef, deger, .. } => {
                 let v = self.ifade(deger)?;
-                self.b.def_var(self.degiskenler[hedef], v);
+                self.yaz(hedef, v);
             }
             Deyim::IndeksAtama {
                 liste,
@@ -498,7 +579,6 @@ impl Uretici<'_, '_> {
                 govde,
                 ..
             } => {
-                let dv = self.degiskenler[degisken];
                 let ilk = self.ifade(bas)?;
                 let sinir = self.ifade(son)?;
                 let sinir_v = self.b.declare_var(I64);
@@ -515,7 +595,7 @@ impl Uretici<'_, '_> {
                     },
                     |u| {
                         let i = u.b.use_var(sayac);
-                        u.b.def_var(dv, i);
+                        u.yaz(degisken, i);
                         u.blok(govde)
                     },
                 )?;
@@ -526,7 +606,6 @@ impl Uretici<'_, '_> {
                 govde,
                 ..
             } => {
-                let dv = self.degiskenler[degisken];
                 let mut l = self.ifade(liste)?;
                 // Metinde harfler, sözlükte anahtarlar gezilir.
                 match liste.tip {
@@ -553,11 +632,41 @@ impl Uretici<'_, '_> {
                         let l = u.b.use_var(lv);
                         let s = u.sabit(satir);
                         let o = u.cz("ohc_liste_al", &[l, i, s]).unwrap();
-                        u.b.def_var(dv, o);
+                        u.yaz(degisken, o);
                         u.blok(govde)
                     },
                 )?;
             }
+            Deyim::Dondur(deger, _) if self.govde.is_some() => {
+                let (cerceve, dis_donus) = self.govde.unwrap();
+                if let Some(i) = deger {
+                    let v = self.ifade(i)?;
+                    if dis_donus == Some(true) {
+                        self.b.ins().store(MemFlagsData::trusted(), v, cerceve, 0);
+                    }
+                }
+                let k = self.sabit(DENE_DONDUR);
+                self.b.ins().return_(&[k]);
+                self.olu_blok();
+            }
+            Deyim::Dur(_) | Deyim::Surdur(_)
+                if self.govde.is_some() && self.donguler.is_empty() =>
+            {
+                // Döngü bloğun dışında: çevreleyen işlev dallanır.
+                let k = self.sabit(if matches!(d, Deyim::Dur(_)) {
+                    DENE_DUR
+                } else {
+                    DENE_SURDUR
+                });
+                self.b.ins().return_(&[k]);
+                self.olu_blok();
+            }
+            Deyim::Dene {
+                govde,
+                degisken,
+                yakala,
+                ..
+            } => self.dene(govde, degisken.as_deref(), yakala)?,
             Deyim::Dondur(deger, _) => {
                 match (deger, self.donus) {
                     (Some(i), Some(true)) => {
@@ -598,6 +707,167 @@ impl Uretici<'_, '_> {
                 )
             }
         }
+        Ok(())
+    }
+
+    fn oku(&mut self, ad: &str) -> Value {
+        if let Some(v) = self.degiskenler.get(ad) {
+            return self.b.use_var(*v);
+        }
+        let (cerceve, _) = self.govde.expect("dene bloğu dışında çerçeve değişkeni");
+        let ofset = self.dis[ad];
+        self.b
+            .ins()
+            .load(I64, MemFlagsData::trusted(), cerceve, ofset)
+    }
+
+    fn yaz(&mut self, ad: &str, v: Value) {
+        if let Some(d) = self.degiskenler.get(ad) {
+            self.b.def_var(*d, v);
+            return;
+        }
+        let (cerceve, _) = self.govde.expect("dene bloğu dışında çerçeve değişkeni");
+        let ofset = self.dis[ad];
+        self.b
+            .ins()
+            .store(MemFlagsData::trusted(), v, cerceve, ofset);
+    }
+
+    /// `dene:` bloğu: blok ayrı bir işleve çevrilir ve çalışma zamanının
+    /// `ohc_dene`'si ile çağrılır. Bloğun kullandığı değişkenler önce bu işlevin
+    /// yığıtındaki bir çerçeveye konur, sonra oradan geri okunur.
+    fn dene(
+        &mut self,
+        govde: &[Deyim],
+        degisken: Option<&str>,
+        yakala: &[Deyim],
+    ) -> Result<(), String> {
+        let yakalananlar: Vec<String> = gecen_adlar(govde)
+            .into_iter()
+            .filter(|a| self.degiskenler.contains_key(a) || self.dis.contains_key(a))
+            .collect();
+        let dis_donus = match self.govde {
+            Some((_, d)) => d,
+            None => self.donus,
+        };
+        let mut sig = self.ortak.module.make_signature();
+        sig.params.push(AbiParam::new(I64));
+        sig.returns.push(AbiParam::new(I64));
+        let ad = format!("ohc_dene_{}", self.ortak.govde_sayisi);
+        self.ortak.govde_sayisi += 1;
+        let id = self
+            .ortak
+            .module
+            .declare_function(&ad, Linkage::Local, &sig)
+            .map_err(|e| e.to_string())?;
+        self.ortak.govdeler.push(DeneGovdesi {
+            id,
+            govde: govde.to_vec(),
+            yakalananlar: yakalananlar.clone(),
+            dis_donus,
+        });
+
+        let boyut = 8 * (yakalananlar.len() as u32 + 1);
+        let yuva = self.b.create_sized_stack_slot(StackSlotData::new(
+            StackSlotKind::ExplicitSlot,
+            boyut,
+            3,
+        ));
+        let cerceve = self.b.ins().stack_addr(I64, yuva, 0);
+        let sifir = self.sabit(0);
+        self.b
+            .ins()
+            .store(MemFlagsData::trusted(), sifir, cerceve, 0);
+        for (i, a) in yakalananlar.iter().enumerate() {
+            let v = self.oku(a);
+            self.b
+                .ins()
+                .store(MemFlagsData::trusted(), v, cerceve, 8 * (i as i32 + 1));
+        }
+        let fref = self.ortak.module.declare_func_in_func(id, self.b.func);
+        let f = self.b.ins().func_addr(I64, fref);
+        let kod = self.cz("ohc_dene", &[f, cerceve]).unwrap();
+        // Çağrıdan sonra çerçevenin adresi yeniden alınır (değer çağrı boyunca yaşamaz).
+        let cerceve = self.b.ins().stack_addr(I64, yuva, 0);
+        for (i, a) in yakalananlar.iter().enumerate() {
+            let v = self
+                .b
+                .ins()
+                .load(I64, MemFlagsData::trusted(), cerceve, 8 * (i as i32 + 1));
+            self.yaz(a, v);
+        }
+
+        let hata_blok = self.b.create_block();
+        let diger = self.b.create_block();
+        let son = self.b.create_block();
+        let hata_mi = self.b.ins().icmp_imm_s(IntCC::SignedLessThan, kod, 0);
+        self.b.ins().brif(hata_mi, hata_blok, &[], diger, &[]);
+
+        self.b.switch_to_block(hata_blok);
+        if let Some(d) = degisken {
+            let m = self.cz("ohc_hata_mesaji", &[]).unwrap();
+            self.yaz(d, m);
+        }
+        self.blok(yakala)?;
+        self.b.ins().jump(son, &[]);
+
+        // Blok `döndür`, `dur` ya da `sürdür` ile bitti mi?
+        self.b.switch_to_block(diger);
+        let dondur = self.b.create_block();
+        let kontrol = self.b.create_block();
+        let d1 = self.b.ins().icmp_imm_s(IntCC::Equal, kod, DENE_DONDUR);
+        self.b.ins().brif(d1, dondur, &[], kontrol, &[]);
+        self.b.switch_to_block(dondur);
+        let cerceve = self.b.ins().stack_addr(I64, yuva, 0);
+        let deger = self.b.ins().load(I64, MemFlagsData::trusted(), cerceve, 0);
+        match (self.govde, self.donus) {
+            (Some((dis_cerceve, _)), _) => {
+                self.b
+                    .ins()
+                    .store(MemFlagsData::trusted(), deger, dis_cerceve, 0);
+                let k = self.sabit(DENE_DONDUR);
+                self.b.ins().return_(&[k]);
+            }
+            (None, None) => {
+                let s = self.b.ins().iconst(types::I32, 0);
+                self.b.ins().return_(&[s]);
+            }
+            (None, Some(true)) => {
+                self.b.ins().return_(&[deger]);
+            }
+            (None, Some(false)) => {
+                self.b.ins().return_(&[]);
+            }
+        }
+        self.b.switch_to_block(kontrol);
+        let (devam_hedefi, dur_hedefi) = match self.donguler.last() {
+            Some((devam, dur)) => (*devam, *dur),
+            None if self.govde.is_some() => {
+                let dur = self.b.create_block();
+                let devam = self.b.create_block();
+                self.b.switch_to_block(dur);
+                let k = self.sabit(DENE_DUR);
+                self.b.ins().return_(&[k]);
+                self.b.switch_to_block(devam);
+                let k = self.sabit(DENE_SURDUR);
+                self.b.ins().return_(&[k]);
+                self.b.switch_to_block(kontrol);
+                (devam, dur)
+            }
+            // Döngü yok: blok yalnızca sona ulaşmış olabilir.
+            None => (son, son),
+        };
+        let dur_blok = self.b.create_block();
+        let d2 = self.b.ins().icmp_imm_s(IntCC::Equal, kod, DENE_DUR);
+        let sonraki = self.b.create_block();
+        self.b.ins().brif(d2, dur_blok, &[], sonraki, &[]);
+        self.b.switch_to_block(dur_blok);
+        self.b.ins().jump(dur_hedefi, &[]);
+        self.b.switch_to_block(sonraki);
+        let d3 = self.b.ins().icmp_imm_s(IntCC::Equal, kod, DENE_SURDUR);
+        self.b.ins().brif(d3, devam_hedefi, &[], son, &[]);
+
+        self.b.switch_to_block(son);
         Ok(())
     }
 
@@ -776,6 +1046,7 @@ impl Uretici<'_, '_> {
             }
             "ortam" => self.cz("ohc_ortam", d),
             "çık" => self.cz("ohc_cik", d),
+            "hata_ver" => self.cz("ohc_hata_ver", &[d[0], satir]),
             _ => return Err(format!("bilinmeyen işlev '{ad}'")),
         };
         Ok(v)
@@ -917,7 +1188,7 @@ impl Uretici<'_, '_> {
                 let gv = self.ortak.module.declare_data_in_func(id, self.b.func);
                 self.b.ins().symbol_value(I64, gv)
             }
-            IfadeTuru::Isim(ad) => self.b.use_var(self.degiskenler[ad]),
+            IfadeTuru::Isim(ad) => self.oku(ad),
             IfadeTuru::Liste(ogeler) => {
                 let l = self.cz("ohc_liste_yeni", &[]).unwrap();
                 for o in ogeler {
