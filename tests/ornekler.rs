@@ -246,5 +246,8 @@ fn tipi_yazilmis_degiskenler_ve_karakter_kodlari() {
     assert_eq!(cikti, "[\"Ayşe\"]\n{\"a\": 2}\n231\nğ\n3.0\n");
     let (ok, _, hata) = calistir("x: sayı = \"beş\"\n");
     assert!(!ok);
-    assert!(hata.contains("'x' sayı olarak tanımlandı; değeri metin"), "{hata}");
+    assert!(
+        hata.contains("'x' sayı olarak tanımlandı; değeri metin"),
+        "{hata}"
+    );
 }
