@@ -86,6 +86,16 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
             Yanit::json(&json!({ "tamam": true }))
         }
         ("POST", "/api/derle") => derle(metin(&g, "dosya"), metin(&g, "hedef")),
+        ("GET", "/api/paket/liste") => paket_listesi(istek.sorgu("kok")),
+        ("POST", "/api/paket/ekle") => paket_islemi(metin(&g, "kok"), |k| {
+            crate::paket::ekle(k, metin(&g, "kaynak").trim(), None)
+        }),
+        ("POST", "/api/paket/yukle") => paket_islemi(metin(&g, "kok"), |k| {
+            crate::paket::yukle(k, g["guncelle"].as_bool() == Some(true))
+        }),
+        ("POST", "/api/paket/kaldir") => paket_islemi(metin(&g, "kok"), |k| {
+            crate::paket::kaldir(k, metin(&g, "ad"))
+        }),
         ("POST", "/api/bicimlendir") => Yanit::json(&json!({
             "icerik": crate::bicimlendirici::bicimlendir(metin(&g, "icerik"))
         })),
@@ -498,6 +508,30 @@ fn ara(kok: &str, aranan: &str) -> Yanit {
         }
     }
     Yanit::json(&json!({ "sonuclar": sonuclar }))
+}
+
+fn paket_listesi(kok: &str) -> Yanit {
+    let kok = Path::new(kok);
+    if !izinli_mi(kok) {
+        return Yanit::hata(403, "bu klasöre erişim yok");
+    }
+    match crate::paket::listele(kok) {
+        Ok(l) => Yanit::json(&json!({ "paketler": l.into_iter().map(|p| json!({
+            "ad": p.ad, "kaynak": p.kaynak, "isleme": p.isleme, "kurulu": p.kurulu,
+        })).collect::<Vec<_>>() })),
+        Err(e) => hata(e),
+    }
+}
+
+fn paket_islemi(kok: &str, f: impl FnOnce(&Path) -> Result<Vec<String>, String>) -> Yanit {
+    let kok = Path::new(kok);
+    if !izinli_mi(kok) {
+        return Yanit::hata(403, "bu klasöre erişim yok");
+    }
+    match f(kok) {
+        Ok(g) => Yanit::json(&json!({ "gunluk": g })),
+        Err(e) => hata(e),
+    }
 }
 
 fn teshis_json(h: &derleme::DerlemeHatasi) -> Value {

@@ -50,6 +50,28 @@ Sunucu yalnızca `127.0.0.1` üzerinden erişilebilir ve her oturumda rastgele b
 başka web sitelerinin dosyalarınıza ya da derleyiciye erişmesi engellenir. Tasarım kaynağı:
 [docs/tasarim/](docs/tasarim/).
 
+## Paketler
+
+Paketler Git depolarındaki Orhunca kütüphaneleridir (`.ohcproj` + giriş dosyası).
+
+```sh
+orhunca paket ekle github:kisi/orhunca-matematik#v1.0   # ya da tam Git adresi / yerel yol
+orhunca paket yükle        # .ohcproj ve orhunca.kilit'e göre kurar (dolaylı bağımlılıklar dahil)
+orhunca paket güncelle     # en yeni sürümleri alır, kilidi yeniler
+orhunca paket kaldır matematik
+orhunca paket listele
+```
+
+```
+# uygulama.ohcproj
+[bağımlılıklar]
+matematik = "github:kisi/orhunca-matematik#v1.0"
+```
+
+Kodda `kullan "matematik"` paketin giriş dosyasını, `kullan "matematik/geometri.ohc"` paketteki bir
+dosyayı alır. Paketler `paketler/` klasörüne kurulur (`.gitignore`'a eklenir); kesin sürümler
+`orhunca.kilit` dosyasında tutulur. Stüdyo'da **Paketler** paneli aynı işlemleri yapar.
+
 ## Düzenleyici desteği
 
 - **Biçimlendirici:** `orhunca biçimlendir [dosya.ohc]` girintiyi düzenler ve kesme işaretli eklerde

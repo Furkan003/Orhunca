@@ -351,6 +351,13 @@ h1, h2 { margin: 0; }
 .panel-dugme.birincil { background: var(--vurgu); color: var(--vurgu-koyu); font-weight: 600; border-color: transparent; }
 .panel-dugme.birincil:hover { background: var(--vurgu-acik); }
 .panel-dugme .simge { font-size: 18px; }
+.panel-dugme.pasif { opacity: 0.5; pointer-events: none; }
+.paket-oge { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 8px; background: var(--kart); border: 1px solid var(--kart-kenar); }
+.paket-oge > .simge { font-size: 18px; color: var(--vurgu); margin-top: 1px; }
+.paket-ad { font-size: 13px; font-weight: 500; }
+.paket-kaynak { font-family: var(--mono); font-size: 11px; color: var(--soluk3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.paket-oge .sil { font-size: 17px; color: var(--soluk4); cursor: pointer; }
+.paket-oge .sil:hover { color: var(--hata); }
 
 .duz-orta { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
 .sekmeler { height: 36px; flex-shrink: 0; display: flex; background: var(--koyu); border-bottom: 1px solid var(--cizgi); overflow-x: auto; overflow-y: hidden; }

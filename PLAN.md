@@ -11,7 +11,7 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 | 2 | Değişkenler, `eğer`, döngüler, işlevler, ekrana yazma, listeler, metinler | ✅ |
 | 3 | Cranelift ile çalıştırılabilir dosya: Linux ✅, Windows `.exe` (çapraz derleme, mingw) ✅ | ✅ |
 | 4 | Biçimlendirici ✅, dil sunucusu (LSP) ✅, VS Code eklentisi ✅ | ✅ |
-| 5 | Standart kütüphane ✅, paket yöneticisi ⏳ | 🟡 |
+| 5 | Standart kütüphane ✅, paket yöneticisi ✅ (Git tabanlı, kilit dosyalı) | ✅ |
 | 6 | Web sunucusu, `.ohchtml`, veritabanı/ORM | ⏳ |
 | 7 | Orhunca Stüdyo: arayüz ✅ (tarayıcıda, `orhunca stüdyo`), Tauri masaüstü paketi ⏳ | 🟡 |
 | 8 | WebAssembly, Türkçe arayüz dili, self-hosting | ⏳ |
@@ -55,7 +55,7 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 
 ## Sıradaki adımlar (öneri sırası)
 
-1. **Paket yöneticisi** (Aşama 5b).
+1. **Web** (Aşama 6): modeller, HTTP sunucusu, `.ohchtml`, veritabanı.
 2. **Modeller** (`model Ürün:` alanlarla) — web çatısının ön koşulu.
 
 ## Çalışma şekli

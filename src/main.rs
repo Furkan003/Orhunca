@@ -8,6 +8,7 @@ mod derleme;
 mod dil_sunucusu;
 mod ekler;
 mod hata;
+mod paket;
 mod sozcuk;
 mod studyo;
 mod uretici;
@@ -28,6 +29,7 @@ Kullanım:
   orhunca biçimlendir [dosya.ohc ...] [--denetle]
   orhunca dil-sunucusu        (düzenleyiciler için LSP, stdin/stdout)
   orhunca yeni <proje_adı>
+  orhunca paket ekle <git-adresi>[#etiket] | yükle | güncelle | kaldır <ad> | listele
   orhunca stüdyo [--kapı 7313] [--tarayıcı-açma]
   orhunca sürüm
 
@@ -49,7 +51,7 @@ fn main() -> ExitCode {
         "stüdyo" | "studyo" => studyo::calistir(kalan).map(|_| ExitCode::SUCCESS),
         "biçimlendir" | "bicimlendir" => bicimlendir_komutu(kalan),
         "dil-sunucusu" | "lsp" => dil_sunucusu::calistir().map(|_| ExitCode::SUCCESS),
-        "paket" => Err("paket yöneticisi henüz hazır değil (yol haritası: Aşama 5)".into()),
+        "paket" => paket::komut(kalan).map(|_| ExitCode::SUCCESS),
         "sürüm" | "surum" | "--version" | "-V" => {
             println!("orhunca {SURUM}");
             Ok(ExitCode::SUCCESS)

@@ -95,7 +95,15 @@ pub fn yukle_ortulu(
                 };
                 let mesaj = format!("'{}' okunamadı: {neden}", yol.display());
                 return Err(match nereden {
-                    Some(k) => DerlemeHatasi::konumlu(hata::Hata::yeni(k, mesaj), &dosyalar),
+                    Some(k) => {
+                        let mut h = hata::Hata::yeni(k, mesaj);
+                        if yol.extension().is_none() {
+                            h = h.ipucu(
+                                "bir paket kullanıyorsanız önce kurun: orhunca paket ekle <git-adresi>",
+                            );
+                        }
+                        DerlemeHatasi::konumlu(h, &dosyalar)
+                    }
                     None => DerlemeHatasi::duz(mesaj),
                 });
             }
@@ -115,7 +123,14 @@ pub fn yukle_ortulu(
         }
         let klasor = yol.parent().map(Path::to_path_buf).unwrap_or_default();
         for (ek, k) in ayristirici::kullanilanlar(&s).into_iter().rev() {
-            kuyruk.push((klasor.join(ek), Some(k)));
+            // Önce bu dosyaya göre yol, yoksa kurulu paket: kullan "matematik"
+            let dogrudan = klasor.join(&ek);
+            let hedef = if dogrudan.exists() {
+                dogrudan
+            } else {
+                crate::paket::paket_yolu(&klasor, &ek).unwrap_or(dogrudan)
+            };
+            kuyruk.push((hedef, Some(k)));
         }
         sozcukler.push(s);
     }
@@ -215,15 +230,10 @@ pub fn proje_dosyasi(klasor: &Path) -> Option<PathBuf> {
         .find(|p| p.extension().is_some_and(|u| u == "ohcproj"))
 }
 
-/// `.ohcproj` dosyasındaki `anahtar = "değer"` satırını okur.
+/// `.ohcproj` dosyasının en üst bölümündeki `anahtar = "değer"` satırını okur.
 pub fn proje_ayari(proje: &Path, anahtarlar: &[&str]) -> Option<String> {
     let icerik = std::fs::read_to_string(proje).ok()?;
-    icerik.lines().find_map(|satir| {
-        let (a, d) = satir.split_once('=')?;
-        anahtarlar
-            .contains(&a.trim())
-            .then(|| d.trim().trim_matches('"').to_string())
-    })
+    crate::paket::AyarDosyasi::coz(&icerik).deger(None, anahtarlar)
 }
 
 /// Proje klasörünün giriş dosyası (`giriş = "ana.ohc"`, yoksa `ana.ohc`).

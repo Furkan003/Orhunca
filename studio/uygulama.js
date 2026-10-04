@@ -65,6 +65,7 @@
     terminal: [], cikti: [], sorunlar: [], uyarilar: [], altSekme: 'terminal', altPanel: true,
     calisma: null, argumanlar: '',
     yanPanel: 'gezgin', araMetin: '', araSonuc: [],
+    paketler: [], paketKaynagi: '', paketMesgul: false,
     menu: null, modal: null, bildirim: null,
     yaziBoyutu: ayarOku('yaziBoyutu', 13),
     yazarkenDenetle: ayarOku('yazarkenDenetle', true),
@@ -526,7 +527,7 @@
   }
 
   function cizEtkinlik() {
-    const ogeler = [['gezgin', 'description', 'Gezgin'], ['ara', 'search', 'Ara'], ['yapi', 'account_tree', 'Yapı'], ['calistir', 'play_circle', 'Çalıştır'], ['eklentiler', 'extension', 'Eklentiler']];
+    const ogeler = [['gezgin', 'description', 'Gezgin'], ['ara', 'search', 'Ara'], ['yapi', 'account_tree', 'Yapı'], ['calistir', 'play_circle', 'Çalıştır'], ['eklentiler', 'extension', 'Paketler']];
     $('#etkinlik').innerHTML = ogeler.map(([id, simge, ad]) => `<span class="simge ${D.yanPanel === id ? 'etkin' : ''}" title="${ad}" data-e="yanPanelSec" data-a="${id}">${simge}</span>`).join('')
       + `<div style="flex:1"></div><span class="simge" title="Başlangıç ekranı" data-e="baslangicaDon">home</span><span class="simge" title="Ayarlar" data-e="ayarlarModal">settings</span>`;
   }
@@ -583,10 +584,14 @@
         <div class="panel-dugme" data-e="derleWindows">${S('desktop_windows')}Windows için derle</div>
       </div>`;
     } else {
-      const gruplar = [['Metin', 'büyük_harf, böl, birleştir, değiştir…'], ['Liste', 'sil, bul, en_büyük, toplam…'], ['Sözlük', 'anahtarlar, değerler, içerir…'], ['Dosya', 'dosya_oku, dosyaya_yaz…'], ['Matematik', 'karekök, üs, rastgele…'], ['Zaman', 'tarih, zaman, bekle']];
-      kap.innerHTML = baslik('EKLENTİLER') + `<div class="panel-ic"><div class="panel-not">Paket yöneticisi bir sonraki aşamada geliyor. Standart kütüphane her projede hazır:</div>
-        ${gruplar.map(([a, b]) => `<div style="padding:8px 10px;border-radius:8px;background:var(--kart);border:1px solid var(--kart-kenar)"><div style="font-size:13px;font-weight:500">${a}</div><div class="panel-not" style="font-size:12px">${b}</div></div>`).join('')}
-        <div class="panel-dugme" data-e="ogrenAc">${S('menu_book')}Tümünü gör</div></div>`;
+      const liste = D.paketler.map(p => `<div class="paket-oge" title="${kac(p.kaynak)}">${S('deployed_code')}<div class="esnek"><div class="paket-ad">${kac(p.ad)}</div><div class="paket-kaynak">${kac(p.kaynak)}</div><div class="paket-kaynak">${p.kurulu ? (p.isleme || '').slice(0, 10) : '<span style="color:var(--sari)">kurulu değil</span>'}</div></div><span class="simge sil" title="Kaldır" data-e="paketKaldir" data-a="${kac(p.ad)}">delete</span></div>`).join('');
+      kap.innerHTML = baslik('PAKETLER', D.paketMesgul ? '<div class="donen kucuk"></div>' : `<span class="simge" title="Yenile" data-e="paketleriYenile">refresh</span>`) + `<div class="panel-ic">
+        ${liste || '<div class="panel-not">Bu projenin paketi yok. Bir Git deposundan Orhunca kütüphanesi ekleyin; kodda <span class="mono">kullan "paket_adı"</span> ile kullanılır.</div>'}
+        <div class="alan" style="gap:6px"><label style="font-size:12px">Git adresi</label><input id="paketKaynagi" data-g="paketKaynagi" class="metin-girdi" placeholder="github:kişi/depo#v1.0" value="${kac(D.paketKaynagi)}" spellcheck="false"></div>
+        <div class="panel-dugme birincil ${D.paketMesgul ? 'pasif' : ''}" data-e="paketEkle">${S('add')}Paket ekle</div>
+        <div class="panel-dugme ${D.paketMesgul ? 'pasif' : ''}" data-e="paketYukle">${S('cloud_download')}Tümünü yükle</div>
+        <div class="panel-dugme ${D.paketMesgul ? 'pasif' : ''}" data-e="paketGuncelle">${S('refresh')}Güncelle</div>
+        <div class="panel-not" style="font-size:12px">Paketler projenin <span class="mono">paketler/</span> klasörüne kurulur; sürümler <span class="mono">orhunca.kilit</span> dosyasında tutulur.</div></div>`;
     }
   }
 
@@ -884,6 +889,8 @@
     D.kapaliKlasorler = new Set(); D.calisma = null; D.menu = null; D.modal = null;
     D.yanPanel = 'gezgin'; D.imlec = { satir: 1, sutun: 1 };
     await agaciYukle();
+    if (D.agac.some(g => g.yol === 'paketler')) D.kapaliKlasorler.add('paketler');
+    D.paketler = [];
     const giris = girisDosyasi();
     if (giris) await dosyaAc(giris, false);
     const projeDosyasi = D.agac.find(g => uzanti(g.yol) === 'ohcproj');
@@ -1192,7 +1199,12 @@
       if (e.target.closest('.acilir-menu')) return;
       D.menu = D.menu === ad ? null : ad; guncelle('baslik');
     },
-    yanPanelSec(p) { D.yanPanel = p; guncelle('etkinlik', 'yan'); if (p === 'ara') $('#araMetin')?.focus(); },
+    yanPanelSec(p) { D.yanPanel = p; guncelle('etkinlik', 'yan'); if (p === 'ara') $('#araMetin')?.focus(); if (p === 'eklentiler') paketleriYukle(); },
+    paketleriYenile() { paketleriYukle(); },
+    paketEkle() { if (D.paketKaynagi.trim()) paketIslemi('/api/paket/ekle', { kaynak: D.paketKaynagi.trim() }, `Paket ekleniyor: ${D.paketKaynagi.trim()}`); },
+    paketYukle() { paketIslemi('/api/paket/yukle', { guncelle: false }, 'Paketler yükleniyor…'); },
+    paketGuncelle() { paketIslemi('/api/paket/yukle', { guncelle: true }, 'Paketler güncelleniyor…'); },
+    paketKaldir(ad) { if (confirm(`“${ad}” paketi kaldırılsın mı?`)) paketIslemi('/api/paket/kaldir', { ad }, `Paket kaldırılıyor: ${ad}`); },
     panelGezgin() { EYLEM.yanPanelSec('gezgin'); }, panelAra() { EYLEM.yanPanelSec('ara'); },
     panelYapi() { EYLEM.yanPanelSec('yapi'); }, panelCalistir() { EYLEM.yanPanelSec('calistir'); },
     klasorAcKapa(yol) { D.kapaliKlasorler.has(yol) ? D.kapaliKlasorler.delete(yol) : D.kapaliKlasorler.add(yol); cizYanPanel(); },
@@ -1293,6 +1305,34 @@
     pencereKapat() { try { window.__TAURI__.window.getCurrentWindow().close(); } catch { /* yok */ } },
   };
 
+  async function paketleriYukle() {
+    if (!D.proje) return;
+    const r = await api('/api/paket/liste?' + sorgu({ kok: D.proje.yol })).catch(e => ({ hata: e.message }));
+    D.paketler = r.paketler || [];
+    if (D.yanPanel === 'eklentiler') cizYanPanel();
+  }
+
+  async function paketIslemi(yol, govde, baslik) {
+    if (D.paketMesgul) return;
+    D.paketMesgul = true; cizYanPanel();
+    D.altPanel = true; D.altSekme = 'cikti';
+    D.cikti.push({ t: baslik, c: 'mut' });
+    guncelle('alt');
+    const r = await api(yol, { kok: D.proje.yol, ...govde }).catch(e => ({ hata: e.message }));
+    D.paketMesgul = false;
+    if (r.hata) { D.cikti.push({ t: r.hata, c: 'err' }); bildir('Paket işlemi başarısız.', true); }
+    else {
+      for (const s of r.gunluk || []) D.cikti.push({ t: s, c: s.startsWith('✓') ? 'ok' : s.startsWith('uyarı') ? 'err' : '' });
+      if (yol.endsWith('ekle')) D.paketKaynagi = '';
+      bildir('Paketler güncellendi.');
+    }
+    await agaciYukle();
+    if (D.agac.some(g => g.yol === 'paketler')) D.kapaliKlasorler.add('paketler');
+    await paketleriYukle();
+    guncelle('alt', 'yan');
+    denetle();
+  }
+
   function guncelleVeyaCiz() { D.menu = null; if (D.ekran === 'duzenleyici') guncelle('baslik', 'katman'); else ciz(); }
 
   function yaziDegisti() {
@@ -1325,6 +1365,7 @@
     klonKonum(v) { D.modal.konum = v; },
     yeniDosyaAdi(v) { D.modal.ad = v; },
     argumanlar(v) { D.argumanlar = v; },
+    paketKaynagi(v) { D.paketKaynagi = v; },
     araMetin(v) {
       D.araMetin = v;
       clearTimeout(GIRDI._a);
@@ -1375,6 +1416,7 @@
     }
     if (e.target.id === 'klasorYolu' && e.key === 'Enter') { klasorYukle(e.target.value); return; }
     if (e.target.id === 'klonUrl' && e.key === 'Enter') { EYLEM.klonla(); return; }
+    if (e.target.id === 'paketKaynagi' && e.key === 'Enter') { EYLEM.paketEkle(); return; }
     if (e.target.id === 'yeniDosyaAdi' && e.key === 'Enter') { EYLEM.yeniDosyaOlustur(); return; }
     if (e.target.id === 'projeAdi' && e.key === 'Enter') { EYLEM.olustur(); return; }
     if (e.key === 'Escape') {
