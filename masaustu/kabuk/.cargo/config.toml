@@ -1,0 +1,4 @@
+# Kabuk tek başına çalışmalı: Windows'ta Visual C++ çalışma zamanı (VCRUNTIME140.dll)
+# kurulu olmayabilir, bu yüzden C çalışma zamanı exe'ye gömülür.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
