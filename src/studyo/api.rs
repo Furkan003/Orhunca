@@ -177,6 +177,7 @@ fn sablon_listesi() -> Yanit {
                 "kimlik": s.kimlik, "ad": s.ad, "aciklama": s.aciklama, "simge": s.simge,
                 "kategoriler": s.kategoriler, "etiketler": s.etiketler,
                 "yakinda": s.yakinda, "dosyalar": s.dosyalar, "giris": s.giris,
+                "web": sablonlar::web_mi(s),
             })
         })
         .collect();
@@ -267,10 +268,11 @@ fn proje_olustur(g: &Value) -> Yanit {
     }
     let mut uyari = None;
     if g["git"].as_bool() == Some(true) {
-        let _ = std::fs::write(
-            kok.join(".gitignore"),
-            "# Derleme çıktıları\n/cikti/\n*.exe\n",
-        );
+        let mut yoksay = String::from("# Derleme çıktıları\n/cikti/\n*.exe\n");
+        if sablonlar::web_mi(sablon) {
+            yoksay.push_str("\n# Model kayıtları (yerel deneme verisi)\n/veri/\n");
+        }
+        let _ = std::fs::write(kok.join(".gitignore"), yoksay);
         // Türkçe dal adı; eski Git sürümleri --initial-branch bilmez.
         let git = Command::new("git")
             .args(["init", "-q", "--initial-branch=ana"])
@@ -318,10 +320,14 @@ fn proje_bilgisi(kok: &Path) -> Value {
                 .strip_prefix("ref: refs/heads/")
                 .map(str::to_string)
         });
+    // Web projesi: web şablonundan ya da görünüm/statik klasörü olan proje.
+    let web = sablonlar::bul(&sablon).is_some_and(sablonlar::web_mi)
+        || kok.join("görünümler").is_dir()
+        || kok.join("statik").is_dir();
     let yol = kok.to_string_lossy().into_owned();
     depo::proje_acildi(&ad, &yol, &sablon);
     json!({
-        "ad": ad, "yol": yol, "sablon": sablon, "giris": giris, "dal": dal,
+        "ad": ad, "yol": yol, "sablon": sablon, "giris": giris, "dal": dal, "web": web,
         "proje_dosyasi": proje_dosyasi.map(|p| p.to_string_lossy().into_owned()),
     })
 }
@@ -620,13 +626,31 @@ fn calistir(g: &Value) -> Yanit {
         return Yanit::json(&json!({ "derleme_hatasi": h.metin, "hatalar": teshis_json(&h) }));
     }
     let derleme_ms = baslangic.elapsed().as_millis();
-    match calisma::baslat(&program, &klasor, &argumanlar, gecici.clone()) {
-        Ok(kimlik) => Yanit::json(&json!({ "kimlik": kimlik, "derleme_ms": derleme_ms })),
+    // Web sunucuları için kapı: boşsa 3000, değilse sistemin verdiği boş bir kapı.
+    let kapi = bos_kapi();
+    let ortam = [
+        ("ORHUNCA_KAPI", kapi.to_string()),
+        ("ORHUNCA_ONIZLEME", "1".to_string()),
+        // Stüdyo beklenmedik biçimde kapanırsa sunucu da kendini kapatır.
+        ("ORHUNCA_EBEVEYN", std::process::id().to_string()),
+    ];
+    match calisma::baslat(&program, &klasor, &argumanlar, &ortam, gecici.clone()) {
+        Ok(kimlik) => {
+            Yanit::json(&json!({ "kimlik": kimlik, "derleme_ms": derleme_ms, "kapi": kapi }))
+        }
         Err(e) => {
             let _ = std::fs::remove_dir_all(&gecici);
             hata(e)
         }
     }
+}
+
+fn bos_kapi() -> u16 {
+    std::net::TcpListener::bind(("127.0.0.1", 3000))
+        .or_else(|_| std::net::TcpListener::bind(("127.0.0.1", 0)))
+        .and_then(|d| d.local_addr())
+        .map(|a| a.port())
+        .unwrap_or(3000)
 }
 
 fn cikti(kimlik: &str, konum: &str) -> Yanit {

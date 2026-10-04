@@ -1,0 +1,10 @@
+# «ad» — Orhunca web sayfası
+# F5 ile çalıştırın: sayfa sağdaki canlı önizlemede açılır.
+# Kaydettiğinizde sunucu yeniden derlenir ve önizleme yenilenir.
+
+al "/":
+    döndür görünüm("anasayfa", 0)
+
+# "Selamla" düğmesi bu adrese gider; ziyaret sayısı adreste taşınır.
+al "/selam/{kaç: sayı}":
+    döndür görünüm("anasayfa", kaç + 1)

@@ -1,0 +1,9 @@
+@düzen "düzen"
+@başlık "Hakkında"
+<h1>Hakkında</h1>
+<p>Orhunca, Türkçe söz dizimiyle yazılan ve doğrudan makine koduna derlenen bir programlama dilidir.</p>
+<ul class="ozellikler">
+    @her özellik için ["Türkçe söz dizimi ve hâl ekleri", "Tek dosya hâlinde çalışan sunucu", "Kaçırılan HTML ile güvenli görünümler"]'den {
+    <li>@özellik</li>
+    }
+</ul>

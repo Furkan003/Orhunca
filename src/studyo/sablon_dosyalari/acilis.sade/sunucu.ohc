@@ -1,0 +1,12 @@
+model Abone:
+    e_posta: metin, zorunlu, e_posta, etiket "E-posta"
+
+al "/":
+    döndür görünüm("sayfa", Abone(), "")
+
+gönder "/abone-ol":
+    a = Abone.formdan(istek)
+    eğer değil a.geçerli_mi() ise:
+        döndür görünüm("sayfa", a, birleştir(a.hatalar(), ", "))
+    a'yı kaydet.
+    döndür görünüm("sayfa", Abone(), "Teşekkürler!")

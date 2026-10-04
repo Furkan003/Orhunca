@@ -1,0 +1,25 @@
+@model (ürün: Ürün, hatalar: liste<metin>)
+@düzen "düzen"
+@başlık "Ürün"
+@eğer ürün.kimlik 0'dan büyükse {
+<h1>Ürünü düzenle</h1>
+} @değilse {
+<h1>Yeni ürün</h1>
+}
+@eğer uzunluk(hatalar) 0'dan büyükse {
+<ul class="hatalar">
+    @her h için hatalar'dan {
+    <li>@h</li>
+    }
+</ul>
+}
+<form method="post" class="form">
+    <label>Ad <input name="ad" value="@ürün.ad" required></label>
+    <label>Fiyat (TL) <input name="fiyat" value="@ürün.fiyat" inputmode="decimal"></label>
+    <label>Stok <input name="stok" value="@ürün.stok" inputmode="numeric"></label>
+    <label>Açıklama <textarea name="açıklama" rows="4">@ürün.açıklama</textarea></label>
+    <div class="dugmeler">
+        <button class="dugme">Kaydet</button>
+        <a href="/ürünler">Vazgeç</a>
+    </div>
+</form>

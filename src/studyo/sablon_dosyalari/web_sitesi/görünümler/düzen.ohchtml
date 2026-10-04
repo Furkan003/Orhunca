@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>@başlık · «ad»</title>
+    <link rel="stylesheet" href="/stil.css">
+</head>
+<body>
+    <header>
+        <a class="logo" href="/"><img src="/logo.svg" alt="" width="28" height="28">«ad»</a>
+        <nav>
+            <a href="/">Ana sayfa</a>
+            <a href="/hakkında">Hakkında</a>
+            <a href="/iletişim">İletişim</a>
+        </nav>
+    </header>
+    <main>
+        @içerik
+    </main>
+    <footer>© @parça(tarih(), 0, 4) «ad» · Orhunca ile yapıldı</footer>
+</body>
+</html>

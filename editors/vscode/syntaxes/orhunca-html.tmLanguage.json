@@ -1,0 +1,150 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Orhunca HTML",
+  "scopeName": "text.html.orhunca",
+  "patterns": [
+    {
+      "include": "#orhunca"
+    },
+    {
+      "include": "text.html.basic"
+    }
+  ],
+  "injections": {
+    "L:text.html.orhunca meta.tag, L:text.html.orhunca string": {
+      "patterns": [
+        {
+          "include": "#ifade"
+        }
+      ]
+    }
+  },
+  "repository": {
+    "orhunca": {
+      "patterns": [
+        {
+          "name": "comment.block.orhunca",
+          "begin": "@\\*",
+          "end": "\\*@"
+        },
+        {
+          "name": "constant.character.escape.orhunca",
+          "match": "@@"
+        },
+        {
+          "begin": "^\\s*(@)(model|düzen|başlık)(?=\\s)",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.control.orhunca"
+            },
+            "2": {
+              "name": "keyword.control.orhunca"
+            }
+          },
+          "end": "$",
+          "contentName": "source.orhunca",
+          "patterns": [
+            {
+              "include": "source.orhunca"
+            }
+          ]
+        },
+        {
+          "begin": "(@)(eğer|her)(?=\\s)",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.control.orhunca"
+            },
+            "2": {
+              "name": "keyword.control.orhunca"
+            }
+          },
+          "end": "(\\{)",
+          "endCaptures": {
+            "1": {
+              "name": "punctuation.section.block.begin.orhunca"
+            }
+          },
+          "contentName": "source.orhunca",
+          "patterns": [
+            {
+              "include": "source.orhunca"
+            }
+          ]
+        },
+        {
+          "match": "(\\})?\\s*(@)(değilse)(\\s+eğer)?",
+          "captures": {
+            "1": {
+              "name": "punctuation.section.block.end.orhunca"
+            },
+            "2": {
+              "name": "keyword.control.orhunca"
+            },
+            "3": {
+              "name": "keyword.control.orhunca"
+            },
+            "4": {
+              "name": "keyword.control.orhunca"
+            }
+          }
+        },
+        {
+          "match": "(@)(içerik)(?![\\p{L}\\p{N}_])",
+          "captures": {
+            "1": {
+              "name": "keyword.control.orhunca"
+            },
+            "2": {
+              "name": "keyword.control.orhunca"
+            }
+          }
+        },
+        {
+          "include": "#ifade"
+        }
+      ]
+    },
+    "ifade": {
+      "patterns": [
+        {
+          "begin": "(@)(ham)?(\\()",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.control.orhunca"
+            },
+            "2": {
+              "name": "keyword.control.orhunca"
+            },
+            "3": {
+              "name": "punctuation.section.embedded.begin.orhunca"
+            }
+          },
+          "end": "(\\))",
+          "endCaptures": {
+            "1": {
+              "name": "punctuation.section.embedded.end.orhunca"
+            }
+          },
+          "contentName": "source.orhunca",
+          "patterns": [
+            {
+              "include": "source.orhunca"
+            }
+          ]
+        },
+        {
+          "match": "(?<![\\p{L}\\p{N}])(@)([\\p{L}_][\\p{L}\\p{N}_]*(?:\\.[\\p{L}_][\\p{L}\\p{N}_]*)*)",
+          "captures": {
+            "1": {
+              "name": "keyword.control.orhunca"
+            },
+            "2": {
+              "name": "variable.other.orhunca"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

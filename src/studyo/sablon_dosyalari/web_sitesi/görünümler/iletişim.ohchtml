@@ -1,0 +1,17 @@
+@model (mesaj: Mesaj, hatalar: liste<metin>)
+@düzen "düzen"
+@başlık "İletişim"
+<h1>İletişim</h1>
+@eğer uzunluk(hatalar) 0'dan büyükse {
+<ul class="hatalar">
+    @her h için hatalar'dan {
+    <li>@h</li>
+    }
+</ul>
+}
+<form method="post" action="/iletişim" class="form">
+    <label>Adınız <input name="ad" value="@mesaj.ad" required></label>
+    <label>E-posta <input name="e_posta" type="email" value="@mesaj.e_posta" required></label>
+    <label>Mesajınız <textarea name="ileti" rows="5" required>@mesaj.ileti</textarea></label>
+    <button class="dugme">Gönder</button>
+</form>

@@ -1,0 +1,31 @@
+# «ad» — tek sayfalık web uygulaması
+# Arayüz statik/ klasöründedir (HTML + JavaScript). Veriler bu dosyadaki JSON
+# uç noktalarından gelir ve veri/Görev.json dosyasında saklanır.
+
+model Görev:
+    başlık: metin, zorunlu, en_fazla 120, etiket "Görev"
+    tamamlandı: mantık
+
+al "/api/görevler":
+    döndür Görev.hepsi()
+
+gönder "/api/görevler":
+    g = Görev.formdan(istek)
+    eğer değil g.geçerli_mi() ise:
+        döndür json_yanıtı(g.hatalar(), 422)
+    g'yi kaydet.
+    döndür json_yanıtı(g, 201)
+
+# Görevin tamamlanma durumunu değiştirir.
+koy "/api/görevler/{kimlik: sayı}":
+    g = Görev.bul(kimlik)
+    eğer g.kimlik 0'a eşitse:
+        döndür json_yanıtı("görev bulunamadı", 404)
+    g.tamamlandı = değil g.tamamlandı
+    g'yi kaydet.
+    döndür g
+
+sil "/api/görevler/{kimlik: sayı}":
+    eğer Görev.sil(kimlik) ise:
+        döndür json_yanıtı("silindi")
+    döndür json_yanıtı("görev bulunamadı", 404)

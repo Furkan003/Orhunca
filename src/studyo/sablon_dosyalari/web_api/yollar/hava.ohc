@@ -1,0 +1,27 @@
+# GET /hava?şehir=Ankara → örnek hava durumu (gerçek bir servise bağlanmaz)
+
+model Hava:
+    şehir: metin
+    derece: sayı
+    durum: metin
+
+sabit VARSAYILAN_ŞEHİR = "Ankara"
+
+işlev hava_durumu(şehir: metin) -> Hava:
+    dereceler = {"ankara": 14, "istanbul": 18, "izmir": 21, "erzurum": 3, "antalya": 24}
+    anahtar = küçük_harf(şehir)
+    derece = 16
+    eğer içerir(dereceler, anahtar) ise:
+        derece = dereceler[anahtar]
+    durum = "parçalı bulutlu"
+    eğer derece 20'den büyükse:
+        durum = "güneşli"
+    değilse eğer derece 5'ten küçükse:
+        durum = "karlı"
+    döndür Hava(şehir: şehir, derece: derece, durum: durum)
+
+al "/hava":
+    şehir = VARSAYILAN_ŞEHİR
+    eğer içerir(istek.sorgu, "şehir") ise:
+        şehir = istek.sorgu["şehir"]
+    döndür hava_durumu(şehir)

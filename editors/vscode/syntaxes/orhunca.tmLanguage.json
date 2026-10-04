@@ -10,6 +10,9 @@
       "include": "#metin"
     },
     {
+      "include": "#web"
+    },
+    {
       "include": "#tanim"
     },
     {
@@ -103,6 +106,20 @@
               "name": "variable.other.constant.orhunca"
             }
           }
+        },
+        {
+          "match": "^\\s*(model)\\s+([\\p{L}_][\\p{L}\\p{N}_]*)\\s*(:)",
+          "captures": {
+            "1": {
+              "name": "keyword.declaration.class.orhunca"
+            },
+            "2": {
+              "name": "entity.name.type.class.orhunca"
+            },
+            "3": {
+              "name": "punctuation.separator.orhunca"
+            }
+          }
         }
       ]
     },
@@ -122,7 +139,7 @@
         },
         {
           "name": "keyword.other.orhunca",
-          "match": "(?<![\\p{L}\\p{N}_])(işlev|fiil|kullan|sabit|ekrana)(?![\\p{L}\\p{N}_])"
+          "match": "(?<![\\p{L}\\p{N}_])(işlev|fiil|kullan|sabit|ekrana|model|istek)(?![\\p{L}\\p{N}_])"
         },
         {
           "name": "keyword.operator.logical.orhunca",
@@ -140,7 +157,7 @@
     },
     "fiil": {
       "name": "support.function.verb.orhunca",
-      "match": "(?<![\\p{L}\\p{N}_])(yaz|ekle|sırala|çıkar)(?=\\s*\\.?\\s*(#.*)?$)"
+      "match": "(?<![\\p{L}\\p{N}_])(yaz|ekle|sırala|çıkar|kaydet|sil)(?=\\s*\\.?\\s*(#.*)?$)"
     },
     "tip": {
       "name": "storage.type.orhunca",
@@ -157,6 +174,41 @@
     "islec": {
       "name": "keyword.operator.orhunca",
       "match": "->|==|!=|<=|>=|\\+=|-=|//|[+\\-*/%=<>]"
+    },
+    "web": {
+      "patterns": [
+        {
+          "match": "^\\s*(al|gönder|koy|sil)(?=\\s+\")",
+          "captures": {
+            "1": {
+              "name": "keyword.declaration.route.orhunca"
+            }
+          }
+        },
+        {
+          "match": "^\\s+([\\p{L}_][\\p{L}\\p{N}_]*)\\s*(:)\\s*(?=[\\p{L}])",
+          "captures": {
+            "1": {
+              "name": "variable.other.property.orhunca"
+            }
+          }
+        },
+        {
+          "name": "keyword.other.attribute.orhunca",
+          "match": "(?<=,\\s*)(zorunlu|birincil|e_posta|en_az|en_fazla|etiket)(?![\\p{L}\\p{N}_])"
+        },
+        {
+          "match": "(?<=[\\p{L}\\p{N}_)\\]])(\\.)([\\p{L}_][\\p{L}\\p{N}_]*)",
+          "captures": {
+            "1": {
+              "name": "punctuation.accessor.orhunca"
+            },
+            "2": {
+              "name": "variable.other.property.orhunca"
+            }
+          }
+        }
+      ]
     }
   }
 }

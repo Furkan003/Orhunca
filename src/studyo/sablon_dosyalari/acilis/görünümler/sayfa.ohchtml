@@ -1,0 +1,16 @@
+@model (abone: Abone, mesaj: metin)
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>«ad»</title>
+    <link rel="stylesheet" href="/stil.css">
+</head>
+<body>
+    @görünüm("bölümler/kahraman")
+    @görünüm("bölümler/özellikler")
+    @görünüm("bölümler/kayıt_formu", abone, mesaj)
+    <footer>«ad» · Orhunca ile yapıldı</footer>
+</body>
+</html>

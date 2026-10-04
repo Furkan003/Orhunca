@@ -1,0 +1,9 @@
+# «ad» — REST API
+# Uç noktalar yollar/ klasöründeki dosyalarda tanımlıdır. Deneyin:
+#   http://localhost:3000/hava?şehir=Ankara
+#   http://localhost:3000/kullanıcılar
+kullan "yollar/hava.ohc"
+kullan "yollar/kullanıcılar.ohc"
+
+al "/":
+    döndür {"ad": "«ad»", "sürüm": "0.1.0", "belgeler": "/hava?şehir=Ankara, /kullanıcılar"}

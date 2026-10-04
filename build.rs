@@ -1,4 +1,4 @@
-//! Stüdyo arayüz dosyalarını (studio/) ikili dosyanın içine gömer.
+//! Stüdyo arayüz dosyalarını (studio/) ve proje şablonlarını ikili dosyanın içine gömer.
 
 use std::path::Path;
 
@@ -26,9 +26,10 @@ fn topla(kok: &Path, klasor: &Path, cikti: &mut Vec<(String, String)>) {
     }
 }
 
-fn main() {
-    let kok = Path::new(env!("CARGO_MANIFEST_DIR")).join("studio");
-    println!("cargo:rerun-if-changed=studio");
+/// `klasor` altındaki dosyaları `DOSYALAR` dizisi olarak `OUT_DIR/cikti` dosyasına yazar.
+fn gom(klasor: &str, cikti: &str) {
+    let kok = Path::new(env!("CARGO_MANIFEST_DIR")).join(klasor);
+    println!("cargo:rerun-if-changed={klasor}");
     let mut dosyalar = Vec::new();
     topla(&kok, &kok, &mut dosyalar);
     let mut kod = String::from("pub const DOSYALAR: &[(&str, &[u8])] = &[\n");
@@ -36,6 +37,12 @@ fn main() {
         kod.push_str(&format!("    ({ad:?}, include_bytes!({yol:?})),\n"));
     }
     kod.push_str("];\n");
-    let cikti = Path::new(&std::env::var("OUT_DIR").unwrap()).join("studio_dosyalari.rs");
+    let cikti = Path::new(&std::env::var("OUT_DIR").unwrap()).join(cikti);
     std::fs::write(cikti, kod).unwrap();
+}
+
+fn main() {
+    gom("studio", "studio_dosyalari.rs");
+    // Stüdyo'nun yeni proje şablonlarının dosyaları
+    gom("src/studyo/sablon_dosyalari", "sablon_dosyalari.rs");
 }

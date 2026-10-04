@@ -2,7 +2,7 @@
 
 Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 
-## Durum (v0.2)
+## Durum (v0.4)
 
 | Aşama | İçerik | Durum |
 |---|---|---|
@@ -12,7 +12,7 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 | 3 | Cranelift ile çalıştırılabilir dosya: Linux ✅, Windows `.exe` (çapraz derleme, mingw) ✅ | ✅ |
 | 4 | Biçimlendirici ✅, dil sunucusu (LSP) ✅, VS Code eklentisi ✅ | ✅ |
 | 5 | Standart kütüphane ✅, paket yöneticisi ✅ (Git tabanlı, kilit dosyalı) | ✅ |
-| 6 | Web sunucusu, `.ohchtml`, veritabanı/ORM | ⏳ |
+| 6 | Modeller ✅, JSON veri deposu ✅, web sunucusu ✅, `.ohchtml` görünümleri ✅, Stüdyo web şablonları ve canlı önizleme ✅ | ✅ |
 | 7 | Orhunca Stüdyo: arayüz ✅ (tarayıcıda, `orhunca stüdyo`), Tauri masaüstü paketi ⏳ | 🟡 |
 | 8 | WebAssembly, Türkçe arayüz dili, self-hosting | ⏳ |
 
@@ -41,11 +41,26 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 - Web/sunucu şablonları "Aşama 6'da geliyor" olarak gösterilir; canlı önizleme paneli web desteğiyle gelecek.
 - Tauri: aynı `studio/` arayüzü pencereye sarılacak; pencere düğmeleri (`__TAURI__`) hazır.
 
+## v0.4'te eklenenler (Aşama 6 – web)
+
+- **Modeller**: `model Ürün:` alanlar, varsayılanlar, `zorunlu`/`en_az`/`en_fazla`/`e_posta`/`etiket`
+  kuralları, Türkçe doğrulama mesajları, `ürün.ad` erişimi (ekli yazım: `ürün.fiyatı`).
+- **Veri deposu**: `veri/<Model>.json` — `kaydet`, `hepsi`, `bul`, `var_mı`, `sil`. Dosya tabanlı ve
+  okunabilir; her işlem dosyayı okuyup yazar (küçük uygulamalar için). Büyük veriler için SQLite
+  ileride eklenebilir.
+- **Web sunucusu** (çalışma zamanında, C): yollar (`al`/`gönder`/`koy`/`sil`), `{kimlik: sayı}`
+  parametreleri, form/JSON bağlama, JSON yanıtlar, `statik/`, 404/405/500 sayfaları, Windows desteği.
+- **Görünümler**: `.ohchtml` → derleme zamanında işleve çevrilir; düzen, başlık, parça görünümler.
+- **Stüdyo**: altı web şablonu, canlı önizleme (kaydedince sunucu yeniden derlenir; sayfa bulunduğu
+  adreste yenilenir), `.ohchtml`/CSS/JS renklendirme; `orhunca yeni <ad> --şablon <şablon>`.
+- Ek çözümleyicide ünlü düşmesi: `isim` → `ismi`, `metin` → `metni`.
+
 ## Henüz yapılmayanlar
 
 - **Çalışma zamanı C ile yazılı** (`runtime/orhunca_rt.c`). Bağlama zaten bir C araç zinciri
   istediğinden pratik bir seçim; self-hosting aşamasında Orhunca ile yeniden yazılabilir.
-- **Modeller/yapılar yok** (`model Ürün:`).
+- Model alanları başka bir model olamaz (ilişkiler kimlik alanıyla kurulur: `yazar_kimliği: sayı`).
+- Web sunucusu tek iş parçacıklıdır; oturum/çerez, dosya yükleme ve HTTPS yok (geliştirme için).
 - **Hata yakalama yok** (`dene / yakala`): üretilen kodun yığıtını güvenle geri sarmak için
   çalışma zamanına destek gerekiyor.
 - Ünlü uyumu derleyicide hoşgörüyle kabul edilir; biçimlendirici ve dil sunucusu uyarır ve düzeltir.
@@ -55,8 +70,8 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 
 ## Sıradaki adımlar (öneri sırası)
 
-1. **Web** (Aşama 6): modeller, HTTP sunucusu, `.ohchtml`, veritabanı.
-2. **Modeller** (`model Ürün:` alanlarla) — web çatısının ön koşulu.
+1. **Tauri masaüstü paketi** (Aşama 7'nin kalanı): Stüdyo'yu pencereli uygulama olarak paketlemek.
+2. **Aşama 8**: WebAssembly çıktısı, Türkçe arayüz dili, self-hosting.
 
 ## Çalışma şekli
 

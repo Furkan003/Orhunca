@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>@başlık · «ad»</title>
+    <link rel="stylesheet" href="/stil.css">
+</head>
+<body>
+    <header>
+        <a class="logo" href="/">«ad»</a>
+        <nav><a href="/ürünler">Ürünler</a><a href="/api/ürünler">JSON</a></nav>
+    </header>
+    <main>
+        @içerik
+    </main>
+</body>
+</html>

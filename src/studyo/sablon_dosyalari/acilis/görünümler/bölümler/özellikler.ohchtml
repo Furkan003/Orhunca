@@ -1,0 +1,9 @@
+<section class="ozellikler">
+    @her ö için [["⚡", "Hızlı", "Doğrudan makine koduna derlenir."], ["🇹🇷", "Türkçe", "Kod, hata mesajları ve belgeler Türkçe."], ["🔒", "Güvenli", "Görünümler HTML'yi kendiliğinden kaçırır."]]'dan {
+    <div class="kart">
+        <div class="simge">@ö[0]</div>
+        <h3>@ö[1]</h3>
+        <p>@ö[2]</p>
+    </div>
+    }
+</section>

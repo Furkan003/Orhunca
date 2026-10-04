@@ -1,0 +1,26 @@
+@model liste<Ürün>
+@düzen "düzen"
+@başlık "Ürünler"
+<div class="baslik">
+    <h1>Ürünler <small>@uzunluk(model) kayıt</small></h1>
+    <a class="dugme" href="/ürünler/yeni">Yeni ürün</a>
+</div>
+@eğer uzunluk(model) 0'a eşitse {
+<p class="bos">Henüz ürün yok. İlk ürünü ekleyerek başlayın.</p>
+} @değilse {
+<table>
+    <thead><tr><th>Ad</th><th class="sag">Fiyat</th><th class="sag">Stok</th><th></th></tr></thead>
+    <tbody>
+        @her ü için model'den {
+        <tr>
+            <td><a href="/ürünler/@ü.kimlik">@ü.ad</a></td>
+            <td class="sag">@para(ü.fiyat) TL</td>
+            <td class="sag">@eğer ü.stok 0'a eşitse {<span class="tukendi">tükendi</span>} @değilse {@ü.stok}</td>
+            <td class="sag">
+                <form method="post" action="/ürünler/@ü.kimlik/sil"><button class="sil">Sil</button></form>
+            </td>
+        </tr>
+        }
+    </tbody>
+</table>
+}

@@ -118,8 +118,9 @@ fn baslat() -> Sunucu {
     okuyucu.read_line(&mut satir).unwrap();
     let kapi = satir
         .trim()
-        .strip_prefix("Sunucu dinleniyor: http://localhost:")
+        .split_once("Sunucu dinleniyor: http://localhost:")
         .unwrap_or_else(|| panic!("beklenmeyen çıktı: {satir}"))
+        .1
         .parse()
         .unwrap();
     // İstek günlüğü okunmazsa boru dolup sunucuyu durdurabilir.

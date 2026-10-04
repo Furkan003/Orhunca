@@ -1,0 +1,7 @@
+@düzen "düzen"
+@başlık "Ana sayfa"
+<section class="kahraman">
+    <h1>Hoş geldiniz</h1>
+    <p>Bu site Orhunca ile yazıldı: sayfalar görünümlerden, adresler sunucu.ohc dosyasındaki yollardan gelir.</p>
+    <a class="dugme" href="/iletişim">Bize yazın</a>
+</section>

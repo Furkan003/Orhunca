@@ -81,10 +81,12 @@ pub fn baslat(
     program: &Path,
     klasor: &Path,
     argumanlar: &[String],
+    ortam: &[(&str, String)],
     silinecek: PathBuf,
 ) -> Result<u64, String> {
     let mut cocuk = Command::new(program)
         .args(argumanlar)
+        .envs(ortam.iter().map(|(a, d)| (*a, d.as_str())))
         .current_dir(klasor)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -185,6 +187,14 @@ pub fn girdi_gonder(kimlik: u64, metin: &str) -> Result<(), String> {
     akis.write_all(metin.as_bytes())
         .and_then(|_| akis.flush())
         .map_err(|_| "program girdiyi kabul etmedi (bitmiş olabilir)".to_string())
+}
+
+/// Stüdyo kapanırken çalışan tüm programlar (ör. web sunucuları) durdurulur.
+pub fn hepsini_durdur() {
+    let hepsi: Vec<Arc<Calisma>> = tablo().lock().unwrap().values().cloned().collect();
+    for c in hepsi {
+        let _ = c.cocuk.lock().unwrap().kill();
+    }
 }
 
 pub fn durdur(kimlik: u64) {

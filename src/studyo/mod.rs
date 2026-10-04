@@ -10,7 +10,7 @@ mod api;
 mod calisma;
 mod depo;
 mod http;
-mod sablonlar;
+pub mod sablonlar;
 
 use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hasher};
@@ -106,6 +106,7 @@ fn isle(mut akis: TcpStream, anahtar: &str, kapi: u16) {
                 &mut akis,
                 &http::Yanit::json(&serde_json::json!({ "tamam": true })),
             );
+            calisma::hepsini_durdur();
             println!("Stüdyo kapatıldı.");
             std::process::exit(0);
         } else {

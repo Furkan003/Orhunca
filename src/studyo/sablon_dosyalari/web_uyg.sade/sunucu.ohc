@@ -1,0 +1,23 @@
+model Görev:
+    başlık: metin, zorunlu
+    tamamlandı: mantık
+
+al "/api/görevler":
+    döndür Görev.hepsi()
+
+gönder "/api/görevler":
+    g = Görev.formdan(istek)
+    eğer değil g.geçerli_mi() ise:
+        döndür json_yanıtı(g.hatalar(), 422)
+    g'yi kaydet.
+    döndür json_yanıtı(g, 201)
+
+koy "/api/görevler/{kimlik: sayı}":
+    g = Görev.bul(kimlik)
+    g.tamamlandı = değil g.tamamlandı
+    g'yi kaydet.
+    döndür g
+
+sil "/api/görevler/{kimlik: sayı}":
+    Görev.sil(kimlik)
+    döndür json_yanıtı("silindi")

@@ -13,6 +13,24 @@ her sayı için sayılardan:
         sayı'yı ekrana yaz.
 ```
 
+Web uygulamaları da aynı dille yazılır (modeller, yollar, `.ohchtml` görünümleri):
+
+```
+model Ürün:
+    ad: metin, zorunlu, en_fazla 80
+    fiyat: ondalık, en_az 0
+
+al "/ürünler":
+    döndür görünüm("ürünler", Ürün.hepsi())
+
+gönder "/ürünler":
+    ü = Ürün.formdan(istek)
+    eğer değil ü.geçerli_mi() ise:
+        döndür görünüm("ürün_formu", ü, ü.hatalar())
+    ü'yü kaydet.
+    döndür yönlendir("/ürünler")
+```
+
 ## Kurulum ve kullanım
 
 Gerekenler: Rust (cargo) ve bağlama için bir C derleyicisi (`cc`; Windows hedefi için `x86_64-w64-mingw32-gcc`).
@@ -24,6 +42,7 @@ cargo build --release
 ./target/release/orhunca derle örnekler/asal.ohc --hedef windows  # → asal.exe
 ./target/release/orhunca denetle dosya.ohc                       # yalnızca hata denetimi
 ./target/release/orhunca yeni dükkan                             # yeni proje (.ohcproj)
+./target/release/orhunca yeni dükkan --şablon tam_yigin          # web projesi (şablonlar: web_sitesi, web_api, ...)
 ./target/release/orhunca stüdyo                                  # geliştirme ortamı (tarayıcıda)
 ```
 
@@ -36,9 +55,17 @@ orhunca stüdyo
 ```
 
 Tarayıcıda Orhunca'nın geliştirme ortamını açar: son projeler, şablon sihirbazı (Konsol Uygulaması,
-Sayı Tahmin Oyunu, Kütüphane), sözdizimi renklendirmeli düzenleyici, yazarken hata gösterimi, F5 ile
-derleyip çalıştırma (programın girdisi terminalden verilir), Linux/Windows için dağıtım derlemesi ve
-Türkçe anahtar kelime rehberi. İnternet gerekmez; arayüz ve yazı tipleri ikili dosyanın içindedir.
+Sayı Tahmin Oyunu, Kütüphane; Boş Web Sayfası, Web Sitesi, Web Uygulaması, Açılış Sayfası, Web API,
+Tam Yığın Uygulama), sözdizimi renklendirmeli düzenleyici (`.ohc`, `.ohchtml`, CSS, JavaScript),
+yazarken hata gösterimi, F5 ile derleyip çalıştırma (programın girdisi terminalden verilir),
+Linux/Windows için dağıtım derlemesi ve Türkçe anahtar kelime rehberi. İnternet gerekmez; arayüz ve
+yazı tipleri ikili dosyanın içindedir.
+
+Web projelerinde F5 sunucuyu başlatır ve sayfa sağdaki **canlı önizlemede** açılır. Kaydettiğinizde
+sunucu yeniden derlenir ve önizleme bulunduğu adreste yenilenir (yalnızca `statik/` dosyası
+değiştiyse sayfa yenilenir). Stüdyo kapanınca başlattığı sunucular da kapanır.
+
+![Orhunca Stüdyo — canlı önizleme](docs/ekran/canli-onizleme.png)
 
 ![Orhunca Stüdyo — düzenleyici](docs/ekran/duzenleyici.png)
 
@@ -80,10 +107,10 @@ dosyayı alır. Paketler `paketler/` klasörüne kurulur (`.gitignore`'a eklenir
 - **Dil sunucusu (LSP):** `orhunca dil-sunucusu` — hatalar ve yazım uyarıları, üzerine gelince açıklama
   (yerleşik işlevler, değişken tipleri), tamamlama, tanıma gitme, belge simgeleri, biçimlendirme.
   LSP destekleyen her düzenleyiciyle (VS Code, Neovim, Helix, Zed…) çalışır.
-- **VS Code eklentisi:** [editors/vscode](editors/vscode) — sözdizimi renklendirme ve dil sunucusu istemcisi.
+- **VS Code eklentisi:** [editors/vscode](editors/vscode) — `.ohc` ve `.ohchtml` için sözdizimi renklendirme ve dil sunucusu istemcisi.
   `cd editors/vscode && npm install && npx @vscode/vsce package` ile `.vsix` oluşturulur.
 
-## Dil rehberi (v0.1)
+## Dil rehberi
 
 ### Değerler ve tipler
 
@@ -249,6 +276,96 @@ Bellek otomatik yönetilir: artık kullanılmayan metin ve listeler çöp toplay
 verilir. `ORHUNCA_BELLEK_RAPORU=1` ortam değişkeniyle program sonunda kaç kez toplama yapıldığı ve
 en yüksek canlı bellek yazdırılır.
 
+### Modeller
+
+Alanları, varsayılan değerleri ve kuralları olan veri tipleri. Her modelin bir `kimlik` alanı vardır
+(kaydedilince verilir).
+
+```
+model Kitap:
+    ad: metin, zorunlu, en_fazla 60
+    sayfa: sayı = 100, en_az 1
+    fiyat: ondalık, en_az 0
+    e_posta: metin, e_posta, etiket "E-posta"
+    etiketler: liste<metin>
+
+k = Kitap(ad: "Nutuk", sayfa: 600, fiyat: 150)   # verilmeyen alanlar varsayılanını alır
+k.ad'ı yaz.
+k.sayfa += 4
+k.fiyatı yaz.                 # alan adına da ek gelebilir
+eğer değil k.geçerli_mi() ise:
+    k.hatalar()'ı yaz.        # ["Ad boş bırakılamaz", "Fiyat en az 0 olmalı"]
+```
+
+Nitelikler: `zorunlu`, `en_az N`, `en_fazla N` (metinde karakter, listede öğe sayısı), `e_posta`
+(biçim denetimi), `etiket "Görünen ad"` (hata mesajlarında). Hata mesajlarında alan adındaki `_`
+boşluk olur: `doğum_tarihi` → "Doğum tarihi".
+
+### Kalıcı kayıtlar
+
+Modeller `veri/<Model>.json` dosyasına kaydedilir (okunabilir JSON; `ORHUNCA_VERI` ile klasör değişir):
+
+```
+k'yı kaydet.                  # yeni kayda sıradaki kimlik verilir; var olan kayıt güncellenir
+Kitap.hepsi()                 # liste<Kitap>
+Kitap.bul(3)                  # yoksa kimliği 0 olan yeni bir nesne
+Kitap.var_mı(3)  ·  Kitap.sil(3)  ·  k'yı sil.
+k.json()  ·  json(değer)      # JSON metni
+```
+
+### Web sunucusu
+
+```
+al "/":                                   # GET
+    döndür "<h1>Merhaba</h1>"             # metin → HTML yanıtı
+
+al "/ürünler/{kimlik: sayı}":             # yol parametresi yerel değişken olur
+    döndür Ürün.bul(kimlik)               # model, liste, sözlük → JSON yanıtı
+
+gönder "/ürünler":                        # POST (koy: PUT, sil: DELETE)
+    ü = Ürün.formdan(istek)               # form ya da JSON gövdesi alanlara bağlanır
+    ...
+    döndür yönlendir("/ürünler")
+```
+
+- `istek`: `yöntem`, `yol`, `sorgu` (`istek.sorgu["q"]`), `form`, `parametreler`, `gövde`, `başlıklar`.
+- Yanıtlar: `yanıt(404, "...")`, `yanıt(200, metin, "text/plain")`, `yönlendir("/")`,
+  `json_yanıtı(değer, 201)`; `y.başlıklar["X-Ad"] = "değer"` ile başlık eklenir.
+- `statik/` klasöründeki dosyalar olduğu gibi sunulur. Yol bulunamazsa Türkçe 404 sayfası verilir.
+- Bir istek çalışma hatasına yol açarsa tarayıcıya hatanın satırını gösteren 500 sayfası gider;
+  sunucu çalışmayı sürdürür.
+- Program yol tanımlıyorsa sonunda sunucu kendiliğinden başlar (`sun()`; varsayılan kapı 3000,
+  `sun(8080)` ya da `ORHUNCA_KAPI` ile değişir). Yalnızca bu bilgisayardan erişilir;
+  `ORHUNCA_ADRES=0.0.0.0` ağa açar.
+- Yardımcılar: `kaçır(metin)` (HTML'e güvenli), `para(12.5)` → "12,50", `url_kodla(metin)`.
+
+### Görünümler (.ohchtml)
+
+`görünümler/` klasöründeki dosyalar derlemeye katılır ve `görünüm("ad", değer)` ile kullanılır:
+
+```
+@model liste<Ürün>
+@düzen "düzen"
+@başlık "Ürünler"
+<h1>@uzunluk(model) ürün</h1>
+@eğer uzunluk(model) 0'a eşitse {
+    <p>Henüz ürün yok.</p>
+} @değilse {
+    <ul>
+    @her ü için model'den {
+        <li><a href="/ürünler/@ü.kimlik">@ü.ad</a> @para(ü.fiyat) TL</li>
+    }
+    </ul>
+}
+```
+
+- `@ifade` ve `@(ifade)` değeri HTML'e kaçırarak yazar; `@ham(ifade)` kaçırmaz.
+- `@model (ürün: Ürün, hatalar: liste<metin>)` birden çok değer alır: `görünüm("form", ü, [])`.
+- `@düzen "düzen"`: sayfa `görünümler/düzen.ohchtml` içine, onun `@içerik` yazdığı yere yerleşir;
+  `@başlık` düzene `başlık` olarak geçer.
+- Parça görünümler: `@görünüm("parçalar/kart", ü)`. Yorum: `@* ... *@`, `@` için `@@`.
+- Görünümdeki hatalar görünüm dosyasının satırını gösterir.
+
 ### Hata mesajları
 
 ```
@@ -274,13 +391,21 @@ dosya.ohc
 [Bağlama]  nesne + runtime/orhunca_rt.c → Linux çalıştırılabilir dosyası / Windows .exe
 ```
 
-Stüdyo: `src/studyo/` (yerel HTTP sunucusu, proje/dosya API'si, program çalıştırıcı, şablonlar) ve
-`studio/` (arayüz: HTML, CSS, bağımlılıksız JavaScript; `build.rs` ile ikili dosyaya gömülür).
+Görünümler: `src/sablon.rs` `.ohchtml` dosyalarını parçalara ayırır; ayrıştırıcı onları metin
+döndüren işlevlere çevirir. Web yolları da `istek` alıp `Yanıt` döndüren işlevlerdir; ana program
+başlarken çalışma zamanına kaydedilir.
 
-`runtime/orhunca_rt.c`: yazdırma, metin ve liste işlemleri ile çöp toplayıcı. Toplayıcı
-"tutucu" bir işaretle-süpür toplayıcıdır: yığıttaki ve yazmaçlardaki her sözcüğü olası bir
-işaretçi sayar, böylece derleyicinin ürettiği koda ek bir şey gerekmez.
+Stüdyo: `src/studyo/` (yerel HTTP sunucusu, proje/dosya API'si, program çalıştırıcı, şablonlar —
+web şablonlarının dosyaları `src/studyo/sablon_dosyalari/`) ve `studio/` (arayüz: HTML, CSS,
+bağımlılıksız JavaScript; `build.rs` ile ikili dosyaya gömülür).
 
-Testler: `cargo test` (birim testleri + `örnekler/` klasöründeki programları derleyip çalıştıran uçtan uca testler).
+`runtime/orhunca_rt.c`: yazdırma, metin, liste ve sözlük işlemleri, çöp toplayıcı, model kayıtları
+(JSON), doğrulama ve tek iş parçacıklı HTTP/1.1 sunucusu (Windows'ta Winsock). Toplayıcı "tutucu" bir
+işaretle-süpür toplayıcıdır: yığıttaki ve yazmaçlardaki her sözcüğü olası bir işaretçi sayar, böylece
+derleyicinin ürettiği koda ek bir şey gerekmez. Bir web isteğindeki çalışma hatası isteğin başına
+geri sarılır (`__builtin_setjmp`), sunucu durmaz.
+
+Testler: `cargo test` (birim testleri, `örnekler/` klasöründeki programları derleyip çalıştıran uçtan
+uca testler, gerçek HTTP istekleriyle web çatısı testi `tests/web.rs`, Stüdyo testleri).
 
 Yol haritası ve kararlar için: [PLAN.md](PLAN.md), sohbet özeti: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).

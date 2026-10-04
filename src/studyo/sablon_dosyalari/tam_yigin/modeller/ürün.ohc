@@ -1,0 +1,5 @@
+model Ürün:
+    ad: metin, zorunlu, en_fazla 80
+    fiyat: ondalık, zorunlu, en_az 0
+    stok: sayı = 0, en_az 0
+    açıklama: metin, en_fazla 500

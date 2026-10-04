@@ -29,7 +29,7 @@ Kullanım:
   orhunca denetle [dosya.ohc]
   orhunca biçimlendir [dosya.ohc ...] [--denetle]
   orhunca dil-sunucusu        (düzenleyiciler için LSP, stdin/stdout)
-  orhunca yeni <proje_adı>
+  orhunca yeni <proje_adı> [--şablon konsol|web_sitesi|tam_yigin|web_api|...]
   orhunca paket ekle <git-adresi>[#etiket] | yükle | güncelle | kaldır <ad> | listele
   orhunca stüdyo [--kapı 7313] [--tarayıcı-açma]
   orhunca sürüm
@@ -249,24 +249,58 @@ fn bicimlendir_komutu(args: &[String]) -> Result<ExitCode, String> {
 }
 
 fn yeni_komutu(args: &[String]) -> Result<(), String> {
-    let ad = args
-        .first()
-        .ok_or("proje adı bekleniyordu: orhunca yeni <ad>")?;
-    let klasor = PathBuf::from(ad);
+    use studyo::sablonlar;
+    let mut ad = None;
+    let mut kimlik = "konsol".to_string();
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--şablon" | "--sablon" => {
+                i += 1;
+                kimlik = args
+                    .get(i)
+                    .cloned()
+                    .ok_or("--şablon sonrasında şablon adı bekleniyordu")?;
+            }
+            a if ad.is_none() => ad = Some(a.to_string()),
+            a => return Err(format!("beklenmeyen değer '{a}'")),
+        }
+        i += 1;
+    }
+    let ad = ad.ok_or("proje adı bekleniyordu: orhunca yeni <ad> [--şablon web_sitesi]")?;
+    let hazir: Vec<&str> = sablonlar::SABLONLAR
+        .iter()
+        .filter(|s| s.yakinda.is_none())
+        .map(|s| s.kimlik)
+        .collect();
+    let sablon = sablonlar::bul(&kimlik)
+        .filter(|s| s.yakinda.is_none())
+        .ok_or_else(|| {
+            format!(
+                "bilinmeyen şablon '{kimlik}'\nşablonlar: {}",
+                hazir.join(", ")
+            )
+        })?;
+    let klasor = PathBuf::from(&ad);
     if klasor.exists() {
         return Err(format!("'{ad}' zaten var"));
     }
-    std::fs::create_dir_all(&klasor).map_err(|e| e.to_string())?;
-    std::fs::write(
-        klasor.join(format!("{ad}.ohcproj")),
-        format!("ad = \"{ad}\"\nsürüm = \"0.1.0\"\ngiriş = \"ana.ohc\"\n"),
-    )
-    .map_err(|e| e.to_string())?;
-    std::fs::write(
-        klasor.join("ana.ohc"),
-        "\"Merhaba, dünya!\"'yı ekrana yaz.\n",
-    )
-    .map_err(|e| e.to_string())?;
-    println!("'{ad}' projesi oluşturuldu.\n  cd {ad}\n  orhunca çalıştır");
+    // Varsayılan konsol projesi sade; diğer şablonlar örnek içerikle gelir.
+    let ornek = kimlik != "konsol";
+    for dosya in sablon.dosyalar {
+        let yol = klasor.join(dosya.replace("{ad}", &ad));
+        if let Some(u) = yol.parent() {
+            std::fs::create_dir_all(u).map_err(|e| e.to_string())?;
+        }
+        std::fs::write(&yol, sablonlar::icerik(sablon, dosya, &ad, ornek))
+            .map_err(|e| e.to_string())?;
+    }
+    println!(
+        "'{ad}' projesi oluşturuldu ({}).\n  cd {ad}\n  orhunca çalıştır",
+        sablon.ad
+    );
+    if sablonlar::web_mi(sablon) {
+        println!("Sonra tarayıcıda http://localhost:3000 adresini açın.");
+    }
     Ok(())
 }

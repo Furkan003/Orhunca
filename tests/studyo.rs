@@ -112,6 +112,12 @@ fn sablonlar_derlenir_ve_calisir() {
         ("konsol", "ana.ohc"),
         ("sayi_tahmin", "oyun.ohc"),
         ("kutuphane", "testler/kutuphane_testi.ohc"),
+        ("bos_web", "sunucu.ohc"),
+        ("web_sitesi", "sunucu.ohc"),
+        ("web_uyg", "sunucu.ohc"),
+        ("acilis", "sunucu.ohc"),
+        ("web_api", "sunucu.ohc"),
+        ("tam_yigin", "sunucu.ohc"),
     ] {
         for ornek in [true, false] {
             let ad = format!("{sablon}_{ornek}");
@@ -126,6 +132,11 @@ fn sablonlar_derlenir_ve_calisir() {
                 d["hatalar"],
                 serde_json::json!([]),
                 "{sablon} (örnek: {ornek}) derlenmiyor"
+            );
+            assert_eq!(
+                d["uyarilar"],
+                serde_json::json!([]),
+                "{sablon} (örnek: {ornek}) uyarı veriyor"
             );
             // Şablonlar biçimlendirici kurallarına uygun olmalı (uyarı yok).
             let b = Command::new(env!("CARGO_BIN_EXE_orhunca"))
@@ -143,9 +154,9 @@ fn sablonlar_derlenir_ve_calisir() {
     // Henüz desteklenmeyen şablon oluşturulamaz.
     let r = s.api(
         "/api/proje/olustur",
-        serde_json::json!({ "sablon": "web_sitesi", "ad": "web", "konum": konum }),
+        serde_json::json!({ "sablon": "masaustu", "ad": "pencere", "konum": konum }),
     );
-    assert!(r["hata"].as_str().unwrap().contains("Aşama 6"));
+    assert!(r["hata"].as_str().unwrap().contains("Aşama 8"));
 
     // Konsol uygulamasını çalıştır, girdi gönder, çıktıyı oku.
     let proje = konum.join("konsol_true");
@@ -184,4 +195,56 @@ fn sablonlar_derlenir_ve_calisir() {
         std::thread::sleep(Duration::from_millis(50));
     }
     assert!(cikti.contains("Merhaba Test! 3"), "{cikti}");
+}
+
+#[test]
+fn web_projesi_onizlemeyle_calisir() {
+    let s = baslat("web");
+    let konum = s.ev.join("Projeler");
+    let r = s.api(
+        "/api/proje/olustur",
+        serde_json::json!({ "sablon": "bos_web", "ad": "sayfa", "konum": konum, "git": false }),
+    );
+    assert_eq!(r["web"], true, "{r}");
+    let proje = konum.join("sayfa");
+    let r = s.api(
+        "/api/calistir",
+        serde_json::json!({ "dosya": proje.join("sunucu.ohc"), "klasor": proje }),
+    );
+    let kimlik = r["kimlik"].as_u64().unwrap_or_else(|| panic!("{r}"));
+    let kapi = r["kapi"].as_u64().unwrap();
+    // Sunucu "dinleniyor" satırını yazana kadar çıktı izlenir.
+    let mut cikti = String::new();
+    let mut konum_ = 0;
+    let bas = Instant::now();
+    while !cikti.contains("Sunucu dinleniyor") {
+        let (_, g) = s.istek(
+            "GET",
+            &format!("/api/cikti?kimlik={kimlik}&konum={konum_}"),
+            None,
+            true,
+        );
+        let d: serde_json::Value = serde_json::from_str(&g).unwrap();
+        for p in d["parcalar"].as_array().unwrap() {
+            cikti.push_str(p["t"].as_str().unwrap());
+        }
+        konum_ = d["konum"].as_u64().unwrap();
+        assert!(d["bitti"] != true, "sunucu kapandı: {cikti}");
+        assert!(bas.elapsed() < Duration::from_secs(20), "{cikti}");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    assert!(
+        cikti.contains(&format!("http://localhost:{kapi}")),
+        "{cikti}"
+    );
+    // Sayfa, Stüdyo'nun yenileme betiğiyle gelir.
+    let mut a = TcpStream::connect(("127.0.0.1", kapi as u16)).unwrap();
+    a.write_all(b"GET /selam/2 HTTP/1.1\r\nHost: localhost\r\n\r\n")
+        .unwrap();
+    let mut yanit = String::new();
+    a.read_to_string(&mut yanit).unwrap();
+    assert!(yanit.starts_with("HTTP/1.1 200"), "{yanit}");
+    assert!(yanit.contains("Tekrar hoş geldin! (3. ziyaret)"), "{yanit}");
+    assert!(yanit.contains("orhunca:yenile"), "{yanit}");
+    s.api("/api/durdur", serde_json::json!({ "kimlik": kimlik }));
 }

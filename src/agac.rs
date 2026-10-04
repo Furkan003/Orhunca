@@ -272,6 +272,10 @@ pub struct AlanTanimi {
     pub zorunlu: bool,
     pub en_az: Option<f64>,
     pub en_fazla: Option<f64>,
+    /// Hata mesajlarında alan adı yerine gösterilen ad: `etiket "E-posta"`
+    pub etiket: Option<String>,
+    /// Değerin biçimi: `e_posta`
+    pub e_posta: bool,
     pub konum: Konum,
 }
 
@@ -303,19 +307,21 @@ impl Model {
     }
 
     /// Çalışma zamanının okuduğu tanım metni: ilk satırda modelin adı, sonra her
-    /// alan için `ad<TAB>tip kodu<TAB>zorunlu<TAB>en az<TAB>en fazla`.
+    /// alan için `ad<TAB>tip kodu<TAB>kurallar<TAB>en az<TAB>en fazla<TAB>etiket`.
+    /// Kurallar bit alanıdır: 1 zorunlu, 2 e-posta biçimi.
     pub fn tanim_metni(&self) -> String {
         let mut s = self.ad.clone();
         s.push('\n');
         let sinir = |x: Option<f64>| x.map(|x| x.to_string()).unwrap_or_default();
         for a in &self.alanlar {
             s.push_str(&format!(
-                "{}\t{}\t{}\t{}\t{}\n",
+                "{}\t{}\t{}\t{}\t{}\t{}\n",
                 a.ad,
                 a.tip.kod(),
-                a.zorunlu as u8,
+                a.zorunlu as u8 | (a.e_posta as u8) << 1,
                 sinir(a.en_az),
-                sinir(a.en_fazla)
+                sinir(a.en_fazla),
+                a.etiket.as_deref().unwrap_or_default()
             ));
         }
         s

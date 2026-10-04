@@ -1,0 +1,5 @@
+kullan "modeller/ürün.ohc"
+kullan "yollar/ürünler.ohc"
+
+al "/":
+    döndür yönlendir("/ürünler")

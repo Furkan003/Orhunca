@@ -1,0 +1,35 @@
+# Sayfalar
+al "/ürünler":
+    döndür görünüm("ürünler", Ürün.hepsi())
+
+al "/ürünler/yeni":
+    döndür görünüm("ürün_formu", Ürün(), [])
+
+gönder "/ürünler/yeni":
+    ü = Ürün.formdan(istek)
+    eğer değil ü.geçerli_mi() ise:
+        döndür görünüm("ürün_formu", ü, ü.hatalar())
+    ü'yü kaydet.
+    döndür yönlendir("/ürünler")
+
+al "/ürünler/{kimlik: sayı}":
+    ü = Ürün.bul(kimlik)
+    eğer ü.kimlik 0'a eşitse:
+        döndür yanıt(404, "Ürün bulunamadı")
+    döndür görünüm("ürün_formu", ü, [])
+
+gönder "/ürünler/{kimlik: sayı}":
+    ü = Ürün.formdan(istek)
+    ü.kimlik = kimlik
+    eğer değil ü.geçerli_mi() ise:
+        döndür görünüm("ürün_formu", ü, ü.hatalar())
+    ü'yü kaydet.
+    döndür yönlendir("/ürünler")
+
+gönder "/ürünler/{kimlik: sayı}/sil":
+    Ürün.sil(kimlik)
+    döndür yönlendir("/ürünler")
+
+# JSON API: başka uygulamalar için
+al "/api/ürünler":
+    döndür Ürün.hepsi()

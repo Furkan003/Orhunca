@@ -1160,14 +1160,20 @@ impl Denetci {
                 ad.strip_prefix("görünüm:"),
                 imza.parametreler.len() != tipler.len(),
             ) {
+                let tipler: Vec<String> = imza.parametreler.iter().map(|t| t.to_string()).collect();
                 return Err(Hata::yeni(
                     konum,
-                    match imza.parametreler.first() {
-                        Some(p) if imza.parametreler.len() == 1 => format!(
-                            "'{g}' görünümü bir değer bekler (@model {p}): görünüm(\"{g}\", değer)"
+                    match imza.parametreler.len() {
+                        0 => format!("'{g}' görünümü @model tanımlamıyor; değer geçirilemez"),
+                        1 => format!(
+                            "'{g}' görünümü bir değer bekler (@model {}): görünüm(\"{g}\", değer)",
+                            tipler[0]
                         ),
-                        Some(_) => format!("'{g}' bir düzen görünümü; doğrudan çağrılamaz"),
-                        None => format!("'{g}' görünümü @model tanımlamıyor; değer geçirilemez"),
+                        n => format!(
+                            "'{g}' görünümü {n} değer bekler ({}), {} verildi",
+                            tipler.join(", "),
+                            arg.len()
+                        ),
                     },
                 ));
             }
@@ -1184,10 +1190,15 @@ impl Denetci {
             for (i, (p, t)) in imza.parametreler.iter().zip(&tipler).enumerate() {
                 genislet(&mut arg[i], p);
                 if let (Some(g), false) = (ad.strip_prefix("görünüm:"), p.kabul_eder(t)) {
-                    return Err(Hata::yeni(
-                        arg[i].konum,
-                        format!("'{g}' görünümü @model {p} bekler, {t} verildi"),
-                    ));
+                    let mesaj = if imza.parametreler.len() == 1 {
+                        format!("'{g}' görünümü @model {p} bekler, {t} verildi")
+                    } else {
+                        format!(
+                            "'{g}' görünümünün {}. değeri {p} olmalı, {t} verildi",
+                            i + 1
+                        )
+                    };
+                    return Err(Hata::yeni(arg[i].konum, mesaj));
                 }
                 if !p.kabul_eder(t) {
                     let tur = if imza.haller.is_empty() {

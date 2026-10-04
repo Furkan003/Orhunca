@@ -1,0 +1,6 @@
+<section class="kahraman">
+    <span class="rozet">Yeni</span>
+    <h1>«ad»</h1>
+    <p>Tek cümlede ne sunduğunuzu anlatın. Ziyaretçi bu bölümü okuduktan sonra ne yapacağını bilmeli.</p>
+    <a class="dugme" href="#kayit">Haberdar ol</a>
+</section>

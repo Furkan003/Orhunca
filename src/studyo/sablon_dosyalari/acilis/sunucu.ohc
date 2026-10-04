@@ -1,0 +1,16 @@
+# «ad» — ürün ya da etkinlik tanıtım sayfası
+# Sayfa, görünümler/bölümler/ altındaki parçalardan oluşur.
+
+model Abone:
+    e_posta: metin, zorunlu, e_posta, etiket "E-posta"
+
+al "/":
+    döndür görünüm("sayfa", Abone(), "")
+
+gönder "/abone-ol":
+    a = Abone.formdan(istek)
+    eğer değil a.geçerli_mi() ise:
+        döndür görünüm("sayfa", a, birleştir(a.hatalar(), ", "))
+    # Aboneler veri/Abone.json dosyasında saklanır.
+    a'yı kaydet.
+    döndür görünüm("sayfa", Abone(), "Teşekkürler! Haberleri " + a.e_posta + " adresine göndereceğiz.")

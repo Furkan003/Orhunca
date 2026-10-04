@@ -1386,8 +1386,9 @@ void ohc_cik(int64_t kod) {
 
 typedef struct {
     char *ad;
+    char *etiket; /* hata mesajlarında gösterilen ad (NULL: addan türetilir) */
     int64_t kod;
-    int zorunlu;
+    int zorunlu, e_posta;
     int en_az_var, en_fazla_var;
     double en_az, en_fazla;
 } AlanBilgisi;
@@ -1410,7 +1411,8 @@ static char *kopya_n(const char *s, size_t n) {
 }
 
 /* Derleyicinin ürettiği tanım metni: ilk satır modelin adı, sonra her alan için
- * "ad<TAB>tip kodu<TAB>zorunlu<TAB>en az<TAB>en fazla". Bir kez çözülür. */
+ * "ad<TAB>tip kodu<TAB>kurallar<TAB>en az<TAB>en fazla<TAB>etiket" (kurallar:
+ * 1 zorunlu, 2 e-posta biçimi). Her tanım bir kez çözülür. */
 static ModelBilgisi *model_bilgisi(const char *tanim) {
     for (ModelBilgisi *m = model_bilgileri; m; m = m->sonraki)
         if (m->tanim == tanim) return m;
@@ -1428,11 +1430,11 @@ static ModelBilgisi *model_bilgisi(const char *tanim) {
     while (*p) {
         son = strchr(p, '\n');
         if (!son) son = p + strlen(p);
-        const char *parca[5] = {"", "0", "0", "", ""};
-        size_t uz[5] = {0, 1, 1, 0, 0};
+        const char *parca[6] = {"", "0", "0", "", "", ""};
+        size_t uz[6] = {0, 1, 1, 0, 0, 0};
         int k = 0;
         const char *b = p;
-        for (const char *q = p; q <= son && k < 5; q++) {
+        for (const char *q = p; q <= son && k < 6; q++) {
             if (q == son || *q == '\t') {
                 parca[k] = b;
                 uz[k] = (size_t)(q - b);
@@ -1444,7 +1446,10 @@ static ModelBilgisi *model_bilgisi(const char *tanim) {
         memset(a, 0, sizeof *a);
         a->ad = kopya_n(parca[0], uz[0]);
         a->kod = strtoll(parca[1], NULL, 10);
-        a->zorunlu = parca[2][0] == '1';
+        int kurallar = atoi(parca[2]);
+        a->zorunlu = kurallar & 1;
+        a->e_posta = (kurallar & 2) != 0;
+        a->etiket = uz[5] ? kopya_n(parca[5], uz[5]) : NULL;
         if (uz[3]) {
             a->en_az_var = 1;
             a->en_az = strtod(parca[3], NULL);
@@ -1612,8 +1617,12 @@ static void json_yaz(Tampon *t, int64_t d, int64_t kod, int bosluklu) {
         }
         ModelBilgisi *m = nesne_bilgisi(d);
         t_yaz(t, "{");
+        /* Kaydedilmemiş nesnenin kimliği (0) yazılmaz. */
+        int ilk = 1;
         for (int64_t i = 0; i < m->alan_sayisi; i++) {
-            if (i) t_yaz(t, virgul);
+            if (i == 0 && ALAN(d, 0) == 0) continue;
+            if (!ilk) t_yaz(t, virgul);
+            ilk = 0;
             json_metin(t, m->alanlar[i].ad);
             t_yaz(t, iki_nokta);
             json_yaz(t, ALAN(d, i), m->alanlar[i].kod, bosluklu);
@@ -2080,9 +2089,13 @@ int64_t ohc_model_kaydet(int64_t n, int64_t satir) {
 /* Doğrulama ve form bağlama                                               */
 /* ---------------------------------------------------------------------- */
 
-/* "doğum_tarihi" → "Doğum tarihi" */
-static void gorunen_ad(Tampon *t, const char *ad) {
-    const char *p = ad;
+/* Alanın hata mesajlarındaki adı: etiketi ya da "doğum_tarihi" → "Doğum tarihi" */
+static void gorunen_ad(Tampon *t, AlanBilgisi *a) {
+    if (a->etiket) {
+        t_yaz(t, a->etiket);
+        return;
+    }
+    const char *p = a->ad;
     int ilk = 1;
     while (*p) {
         uint32_t c = u8_oku(&p);
@@ -2107,10 +2120,27 @@ static void sayi_yaz(Tampon *t, double x) {
 }
 
 static void kural_mesaji(Tampon *t, AlanBilgisi *a, const char *on, double sinir, const char *son) {
-    gorunen_ad(t, a->ad);
+    gorunen_ad(t, a);
     t_yaz(t, on);
     sayi_yaz(t, sinir);
     t_yaz(t, son);
+}
+
+/* ad@alan.uzantı: boşluksuz, tek @, alanda nokta */
+static int e_posta_mi(const char *s) {
+    while (*s && bosluk(*s)) s++;
+    const char *at = strchr(s, '@');
+    if (!at || at == s || strchr(at + 1, '@')) return 0;
+    const char *nokta = strrchr(at, '.');
+    if (!nokta || nokta == at + 1 || !nokta[1]) return 0;
+    for (const char *p = s; *p; p++)
+        if (*p == ' ' || *p == '\t' || *p == '<' || *p == '>' || *p == ',') {
+            const char *q = p;
+            while (*q && bosluk(*q)) q++;
+            if (*q) return 0;
+            break;
+        }
+    return 1;
 }
 
 int64_t ohc_model_hatalar(int64_t n) {
@@ -2133,9 +2163,12 @@ int64_t ohc_model_hatalar(int64_t n) {
             double uz = (double)ohc_metin_uzunluk(d);
             if (!*s) {
                 if (a->zorunlu) {
-                    gorunen_ad(&t, a->ad);
+                    gorunen_ad(&t, a);
                     t_yaz(&t, " boş bırakılamaz");
                 }
+            } else if (a->e_posta && !e_posta_mi(M(d))) {
+                gorunen_ad(&t, a);
+                t_yaz(&t, " geçerli bir e-posta adresi olmalı");
             } else if (a->en_az_var && uz < a->en_az) {
                 kural_mesaji(&t, a, " en az ", a->en_az, " karakter olmalı");
             } else if (a->en_fazla_var && uz > a->en_fazla) {
@@ -2154,7 +2187,7 @@ int64_t ohc_model_hatalar(int64_t n) {
         }
         case KOD_MANTIK:
             if (a->zorunlu && !d) {
-                gorunen_ad(&t, a->ad);
+                gorunen_ad(&t, a);
                 t_yaz(&t, " işaretlenmeli");
             }
             break;
@@ -2162,7 +2195,7 @@ int64_t ohc_model_hatalar(int64_t n) {
         case 5: {
             double uz = (double)(a->kod % 8 == 4 ? ohc_liste_uzunluk(d) : ohc_sozluk_uzunluk(d));
             if (a->zorunlu && uz == 0) {
-                gorunen_ad(&t, a->ad);
+                gorunen_ad(&t, a);
                 t_yaz(&t, " boş bırakılamaz");
             } else if (a->en_az_var && uz < a->en_az) {
                 kural_mesaji(&t, a, " en az ", a->en_az, " öğe içermeli");
@@ -2244,7 +2277,7 @@ void ohc_model_doldur(int64_t n, int64_t istek) {
                 ORNEK(n)->ogeler[1] = baglama;
             }
             Tampon t = {0};
-            gorunen_ad(&t, a->ad);
+            gorunen_ad(&t, a);
             t_yaz(&t, mesaj);
             ohc_sozluk_koy(baglama, i, t_metin(&t), KOD_SAYI);
         }
@@ -2478,6 +2511,13 @@ static int yol_eslesir(const char *kalip, const char *yol, int64_t parametreler)
     }
 }
 
+static const char *bul_n(const char *s, size_t n, const char *aranan) {
+    size_t m = strlen(aranan);
+    for (size_t i = 0; i + m <= n; i++)
+        if (!memcmp(s + i, aranan, m)) return s + i;
+    return NULL;
+}
+
 static const char *durum_metni(int64_t d) {
     switch (d) {
     case 200: return "OK";
@@ -2519,8 +2559,30 @@ static void baslik_degeri(Tampon *t, const char *v) {
         if (*v != '\r' && *v != '\n') t_ekle(t, v, 1);
 }
 
+/* Stüdyo'nun canlı önizlemesi için (ORHUNCA_ONIZLEME): sayfa, Stüdyo'dan gelen
+ * iletiyle bulunduğu adreste yenilenir ve adresini Stüdyo'ya bildirir. */
+static const char ONIZLEME_BETIGI[] =
+    "<script>(function(){var p=window.parent;if(p===window)return;"
+    "addEventListener('message',function(e){if(e.source===p&&e.data==='orhunca:yenile')location.reload()});"
+    "p.postMessage({orhunca:'adres',adres:decodeURI(location.pathname)+decodeURIComponent(location.search)},'*')"
+    "})()</script>";
+static int onizleme_acik = -1;
+
 static void yanit_gonder(Soket s, int64_t durum, const char *tur, const char *govde, size_t govde_n, const char *konum,
                          int64_t basliklar, int bas_istegi) {
+    if (onizleme_acik < 0) onizleme_acik = getenv("ORHUNCA_ONIZLEME") != NULL;
+    Tampon ek = {0};
+    if (onizleme_acik && tur && !strncmp(tur, "text/html", 9) && durum < 300) {
+        /* Betik </body>'den önce eklenir (yoksa sona). */
+        const char *son = NULL;
+        for (const char *p = govde; (p = bul_n(p, govde_n - (size_t)(p - govde), "</body>")); p++) son = p;
+        size_t once = son ? (size_t)(son - govde) : govde_n;
+        t_ekle(&ek, govde, once);
+        t_yaz(&ek, ONIZLEME_BETIGI);
+        t_ekle(&ek, govde + once, govde_n - once);
+        govde = ek.v;
+        govde_n = ek.n;
+    }
     Tampon t = {0};
     char k[256];
     snprintf(k, sizeof k, "HTTP/1.1 %" PRId64 " %s\r\n", durum, durum_metni(durum));
@@ -2552,6 +2614,7 @@ static void yanit_gonder(Soket s, int64_t durum, const char *tur, const char *go
     tumunu_gonder(s, t.v, t.n);
     if (!bas_istegi && govde_n && durum != 204) tumunu_gonder(s, govde, govde_n);
     free(t.v);
+    free(ek.v);
 }
 
 static void hata_sayfasi(Soket s, int64_t durum, const char *baslik, const char *ayrinti, int bas) {
@@ -2658,12 +2721,6 @@ static SATIR_ICI_DEGIL int64_t yolu_calistir(int64_t (*islev)(int64_t), int64_t 
     return y;
 }
 
-static const char *bul_n(const char *s, size_t n, const char *aranan) {
-    size_t m = strlen(aranan);
-    for (size_t i = 0; i + m <= n; i++)
-        if (!memcmp(s + i, aranan, m)) return s + i;
-    return NULL;
-}
 
 static void istegi_isle(Soket s, const char *istek_tanimi) {
     double bas_zaman = ondalik(ohc_zaman());
@@ -2840,7 +2897,7 @@ static void istegi_isle(Soket s, const char *istek_tanimi) {
         }
     }
     double ms = (ondalik(ohc_zaman()) - bas_zaman) * 1000.0;
-    printf("%s %s → %" PRId64 " · %.0f ms\n", yontem, M(gorunen), durum, ms);
+    printf("  %s %s → %" PRId64 " · %.0f ms\n", yontem, M(gorunen), durum, ms);
     fflush(stdout);
     free(b.v);
 }
@@ -2856,6 +2913,20 @@ static void zaman_asimi(Soket s, int saniye) {
     tv.tv_usec = 0;
     setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
     setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv);
+#endif
+}
+
+static int surec_yasiyor(long kimlik) {
+#ifdef _WIN32
+    HANDLE h = OpenProcess(SYNCHRONIZE, FALSE, (DWORD)kimlik);
+    if (!h) return 0;
+    DWORD d = WaitForSingleObject(h, 0);
+    CloseHandle(h);
+    return d == WAIT_TIMEOUT;
+#else
+    /* Ebeveyn ölünce süreç başka bir sürece bağlanır; ölen ebeveyn zombi
+     * olarak kalsa bile getppid() değişir. */
+    return getppid() == (pid_t)kimlik;
 #endif
 }
 
@@ -2899,9 +2970,22 @@ void ohc_sun(int64_t kapi, int64_t istek_tanimi) {
         getsockname(dinleyici, (struct sockaddr *)&a, &uz);
         kapi = ntohs(a.sin_port);
     }
-    printf("Sunucu dinleniyor: http://localhost:%" PRId64 "\n", kapi);
+    printf("● Sunucu dinleniyor: http://localhost:%" PRId64 "\n", kapi);
     fflush(stdout);
+    /* Stüdyo'dan başlatıldıysa Stüdyo kapanınca sunucu da kapanır. */
+    const char *ebeveyn = getenv("ORHUNCA_EBEVEYN");
+    long ebeveyn_kimligi = ebeveyn ? atol(ebeveyn) : 0;
     for (;;) {
+        if (ebeveyn_kimligi > 0) {
+            fd_set k;
+            FD_ZERO(&k);
+            FD_SET(dinleyici, &k);
+            struct timeval bekleme = {1, 0};
+            if (select((int)dinleyici + 1, &k, NULL, NULL, &bekleme) <= 0) {
+                if (!surec_yasiyor(ebeveyn_kimligi)) exit(0);
+                continue;
+            }
+        }
         Soket s = accept(dinleyici, NULL, NULL);
         if (s == GECERSIZ_SOKET) continue;
         zaman_asimi(s, 10);

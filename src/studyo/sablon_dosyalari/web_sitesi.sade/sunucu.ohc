@@ -1,0 +1,23 @@
+al "/":
+    döndür görünüm("anasayfa")
+
+al "/hakkında":
+    döndür görünüm("hakkında")
+
+al "/iletişim":
+    döndür görünüm("iletişim", Mesaj(), [])
+
+gönder "/iletişim":
+    m = Mesaj.formdan(istek)
+    eğer değil m.geçerli_mi() ise:
+        döndür görünüm("iletişim", m, m.hatalar())
+    m'yi kaydet.
+    döndür yönlendir("/teşekkürler")
+
+al "/teşekkürler":
+    döndür görünüm("teşekkürler")
+
+model Mesaj:
+    ad: metin, zorunlu
+    e_posta: metin, zorunlu, e_posta, etiket "E-posta"
+    ileti: metin, zorunlu

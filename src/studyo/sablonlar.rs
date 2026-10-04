@@ -1,5 +1,25 @@
-//! Yeni proje şablonları. `hazir: false` olanlar henüz desteklenmeyen proje
-//! türleridir (web, masaüstü); Stüdyo onları "yakında" olarak gösterir.
+//! Yeni proje şablonları. `yakinda` dolu olanlar henüz desteklenmeyen proje
+//! türleridir (masaüstü); Stüdyo onları "yakında" olarak gösterir.
+//!
+//! Web şablonlarının dosyaları `sablon_dosyalari/<kimlik>/` altındadır ve ikili
+//! dosyaya gömülür; `<kimlik>.sade/` aynı dosyaların örneksiz (sade) hâlidir.
+//! Dosyalardaki `«ad»` proje adıyla değiştirilir.
+
+mod gomulu {
+    include!(concat!(env!("OUT_DIR"), "/sablon_dosyalari.rs"));
+}
+
+fn gomulu_dosya(yol: &str) -> Option<&'static str> {
+    gomulu::DOSYALAR
+        .iter()
+        .find(|(y, _)| *y == yol)
+        .and_then(|(_, b)| std::str::from_utf8(b).ok())
+}
+
+/// Web şablonu mu? (Stüdyo, çalıştırınca canlı önizlemeyi açar.)
+pub fn web_mi(s: &Sablon) -> bool {
+    s.kategoriler.contains(&"Web")
+}
 
 pub struct Sablon {
     pub kimlik: &'static str,
@@ -62,47 +82,55 @@ pub const SABLONLAR: &[Sablon] = &[
         simge: "draft",
         kategoriler: &["Web"],
         etiketler: &["Orhunca", "Web", "Başlangıç"],
-        yakinda: Some("Aşama 6"),
-        dosyalar: &["index.ohchtml", "stil.css", "{ad}.ohcproj"],
-        giris: "index.ohchtml",
+        yakinda: None,
+        dosyalar: &[
+            "sunucu.ohc",
+            "görünümler/anasayfa.ohchtml",
+            "statik/stil.css",
+            "{ad}.ohcproj",
+            "BENİOKU.md",
+        ],
+        giris: "sunucu.ohc",
     },
     Sablon {
         kimlik: "web_sitesi",
         ad: "Web Sitesi",
-        aciklama: "Çok sayfalı, yönlendirmeli statik web sitesi.",
+        aciklama: "Ortak düzenli çok sayfalı site ve kaydedilen iletişim formu.",
         simge: "language",
         kategoriler: &["Web"],
-        etiketler: &["Orhunca", "Web", "Statik"],
-        yakinda: Some("Aşama 6"),
+        etiketler: &["Orhunca", "Web", "Sayfalar"],
+        yakinda: None,
         dosyalar: &[
-            "sayfalar/anasayfa.ohchtml",
-            "sayfalar/hakkinda.ohchtml",
-            "sayfalar/iletisim.ohchtml",
-            "bilesenler/ustbilgi.ohchtml",
-            "stiller/ana.css",
-            "varliklar/logo.svg",
+            "sunucu.ohc",
+            "görünümler/düzen.ohchtml",
+            "görünümler/anasayfa.ohchtml",
+            "görünümler/hakkında.ohchtml",
+            "görünümler/iletişim.ohchtml",
+            "görünümler/teşekkürler.ohchtml",
+            "statik/stil.css",
+            "statik/logo.svg",
             "{ad}.ohcproj",
             "BENİOKU.md",
         ],
-        giris: "sayfalar/anasayfa.ohchtml",
+        giris: "sunucu.ohc",
     },
     Sablon {
         kimlik: "web_uyg",
         ad: "Web Uygulaması",
-        aciklama: "Bileşen tabanlı, etkileşimli tek sayfa uygulaması.",
+        aciklama: "JSON API'li, sayfası yenilenmeden çalışan etkileşimli uygulama.",
         simge: "web",
         kategoriler: &["Web"],
-        etiketler: &["Orhunca", "Web", "Bileşenler"],
-        yakinda: Some("Aşama 6"),
+        etiketler: &["Orhunca", "Web", "JavaScript"],
+        yakinda: None,
         dosyalar: &[
-            "kaynak/uygulama.ohc",
-            "kaynak/bilesenler/sayac.ohc",
-            "kaynak/bilesenler/liste.ohc",
-            "kaynak/durum.ohc",
-            "stiller/tema.css",
+            "sunucu.ohc",
+            "statik/index.html",
+            "statik/uygulama.js",
+            "statik/stil.css",
             "{ad}.ohcproj",
+            "BENİOKU.md",
         ],
-        giris: "kaynak/uygulama.ohc",
+        giris: "sunucu.ohc",
     },
     Sablon {
         kimlik: "acilis",
@@ -111,51 +139,56 @@ pub const SABLONLAR: &[Sablon] = &[
         simge: "rocket_launch",
         kategoriler: &["Web"],
         etiketler: &["Orhunca", "Web", "Pazarlama"],
-        yakinda: Some("Aşama 6"),
+        yakinda: None,
         dosyalar: &[
-            "sayfa.ohchtml",
-            "bolumler/kahraman.ohchtml",
-            "bolumler/ozellikler.ohchtml",
-            "bolumler/iletisim_formu.ohchtml",
-            "stiller/ana.css",
+            "sunucu.ohc",
+            "görünümler/sayfa.ohchtml",
+            "görünümler/bölümler/kahraman.ohchtml",
+            "görünümler/bölümler/özellikler.ohchtml",
+            "görünümler/bölümler/kayıt_formu.ohchtml",
+            "statik/stil.css",
             "{ad}.ohcproj",
+            "BENİOKU.md",
         ],
-        giris: "sayfa.ohchtml",
+        giris: "sunucu.ohc",
     },
     Sablon {
         kimlik: "web_api",
         ad: "Web API",
-        aciklama: "REST uç noktaları sunan sunucu uygulaması.",
+        aciklama: "JSON döndüren REST uç noktaları sunan sunucu uygulaması.",
         simge: "dns",
         kategoriler: &["Web", "Sunucu"],
         etiketler: &["Orhunca", "Sunucu", "REST"],
-        yakinda: Some("Aşama 6"),
+        yakinda: None,
         dosyalar: &[
             "sunucu.ohc",
             "yollar/hava.ohc",
-            "yollar/kullanicilar.ohc",
-            "veri/ornek.json",
+            "yollar/kullanıcılar.ohc",
             "{ad}.ohcproj",
+            "BENİOKU.md",
         ],
         giris: "sunucu.ohc",
     },
     Sablon {
         kimlik: "tam_yigin",
         ad: "Tam Yığın Uygulama",
-        aciklama: "Ön yüz, sunucu ve veritabanı tek projede.",
+        aciklama: "Sayfalar, sunucu ve veri deposu tek projede: ürün yönetimi.",
         simge: "stacks",
         kategoriler: &["Web", "Sunucu"],
-        etiketler: &["Orhunca", "Web", "Sunucu", "Veritabanı"],
-        yakinda: Some("Aşama 6"),
+        etiketler: &["Orhunca", "Web", "Sunucu", "Veri"],
+        yakinda: None,
         dosyalar: &[
-            "istemci/anasayfa.ohchtml",
-            "istemci/bilesenler/kart.ohchtml",
-            "sunucu/sunucu.ohc",
-            "sunucu/yollar/urunler.ohc",
-            "veritabani/sema.ohc",
+            "sunucu.ohc",
+            "modeller/ürün.ohc",
+            "yollar/ürünler.ohc",
+            "görünümler/düzen.ohchtml",
+            "görünümler/ürünler.ohchtml",
+            "görünümler/ürün_formu.ohchtml",
+            "statik/stil.css",
             "{ad}.ohcproj",
+            "BENİOKU.md",
         ],
-        giris: "sunucu/sunucu.ohc",
+        giris: "sunucu.ohc",
     },
     Sablon {
         kimlik: "masaustu",
@@ -180,6 +213,20 @@ pub fn icerik(sablon: &Sablon, dosya: &str, ad: &str, ornek: bool) -> String {
         return format!(
             "ad = \"{ad}\"\nsürüm = \"0.1.0\"\ngiriş = \"{}\"\nşablon = \"{}\"\n",
             sablon.giris, sablon.kimlik
+        );
+    }
+    if dosya == "BENİOKU.md" && web_mi(sablon) {
+        return format!(
+            "# {ad}\n\n{} şablonuyla oluşturulmuş bir Orhunca web projesi.\n\n\
+             ## Çalıştırma\n\n```\norhunca çalıştır\n```\n\n\
+             Sonra tarayıcıda http://localhost:3000 adresini açın. Orhunca Stüdyo'da **F5** \
+             sunucuyu başlatır ve sayfayı canlı önizlemede gösterir; kaydettiğinizde yenilenir.\n\n\
+             ## Klasörler\n\n\
+             - `sunucu.ohc` — yollar: `al \"/adres\":` ve `gönder \"/adres\":`\n\
+             - `görünümler/` — `.ohchtml` sayfaları (`görünüm(\"ad\", değer)` ile kullanılır)\n\
+             - `statik/` — olduğu gibi sunulan dosyalar (CSS, resim, JavaScript)\n\
+             - `veri/` — `kaydet` ile saklanan model kayıtları (JSON)\n",
+            sablon.ad
         );
     }
     if dosya == "BENİOKU.md" {
@@ -269,6 +316,15 @@ kare = 4'ü karele
         ("kutuphane", "testler/kutuphane_testi.ohc", false) => {
             "kullan \"../kutuphane.ohc\"\n\n(4'ü karele)'yi yaz.\n".to_string()
         }
-        _ => String::new(),
+        (kimlik, _, _) => {
+            let sade = format!("{kimlik}.sade/{dosya}");
+            let tam = format!("{kimlik}/{dosya}");
+            let icerik = (!ornek)
+                .then(|| gomulu_dosya(&sade))
+                .flatten()
+                .or_else(|| gomulu_dosya(&tam))
+                .unwrap_or_default();
+            icerik.replace("«ad»", ad)
+        }
     }
 }

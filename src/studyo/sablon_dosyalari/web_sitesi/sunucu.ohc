@@ -1,0 +1,28 @@
+# «ad» — çok sayfalı web sitesi
+# Her sayfa görünümler/ klasöründe bir .ohchtml dosyasıdır; ortak çerçeve
+# (üst menü, alt bilgi) düzen.ohchtml dosyasındadır.
+
+model Mesaj:
+    ad: metin, zorunlu, en_fazla 80, etiket "Adınız"
+    e_posta: metin, zorunlu, e_posta, etiket "E-posta"
+    ileti: metin, zorunlu, en_az 10, en_fazla 2000, etiket "Mesajınız"
+
+al "/":
+    döndür görünüm("anasayfa")
+
+al "/hakkında":
+    döndür görünüm("hakkında")
+
+al "/iletişim":
+    döndür görünüm("iletişim", Mesaj(), [])
+
+gönder "/iletişim":
+    m = Mesaj.formdan(istek)
+    eğer değil m.geçerli_mi() ise:
+        döndür görünüm("iletişim", m, m.hatalar())
+    # Mesajlar veri/Mesaj.json dosyasında saklanır.
+    m'yi kaydet.
+    döndür yönlendir("/teşekkürler")
+
+al "/teşekkürler":
+    döndür görünüm("teşekkürler")

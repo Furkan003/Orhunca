@@ -1,0 +1,27 @@
+# Kullanıcı kayıtları: listele, getir, ekle, sil (veri/Kullanıcı.json)
+
+model Kullanıcı:
+    ad: metin, zorunlu, en_fazla 60
+    e_posta: metin, zorunlu, e_posta, etiket "E-posta"
+
+al "/kullanıcılar":
+    döndür Kullanıcı.hepsi()
+
+al "/kullanıcılar/{kimlik: sayı}":
+    k = Kullanıcı.bul(kimlik)
+    eğer k.kimlik 0'a eşitse:
+        döndür json_yanıtı({"hata": "kullanıcı bulunamadı"}, 404)
+    döndür k
+
+# Gövde JSON ({"ad": "...", "e_posta": "..."}) ya da form olabilir.
+gönder "/kullanıcılar":
+    k = Kullanıcı.formdan(istek)
+    eğer değil k.geçerli_mi() ise:
+        döndür json_yanıtı({"hatalar": k.hatalar()}, 422)
+    k'yı kaydet.
+    döndür json_yanıtı(k, 201)
+
+sil "/kullanıcılar/{kimlik: sayı}":
+    eğer Kullanıcı.sil(kimlik) ise:
+        döndür json_yanıtı({"sonuç": "silindi"})
+    döndür json_yanıtı({"hata": "kullanıcı bulunamadı"}, 404)

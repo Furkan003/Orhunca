@@ -1,7 +1,7 @@
 Kitap(kimlik: 0, ad: "Nutuk", yazar: "Atatürk", sayfa: 600, fiyat: 150.0, okundu: yanlış, etiketler: [])
 Nutuk / Atatürk
 604
-{"kimlik":0,"ad":"Nutuk","yazar":"Atatürk","sayfa":604,"fiyat":150.0,"okundu":true,"etiketler":["tarih"]}
+{"ad":"Nutuk","yazar":"Atatürk","sayfa":604,"fiyat":150.0,"okundu":true,"etiketler":["tarih"]}
 yanlış
 - Ad boş bırakılamaz
 - Sayfa en az 1 olmalı

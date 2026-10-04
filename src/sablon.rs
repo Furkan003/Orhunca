@@ -62,6 +62,22 @@ pub struct Sablon {
 }
 
 impl Sablon {
+    /// `@model (ürün: Ürün, hatalar: liste<metin>)` biçimindeki değerlerin adları.
+    pub fn parametre_adlari(&self) -> Vec<String> {
+        let Some(s) = &self.model else {
+            return Vec::new();
+        };
+        if s.first().map(|s| &s.tok) != Some(&Tok::Op("(")) {
+            return Vec::new();
+        }
+        s.windows(3)
+            .filter_map(|w| match (&w[0].tok, &w[1].tok, &w[2].tok) {
+                (Tok::Op("(") | Tok::Op(","), Tok::Kelime(ad), Tok::Op(":")) => Some(ad.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
     /// Gömülü kod parçalarının tüm sözcükleri (isim sözlüğü kurulurken taranır).
     pub fn tum_sozcukler(&self) -> Vec<Sozcuk> {
         fn topla(p: &[Parca], v: &mut Vec<Sozcuk>) {
@@ -574,7 +590,7 @@ impl Cozucu {
                         "@değilse bir @eğer bloğunun hemen ardından gelmeli",
                     ))
                 }
-                "model" if yonerge && deger.is_some_and(kelime_basi) => {
+                "model" if yonerge && deger.is_some_and(|c| kelime_basi(c) || c == '(') => {
                     if blok.is_some() || s.model.is_some() {
                         return Err(Hata::yeni(
                             self.konum(at),

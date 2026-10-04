@@ -175,6 +175,11 @@ pub fn ayristir_cok(mut dosyalar: Vec<Vec<Sozcuk>>, sablonlar: Vec<Sablon>) -> S
         for ad in ["model", "içerik", "başlık"] {
             t.sozluk.ekle(ad);
         }
+        for s in &sablonlar {
+            for ad in s.parametre_adlari() {
+                t.sozluk.ekle(&ad);
+            }
+        }
     }
     let t = Rc::new(t);
     let mut program = Program::default();
@@ -650,6 +655,8 @@ impl Ayristirici {
                 zorunlu: false,
                 en_az: None,
                 en_fazla: None,
+                etiket: None,
+                e_posta: false,
                 konum: fk,
             };
             while self.op_mu(",") {
@@ -666,6 +673,21 @@ impl Ayristirici {
                     }
                     "birincil" if a.ad == "kimlik" => {
                         self.ilerle();
+                    }
+                    "e_posta" => {
+                        self.ilerle();
+                        a.e_posta = true;
+                    }
+                    "etiket" => {
+                        self.ilerle();
+                        let Tok::Metin(m) = self.bak().clone() else {
+                            return Err(self.beklenmeyen("etiket metni (ör. etiket \"E-posta\")"));
+                        };
+                        if m.is_empty() || m.contains(['\t', '\n']) {
+                            return Err(Hata::yeni(self.konum(), "etiket boş olamaz ve satır sonu içeremez"));
+                        }
+                        self.ilerle();
+                        a.etiket = Some(m);
                     }
                     "birincil" => {
                         return Err(Hata::yeni(
@@ -695,8 +717,9 @@ impl Ayristirici {
                         }
                     }
                     _ => {
-                        return Err(Hata::yeni(nk, "bilinmeyen alan niteliği")
-                            .ipucu("nitelikler: zorunlu, en_az 1, en_fazla 100"))
+                        return Err(Hata::yeni(nk, "bilinmeyen alan niteliği").ipucu(
+                            "nitelikler: zorunlu, en_az 1, en_fazla 100, e_posta, etiket \"Görünen ad\"",
+                        ))
                     }
                 }
             }
@@ -727,6 +750,8 @@ impl Ayristirici {
                     zorunlu: false,
                     en_az: None,
                     en_fazla: None,
+                    etiket: None,
+                    e_posta: false,
                     konum,
                 },
             ),
@@ -1329,7 +1354,7 @@ impl Ayristirici {
         let Some((fiil, fiil_konum)) = fiil else {
             if ogeler.len() == 1 && ogeler[0].1.is_none() {
                 let (ifade, _, _) = ogeler.pop().unwrap();
-                if matches!(ifade.tur, IfadeTuru::Cagri(..)) {
+                if matches!(ifade.tur, IfadeTuru::Cagri(..) | IfadeTuru::Metod(..)) {
                     return Ok(Deyim::IfadeDeyimi(ifade));
                 }
             }
@@ -2211,12 +2236,30 @@ fn parcalari_indir(
 /// Bir görünümü metin döndüren `görünüm:<ad>` işlevine çevirir.
 fn sablon_islevi(t: &Rc<Tanimlar>, s: Sablon) -> Sonuc<Islev> {
     let konum = s.konum;
-    let mut parametreler = Vec::new();
+    let mut parametreler: Vec<(String, Tip)> = Vec::new();
     if let Some(sozcukler) = s.model {
         let mut a = Ayristirici::yeni(t, sozcukler);
-        let tip = a.tip()?;
+        if a.op_mu("(") {
+            // @model (ürün: Ürün, hatalar: liste<metin>)
+            a.ilerle();
+            while !a.op_mu(")") {
+                let pk = a.konum();
+                let ad = a.isim_adi("değer adı")?;
+                a.bekle_op(":", "değer adından sonra tipi")?;
+                let tip = a.tip()?;
+                if parametreler.iter().any(|(p, _)| *p == ad) {
+                    return Err(Hata::yeni(pk, format!("'{ad}' iki kez yazılmış")));
+                }
+                parametreler.push((ad, tip));
+                if !a.op_mu(")") {
+                    a.bekle_op(",", "değerler arasında")?;
+                }
+            }
+            a.ilerle();
+        } else {
+            parametreler.push(("model".to_string(), a.tip()?));
+        }
         a.parca_sonu()?;
-        parametreler.push(("model".to_string(), tip));
     }
     if s.icerik_var {
         parametreler.push(("içerik".to_string(), Tip::Metin));

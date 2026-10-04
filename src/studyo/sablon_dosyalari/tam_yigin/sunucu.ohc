@@ -1,0 +1,10 @@
+# «ad» — tam yığın uygulama: sunucu, görünümler ve veri tek projede.
+#   modeller/   veri tipleri ve kuralları (kayıtlar veri/ klasöründe)
+#   yollar/     adresler ve yaptıkları işler
+#   görünümler/ sayfalar (.ohchtml)
+#   statik/     stil dosyaları ve resimler
+kullan "modeller/ürün.ohc"
+kullan "yollar/ürünler.ohc"
+
+al "/":
+    döndür yönlendir("/ürünler")

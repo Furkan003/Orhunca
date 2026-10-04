@@ -20,7 +20,14 @@ async function activate(baglam) {
     'orhunca',
     'Orhunca',
     { command: derleyici(), args: ['dil-sunucusu'] },
-    { documentSelector: [{ scheme: 'file', language: 'orhunca' }, { scheme: 'untitled', language: 'orhunca' }] }
+    {
+      documentSelector: [
+        { scheme: 'file', language: 'orhunca' },
+        { scheme: 'untitled', language: 'orhunca' },
+        // .ohchtml görünümleri projeyle birlikte derlenir; hataları dosyada gösterilir.
+        { scheme: 'file', language: 'orhunca-html' },
+      ],
+    }
   );
   baglam.subscriptions.push(
     vscode.commands.registerCommand('orhunca.calistir', async () => {

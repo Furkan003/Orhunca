@@ -58,12 +58,14 @@
     q: '', siralama: 'tarih',
     tq: '', kategori: 'Tümü', secili: 'konsol',
     projeAdi: 'yeni_konsol', adDokunuldu: false, konum: '', mevcutAdlar: new Set(),
-    secenekler: { git: true, ornek: true, calistir: true },
+    secenekler: { git: true, ornek: true, calistir: true, canli: true },
     olusturuluyor: false,
     proje: null, agac: [], kapaliKlasorler: new Set(),
     sekmeler: [], etkin: null, imlec: { satir: 1, sutun: 1 },
     terminal: [], cikti: [], sorunlar: [], uyarilar: [], altSekme: 'terminal', altPanel: true,
     calisma: null, argumanlar: '',
+    // Web projelerinde canlı önizleme: { kapi, adres, yol, durum: bekliyor|acik|hata|durdu, surum }
+    onizleme: null, onizlemeAcik: true,
     yanPanel: 'gezgin', araMetin: '', araSonuc: [],
     paketler: [], paketKaynagi: '', paketMesgul: false,
     menu: null, modal: null, bildirim: null,
@@ -94,7 +96,10 @@
   // Orhunca sözdizimi renklendirme
   // =====================================================================
   const ANAHTAR_KELIMELER = new Set(['eğer', 'değilse', 'ise', 'her', 'için', 'kadar', 'işlev', 'fiil', 'döndür', 'dur', 'sürdür', 've', 'veya', 'değil', 'olduğu', 'sürece', 'iken', 'kullan', 'sabit', 'doğru', 'yanlış', 'ekrana']);
-  const YERLESIK_FIILLER = new Set(['yaz', 'ekle', 'sırala', 'çıkar']);
+  const YERLESIK_FIILLER = new Set(['yaz', 'ekle', 'sırala', 'çıkar', 'kaydet']);
+  // Model alanı nitelikleri ve web yolu kelimeleri (yalnızca yerinde anahtar kelimedir)
+  const NITELIKLER = new Set(['zorunlu', 'en_az', 'en_fazla', 'e_posta', 'etiket', 'birincil']);
+  const ROTA = /^\s*(al|gönder|koy|sil)(?=\s+")/u;
   const TIPLER = new Set(['sayı', 'ondalık', 'metin', 'mantık', 'liste', 'sözlük']);
   const YUKLEM = /^(büyük|küçük|eşit|değil)(se|sa|ken)?$/;
   const HARF = 'A-Za-zÇĞİÖŞÜçğıöşüÂâÎîÛû_';
@@ -111,6 +116,13 @@
 
   function vurgulaSatir(satir) {
     let html = '', m;
+    // `al "/ürünler":` ve `model Ürün:` satır başında anahtar kelimedir.
+    const r = ROTA.exec(satir) || /^(model)(?=\s+[\p{L}_][\p{L}\p{N}_]*\s*:\s*$)/u.exec(satir);
+    if (r) {
+      html = kac(satir.slice(0, r.index + r[0].length - r[1].length)) + `<span class="k">${kac(r[1])}</span>`;
+      satir = satir.slice(r.index + r[0].length);
+    }
+    const alanSatiri = /^\s+[\p{L}_][\p{L}\p{N}_]*\s*:\s*[\p{L}]/u.test(satir);
     SOZCUK.lastIndex = 0;
     let onceki = '';
     while ((m = SOZCUK.exec(satir))) {
@@ -122,7 +134,7 @@
       else if (m[4]) c = 'e';
       else if (m[5]) {
         const sonra = satir.slice(SOZCUK.lastIndex).trimStart()[0];
-        if (ANAHTAR_KELIMELER.has(t) || YUKLEM.test(t)) c = 'k';
+        if (ANAHTAR_KELIMELER.has(t) || YUKLEM.test(t) || (alanSatiri && NITELIKLER.has(t))) c = 'k';
         else if (YERLESIK_FIILLER.has(t) || kullaniciFiilleri.has(t) || /^uzunluğu/.test(t)) c = 'f';
         else if (sonra === '(') c = 'f';
         else if (TIPLER.has(t) && /(:|->|<|,)$/.test(onceki)) c = 't';
@@ -133,6 +145,98 @@
     return html;
   }
 
+  /** Dosya uzantısına göre renklendirme dili */
+  function dilBul(yol) {
+    const u = uzanti(yol);
+    if (u === 'ohc') return 'ohc';
+    if (u === 'ohchtml') return 'ohchtml';
+    if (u === 'html' || u === 'htm' || u === 'svg' || u === 'xml') return 'html';
+    if (u === 'css') return 'css';
+    if (u === 'js' || u === 'mjs' || u === 'json') return 'js';
+    return u === 'ohcproj' ? 'ohc' : 'duz';
+  }
+
+  const sarmala = (c, t) => c ? `<span class="${c}">${kac(t)}</span>` : kac(t);
+
+  // .ohchtml: HTML + @ ile gömülü Orhunca
+  const OHCHTML_YONERGE = /^@(eğer|değilse|her|model|düzen|başlık)(?![\p{L}\p{N}_])/u;
+  const HTML_SOZCUK = /(<!--.*?(?:-->|$))|(<\/?[A-Za-z][\w:-]*|\/?>)|("[^"]*"?|'[^']*'?)|(@@|@\*.*?(?:\*@|$)|@[\p{L}_][\p{L}\p{N}_]*(?:\.[\p{L}_][\p{L}\p{N}_]*)*|@\(|[{}])|([\p{L}_][\p{L}\p{N}_:-]*(?==))|(\s+)|(&\w+;)|(.)/gu;
+  const GOMULU = /@@|@[\p{L}_][\p{L}\p{N}_]*(?:\.[\p{L}_][\p{L}\p{N}_]*)*/gu;
+
+  function vurgulaHtml(satir, orhunca) {
+    let html = '', m;
+    const R = new RegExp(HTML_SOZCUK.source, 'gu');
+    while ((m = R.exec(satir))) {
+      const t = m[0];
+      if (m[1]) html += sarmala('c', t);
+      else if (m[2]) html += sarmala('f', t);
+      else if (m[3]) {
+        // Tırnak içindeki @ifadeler de vurgulanır: href="/ürünler/@ü.kimlik"
+        html += orhunca ? `<span class="s">${kac(t).replace(GOMULU, x => x === '@@' ? x : `<span class="e">${x}</span>`)}</span>` : sarmala('s', t);
+      } else if (m[4] && orhunca) {
+        if (t.startsWith('@*')) { html += sarmala('c', t); continue; }
+        const y = OHCHTML_YONERGE.exec(satir.slice(m.index));
+        if (y) {
+          // Yönerge ve satırın geri kalanı (son `{`'ye kadar) Orhunca kodudur.
+          html += sarmala('k', y[0]);
+          let kalan = satir.slice(m.index + y[0].length);
+          const ac = kalan.indexOf('{');
+          const kod = ac >= 0 && y[1] !== 'model' && y[1] !== 'düzen' && y[1] !== 'başlık' ? kalan.slice(0, ac) : kalan;
+          html += vurgulaSatir(kod);
+          if (kod.length < kalan.length) html += sarmala('k', kalan.slice(kod.length));
+          break;
+        }
+        html += sarmala(t === '{' || t === '}' ? 'k' : 'e', t);
+      } else if (m[5]) html += sarmala('t', t);
+      else html += kac(t);
+    }
+    return html;
+  }
+
+  const CSS_SOZCUK = /(\/\*.*?(?:\*\/|$))|("[^"]*"?|'[^']*'?)|(#[0-9a-fA-F]{3,8}\b)|(-?\d*\.?\d+(?:px|em|rem|%|vh|vw|vmin|vmax|ch|s|ms|fr|deg)?\b%?)|(@[\w-]+)|([\w-]+)(?=\s*:(?!:))|([\w.#:-]+)|(\s+)|(.)/g;
+  function cssParca(metin, secici) {
+    let html = '', m;
+    const R = new RegExp(CSS_SOZCUK.source, 'g');
+    while ((m = R.exec(metin))) {
+      const t = m[0];
+      const c = m[1] ? 'c' : m[2] ? 's' : m[5] ? 'k' : secici ? (m[6] || m[7] ? 'f' : '') : m[3] || m[4] ? 'n' : m[6] ? 't' : '';
+      html += sarmala(c, t);
+    }
+    return html;
+  }
+
+  /** Satırdaki ilk `{`'den öncesi seçici, sonrası özellikler sayılır. */
+  function vurgulaCss(satir) {
+    const i = satir.indexOf('{');
+    if (i < 0 || /^\s*\/\*/.test(satir)) return cssParca(satir, false);
+    return cssParca(satir.slice(0, i), true) + '{' + cssParca(satir.slice(i + 1), false);
+  }
+
+  const JS_ANAHTAR = new Set(['const', 'let', 'var', 'function', 'return', 'if', 'else', 'for', 'while', 'of', 'in', 'new', 'async', 'await', 'try', 'catch', 'finally', 'throw', 'class', 'import', 'export', 'from', 'default', 'true', 'false', 'null', 'undefined', 'this', 'typeof', 'break', 'continue', 'switch', 'case']);
+  const JS_SOZCUK = /(\/\/.*$)|(`(?:[^`\\]|\\.)*`?|"(?:[^"\\]|\\.)*"?|'(?:[^'\\]|\\.)*'?)|(\b\d+(?:\.\d+)?\b)|([\p{L}_$][\p{L}\p{N}_$]*)|(\s+)|(.)/gu;
+  function vurgulaJs(satir) {
+    let html = '', m;
+    const R = new RegExp(JS_SOZCUK.source, 'gu');
+    while ((m = R.exec(satir))) {
+      const t = m[0];
+      let c = m[1] ? 'c' : m[2] ? 's' : m[3] ? 'n' : '';
+      if (m[4]) c = JS_ANAHTAR.has(t) ? 'k' : satir.slice(R.lastIndex).trimStart()[0] === '(' ? 'f' : '';
+      html += sarmala(c, t);
+    }
+    return html;
+  }
+
+  function vurgula(satir, dil) {
+    switch (dil) {
+      case 'ohc': return vurgulaSatir(satir);
+      case 'ohchtml': return vurgulaHtml(satir, true);
+      case 'html': return vurgulaHtml(satir, false);
+      case 'css': return vurgulaCss(satir);
+      case 'js': return vurgulaJs(satir);
+      default: return kac(satir);
+    }
+  }
+
   // =====================================================================
   // Menüler
   // =====================================================================
@@ -141,7 +245,7 @@
     { ad: 'Düzen', ogeler: [['Geri al', 'Ctrl+Z', 'geriAl'], ['Yinele', 'Ctrl+Y', 'yinele'], '-', ['Kes', 'Ctrl+X', 'kes'], ['Kopyala', 'Ctrl+C', 'kopyala'], ['Yapıştır', 'Ctrl+V', 'yapistir'], '-', ['Satırı yorum yap', 'Ctrl+/', 'yorumYap'], ['Biçimlendir', 'Ctrl+⇧+F', 'bicimlendir']] },
     { ad: 'Seçim', ogeler: [['Tümünü seç', 'Ctrl+A', 'tumunuSec'], ['Satırı seç', 'Ctrl+L', 'satiriSec'], ['Satırı çoğalt', 'Ctrl+⇧+D', 'satiriCogalt']] },
     { ad: 'Görünüm', ogeler: [['Gezgin', '', 'panelGezgin'], ['Ara', '', 'panelAra'], ['Yapı', '', 'panelYapi'], ['Çalıştır', '', 'panelCalistir'], '-', ['Alt paneli göster/gizle', 'Ctrl+J', 'altPanelAcKapa'], '-', ['Yazıyı büyüt', 'Ctrl+=', 'yaziBuyut'], ['Yazıyı küçült', 'Ctrl+-', 'yaziKucult']] },
-    { ad: 'Çalıştır', ogeler: [['Çalıştır', 'F5', 'calistir'], ['Durdur', '⇧+F5', 'durdur'], ['Denetle', 'F7', 'denetleKomut'], '-', ['Linux için derle', '', 'derleLinux'], ['Windows için derle', '', 'derleWindows']] },
+    { ad: 'Çalıştır', ogeler: [['Çalıştır', 'F5', 'calistir'], ['Durdur', '⇧+F5', 'durdur'], ['Denetle', 'F7', 'denetleKomut'], '-', ['Canlı önizlemeyi göster/gizle', '', 'onizlemeAcKapa'], ['Önizlemeyi tarayıcıda aç', '', 'onizlemeTarayici'], '-', ['Linux için derle', '', 'derleLinux'], ['Windows için derle', '', 'derleWindows']] },
     { ad: 'Terminal', ogeler: [['Terminali temizle', '', 'terminalTemizle'], ['Sorunları göster', '', 'altSorunlar'], ['Çıktıyı göster', '', 'altCikti']] },
     { ad: 'Yardım', ogeler: [["Orhunca'yı öğren", '', 'ogrenAc'], ['Klavye kısayolları', '', 'kisayollarModal'], ['Sürüm notları', '', 'guncellemeModal'], '-', ['Hakkında', '', 'hakkindaModal']] },
   ];
@@ -222,7 +326,7 @@
     if (klasor) return { gokturk: false, simge: 'folder_open' };
     const u = uzanti(ad);
     if (u === 'ohc' || u === 'ohchtml') return { gokturk: true };
-    const tablo = { ohcproj: 'tune', md: 'info', json: 'data_object', svg: 'image', png: 'image', jpg: 'image', css: 'palette', txt: 'description' };
+    const tablo = { ohcproj: 'tune', md: 'info', json: 'data_object', svg: 'image', png: 'image', jpg: 'image', jpeg: 'image', gif: 'image', webp: 'image', ico: 'image', css: 'css', js: 'javascript', html: 'html', htm: 'html', txt: 'description' };
     return { gokturk: false, simge: tablo[u] || 'description' };
   }
 
@@ -298,8 +402,9 @@
     const sec = sablon(D.secili), hata = adHatasi();
     const konum = D.konum || D.bilgi.varsayilan_konum;
     const secenekler = [['git', 'Git deposu başlat', 'Proje klasöründe yeni bir depo ve .gitignore oluşturur.'],
-      ['ornek', 'Örnek içerik ekle', 'Şablonu çalışan bir örnek programla doldurur.'],
-      ['calistir', 'Açılınca çalıştır', 'Proje açıldığında ilk çalıştırma terminalde gösterilir.']];
+      ['ornek', 'Örnek içerik ekle', sec.web ? 'Şablonu çalışan bir örnek sayfayla doldurur.' : 'Şablonu çalışan bir örnek programla doldurur.'],
+      sec.web ? ['canli', 'Canlı önizlemeyi aç', 'Kaydettiğiniz anda tarayıcı önizlemesi yenilenir.']
+        : ['calistir', 'Açılınca çalıştır', 'Proje açıldığında ilk çalıştırma terminalde gösterilir.']];
     return `<div class="sihirbaz" data-screen-label="03 Yapılandır">
       <div class="ust-satir"><div class="geri simge" data-e="git" data-a="yeni">arrow_back</div><h1>Projenizi yapılandırın</h1><div style="flex:1"></div><span class="adim">Adım 2 / 2 · Ayarlar</span></div>
       <div class="yapilandir-govde"><div class="form">
@@ -335,6 +440,10 @@
     ["… 'i yaz", 'print', '"Merhaba"\'yı yaz.'],
     ['ve / veya / değil', 'and / or / not', 'eğer a ve değil b ise:'],
     ['kullan', 'import', 'kullan "araçlar.ohc"'],
+    ['model', 'class / struct', 'model Ürün:'],
+    ["… 'i kaydet", 'save', "ürün'ü kaydet."],
+    ['al / gönder "/yol":', 'GET / POST route', 'al "/ürünler":'],
+    ['görünüm("ad", x)', 'render view', 'döndür görünüm("ürünler", liste)'],
   ];
   const HAL_TABLOSU = [
     ['-(y)ı / -(y)i', 'belirtme · nesne', "5'i sayılara ekle."],
@@ -402,7 +511,8 @@
     }
     if (m.tur === 'guncelleme') {
       return kabuk('Sürüm notları', `
-        <div class="surum-notu"><h3>0.3 · Ekim 2026</h3><ul><li>Standart kütüphane: metin, liste, dosya, matematik ve zaman işlevleri</li><li><code>sözlük</code> tipi: <code>{"elma": 5}</code></li><li><code>kullan "dosya.ohc"</code> ile birden fazla dosya, <code>sabit</code> tanımları</li><li>Tamsayı taşması denetimi, Türkçe hata açıklamaları</li><li>Orhunca Stüdyo</li></ul></div>
+        <div class="surum-notu"><h3>0.4 · Ekim 2026</h3><ul><li>Modeller: <code>model Ürün:</code>, alan kuralları ve Türkçe doğrulama mesajları</li><li>Kalıcı kayıtlar: <code>ürün'ü kaydet.</code>, <code>Ürün.hepsi()</code>, <code>Ürün.bul(3)</code></li><li>Web sunucusu: <code>al "/ürünler":</code>, formlar, JSON API, statik dosyalar</li><li><code>.ohchtml</code> görünümleri: <code>@model</code>, <code>@düzen</code>, <code>@eğer</code>, <code>@her</code></li><li>Stüdyo: web şablonları ve kaydedince yenilenen canlı önizleme</li></ul></div>
+        <div class="surum-notu"><h3>0.3</h3><ul><li>Standart kütüphane: metin, liste, dosya, matematik ve zaman işlevleri</li><li><code>sözlük</code> tipi: <code>{"elma": 5}</code></li><li><code>kullan "dosya.ohc"</code> ile birden fazla dosya, <code>sabit</code> tanımları</li><li>Tamsayı taşması denetimi, Türkçe hata açıklamaları</li><li>Orhunca Stüdyo</li></ul></div>
         <div class="surum-notu"><h3>0.2</h3><ul><li>Ondalık sayılar</li><li>Kendi fiillerinizi tanımlama: <code>fiil sayı'yı karele:</code></li><li>Otomatik bellek yönetimi (çöp toplayıcı)</li></ul></div>
         <div class="surum-notu"><h3>0.1</h3><ul><li>İlk derleyici: hâl ekleri, Türkçe koşullar ve döngüler</li><li>Cranelift ile Linux ve Windows programları</li></ul></div>`,
         `<div class="dugme birincil" data-e="modalKapat">Kapat</div>`);
@@ -501,6 +611,7 @@
               <div id="kodBolge" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>
               <div class="alt-panel" id="altPanel"></div>
             </div>
+            <div class="onizleme gizli" id="onizleme"></div>
           </div>
           <div class="durum-cubugu" id="durumCubugu"></div>
         </div></div><div id="katman"></div></div>`;
@@ -523,6 +634,7 @@
     if (p('isaretler')) isaretleriCiz();
     if (p('alt')) cizAltPanel();
     if (p('durum')) cizDurum();
+    if (p('onizleme')) cizOnizleme();
     if (p('katman') || hepsi) katmanlariCiz();
   }
 
@@ -645,7 +757,8 @@
     const ta = $('#kodAlani'), s = etkinSekme();
     if (!ta || !s) return;
     const satirlar = s.icerik.split('\n');
-    $('#vurguKatman').innerHTML = satirlar.map(vurgulaSatir).join('\n') + '\n';
+    const dil = dilBul(s.yol);
+    $('#vurguKatman').innerHTML = satirlar.map(x => vurgula(x, dil)).join('\n') + '\n';
     const no = $('#satirNolari');
     if (no.childElementCount !== satirlar.length) {
       no.innerHTML = satirlar.map((_, i) => `<div>${i + 1}</div>`).join('');
@@ -864,7 +977,115 @@
       <span class="tiklanir ${n ? 'hatali' : u ? 'uyarili' : ''}" data-e="altSorunlar">${n} hata · ${u} uyarı</span>
       <div style="flex:1"></div>
       <span id="durumImlec">Satır ${D.imlec.satir}, Sütun ${D.imlec.sutun}</span><span>UTF-8</span><span>${kac(surumAdi())}</span>
-      <span>${D.calisma ? 'Çalışıyor…' : 'Konsol'}</span>`;
+      <span>${kac(calismaEtiketi())}</span>`;
+  }
+
+  function calismaEtiketi() {
+    const o = D.onizleme;
+    if (D.proje?.web && o?.durum === 'acik') return D.onizlemeAcik ? 'Önizleme: açık' : `Sunucu: ${o.kapi}`;
+    if (D.calisma) return 'Çalışıyor…';
+    return D.proje?.web ? 'Web' : 'Konsol';
+  }
+
+  // =====================================================================
+  // Canlı önizleme (web projeleri)
+  // =====================================================================
+  function onizlemeAdresi() {
+    const o = D.onizleme;
+    return o?.adres ? o.adres + encodeURI(o.yol || '/') : null;
+  }
+
+  function cizOnizleme() {
+    const k = $('#onizleme');
+    if (!k) return;
+    const goster = !!(D.proje?.web && D.onizlemeAcik);
+    k.classList.toggle('gizli', !goster);
+    if (!goster) { k.innerHTML = ''; return; }
+    const genislik = ayarOku('onizlemeGenisligi', 0);
+    k.style.width = genislik ? `${Math.min(genislik, window.innerWidth * 0.7)}px` : '';
+    if (!$('#onizlemeGovde')) {
+      k.innerHTML = `<div class="onizleme-tutamac" title="Genişliği değiştirmek için sürükleyin"></div><div class="onizleme-baslik"><span>CANLI ÖNİZLEME</span>
+          <span class="simge" title="Yenile" data-e="onizlemeYenile">refresh</span>
+          <span class="simge" title="Tarayıcıda aç" data-e="onizlemeTarayici">open_in_new</span>
+          <span class="simge" title="Gizle" data-e="onizlemeAcKapa">close</span></div>
+        <div class="onizleme-adres" id="onizlemeAdres"></div>
+        <div class="onizleme-govde" id="onizlemeGovde"></div>`;
+    }
+    const o = D.onizleme || {}, durum = o.durum || 'yok';
+    const kok = o.adres ? o.adres.replace(/^https?:\/\//, '') : `localhost:${o.kapi || 3000}`;
+    $('#onizlemeAdres').innerHTML = `<span class="nokta ${durum}"></span><span class="adres">${kac(kok + (o.yol && o.yol !== '/' ? o.yol : ''))}</span>`;
+    const g = $('#onizlemeGovde');
+    if (o.adres) {
+      const cerceve = $('#onizlemeCerceve');
+      if (!cerceve || cerceve.dataset.surum !== String(o.surum)) {
+        g.innerHTML = `<iframe id="onizlemeCerceve" data-surum="${o.surum}" src="${kac(onizlemeAdresi())}" title="Canlı önizleme"></iframe>`;
+      }
+      g.querySelector('.onizleme-ortu')?.remove();
+      const ortu = { bekliyor: 'Yeniden derleniyor…', hata: 'Derleme hatası — ayrıntılar terminalde', durdu: 'Sunucu durdu · F5 ile başlatın' }[durum];
+      if (ortu) g.insertAdjacentHTML('beforeend', `<div class="onizleme-ortu ${durum}">${kac(ortu)}</div>`);
+    } else {
+      const metin = durum === 'bekliyor' ? 'Sunucu başlatılıyor…' : durum === 'hata' ? 'Derleme hatası — ayrıntılar terminalde' : 'Sayfayı görmek için projeyi çalıştırın.';
+      g.innerHTML = `<div class="onizleme-bos"><div>${kac(metin)}</div>${durum === 'bekliyor' ? '' : `<div class="dugme birincil" data-e="calistir">${S('play_arrow')}Çalıştır (F5)</div>`}</div>`;
+    }
+  }
+
+  /** Önizlemedeki sayfayı bulunduğu adreste yeniler; sayfa Orhunca betiğini taşıyorsa ileti, yoksa adres yeniden yüklenir. */
+  function onizlemeyiYenile() {
+    const c = $('#onizlemeCerceve');
+    if (!D.onizleme?.adres) return;
+    if (c && D.onizleme.betik) c.contentWindow.postMessage('orhunca:yenile', '*');
+    else { D.onizleme.surum = (D.onizleme.surum || 0) + 1; cizOnizleme(); }
+  }
+
+  function sunucuHazir(adres) {
+    const o = D.onizleme || (D.onizleme = { surum: 0 });
+    const yeni = o.adres !== adres;
+    if (D.proje?.web && D.onizlemeAcik && !o.bilgilendirildi) terminaleEkle('  Kaydettiğinizde sayfa otomatik yenilenir.', 'dim');
+    o.adres = adres; o.durum = 'acik'; o.bilgilendirildi = true;
+    if (yeni) { o.surum = (o.surum || 0) + 1; o.betik = false; }
+    guncelle('onizleme', 'durum');
+    if (!yeni) onizlemeyiYenile();
+  }
+
+  // Önizleme panelinin sol kenarı sürüklenerek genişletilir.
+  document.addEventListener('mousedown', e => {
+    if (!e.target.classList?.contains('onizleme-tutamac')) return;
+    e.preventDefault();
+    const panel = $('#onizleme'), c = $('#onizlemeCerceve');
+    if (c) c.style.pointerEvents = 'none'; // sürüklerken iframe fareyi yutmasın
+    const tasi = h => {
+      const g = Math.round(Math.max(240, Math.min(window.innerWidth - h.clientX, window.innerWidth * 0.7)));
+      panel.style.width = g + 'px';
+    };
+    const birak = () => {
+      document.removeEventListener('mousemove', tasi);
+      document.removeEventListener('mouseup', birak);
+      if (c) c.style.pointerEvents = '';
+      ayarYaz('onizlemeGenisligi', panel.getBoundingClientRect().width);
+      vurguyuGuncelle();
+    };
+    document.addEventListener('mousemove', tasi);
+    document.addEventListener('mouseup', birak);
+  });
+
+  window.addEventListener('message', e => {
+    const c = $('#onizlemeCerceve');
+    if (!c || e.source !== c.contentWindow || e.data?.orhunca !== 'adres' || !D.onizleme) return;
+    D.onizleme.yol = String(e.data.adres || '/');
+    D.onizleme.betik = true;
+    const a = $('#onizlemeAdres .adres');
+    if (a) a.textContent = D.onizleme.adres.replace(/^https?:\/\//, '') + (D.onizleme.yol !== '/' ? D.onizleme.yol : '');
+  });
+
+  /** Web projesinde kaydedilen dosyaya göre: kod değiştiyse sunucu yeniden başlar, statik dosyada sayfa yenilenir. */
+  let yenidenBaslatma;
+  function kayittanSonra(yol) {
+    if (!D.proje?.web || !D.onizleme || D.onizleme.durum === 'durdu' && !D.calisma) return;
+    clearTimeout(yenidenBaslatma);
+    yenidenBaslatma = setTimeout(() => {
+      if (/^statik\//.test(yol) && D.calisma) onizlemeyiYenile();
+      else if (D.calisma || D.onizleme.durum === 'hata') calistir();
+    }, 120);
   }
 
   // =====================================================================
@@ -884,7 +1105,9 @@
   }
 
   async function projeyiAc(bilgi, { ilkCalistirma = false } = {}) {
+    if (D.calisma) await durdur();
     D.proje = bilgi;
+    D.onizleme = null;
     D.sekmeler = []; D.etkin = null; D.sorunlar = []; D.uyarilar = []; D.terminal = []; D.cikti = [];
     D.kapaliKlasorler = new Set(); D.calisma = null; D.menu = null; D.modal = null;
     D.yanPanel = 'gezgin'; D.imlec = { satir: 1, sutun: 1 };
@@ -902,7 +1125,7 @@
     if (bilgi.uyari) bildir(bilgi.uyari, true);
     if (ilkCalistirma && giris) calistir();
     else {
-      D.terminal = [{ t: istem(), c: 'mut' }, { t: 'Çalıştırmak için F5’e basın.', c: 'dim' }];
+      D.terminal = [{ t: istem(), c: 'mut' }, { t: bilgi.web ? 'Sunucuyu başlatıp sayfayı önizlemek için F5’e basın.' : 'Çalıştırmak için F5’e basın.', c: 'dim' }];
       guncelle('alt');
       denetle();
     }
@@ -924,13 +1147,18 @@
     const r = await api('/api/dosya', { yol: tamYol(s.yol), icerik: s.icerik });
     if (r.hata) { bildir(r.hata, true); return false; }
     s.kayitli = s.icerik;
-    if (!sessiz) { cizSekmeler(); }
+    if (!sessiz) { cizSekmeler(); kayittanSonra(s.yol); }
     return true;
   }
 
-  async function tumunuKaydet() {
-    for (const s of D.sekmeler) if (!(await kaydet(s, true))) return false;
+  async function tumunuKaydet({ yenile = false } = {}) {
+    let degisen = null;
+    for (const s of D.sekmeler) {
+      if (!s.ikili && s.icerik !== s.kayitli) degisen = s.yol;
+      if (!(await kaydet(s, true))) return false;
+    }
     if (D.ekran === 'duzenleyici') cizSekmeler();
+    if (yenile && degisen) kayittanSonra(degisen);
     return true;
   }
 
@@ -946,7 +1174,7 @@
     if (!D.proje) return;
     const sira = ++denetimSirasi;
     const acik = {};
-    for (const s of D.sekmeler) if (!s.ikili && uzanti(s.yol) === 'ohc') acik[tamYol(s.yol)] = s.icerik;
+    for (const s of D.sekmeler) if (!s.ikili && (uzanti(s.yol) === 'ohc' || uzanti(s.yol) === 'ohchtml')) acik[tamYol(s.yol)] = s.icerik;
     const hedefler = [...new Set([girisDosyasi(), etkinSekme() && uzanti(D.etkin) === 'ohc' ? D.etkin : null].filter(Boolean))];
     const hatalar = [], uyarilar = [];
     const ayni = (a, b) => a.mesaj === b.mesaj && a.satir === b.satir && a.sutun === b.sutun && normal(a.dosya) === normal(b.dosya);
@@ -993,14 +1221,16 @@
       terminaleEkle('✗ Derleme başarısız', 'err');
       terminaleEkle(r.derleme_hatasi, 'err');
       D.sorunlar = r.hatalar || [];
-      guncelle('alt', 'isaretler', 'durum');
+      if (D.proje.web) D.onizleme = { ...(D.onizleme || { surum: 0 }), durum: 'hata' };
+      guncelle('alt', 'isaretler', 'durum', 'onizleme');
       return;
     }
     if (r.hata) { terminaleEkle(r.hata, 'err'); guncelle('alt'); return; }
     D.sorunlar = [];
     terminaleEkle(`✓ Derleme tamamlandı · ${sureBicim(r.derleme_ms)}`, 'ok');
     D.calisma = { kimlik: r.kimlik, konum: 0 };
-    guncelle('alt', 'isaretler', 'durum', 'yan');
+    if (D.proje.web) D.onizleme = { ...(D.onizleme || { surum: 0 }), kapi: r.kapi, durum: 'bekliyor' };
+    guncelle('alt', 'isaretler', 'durum', 'yan', 'onizleme');
     $('#terminalGirdi')?.focus();
     ciktiyiIzle(r.kimlik);
   }
@@ -1009,13 +1239,15 @@
     while (D.calisma && D.calisma.kimlik === kimlik) {
       const r = await api('/api/cikti?' + sorgu({ kimlik, konum: D.calisma.konum })).catch(() => null);
       if (!r || r.hata) { D.calisma = null; break; }
-      for (const p of r.parcalar) terminaleEkle(p.t, p.tur === 'hata' ? 'err' : '', true);
+      for (const p of r.parcalar) programCiktisi(p.t, p.tur === 'hata' ? 'err' : '');
       D.calisma.konum = r.konum;
       if (r.bitti) {
         const kod = r.kod;
-        terminaleEkle(`— Program bitti · çıkış kodu ${kod ?? '?'} · ${sureBicim(r.sure_ms)}`, kod === 0 ? 'dim' : 'err');
+        if (D.calisma.durduruldu) terminaleEkle(`— Durduruldu · ${sureBicim(r.sure_ms)}`, 'dim');
+        else terminaleEkle(`— Program bitti · çıkış kodu ${kod ?? '?'} · ${sureBicim(r.sure_ms)}`, kod === 0 ? 'dim' : 'err');
         D.calisma = null;
-        if (D.ekran === 'duzenleyici') guncelle('alt', 'durum', 'yan');
+        if (D.onizleme && D.onizleme.durum !== 'hata') D.onizleme.durum = 'durdu';
+        if (D.ekran === 'duzenleyici') guncelle('alt', 'durum', 'yan', 'onizleme');
         return;
       }
       if (r.parcalar.length && D.ekran === 'duzenleyici' && D.altSekme === 'terminal') cizAltPanel();
@@ -1023,10 +1255,24 @@
     }
   }
 
+  /** Program çıktısını terminale ekler; web sunucusunun "dinleniyor" satırını yakalar. */
+  function programCiktisi(t, c) {
+    const m = c ? null : /^(.*?)(● Sunucu dinleniyor: (http:\/\/\S+))\n?/s.exec(t);
+    if (!m) { terminaleEkle(t, c, true); return; }
+    if (m[1]) terminaleEkle(m[1], c, true);
+    terminaleEkle(m[2], 'bilgi');
+    sunucuHazir(m[3]);
+    const kalan = t.slice(m[0].length);
+    if (kalan) terminaleEkle(kalan, c, true);
+  }
+
   async function durdur() {
     if (!D.calisma) return;
-    const k = D.calisma.kimlik;
-    await api('/api/durdur', { kimlik: k }).catch(() => null);
+    const c = D.calisma;
+    c.durduruldu = true;
+    await api('/api/durdur', { kimlik: c.kimlik }).catch(() => null);
+    // Çıktı izleyicisi programın bittiğini görene kadar beklenir (en çok 2 sn).
+    for (let i = 0; i < 40 && D.calisma === c; i++) await bekle(50);
   }
 
   async function derle(hedef) {
@@ -1139,7 +1385,9 @@
       D.olusturuluyor = false;
       if (r.hata) { katmanlariCiz(); bildir(r.hata, true); return; }
       D.adDokunuldu = false;
-      projeyiAc(r, { ilkCalistirma: D.secenekler.calistir });
+      const web = sablon(D.secili).web;
+      D.onizlemeAcik = !web || D.secenekler.canli;
+      projeyiAc(r, { ilkCalistirma: web ? D.secenekler.canli : D.secenekler.calistir });
     },
     ilkProgram() { D.secili = 'konsol'; if (!D.adDokunuldu) D.projeAdi = 'ilk_programim'; EYLEM.git('yapilandir'); },
 
@@ -1235,11 +1483,23 @@
     terminalTemizle() { if (D.altSekme === 'cikti') D.cikti = []; else D.terminal = []; guncelle('alt'); },
     calistir() { calistir(); },
     durdur() { durdur(); },
+    onizlemeYenile() { onizlemeyiYenile(); },
+    onizlemeTarayici() {
+      const a = onizlemeAdresi();
+      if (a) window.open(a, '_blank', 'noopener');
+      else bildir('Önce projeyi çalıştırın (F5).');
+    },
+    onizlemeAcKapa() {
+      if (!D.proje?.web) { bildir('Canlı önizleme web projelerinde kullanılır.'); return; }
+      D.onizlemeAcik = !D.onizlemeAcik;
+      D.menu = null;
+      guncelle('onizleme', 'durum', 'baslik');
+    },
     denetleKomut() { tumunuKaydet().then(denetle).then(() => { if (!D.sorunlar.length) bildir('Hata yok.'); else EYLEM.altSorunlar(); }); },
     derleLinux() { derle('linux'); },
     derleWindows() { derle('windows'); },
     kaydet() { kaydet(); },
-    tumunuKaydet() { tumunuKaydet(); },
+    tumunuKaydet() { tumunuKaydet({ yenile: true }); },
     async baslangicaDon() {
       await projeleriYenile();
       D.ekran = 'baslangic'; D.menu = null; iskeletVar = false; ciz();
@@ -1426,7 +1686,7 @@
     if (D.ekran === 'duzenleyici') {
       if (e.key === 'F5') { e.preventDefault(); e.shiftKey ? durdur() : calistir(); return; }
       if (e.key === 'F7') { e.preventDefault(); EYLEM.denetleKomut(); return; }
-      if (ctrl && e.altKey && (e.key === 's' || e.key === 'S')) { e.preventDefault(); tumunuKaydet(); return; }
+      if (ctrl && e.altKey && (e.key === 's' || e.key === 'S')) { e.preventDefault(); tumunuKaydet({ yenile: true }); return; }
       if (ctrl && (e.key === 's' || e.key === 'S')) { e.preventDefault(); kaydet(); return; }
       if (ctrl && (e.key === 'j' || e.key === 'J')) { e.preventDefault(); EYLEM.altPanelAcKapa(); return; }
       if (ctrl && e.shiftKey && (e.key === 'F' || e.key === 'f')) { e.preventDefault(); EYLEM.bicimlendir(); return; }
