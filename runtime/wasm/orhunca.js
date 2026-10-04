@@ -169,6 +169,8 @@
    * s.bekle(saniye), s.ortam (nesne), s.argumanlar (dizi)
    * s.arayuzKoku: arayüzün çizileceği DOM öğesi (tarayıcıda)
    */
+  const yiginTasti = (h) => h instanceof RangeError && /stack|yığ|recursion/i.test(h.message);
+
   async function baslat(s) {
     let bellek = null;
     let rt = null;
@@ -311,8 +313,18 @@
         try {
           return prog.exports.ohc_tablo.get(sira)(cerceve);
         } catch (h) {
-          if (!(h instanceof Yakalanan)) throw h;
           rt.__stack_pointer.value = tepe;
+          if (yiginTasti(h)) {
+            // Tarayıcının yığını taştı: yığın artık sığ; hata, çalışma zamanının
+            // hata kaydına yazılır (yakala bloğundaki değişken bu mesajı alır).
+            try {
+              rt.ohc_yigin_tasti();
+            } catch (h2) {
+              if (!(h2 instanceof Yakalanan)) throw h2;
+            }
+            return -1n;
+          }
+          if (!(h instanceof Yakalanan)) throw h;
           return -1n;
         } finally {
           deneDerinligi--;
@@ -348,8 +360,8 @@
     const hataKodu = (h) => {
       if (h instanceof Cikis) return h.kod;
       let mesaj;
-      if (h instanceof RangeError && /stack|yığ/i.test(h.message)) {
-        mesaj = 'çok derin özyineleme: işlevler birbirini bitmeyecek kadar çok çağırıyor';
+      if (yiginTasti(h)) {
+        mesaj = 'çok derin özyineleme: işlevler birbirini bitmeyecek kadar çok çağırıyor (bitiş koşulunu denetleyin)';
       } else if (typeof WebAssembly.RuntimeError === 'function' && h instanceof WebAssembly.RuntimeError) {
         mesaj = 'WebAssembly hatası: ' + h.message;
       } else {

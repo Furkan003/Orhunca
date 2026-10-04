@@ -92,6 +92,7 @@ pub(crate) const CALISMA_ZAMANI: &[(&str, usize, bool)] = &[
     ("ohc_ortam", 1, true),
     ("ohc_http", 4, true),
     ("ohc_cik", 1, false),
+    ("ohc_yigin_denetle", 1, false),
     ("ohc_alan_al", 3, true),
     ("ohc_alan_koy", 4, false),
     ("ohc_json", 2, true),
@@ -460,6 +461,14 @@ fn islev_uret(
     if u.ay.is_some() {
         let a = u.metin_sabiti(ad)?;
         u.cz("ohc_ay_gir", &[a]);
+    }
+    // Sonsuz özyineleme çökme yerine çalışma hatası versin: yığının adresi
+    // çalışma zamanının hesapladığı sınırla karşılaştırılır.
+    if donus.is_some() {
+        let yuva =
+            u.b.create_sized_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, 8, 3));
+        let adres = u.b.ins().stack_addr(I64, yuva, 0);
+        u.cz("ohc_yigin_denetle", &[adres]);
     }
     if donus.is_none() {
         // İç içe modellerin tanımları çalışma zamanında adla bulunur.

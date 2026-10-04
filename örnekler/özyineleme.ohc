@@ -1,0 +1,16 @@
+# Özyineleme: işlev kendini çağırır. Bitiş koşulu unutulursa program çökmez,
+# yakalanabilir bir çalışma hatası verir.
+işlev faktöriyel(n: sayı) -> sayı:
+    eğer n <= 1 ise:
+        döndür 1
+    döndür n * faktöriyel(n - 1)
+
+işlev bitmeyen(n: sayı) -> sayı:
+    döndür bitmeyen(n + 1) + 1
+
+faktöriyel(20)'yi yaz.
+dene:
+    bitmeyen(0)'ı yaz.
+yakala hata:
+    hata'yı yaz.
+"Program sürüyor."'u yaz.

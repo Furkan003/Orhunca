@@ -54,6 +54,7 @@
 #include <netinet/in.h>
 #include <poll.h>
 #include <sys/mman.h>
+#include <sys/resource.h>
 #include <signal.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -108,6 +109,8 @@ static void ay_hatada_dur(const char *mesaj);
 static char son_hata[1024];
 /* Son çalışma hatasının yalnızca mesajı (yakala bloğundaki değişkene gelir) */
 static char son_mesaj[1024];
+
+#define YIGIN_TASTI "çok derin özyineleme: işlevler birbirini bitmeyecek kadar çok çağırıyor (bitiş koşulunu denetleyin)"
 
 static void hata(int64_t satir, const char *mesaj) {
     fflush(stdout);
@@ -465,9 +468,31 @@ DISA(ohc_wasm_metin) int64_t ohc_wasm_metin(int64_t n) {
 }
 
 DISA(ohc_yigin_tasti) void ohc_yigin_tasti(void) {
-    hata(0, "çok derin özyineleme: işlevler birbirini bitmeyecek kadar çok çağırıyor");
+    hata(0, YIGIN_TASTI);
 }
 #else
+/* Yığın sınırı: her işlevin girişinde yığının adresi bununla karşılaştırılır
+ * (ohc_yigin_denetle). Hata mesajı yazılabilsin diye 256 KB pay bırakılır. */
+static uintptr_t yigin_siniri;
+
+static void yigin_sinirini_bul(void) {
+    const uintptr_t pay = 256 * 1024;
+#ifdef _WIN32
+    MEMORY_BASIC_INFORMATION b;
+    memset(&b, 0, sizeof b);
+    if (VirtualQuery((void *)yigin_dibi, &b, sizeof b)) yigin_siniri = (uintptr_t)b.AllocationBase + 64 * 1024 + pay;
+#else
+    size_t boy = 8u << 20;
+    struct rlimit r;
+    if (getrlimit(RLIMIT_STACK, &r) == 0) boy = r.rlim_cur == RLIM_INFINITY ? (size_t)256 << 20 : (size_t)r.rlim_cur;
+    if (boy < 2 * pay) boy = 2 * pay;
+    yigin_siniri = (uintptr_t)yigin_dibi - boy + pay;
+#endif
+}
+
+void ohc_yigin_denetle(int64_t adres) {
+    if ((uintptr_t)adres < yigin_siniri) hata(0, YIGIN_TASTI);
+}
 #ifdef ORHUNCA_CALISTIRICI
 static int (*program_yukle(void))(void);
 #endif
@@ -475,6 +500,7 @@ static int (*program_yukle(void))(void);
 int main(int argc, char **argv) {
     volatile uintptr_t dip = 0;
     yigin_dibi = (uintptr_t *)&dip + 1;
+    yigin_sinirini_bul();
 #ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);

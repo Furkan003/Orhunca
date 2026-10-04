@@ -58,6 +58,7 @@ const YALNIZ_YEREL: &[&str] = &[
     "ohc_ay_gir",
     "ohc_ay_cik",
     "ohc_ay_satir",
+    "ohc_yigin_denetle",
 ];
 
 /// `dene:` bloklarının işlevlerinin tek parametresi: çevreleyen işlevin çerçevesi.
