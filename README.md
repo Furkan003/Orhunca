@@ -727,3 +727,10 @@ uca testler, gerçek HTTP istekleriyle web çatısı testi `tests/web.rs`, Stüd
 WebAssembly'ye derleyip Node.js ile çalıştıran `tests/wasm.rs`).
 
 Yol haritası ve kararlar için: [PLAN.md](PLAN.md), sohbet özeti: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
+
+## Lisans
+
+Orhunca [MIT lisansı](LICENSE) ile dağıtılır: okullar, öğrenciler ve herkes ücretsiz
+kullanabilir, değiştirebilir ve paylaşabilir. Tek koşul, kodun kopyalarında ya da önemli
+parçalarında telif satırının (Orhunca'nın yaratıcısı Furkan, [github.com/Furkan003](https://github.com/Furkan003))
+ve lisans metninin korunmasıdır.
