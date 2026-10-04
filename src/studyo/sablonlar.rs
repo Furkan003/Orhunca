@@ -1,5 +1,5 @@
 //! Yeni proje şablonları. `yakinda` dolu olanlar henüz desteklenmeyen proje
-//! türleridir (masaüstü); Stüdyo onları "yakında" olarak gösterir.
+//! türleridir; Stüdyo onları "yakında" olarak gösterir.
 //!
 //! Web şablonlarının dosyaları `sablon_dosyalari/<kimlik>/` altındadır ve ikili
 //! dosyaya gömülür; `<kimlik>.sade/` aynı dosyaların örneksiz (sade) hâlidir.
@@ -191,17 +191,22 @@ pub const SABLONLAR: &[Sablon] = &[
         giris: "sunucu.ohc",
     },
     Sablon {
-        kimlik: "masaustu",
-        ad: "Masaüstü Uygulaması",
-        aciklama: "Pencere tabanlı masaüstü uygulaması oluşturun.",
+        kimlik: "arayuz",
+        ad: "Arayüz Uygulaması",
+        aciklama: "Türkçe arayüz diliyle düğmeli, listeli bir uygulama; tarayıcıda çalışır.",
         simge: "desktop_windows",
-        kategoriler: &["Masaüstü"],
-        etiketler: &["Orhunca", "Windows", "Masaüstü"],
-        yakinda: Some("Aşama 8"),
-        dosyalar: &["pencere.ohc", "arayuz/ana_ekran.ohc", "{ad}.ohcproj"],
-        giris: "pencere.ohc",
+        kategoriler: &["Masaüstü", "Web"],
+        etiketler: &["Orhunca", "WebAssembly", "Arayüz"],
+        yakinda: None,
+        dosyalar: &["uygulama.ohc", "{ad}.ohcproj", "BENİOKU.md"],
+        giris: "uygulama.ohc",
     },
 ];
+
+/// Türkçe arayüz diliyle yazılan (WebAssembly'ye derlenen) proje şablonu mu?
+pub fn arayuz_mu(s: &Sablon) -> bool {
+    s.kimlik == "arayuz"
+}
 
 pub fn bul(kimlik: &str) -> Option<&'static Sablon> {
     SABLONLAR.iter().find(|s| s.kimlik == kimlik)
@@ -213,6 +218,22 @@ pub fn icerik(sablon: &Sablon, dosya: &str, ad: &str, ornek: bool) -> String {
         return format!(
             "ad = \"{ad}\"\nsürüm = \"0.1.0\"\ngiriş = \"{}\"\nşablon = \"{}\"\n",
             sablon.giris, sablon.kimlik
+        );
+    }
+    if dosya == "BENİOKU.md" && arayuz_mu(sablon) {
+        return format!(
+            "# {ad}\n\nTürkçe arayüz diliyle yazılmış bir Orhunca uygulaması. Program WebAssembly'ye \
+             derlenir ve tarayıcıda çalışır.\n\n\
+             ## Çalıştırma\n\n```\norhunca çalıştır\n```\n\n\
+             Uygulama tarayıcıda açılır. Orhunca Stüdyo'da **F5** uygulamayı canlı önizlemede \
+             gösterir; kaydettiğinizde yenilenir. Tek dosyalık bir sayfa üretmek için:\n\n\
+             ```\norhunca derle uygulama.ohc --hedef web\n```\n\n\
+             ## Arayüz dili\n\n\
+             - `durum ad = değer` — uygulamanın değişkenleri; bir olaydan sonra arayüz yeniden çizilir\n\
+             - `arayüz:` — ekranda görünenler: `başlık(...)`, `yazı(...)`, `düğme(...)`, `giriş(...)`, \
+             `satır:`, `sütun:`, `kart:` …\n\
+             - `düğme(\"Ekle\") tıklanınca:` — olay bloğu\n\
+             - `bileşen Ad(...):` — arayüzün yeniden kullanılan parçaları\n"
         );
     }
     if dosya == "BENİOKU.md" && web_mi(sablon) {
@@ -251,6 +272,67 @@ pub fn icerik(sablon: &Sablon, dosya: &str, ad: &str, ornek: bool) -> String {
                  \"Merhaba \" + ad + \"! \" + i'yi yaz.\n"
         ),
         ("konsol", "ana.ohc", false) => "\"Merhaba, dünya!\"'yı ekrana yaz.\n".to_string(),
+        ("arayuz", "uygulama.ohc", true) => format!(
+            "# {ad} — Türkçe arayüz diliyle yapılacaklar listesi
+# Çalıştırmak için F5'e basın: uygulama canlı önizlemede açılır.
+
+model İş:
+    ad: metin
+    bitti: mantık
+
+durum yeni_iş = \"\"
+durum işler: liste<İş> = []
+durum süzgeç = \"Hepsi\"
+
+işlev iş_ekle():
+    ad = kırp(yeni_iş)
+    eğer ad \"\"'ye eşit değilse:
+        İş(ad: ad, bitti: yanlış)'ı işler'e ekle.
+        yeni_iş = \"\"
+
+işlev kalan_sayısı() -> sayı:
+    n = 0
+    her iş için işler'den:
+        eğer değil iş.bitti ise:
+            n += 1
+    döndür n
+
+bileşen İş_Satırı(iş: İş, sıra: sayı):
+    kart(iç_boşluk: 10):
+        satır:
+            onay_kutusu(iş.bitti, iş.ad)
+            boşluk()
+            düğme(\"Sil\", arka: \"kırmızı\") tıklanınca:
+                sil(işler, sıra)
+
+arayüz:
+    başlık(\"Yapılacaklar\")
+    satır:
+        giriş(yeni_iş, \"Ne yapılacak?\") gönderilince:
+            iş_ekle()
+        düğme(\"Ekle\", etkin: kırp(yeni_iş) != \"\") tıklanınca:
+            iş_ekle()
+    seçim(süzgeç, [\"Hepsi\", \"Kalanlar\", \"Bitenler\"])
+    her i için 0'dan uzunluk(işler) - 1'e kadar:
+        iş = işler[i]
+        göster = süzgeç == \"Hepsi\" veya (süzgeç == \"Kalanlar\" ve değil iş.bitti) veya (süzgeç == \"Bitenler\" ve iş.bitti)
+        eğer göster ise:
+            İş_Satırı(iş, i)
+    eğer uzunluk(işler) 0'a eşitse:
+        yazı(\"Henüz iş yok. Yukarıya yazıp Enter'a basın.\", renk: \"gri\")
+    değilse:
+        yazı(kalan_sayısı() + \" iş kaldı\", kalın: doğru)
+"
+        ),
+        ("arayuz", "uygulama.ohc", false) => "\
+durum sayaç = 0
+
+arayüz:
+    başlık(\"Sayaç: \" + sayaç)
+    düğme(\"Artır\") tıklanınca:
+        sayaç += 1
+"
+        .to_string(),
         ("sayi_tahmin", "oyun.ohc", true) => "\
 # Sayı tahmin oyunu: bilgisayar 1 ile 100 arasında bir sayı tutar.
 sabit EN_KÜÇÜK = 1

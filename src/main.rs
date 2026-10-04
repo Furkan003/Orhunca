@@ -145,6 +145,9 @@ fn calistir_komutu(args: &[String]) -> Result<ExitCode, String> {
     if derleme::web_hedefi_mi(s.hedef.as_deref()) {
         return web_calistir(&s);
     }
+    if s.hedef.is_none() && derleme::arayuz_programi_mi(&s.dosya) {
+        return arayuz_ac(&s);
+    }
     if s.hedef.is_some() {
         return Err(
             "'çalıştır' yalnızca bu bilgisayar için derler; --hedef ile 'derle' kullanın".into(),
@@ -163,6 +166,27 @@ fn calistir_komutu(args: &[String]) -> Result<ExitCode, String> {
         .map_err(|e| format!("program çalıştırılamadı: {e}"))?;
     let _ = std::fs::remove_dir_all(&gecici);
     Ok(ExitCode::from(durum.code().unwrap_or(1).clamp(0, 255) as u8))
+}
+
+/// Arayüz programı: tek dosyalık sayfaya derlenir ve tarayıcıda açılır.
+/// `ORHUNCA_TARAYICI=0` ise yalnızca sayfanın yolu yazılır.
+fn arayuz_ac(s: &Secenekler) -> Result<ExitCode, String> {
+    let klasor = std::env::temp_dir().join("orhunca-arayuz");
+    std::fs::create_dir_all(&klasor).map_err(|e| e.to_string())?;
+    let ad = s
+        .dosya
+        .file_stem()
+        .map(|a| a.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "uygulama".into());
+    let sayfa = klasor.join(format!("{ad}.html"));
+    derleme::derle_web(&s.dosya, &sayfa).map_err(|h| h.metin)?;
+    println!("Arayüz programı derlendi: {}", sayfa.display());
+    if std::env::var("ORHUNCA_TARAYICI").as_deref() != Ok("0") {
+        // xdg-open, open ve start dosya yolunu varsayılan tarayıcıyla açar.
+        studyo::tarayicida_ac(&sayfa.display().to_string());
+        println!("Tarayıcıda açıldı.");
+    }
+    Ok(ExitCode::SUCCESS)
 }
 
 /// WebAssembly'ye derler ve Node.js ile çalıştırır (tarayıcıdaki ile aynı kod).
@@ -314,7 +338,9 @@ fn yeni_komutu(args: &[String]) -> Result<(), String> {
         "'{ad}' projesi oluşturuldu ({}).\n  cd {ad}\n  orhunca çalıştır",
         sablon.ad
     );
-    if sablonlar::web_mi(sablon) {
+    if sablonlar::arayuz_mu(sablon) {
+        println!("Uygulama tarayıcıda açılır (WebAssembly).");
+    } else if sablonlar::web_mi(sablon) {
         println!("Sonra tarayıcıda http://localhost:3000 adresini açın.");
     }
     Ok(())

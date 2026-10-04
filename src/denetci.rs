@@ -5,10 +5,14 @@
 //! parametrelerini ve yerel değişkenlerini görür.
 
 use crate::agac::*;
+use crate::arayuz::{self, BagTuru, Beklenen};
 use crate::ayristirici::YERLESIK_DOSYA;
 use crate::ekler::Hal;
 use crate::hata::{Hata, Konum, Sonuc};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+
+/// Olay bloklarında kullanıcının değiştirdiği değer (bağlı öğelerde) bu ada gelir.
+pub const OLAY_DEGERI: &str = "‹değer›";
 
 const JSON_TURU: &str = "application/json; charset=utf-8";
 
@@ -36,6 +40,15 @@ pub struct Denetci {
     modeller: HashMap<String, Model>,
     /// Bir web yolunun gövdesi denetleniyor: `döndür` değerleri yanıta çevrilir.
     rotada: bool,
+    /// `durum` değişkenleri: her yerden görülür.
+    durumlar: HashMap<String, Tip>,
+    /// `arayüz:` ya da bir bileşen denetleniyor: öğeler ve bileşen çağrıları yazılabilir.
+    arayuzde: bool,
+    bilesenler: HashSet<String>,
+    /// Bir olay bloğu denetleniyorsa çevreleyen işlevin yerel değişkenleri (yakalanabilir).
+    cevre: Option<HashMap<String, Tip>>,
+    /// Olay bloğunun kullandığı çevre değişkenleri (sırayla).
+    yakalanan: Vec<(String, Tip)>,
 }
 
 pub fn denetle(p: &mut Program) -> Sonuc<()> {
@@ -51,6 +64,11 @@ pub fn denetle(p: &mut Program) -> Sonuc<()> {
         sabitler: HashMap::new(),
         modeller: HashMap::new(),
         rotada: false,
+        durumlar: HashMap::new(),
+        arayuzde: false,
+        bilesenler: HashSet::new(),
+        cevre: None,
+        yakalanan: Vec::new(),
     };
     for (ad, deger) in p.sabitler.iter_mut() {
         d.ifade(deger)?;
@@ -95,6 +113,17 @@ pub fn denetle(p: &mut Program) -> Sonuc<()> {
                 donus: f.donus.clone(),
             },
         );
+        if f.arayuz && f.ad != ARAYUZ_ISLEVI {
+            d.bilesenler.insert(f.ad.clone());
+        }
+    }
+
+    // Durum değişkenleri: sırayla (öncekilere başvurabilir).
+    for durum in p.durumlar.iter_mut() {
+        d.kapsam.clear();
+        d.sira.clear();
+        d.islevde = false;
+        d.durum_denetle(durum)?;
     }
 
     // Modellerin alanları ve varsayılan değerleri (değişken göremezler).
@@ -118,6 +147,7 @@ pub fn denetle(p: &mut Program) -> Sonuc<()> {
         d.kapsam.clear();
         d.sira.clear();
         d.islevde = true;
+        d.arayuzde = f.arayuz;
         d.rotada = f.rota.is_some();
         d.donus_belirtildi = f.donus.is_some();
         d.donus = f.donus.clone();
@@ -155,6 +185,7 @@ pub fn denetle(p: &mut Program) -> Sonuc<()> {
     d.kapsam.clear();
     d.sira.clear();
     d.islevde = false;
+    d.arayuzde = false;
     d.rotada = false;
     d.donus = None;
     d.blok(&mut p.ana)?;
@@ -598,6 +629,31 @@ impl Denetci {
                         format!("'{hedef}' bir modelin adı, değişken olarak kullanılamaz"),
                     ));
                 }
+                if !self.kapsam.contains_key(hedef.as_str()) {
+                    if self
+                        .cevre
+                        .as_ref()
+                        .is_some_and(|c| c.contains_key(hedef.as_str()))
+                    {
+                        return Err(Hata::yeni(
+                            *konum,
+                            format!(
+                                "olay bloğunda '{hedef}' değiştirilemez: öğe çizilirken alınmış bir kopyadır"
+                            ),
+                        )
+                        .ipucu("kalıcı değerler için durum değişkeni kullanın: durum ad = ..."));
+                    }
+                    if let Some(dt) = self.durumlar.get(hedef.as_str()).cloned() {
+                        if !dt.kabul_eder(&t) {
+                            return Err(Hata::yeni(
+                                *konum,
+                                format!("'{hedef}' durumu {dt} tipinde; {t} değer atanamaz"),
+                            ));
+                        }
+                        genislet(deger, &dt);
+                        return Ok(());
+                    }
+                }
                 self.ata(hedef, t, *konum)?;
             }
             Deyim::AlanAtama {
@@ -853,8 +909,247 @@ impl Denetci {
             Deyim::IfadeDeyimi(i) => {
                 self.ifade(i)?;
             }
+            Deyim::Oge(o) => self.oge(o)?,
         }
         Ok(())
+    }
+
+    fn durum_denetle(&mut self, d: &mut Durum) -> Sonuc<()> {
+        let ad = d.ad.as_str();
+        let cakisma = if self.sabitler.contains_key(ad) {
+            Some("bir sabitin")
+        } else if self.imzalar.contains_key(ad) {
+            Some("bir işlevin")
+        } else if self.modeller.contains_key(ad) {
+            Some("bir modelin")
+        } else {
+            None
+        };
+        if let Some(ne) = cakisma {
+            return Err(Hata::yeni(
+                d.konum,
+                format!("'{ad}' {ne} adı; durum başka bir ad almalı"),
+            ));
+        }
+        let t = self.ifade(&mut d.deger)?;
+        let tip = match &d.tip {
+            Some(beklenen) => {
+                if !beklenen.kabul_eder(&t) {
+                    return Err(Hata::yeni(
+                        d.deger.konum,
+                        format!("'{ad}' durumu {beklenen} tipinde; ilk değeri {t}"),
+                    ));
+                }
+                genislet(&mut d.deger, beklenen);
+                d.deger.tip = beklenen.clone();
+                beklenen.clone()
+            }
+            None => t,
+        };
+        if tip == Tip::Bos {
+            return Err(Hata::yeni(d.deger.konum, "bu işlev bir değer döndürmüyor"));
+        }
+        if tip_belirsiz(&tip) {
+            return Err(
+                Hata::yeni(d.konum, format!("'{ad}' durumunun tipi belirsiz"))
+                    .ipucu(format!("tipini yazın: durum {ad}: liste<metin> = []")),
+            );
+        }
+        self.durumlar.insert(d.ad.clone(), tip);
+        Ok(())
+    }
+
+    /// Arayüz öğesi: değerler, seçenekler, bağlama, olay ve içindeki öğeler.
+    fn oge(&mut self, o: &mut Oge) -> Sonuc<()> {
+        if !self.arayuzde {
+            return Err(Hata::yeni(
+                o.konum,
+                format!(
+                    "'{}' öğesi yalnızca arayüz: bloğunda ya da bir bileşende kullanılabilir",
+                    o.ad
+                ),
+            ));
+        }
+        let tanim = arayuz::oge(&o.ad).expect("ayrıştırıcı öğeyi tanıdı");
+        let n = o.argumanlar.len();
+        if n < tanim.zorunlu || n > tanim.degerler.len() {
+            let beklenen = if tanim.zorunlu == tanim.degerler.len() {
+                format!("{} değer", tanim.zorunlu)
+            } else {
+                format!("{}–{} değer", tanim.zorunlu, tanim.degerler.len())
+            };
+            return Err(
+                Hata::yeni(o.konum, format!("'{}' {beklenen} alır, {n} verildi", o.ad))
+                    .ipucu(format!("örnek: {}", tanim.ornek)),
+            );
+        }
+        let mut bag = None;
+        for (i, a) in o.argumanlar.iter_mut().enumerate() {
+            let (ne, beklenen) = tanim.degerler[i];
+            let t = self.ifade(a)?;
+            let uygun = match beklenen {
+                Beklenen::Herhangi => t != Tip::Bos,
+                Beklenen::Metin => t == Tip::Metin,
+                Beklenen::Sayi => t == Tip::Sayi,
+                Beklenen::Sayisal => t.sayisal(),
+                Beklenen::MetinListesi => Tip::Liste(Box::new(Tip::Metin)).kabul_eder(&t),
+                Beklenen::Bag(tur) => {
+                    self.bag_hedefi(a, &o.ad)?;
+                    bag = Some(tur);
+                    match tur {
+                        BagTuru::Yazi => matches!(t, Tip::Metin | Tip::Sayi | Tip::Ondalik),
+                        BagTuru::Metin => t == Tip::Metin,
+                        BagTuru::Mantik => t == Tip::Mantik,
+                        BagTuru::Sayisal => t.sayisal(),
+                    }
+                }
+            };
+            if !uygun {
+                let istenen = match beklenen {
+                    Beklenen::Herhangi => "bir değer".to_string(),
+                    Beklenen::Metin => "metin".into(),
+                    Beklenen::Sayi => "sayı".into(),
+                    Beklenen::Sayisal => "sayı ya da ondalık".into(),
+                    Beklenen::MetinListesi => "liste<metin>".into(),
+                    Beklenen::Bag(BagTuru::Yazi) => "metin, sayı ya da ondalık".into(),
+                    Beklenen::Bag(BagTuru::Metin) => "metin".into(),
+                    Beklenen::Bag(BagTuru::Mantik) => "mantık".into(),
+                    Beklenen::Bag(BagTuru::Sayisal) => "sayı ya da ondalık".into(),
+                };
+                return Err(Hata::yeni(
+                    a.konum,
+                    format!(
+                        "'{}' öğesinin '{ne}' değeri {istenen} olmalı, {t} verildi",
+                        o.ad
+                    ),
+                )
+                .ipucu(format!("örnek: {}", tanim.ornek)));
+            }
+        }
+        for (ad, d) in o.secenekler.iter_mut() {
+            let Some((beklenen, _)) = arayuz::secenek(ad) else {
+                let adlar: Vec<&str> = arayuz::SECENEKLER.iter().map(|s| s.0).collect();
+                return Err(Hata::yeni(d.konum, format!("'{ad}' diye bir seçenek yok"))
+                    .ipucu(format!("seçenekler: {}", adlar.join(", "))));
+            };
+            let t = self.ifade(d)?;
+            let uygun = if arayuz::MANTIK_SECENEKLERI.contains(&ad.as_str()) {
+                t == Tip::Mantik
+            } else {
+                match beklenen {
+                    Beklenen::Metin => t == Tip::Metin,
+                    Beklenen::Sayisal => t.sayisal(),
+                    _ => matches!(t, Tip::Metin | Tip::Sayi | Tip::Ondalik | Tip::Mantik),
+                }
+            };
+            if !uygun {
+                return Err(Hata::yeni(
+                    d.konum,
+                    format!("'{ad}' seçeneğine {t} verilemez"),
+                ));
+            }
+        }
+        if !tanim.kapsayici && !o.cocuklar.is_empty() {
+            let mut h = Hata::yeni(o.konum, format!("'{}' içine öğe alamaz", o.ad));
+            if let Some(olay) = tanim.olaylar.first() {
+                h = h.ipucu(format!("bir olay için: {}(...) {olay}:", o.ad));
+            }
+            return Err(h);
+        }
+        if let Some(olay) = &o.olay {
+            if !tanim.olaylar.contains(&olay.ad.as_str()) {
+                let mut h = Hata::yeni(
+                    olay.konum,
+                    format!("'{}' öğesinin '{}' olayı yok", o.ad, olay.ad),
+                );
+                if !tanim.olaylar.is_empty() {
+                    h = h.ipucu(format!("olayları: {}", tanim.olaylar.join(", ")));
+                }
+                return Err(h);
+            }
+        } else if o.ad == "zamanlayıcı" {
+            return Err(
+                Hata::yeni(o.konum, "zamanlayıcı bir 'çalınca:' bloğu ister")
+                    .ipucu("zamanlayıcı(1) çalınca:"),
+            );
+        }
+        // Bağlı öğe: kullanıcı değeri değiştirince değişken güncellenir, sonra `değişince:` çalışır.
+        if let Some(tur) = bag {
+            let hedef = o.argumanlar[0].clone();
+            let mut govde = vec![bag_atamasi(hedef, tur)];
+            if let Some(olay) = o.olay.take_if(|o| o.ad == "değişince") {
+                govde.extend(olay.govde);
+            }
+            let mut b = Olay {
+                ad: "bağ".into(),
+                govde,
+                yakalananlar: Vec::new(),
+                yereller: Vec::new(),
+                konum: o.konum,
+            };
+            self.olay_denetle(&mut b)?;
+            o.baglama = Some(b);
+        }
+        if let Some(olay) = o.olay.as_mut() {
+            self.olay_denetle(olay)?;
+        }
+        self.blok(&mut o.cocuklar)
+    }
+
+    /// Bağlanan değer bir durum değişkeni, liste öğesi ya da model alanı olmalı.
+    fn bag_hedefi(&self, a: &Ifade, oge: &str) -> Sonuc<()> {
+        match &a.tur {
+            IfadeTuru::Isim(ad) if self.kapsam.contains_key(ad.as_str()) => Err(Hata::yeni(
+                a.konum,
+                format!(
+                    "'{oge}' bir durum değişkenine bağlanmalı; '{ad}' her çizimde yeniden hesaplanan yerel bir değişken"
+                ),
+            )
+            .ipucu(format!("programın başında tanımlayın: durum {ad} = ..."))),
+            IfadeTuru::Isim(_) | IfadeTuru::Alan(..) | IfadeTuru::Indeks(..) => Ok(()),
+            _ => Err(Hata::yeni(
+                a.konum,
+                format!("'{oge}' öğesinin değeri bir durum değişkeni olmalı (kullanıcı değiştirince güncellenir)"),
+            )
+            .ipucu(format!("durum ad = \"\"  …  {oge}(ad)"))),
+        }
+    }
+
+    /// Olay bloğu: çevredeki yerel değişkenler yalnızca okunabilir ve yakalanır;
+    /// blok kendi yerel değişkenlerini tanımlayabilir, durumları değiştirebilir.
+    fn olay_denetle(&mut self, olay: &mut Olay) -> Sonuc<()> {
+        let cevre = self.kapsam.clone();
+        let eski_kapsam = std::mem::take(&mut self.kapsam);
+        let eski_sira = std::mem::take(&mut self.sira);
+        let eski_cevre = self.cevre.replace(cevre);
+        let eski_yakalanan = std::mem::take(&mut self.yakalanan);
+        let eski = (
+            self.arayuzde,
+            self.islevde,
+            self.donus.take(),
+            self.donus_belirtildi,
+            self.dongu,
+        );
+        self.arayuzde = false;
+        self.islevde = true;
+        self.donus = Some(Tip::Bos);
+        self.donus_belirtildi = true;
+        self.dongu = 0;
+        self.tanimla(OLAY_DEGERI, Tip::Metin);
+        let sonuc = self.blok(&mut olay.govde);
+        olay.yakalananlar = std::mem::replace(&mut self.yakalanan, eski_yakalanan);
+        olay.yereller = self.yereller();
+        self.kapsam = eski_kapsam;
+        self.sira = eski_sira;
+        self.cevre = eski_cevre;
+        (
+            self.arayuzde,
+            self.islevde,
+            self.donus,
+            self.donus_belirtildi,
+            self.dongu,
+        ) = eski;
+        sonuc
     }
 
     fn sayi_bekle(&mut self, i: &mut Ifade, ne: &str) -> Sonuc<()> {
@@ -891,6 +1186,21 @@ impl Denetci {
             IfadeTuru::Mantik(_) => Tip::Mantik,
             IfadeTuru::Isim(ad) => match self.kapsam.get(ad.as_str()) {
                 Some(t) => t.clone(),
+                None if self
+                    .cevre
+                    .as_ref()
+                    .is_some_and(|c| c.contains_key(ad.as_str())) =>
+                {
+                    // Olay bloğu çevredeki yerel değişkeni kullanıyor: çizim anındaki değeri yakalanır.
+                    let t = self.cevre.as_ref().unwrap()[ad.as_str()].clone();
+                    if !self.yakalanan.iter().any(|(a, _)| a == ad) {
+                        self.yakalanan.push((ad.clone(), t.clone()));
+                    }
+                    t
+                }
+                None if self.durumlar.contains_key(ad.as_str()) => {
+                    self.durumlar[ad.as_str()].clone()
+                }
                 None if self.sabitler.contains_key(ad.as_str()) => {
                     let deger = self.sabitler[ad.as_str()].clone();
                     e.tur = deger.tur;
@@ -1155,6 +1465,18 @@ impl Denetci {
         for a in arg.iter_mut() {
             tipler.push(self.ifade(a)?);
         }
+        if ad == ARAYUZ_ISLEVI {
+            return Err(Hata::yeni(
+                konum,
+                "arayüz kendiliğinden çizilir; çağrılamaz",
+            ));
+        }
+        if self.bilesenler.contains(ad) && !self.arayuzde {
+            return Err(Hata::yeni(
+                konum,
+                format!("'{ad}' bir bileşen; yalnızca arayüz: bloğunda ya da başka bir bileşende kullanılabilir"),
+            ));
+        }
         if let Some(imza) = self.imzalar.get(ad).cloned() {
             if let (Some(g), true) = (
                 ad.strip_prefix("görünüm:"),
@@ -1320,6 +1642,13 @@ impl Denetci {
             ("sun", []) | ("sun", [Sayi]) => Bos,
             ("ortam", [Metin]) => Metin,
             ("çık", [Sayi]) => Bos,
+            _ if arayuz::oge(ad).is_some() => {
+                return Err(Hata::yeni(
+                    konum,
+                    format!("'{ad}' bir arayüz öğesi; yalnızca arayüz: bloğunda (ya da bir bileşende) kullanılabilir"),
+                )
+                .ipucu("ekrana yazmak için: x'i yaz."))
+            }
             _ => {
                 let verilen: Vec<String> = t.iter().map(|t| t.to_string()).collect();
                 return Err(match crate::yerlesik::bul(ad) {
@@ -1336,6 +1665,60 @@ impl Denetci {
             }
         };
         Ok(sonuc)
+    }
+}
+
+/// Tipin içinde henüz bilinmeyen bir parça var mı (`liste<?>`)?
+fn tip_belirsiz(t: &Tip) -> bool {
+    match t {
+        Tip::Bilinmeyen => true,
+        Tip::Liste(i) => tip_belirsiz(i),
+        Tip::Sozluk(a, d) => tip_belirsiz(a) || tip_belirsiz(d),
+        _ => false,
+    }
+}
+
+/// Bağlı öğenin değişkenine kullanıcının girdiği değeri yazan deyim. Sayıya
+/// çevrilemeyen girdiler yok sayılır (kullanıcı yazmayı sürdürüyor olabilir).
+fn bag_atamasi(hedef: Ifade, tur: BagTuru) -> Deyim {
+    let k = hedef.konum;
+    let e = |tur| Ifade::yeni(tur, k);
+    let deger = || e(IfadeTuru::Isim(OLAY_DEGERI.into()));
+    let cagri = |ad: &str, a: Ifade| e(IfadeTuru::Cagri(ad.into(), vec![a]));
+    let ata = |yeni: Ifade| match hedef.tur.clone() {
+        IfadeTuru::Isim(ad) => Deyim::Atama {
+            hedef: ad,
+            deger: yeni,
+            konum: k,
+        },
+        IfadeTuru::Alan(nesne, alan, _) => Deyim::AlanAtama {
+            nesne: *nesne,
+            alan,
+            sira: 0,
+            deger: yeni,
+            konum: k,
+        },
+        IfadeTuru::Indeks(liste, indeks) => Deyim::IndeksAtama {
+            liste: *liste,
+            indeks: *indeks,
+            deger: yeni,
+        },
+        _ => unreachable!("bag_hedefi denetledi"),
+    };
+    let kosullu = |sinama: &str, cevir: &str| Deyim::Eger {
+        kosul: cagri(sinama, deger()),
+        govde: vec![ata(cagri(cevir, deger()))],
+        degilse: Vec::new(),
+    };
+    match (tur, &hedef.tip) {
+        (BagTuru::Mantik, _) => ata(e(IfadeTuru::Ikili(
+            IkiliOp::Esit,
+            Box::new(deger()),
+            Box::new(e(IfadeTuru::Metin("doğru".into()))),
+        ))),
+        (_, Tip::Sayi) => kosullu("sayı_mı", "sayı"),
+        (_, Tip::Ondalik) => kosullu("ondalık_mı", "ondalık"),
+        _ => ata(deger()),
     }
 }
 

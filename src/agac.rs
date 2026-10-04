@@ -230,6 +230,51 @@ pub enum Deyim {
     Dur(Konum),
     Surdur(Konum),
     IfadeDeyimi(Ifade),
+    /// Arayüz öğesi (yalnızca `arayüz:` ve `bileşen` gövdelerinde): `düğme("Artır") tıklanınca:`
+    Oge(Box<Oge>),
+}
+
+/// Bir arayüz öğesi: `yazı("Merhaba", renk: "mavi")`, `satır:` + çocuklar,
+/// `düğme("Artır") tıklanınca:` + olay bloğu, `giriş(ad)` (durum değişkenine bağlı).
+#[derive(Debug, Clone)]
+pub struct Oge {
+    /// `düğme`, `satır`, `giriş` ...
+    pub ad: String,
+    pub argumanlar: Vec<Ifade>,
+    /// Adlı seçenekler: `renk: "mavi"`, `boyut: 24`
+    pub secenekler: Vec<(String, Ifade)>,
+    /// Kapsayıcı öğelerin (`satır:`, `kart:`) içindeki öğeler
+    pub cocuklar: Vec<Deyim>,
+    pub olay: Option<Olay>,
+    /// Denetçi doldurur: değeri bir durum değişkenine bağlanan öğelerde (giriş,
+    /// onay kutusu, seçim, kaydırıcı) kullanıcı değeri değiştirince çalışan blok:
+    /// `hedef = ‹değer›` ve varsa `değişince:` bloğu.
+    pub baglama: Option<Olay>,
+    pub konum: Konum,
+}
+
+/// Olay bloğu: öğe çizilirken çevredeki yerel değişkenlerin o anki değerleri
+/// yakalanır; olay olunca blok bu değerlerle çalışır.
+#[derive(Debug, Clone)]
+pub struct Olay {
+    /// `tıklanınca`, `değişince`, `gönderilince`, `çalınca`
+    pub ad: String,
+    pub govde: Vec<Deyim>,
+    /// Denetçi doldurur: bloğun kullandığı, çevreleyen işlevin yerel değişkenleri.
+    pub yakalananlar: Vec<(String, Tip)>,
+    /// Denetçi doldurur: bloğun kendi yerel değişkenleri.
+    pub yereller: Vec<(String, Tip)>,
+    pub konum: Konum,
+}
+
+/// `durum sayaç = 0`: arayüz programlarında programın her yerinden görülen ve
+/// değiştirilebilen değişken. Bir olaydan sonra arayüz yeniden çizilir.
+#[derive(Debug, Clone)]
+pub struct Durum {
+    pub ad: String,
+    pub tip: Option<Tip>,
+    pub deger: Ifade,
+    pub konum: Konum,
 }
 
 #[derive(Debug, Clone)]
@@ -246,7 +291,12 @@ pub struct Islev {
     pub yereller: Vec<(String, Tip)>,
     /// Web yolu ise yöntemi ve kalıbı: `al "/ürünler/{kimlik: sayı}":`
     pub rota: Option<Rota>,
+    /// `arayüz:` bloğu ya da `bileşen`: gövdesinde arayüz öğeleri olabilir.
+    pub arayuz: bool,
 }
+
+/// Programın arayüzünü çizen işlevin adı (`arayüz:` bloğu).
+pub const ARAYUZ_ISLEVI: &str = "arayüz";
 
 #[derive(Debug, Clone)]
 pub struct Rota {
@@ -334,6 +384,16 @@ pub struct Program {
     pub modeller: Vec<Model>,
     /// `sabit PI = 3.14159`: her yerden görülebilen değişmez değerler.
     pub sabitler: Vec<(String, Ifade)>,
+    /// `durum sayaç = 0`: arayüz programlarının değişkenleri.
+    pub durumlar: Vec<Durum>,
     pub ana: Vec<Deyim>,
     pub ana_yereller: Vec<(String, Tip)>,
+}
+
+impl Program {
+    /// Arayüz programı mı (`arayüz:` bloğu ya da `durum` değişkenleri var)?
+    /// Böyle programlar yalnızca WebAssembly'ye (tarayıcı) derlenir.
+    pub fn arayuz_programi(&self) -> bool {
+        !self.durumlar.is_empty() || self.islevler.iter().any(|f| f.arayuz)
+    }
 }

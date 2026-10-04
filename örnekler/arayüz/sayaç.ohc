@@ -1,0 +1,19 @@
+# Sayaç: Türkçe arayüz dilinin en küçük örneği.
+# Tarayıcıda açmak için: orhunca çalıştır sayaç.ohc
+durum sayaç = 0
+durum adım = 1
+
+arayüz:
+    başlık("Sayaç")
+    yazı("Şu anki değer: " + sayaç, boyut: 24)
+    satır:
+        düğme("− " + adım) tıklanınca:
+            sayaç -= adım
+        düğme("+ " + adım) tıklanınca:
+            sayaç += adım
+        düğme("Sıfırla", arka: "gri") tıklanınca:
+            sayaç = 0
+    yazı("Adım: " + adım)
+    kaydırıcı(adım, 1, 10)
+    eğer sayaç 10'dan büyükse:
+        yazı("On'u geçtin!", renk: "kırmızı", kalın: doğru)

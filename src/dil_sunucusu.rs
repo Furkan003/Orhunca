@@ -5,7 +5,7 @@
 //! tamamlama, biçimlendirme, tanıma gitme ve belge simgeleri.
 
 use crate::agac::{Program, Tip};
-use crate::{bicimlendirici, derleme, yerlesik};
+use crate::{arayuz, bicimlendirici, derleme, yerlesik};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
@@ -187,6 +187,13 @@ const ANAHTAR_KELIMELER: &[(&str, &str)] = &[
     ("gönder", "Web yolu (POST): `gönder \"/ürünler\":` — form: `Ürün.formdan(istek)`"),
     ("koy", "Web yolu (PUT): `koy \"/ürünler/{kimlik: sayı}\":`"),
     ("istek", "Gelen web isteği: istek.yöntem, istek.yol, istek.sorgu, istek.form, istek.gövde, istek.başlıklar"),
+    ("durum", "Arayüz programının değişkeni: `durum sayaç = 0` — her yerden görülür; bir olaydan sonra arayüz yeniden çizilir"),
+    ("arayüz", "Ekranda görünenler: `arayüz:` ve altında `başlık(...)`, `düğme(...)`, `satır:` gibi öğeler (tarayıcıda çalışır)"),
+    ("bileşen", "Arayüzün yeniden kullanılan parçası: `bileşen Kart(başlık: metin):` — arayüzde `Kart(\"...\")` diye kullanılır"),
+    ("tıklanınca", "Olay: `düğme(\"Ekle\") tıklanınca:` — blok tıklanınca çalışır"),
+    ("değişince", "Olay: `giriş(ad) değişince:` — kullanıcı değeri değiştirince (bağlı değişken güncellendikten sonra)"),
+    ("gönderilince", "Olay: `giriş(ad) gönderilince:` — giriş kutusunda Enter'a basılınca"),
+    ("çalınca", "Olay: `zamanlayıcı(1) çalınca:` — her süre dolduğunda"),
 ];
 
 const TIP_ADLARI: &[(&str, &str)] = &[
@@ -254,6 +261,16 @@ fn tanimlar(metin: &str) -> Vec<Tanim> {
             }
         } else if let Some(kalip) = rota_satiri(satir) {
             ekle(&mut cikti, "yol", &kalip);
+        } else if let Some(r) = govde.strip_prefix("bileşen ") {
+            if let Some(ad) = r.split(['(', ' ']).next().filter(|a| !a.is_empty()) {
+                ekle(&mut cikti, "bileşen", ad);
+            }
+        } else if let Some(r) = govde.strip_prefix("durum ").filter(|_| girinti == 0) {
+            if let Some(ad) = r.split(['=', ':', ' ']).next().filter(|a| !a.is_empty()) {
+                ekle(&mut cikti, "durum", ad);
+            }
+        } else if girinti == 0 && govde.trim_end() == "arayüz:" {
+            ekle(&mut cikti, "arayüz", "arayüz");
         } else if let Some((ad, _)) = govde.split_once('=') {
             let ad = ad.trim().trim_end_matches(['+', '-']).trim();
             let ilk = !cikti.iter().any(|t: &Tanim| t.ad == ad);
@@ -474,6 +491,18 @@ impl Sunucu {
             format!("**{kelime}** — {a}")
         } else if let Some((_, a)) = TIP_ADLARI.iter().find(|(k, _)| *k == kelime) {
             format!("**{kelime}** (tip) — {a}")
+        } else if let Some(o) = arayuz::oge(&kelime) {
+            let olaylar = if o.olaylar.is_empty() {
+                String::new()
+            } else {
+                format!("\n\nolaylar: {}", o.olaylar.join(", "))
+            };
+            format!(
+                "```orhunca\n{}\n```\n{} (arayüz öğesi){olaylar}",
+                o.ornek, o.aciklama
+            )
+        } else if let Some((_, a)) = arayuz::secenek(&kelime) {
+            format!("**{kelime}** (arayüz seçeneği) — {a}")
         } else {
             let mut bulunan = None;
             let mut kaynaklar = vec![metin.clone()];
@@ -542,11 +571,35 @@ impl Sunucu {
                 "gönder (web formu)",
                 "gönder \"/${1:yol}\":\n    ${2:x} = ${3:Model}.formdan(istek)\n    $0",
             ),
+            ("durum", "durum ${1:sayaç} = ${2:0}"),
+            ("arayüz", "arayüz:\n    başlık(\"${1:Başlık}\")\n    $0"),
+            (
+                "bileşen",
+                "bileşen ${1:Kart}(${2:başlık}: ${3:metin}):\n    kart:\n        $0",
+            ),
+            (
+                "düğme … tıklanınca",
+                "düğme(\"${1:Tamam}\") tıklanınca:\n    $0",
+            ),
+            ("satır (yan yana)", "satır:\n    $0"),
+            ("sütun (alt alta)", "sütun:\n    $0"),
         ];
         for (ad, govde) in parcaciklar {
             ogeler.push(
                 json!({ "label": ad, "kind": 15, "insertText": govde, "insertTextFormat": 2 }),
             );
+        }
+        for o in arayuz::OGELER {
+            let ekle = if o.kapsayici && o.degerler.is_empty() {
+                format!("{}:\n    $0", o.ad)
+            } else {
+                format!("{}($1)", o.ad)
+            };
+            ogeler.push(json!({
+                "label": o.ad, "kind": 10, "detail": o.ornek,
+                "documentation": format!("{} (arayüz öğesi)", o.aciklama),
+                "insertText": ekle, "insertTextFormat": 2,
+            }));
         }
         for y in yerlesik::YERLESIKLER {
             ogeler.push(json!({
@@ -565,7 +618,8 @@ impl Sunucu {
                     "fiil" => 2,
                     "sabit" => 21,
                     "model" => 7,
-                    "yol" => continue,
+                    "bileşen" => 7,
+                    "yol" | "arayüz" => continue,
                     _ => 6,
                 };
                 ogeler.push(json!({ "label": t.ad, "kind": tur, "detail": t.metin }));
@@ -618,6 +672,8 @@ impl Sunucu {
                     "sabit" => 14,
                     "model" => 23,
                     "yol" => 7,
+                    "bileşen" => 5,
+                    "arayüz" => 2,
                     _ => 13,
                 };
                 let r = aralik(&metin, t.satir, t.bas, t.bas + t.ad.chars().count());
@@ -750,6 +806,21 @@ mod testler {
         let s = "a𐰆b";
         assert_eq!(utf16_sutun(s, 2), 3);
         assert_eq!(karakter_sutun(s, 3), 2);
+    }
+
+    #[test]
+    fn arayuz_tanimlarini_bulur() {
+        let t = tanimlar("durum sayaç = 0\ndurum ad: metin = \"\"\nbileşen Kart(b: metin):\n    yazı(b)\narayüz:\n    Kart(\"x\")\n");
+        let adlar: Vec<_> = t.iter().map(|t| (t.tur, t.ad.as_str())).collect();
+        assert_eq!(
+            adlar,
+            vec![
+                ("durum", "sayaç"),
+                ("durum", "ad"),
+                ("bileşen", "Kart"),
+                ("arayüz", "arayüz")
+            ]
+        );
     }
 
     #[test]

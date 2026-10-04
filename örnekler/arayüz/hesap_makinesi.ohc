@@ -1,0 +1,62 @@
+# Hesap makinesi: ızgara, döngüde oluşturulan düğmeler ve yakalanan değerler
+durum gösterge = "0"
+durum önceki = 0.0
+durum işlem = ""
+durum yeni_sayı = doğru
+
+işlev biçimle(x: ondalık) -> metin:
+    eğer x == ondalık(yuvarla(x)) ise:
+        döndür metin(yuvarla(x))
+    döndür metin(x)
+
+işlev hesapla() -> ondalık:
+    şimdiki = ondalık(gösterge)
+    eğer işlem == "+" ise:
+        döndür önceki + şimdiki
+    eğer işlem == "−" ise:
+        döndür önceki - şimdiki
+    eğer işlem == "×" ise:
+        döndür önceki * şimdiki
+    eğer işlem == "÷" ve şimdiki != 0.0 ise:
+        döndür önceki / şimdiki
+    döndür şimdiki
+
+işlev tuşa_bas(t: metin):
+    eğer içerir("0123456789", t) ise:
+        eğer yeni_sayı ise:
+            gösterge = t
+            yeni_sayı = yanlış
+        değilse eğer gösterge == "0" ise:
+            gösterge = t
+        değilse:
+            gösterge = gösterge + t
+    değilse eğer t == "." ise:
+        eğer yeni_sayı ise:
+            gösterge = "0."
+            yeni_sayı = yanlış
+        değilse eğer değil içerir(gösterge, ".") ise:
+            gösterge = gösterge + "."
+    değilse eğer t == "=" ise:
+        gösterge = biçimle(hesapla())
+        işlem = ""
+        yeni_sayı = doğru
+    değilse:
+        eğer işlem != "" ve değil yeni_sayı ise:
+            gösterge = biçimle(hesapla())
+        önceki = ondalık(gösterge)
+        işlem = t
+        yeni_sayı = doğru
+
+arayüz:
+    kart(genişlik: 320):
+        yazı(biçimle(önceki) + " " + işlem, renk: "gri", hizala: "sağ", boyut: 13, gizli: işlem == "")
+        yazı(gösterge, boyut: 36, kalın: doğru, hizala: "sağ")
+        ızgara(4):
+            her tuş için ["7", "8", "9", "÷", "4", "5", "6", "×", "1", "2", "3", "−", "0", ".", "=", "+"]'dan:
+                düğme(tuş, arka: "koyu_gri") tıklanınca:
+                    tuşa_bas(tuş)
+        düğme("Temizle", arka: "kırmızı") tıklanınca:
+            gösterge = "0"
+            önceki = 0.0
+            işlem = ""
+            yeni_sayı = doğru

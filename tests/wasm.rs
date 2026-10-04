@@ -249,3 +249,127 @@ fn web_yollari_webassemblyde_reddedilir() {
     assert!(hata.contains("web yolları (al \"/\")"), "{hata}");
     let _ = std::fs::remove_dir_all(&calisma);
 }
+
+#[test]
+fn arayuz_ornekleri_senaryolarla_calisir() {
+    let calisma = gecici("arayuz");
+    let klasor = kok().join("örnekler/arayüz");
+    let mut sayi = 0;
+    for g in std::fs::read_dir(&klasor).unwrap() {
+        let yol = g.unwrap().path();
+        if yol.extension().is_none_or(|u| u != "ohc") {
+            continue;
+        }
+        let ad = yol.file_stem().unwrap().to_string_lossy().into_owned();
+        let c = orhunca()
+            .arg("derle")
+            .arg(&yol)
+            .args(["--hedef", "web", "-o"])
+            .arg(calisma.join(format!("{ad}.wasm")))
+            .output()
+            .unwrap();
+        assert!(
+            c.status.success(),
+            "{ad}: {}",
+            String::from_utf8_lossy(&c.stderr)
+        );
+        // Tek dosyalık sayfa da üretilir.
+        let c = orhunca()
+            .arg("derle")
+            .arg(&yol)
+            .args(["--hedef", "web", "-o"])
+            .arg(calisma.join(format!("{ad}.html")))
+            .output()
+            .unwrap();
+        assert!(c.status.success());
+        let sayfa = std::fs::read_to_string(calisma.join(format!("{ad}.html"))).unwrap();
+        assert!(sayfa.contains("<div id=\"uygulama\"></div>"), "{ad}");
+        sayi += 1;
+    }
+    assert!(sayi >= 3);
+    if !node_var() {
+        return;
+    }
+    let c = Command::new("node")
+        .arg(kok().join("tests/arayuz_senaryolari.js"))
+        .arg(&calisma)
+        .output()
+        .unwrap();
+    let cikti = String::from_utf8_lossy(&c.stdout);
+    assert!(
+        c.status.success(),
+        "{cikti}\n{}",
+        String::from_utf8_lossy(&c.stderr)
+    );
+    for ad in ["sayaç", "yapılacaklar", "hesap_makinesi"] {
+        assert!(cikti.contains(&format!("TAMAM {ad}")), "{cikti}");
+    }
+    let _ = std::fs::remove_dir_all(&calisma);
+}
+
+#[test]
+fn arayuz_hatalari_turkce() {
+    let calisma = gecici("arayuz-hata");
+    let durumlar = [
+        (
+            "yazı(\"merhaba\")\n",
+            "'yazı' bir arayüz öğesi; yalnızca arayüz: bloğunda",
+        ),
+        (
+            "arayüz:\n    x = \"\"\n    giriş(x)\n",
+            "'giriş' bir durum değişkenine bağlanmalı",
+        ),
+        (
+            "arayüz:\n    düğme(\"a\") değişince:\n        x = 1\n",
+            "'düğme' öğesinin 'değişince' olayı yok",
+        ),
+        (
+            "arayüz:\n    her i için 1'den 3'e kadar:\n        düğme(\"a\") tıklanınca:\n            i = 5\n",
+            "olay bloğunda 'i' değiştirilemez",
+        ),
+        (
+            "durum l = []\narayüz:\n    yazı(\"a\")\n",
+            "'l' durumunun tipi belirsiz",
+        ),
+        (
+            "durum sayı_ = 1\narayüz:\n    düğme(\"a\") tıklanınca:\n        sayı_ = \"metin\"\n",
+            "'sayı_' durumu sayı tipinde; metin değer atanamaz",
+        ),
+        (
+            "bileşen Kart(b: metin):\n    yazı(b)\nKart(\"x\")\n",
+            "'Kart' bir bileşen; yalnızca arayüz: bloğunda",
+        ),
+        (
+            "arayüz:\n    yazı(\"a\", renkk: \"mavi\")\n",
+            "'renkk' diye bir seçenek yok",
+        ),
+        (
+            "arayüz:\n    düğme(\"a\"):\n        yazı(\"b\")\n",
+            "'düğme' içine öğe alamaz",
+        ),
+        (
+            "arayüz:\n    zamanlayıcı(1)\n",
+            "zamanlayıcı bir 'çalınca:' bloğu ister",
+        ),
+    ];
+    for (i, (kaynak, beklenen)) in durumlar.iter().enumerate() {
+        let dosya = calisma.join(format!("a{i}.ohc"));
+        std::fs::write(&dosya, kaynak).unwrap();
+        let c = orhunca().arg("denetle").arg(&dosya).output().unwrap();
+        let hata = String::from_utf8_lossy(&c.stderr);
+        assert!(!c.status.success(), "{kaynak}");
+        assert!(hata.contains(beklenen), "{kaynak}\n{hata}");
+    }
+    // Arayüz programı bu bilgisayar için derlenmez; ipucu web hedefini gösterir.
+    let dosya = calisma.join("yerel.ohc");
+    std::fs::write(&dosya, "durum a = 1\narayüz:\n    yazı(a)\n").unwrap();
+    let c = orhunca()
+        .arg("derle")
+        .arg(&dosya)
+        .current_dir(&calisma)
+        .output()
+        .unwrap();
+    assert!(!c.status.success());
+    assert!(String::from_utf8_lossy(&c.stderr).contains("--hedef web"));
+    let _ = std::fs::remove_dir_all(&calisma);
+}

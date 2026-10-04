@@ -590,6 +590,11 @@ impl Uretici<'_, '_> {
             Deyim::IfadeDeyimi(i) => {
                 self.ifade(i)?;
             }
+            Deyim::Oge(_) => {
+                return Err(
+                    "arayüz öğeleri yalnızca WebAssembly hedefinde (--hedef web) derlenir".into(),
+                )
+            }
         }
         Ok(())
     }

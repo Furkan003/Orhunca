@@ -95,7 +95,9 @@
   // =====================================================================
   // Orhunca sözdizimi renklendirme
   // =====================================================================
-  const ANAHTAR_KELIMELER = new Set(['eğer', 'değilse', 'ise', 'her', 'için', 'kadar', 'işlev', 'fiil', 'döndür', 'dur', 'sürdür', 've', 'veya', 'değil', 'olduğu', 'sürece', 'iken', 'kullan', 'sabit', 'doğru', 'yanlış', 'ekrana']);
+  const ANAHTAR_KELIMELER = new Set(['eğer', 'değilse', 'ise', 'her', 'için', 'kadar', 'işlev', 'fiil', 'döndür', 'dur', 'sürdür', 've', 'veya', 'değil', 'olduğu', 'sürece', 'iken', 'kullan', 'sabit', 'doğru', 'yanlış', 'ekrana', 'tıklanınca', 'değişince', 'gönderilince', 'çalınca']);
+  // Arayüz dilinin kapsayıcı öğeleri (`satır:`) parantezsiz de yazılır.
+  const KAPSAYICILAR = new Set(['satır', 'sütun', 'kart', 'kutu', 'ızgara']);
   const YERLESIK_FIILLER = new Set(['yaz', 'ekle', 'sırala', 'çıkar', 'kaydet']);
   // Model alanı nitelikleri ve web yolu kelimeleri (yalnızca yerinde anahtar kelimedir)
   const NITELIKLER = new Set(['zorunlu', 'en_az', 'en_fazla', 'e_posta', 'etiket', 'birincil']);
@@ -117,7 +119,9 @@
   function vurgulaSatir(satir) {
     let html = '', m;
     // `al "/ürünler":` ve `model Ürün:` satır başında anahtar kelimedir.
-    const r = ROTA.exec(satir) || /^(model)(?=\s+[\p{L}_][\p{L}\p{N}_]*\s*:\s*$)/u.exec(satir);
+    const r = ROTA.exec(satir) || /^(model)(?=\s+[\p{L}_][\p{L}\p{N}_]*\s*:\s*$)/u.exec(satir)
+      || /^(durum)(?=\s+[\p{L}_][\p{L}\p{N}_]*\s*[=:])/u.exec(satir) || /^(bileşen)(?=\s+[\p{L}_][\p{L}\p{N}_]*\s*\()/u.exec(satir)
+      || /^(arayüz)(?=\s*:\s*$)/u.exec(satir);
     if (r) {
       html = kac(satir.slice(0, r.index + r[0].length - r[1].length)) + `<span class="k">${kac(r[1])}</span>`;
       satir = satir.slice(r.index + r[0].length);
@@ -136,7 +140,7 @@
         const sonra = satir.slice(SOZCUK.lastIndex).trimStart()[0];
         if (ANAHTAR_KELIMELER.has(t) || YUKLEM.test(t) || (alanSatiri && NITELIKLER.has(t))) c = 'k';
         else if (YERLESIK_FIILLER.has(t) || kullaniciFiilleri.has(t) || /^uzunluğu/.test(t)) c = 'f';
-        else if (sonra === '(') c = 'f';
+        else if (sonra === '(' || (sonra === ':' && KAPSAYICILAR.has(t))) c = 'f';
         else if (TIPLER.has(t) && /(:|->|<|,)$/.test(onceki)) c = 't';
       }
       if (!m[6]) onceki = (onceki + t).slice(-2);
@@ -245,7 +249,7 @@
     { ad: 'Düzen', ogeler: [['Geri al', 'Ctrl+Z', 'geriAl'], ['Yinele', 'Ctrl+Y', 'yinele'], '-', ['Kes', 'Ctrl+X', 'kes'], ['Kopyala', 'Ctrl+C', 'kopyala'], ['Yapıştır', 'Ctrl+V', 'yapistir'], '-', ['Satırı yorum yap', 'Ctrl+/', 'yorumYap'], ['Biçimlendir', 'Ctrl+⇧+F', 'bicimlendir']] },
     { ad: 'Seçim', ogeler: [['Tümünü seç', 'Ctrl+A', 'tumunuSec'], ['Satırı seç', 'Ctrl+L', 'satiriSec'], ['Satırı çoğalt', 'Ctrl+⇧+D', 'satiriCogalt']] },
     { ad: 'Görünüm', ogeler: [['Gezgin', '', 'panelGezgin'], ['Ara', '', 'panelAra'], ['Yapı', '', 'panelYapi'], ['Çalıştır', '', 'panelCalistir'], '-', ['Alt paneli göster/gizle', 'Ctrl+J', 'altPanelAcKapa'], '-', ['Yazıyı büyüt', 'Ctrl+=', 'yaziBuyut'], ['Yazıyı küçült', 'Ctrl+-', 'yaziKucult']] },
-    { ad: 'Çalıştır', ogeler: [['Çalıştır', 'F5', 'calistir'], ['Durdur', '⇧+F5', 'durdur'], ['Denetle', 'F7', 'denetleKomut'], '-', ['Canlı önizlemeyi göster/gizle', '', 'onizlemeAcKapa'], ['Önizlemeyi tarayıcıda aç', '', 'onizlemeTarayici'], '-', ['Linux için derle', '', 'derleLinux'], ['Windows için derle', '', 'derleWindows']] },
+    { ad: 'Çalıştır', ogeler: [['Çalıştır', 'F5', 'calistir'], ['Durdur', '⇧+F5', 'durdur'], ['Denetle', 'F7', 'denetleKomut'], '-', ['Canlı önizlemeyi göster/gizle', '', 'onizlemeAcKapa'], ['Önizlemeyi tarayıcıda aç', '', 'onizlemeTarayici'], '-', ['Linux için derle', '', 'derleLinux'], ['Windows için derle', '', 'derleWindows'], ['Web için derle (WebAssembly)', '', 'derleWeb']] },
     { ad: 'Terminal', ogeler: [['Terminali temizle', '', 'terminalTemizle'], ['Sorunları göster', '', 'altSorunlar'], ['Çıktıyı göster', '', 'altCikti']] },
     { ad: 'Yardım', ogeler: [["Orhunca'yı öğren", '', 'ogrenAc'], ['Klavye kısayolları', '', 'kisayollarModal'], ['Sürüm notları', '', 'guncellemeModal'], '-', ['Hakkında', '', 'hakkindaModal']] },
   ];
@@ -446,6 +450,11 @@
     ["… 'i kaydet", 'save', "ürün'ü kaydet."],
     ['al / gönder "/yol":', 'GET / POST route', 'al "/ürünler":'],
     ['görünüm("ad", x)', 'render view', 'döndür görünüm("ürünler", liste)'],
+    ['durum', 'state (useState)', 'durum sayaç = 0'],
+    ['arayüz:', 'render / build()', 'arayüz:'],
+    ['… tıklanınca:', 'onClick', 'düğme("Artır") tıklanınca:'],
+    ['giriş(durum)', 'bound input (v-model)', 'giriş(ad, "Adınız")'],
+    ['bileşen', 'component', 'bileşen Kart(başlık: metin):'],
   ];
   const HAL_TABLOSU = [
     ['-(y)ı / -(y)i', 'belirtme · nesne', "5'i sayılara ekle."],
@@ -696,6 +705,7 @@
         <div class="panel-not">Dağıtım için derle (proje/cikti/)</div>
         <div class="panel-dugme" data-e="derleLinux">${S('terminal')}Linux için derle</div>
         <div class="panel-dugme" data-e="derleWindows">${S('desktop_windows')}Windows için derle</div>
+        <div class="panel-dugme" data-e="derleWeb">${S('language')}Web için derle</div>
       </div>`;
     } else {
       const liste = D.paketler.map(p => `<div class="paket-oge" title="${kac(p.kaynak)}">${S('deployed_code')}<div class="esnek"><div class="paket-ad">${kac(p.ad)}</div><div class="paket-kaynak">${kac(p.kaynak)}</div><div class="paket-kaynak">${p.kurulu ? (p.isleme || '').slice(0, 10) : '<span style="color:var(--sari)">kurulu değil</span>'}</div></div><span class="simge sil" title="Kaldır" data-e="paketKaldir" data-a="${kac(p.ad)}">delete</span></div>`).join('');
@@ -984,7 +994,7 @@
 
   function calismaEtiketi() {
     const o = D.onizleme;
-    if (D.proje?.web && o?.durum === 'acik') return D.onizlemeAcik ? 'Önizleme: açık' : `Sunucu: ${o.kapi}`;
+    if (D.proje?.web && o?.durum === 'acik') return o.arayuz ? 'Arayüz: önizlemede' : D.onizlemeAcik ? 'Önizleme: açık' : `Sunucu: ${o.kapi}`;
     if (D.calisma) return 'Çalışıyor…';
     return D.proje?.web ? 'Web' : 'Konsol';
   }
@@ -1014,13 +1024,15 @@
         <div class="onizleme-govde" id="onizlemeGovde"></div>`;
     }
     const o = D.onizleme || {}, durum = o.durum || 'yok';
-    const kok = o.adres ? o.adres.replace(/^https?:\/\//, '') : `localhost:${o.kapi || 3000}`;
+    const kok = o.arayuz ? `arayüz · ${D.proje?.ad || ''}` : o.adres ? o.adres.replace(/^https?:\/\//, '') : `localhost:${o.kapi || 3000}`;
     $('#onizlemeAdres').innerHTML = `<span class="nokta ${durum}"></span><span class="adres">${kac(kok + (o.yol && o.yol !== '/' ? o.yol : ''))}</span>`;
     const g = $('#onizlemeGovde');
     if (o.adres) {
       const cerceve = $('#onizlemeCerceve');
       if (!cerceve || cerceve.dataset.surum !== String(o.surum)) {
-        g.innerHTML = `<iframe id="onizlemeCerceve" data-surum="${o.surum}" src="${kac(onizlemeAdresi())}" title="Canlı önizleme"></iframe>`;
+        // Arayüz programları Stüdyo'nun kendi sunucusundan gelir: Stüdyo'ya erişemesinler diye yalıtılır.
+        const yalit = o.arayuz ? ' sandbox="allow-scripts allow-forms allow-modals allow-popups"' : '';
+        g.innerHTML = `<iframe id="onizlemeCerceve" data-surum="${o.surum}" src="${kac(onizlemeAdresi())}" title="Canlı önizleme"${yalit}></iframe>`;
       }
       g.querySelector('.onizleme-ortu')?.remove();
       const ortu = { bekliyor: 'Yeniden derleniyor…', hata: 'Derleme hatası — ayrıntılar terminalde', durdu: 'Sunucu durdu · F5 ile başlatın' }[durum];
@@ -1094,7 +1106,7 @@
     clearTimeout(yenidenBaslatma);
     yenidenBaslatma = setTimeout(() => {
       if (/^statik\//.test(yol) && D.calisma) onizlemeyiYenile();
-      else if (D.calisma || D.onizleme.durum === 'hata') calistir();
+      else if (D.calisma || D.onizleme.durum === 'hata' || D.onizleme.arayuz) calistir();
     }, 120);
   }
 
@@ -1237,6 +1249,16 @@
     }
     if (r.hata) { terminaleEkle(r.hata, 'err'); guncelle('alt'); return; }
     D.sorunlar = [];
+    if (r.arayuz) {
+      // Arayüz programı: WebAssembly'ye derlendi; sayfa önizlemede çalışır, süreç yok.
+      terminaleEkle(`✓ Derleme tamamlandı (WebAssembly) · ${sureBicim(r.derleme_ms)}`, 'ok');
+      if (!D.onizleme?.arayuz) terminaleEkle('  Arayüz önizlemede çalışıyor; kaydettiğinizde yenilenir.', 'dim');
+      D.proje.web = true;
+      const o = D.onizleme || { surum: 0 };
+      D.onizleme = { ...o, adres: location.origin + r.arayuz, yol: '/', durum: 'acik', arayuz: true, betik: false, surum: (o.surum || 0) + 1 };
+      guncelle('alt', 'isaretler', 'durum', 'yan', 'onizleme');
+      return;
+    }
     terminaleEkle(`✓ Derleme tamamlandı · ${sureBicim(r.derleme_ms)}`, 'ok');
     D.calisma = { kimlik: r.kimlik, konum: 0 };
     if (D.proje.web) D.onizleme = { ...(D.onizleme || { surum: 0 }), kapi: r.kapi, durum: 'bekliyor' };
@@ -1290,7 +1312,7 @@
     await tumunuKaydet();
     const giris = girisDosyasi();
     if (!giris) { bildir('Derlenecek .ohc dosyası yok.', true); return; }
-    const ad = hedef === 'windows' ? 'Windows' : 'Linux';
+    const ad = { windows: 'Windows', web: 'Web (WebAssembly)' }[hedef] || 'Linux';
     D.altPanel = true; D.altSekme = 'cikti';
     D.cikti.push({ t: `${ad} için derleniyor: ${giris}`, c: 'mut' });
     guncelle('alt');
@@ -1510,6 +1532,7 @@
     denetleKomut() { tumunuKaydet().then(denetle).then(() => { if (!D.sorunlar.length) bildir('Hata yok.'); else EYLEM.altSorunlar(); }); },
     derleLinux() { derle('linux'); },
     derleWindows() { derle('windows'); },
+    derleWeb() { derle('web'); },
     kaydet() { kaydet(); },
     tumunuKaydet() { tumunuKaydet({ yenile: true }); },
     async baslangicaDon() {

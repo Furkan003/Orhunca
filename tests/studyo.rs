@@ -118,6 +118,7 @@ fn sablonlar_derlenir_ve_calisir() {
         ("acilis", "sunucu.ohc"),
         ("web_api", "sunucu.ohc"),
         ("tam_yigin", "sunucu.ohc"),
+        ("arayuz", "uygulama.ohc"),
     ] {
         for ornek in [true, false] {
             let ad = format!("{sablon}_{ornek}");
@@ -151,12 +152,21 @@ fn sablonlar_derlenir_ve_calisir() {
             );
         }
     }
-    // Henüz desteklenmeyen şablon oluşturulamaz.
+    // Arayüz uygulaması WebAssembly'ye derlenir; sayfası Stüdyo'dan (anahtarsız) sunulur.
+    let proje = konum.join("arayuz_true");
     let r = s.api(
-        "/api/proje/olustur",
-        serde_json::json!({ "sablon": "masaustu", "ad": "pencere", "konum": konum }),
+        "/api/calistir",
+        serde_json::json!({ "dosya": proje.join("uygulama.ohc"), "klasor": proje }),
     );
-    assert!(r["hata"].as_str().unwrap().contains("Aşama 8"));
+    let adres = r["arayuz"]
+        .as_str()
+        .unwrap_or_else(|| panic!("{r}"))
+        .to_string();
+    let (durum, sayfa) = s.istek("GET", &adres, None, false);
+    assert_eq!(durum, 200);
+    assert!(sayfa.contains("<div id=\"uygulama\">"));
+    assert!(sayfa.contains("<title>uygulama</title>"));
+    assert_eq!(s.istek("GET", "/onizleme/999999", None, false).0, 404);
 
     // Konsol uygulamasını çalıştır, girdi gönder, çıktıyı oku.
     let proje = konum.join("konsol_true");

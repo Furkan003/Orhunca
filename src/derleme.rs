@@ -16,6 +16,7 @@ const CALISMA_ZAMANI_KAYNAGI: &str = include_str!("../runtime/orhunca_rt.c");
 pub const WASM_CALISMA_ZAMANI: &[u8] = include_bytes!("../runtime/wasm/orhunca_rt.wasm");
 pub const WASM_YUKLEYICI: &str = include_str!("../runtime/wasm/orhunca.js");
 const WASM_SAYFASI: &str = include_str!("../runtime/wasm/sayfa.html");
+const ARAYUZ_SAYFASI: &str = include_str!("../runtime/wasm/arayuz.html");
 
 /// Derleme sırasında oluşan hata: biçimlenmiş metin ve (varsa) konum bilgisi.
 #[derive(Debug, Clone)]
@@ -252,6 +253,13 @@ pub fn derle(dosya: &Path, cikti: &Path, hedef: Option<&str>) -> Result<(), Derl
         return derle_web(dosya, cikti);
     }
     let program = yukle(dosya)?;
+    if program.arayuz_programi() {
+        return Err(DerlemeHatasi::duz(format!(
+            "'{}' bir arayüz programı (arayüz: / durum): tarayıcıda çalışır\nipucu: orhunca derle {} --hedef web",
+            dosya.display(),
+            dosya.display()
+        )));
+    }
     let triple = hedef_uclusu(hedef)?;
     let windows = triple.operating_system == target_lexicon::OperatingSystem::Windows;
     let isa = uretici::isa_kur(triple)?;
@@ -320,16 +328,27 @@ pub fn web_hedefi_mi(hedef: Option<&str>) -> bool {
 
 /// Programı WebAssembly program modülüne derler.
 pub fn wasm_uret(dosya: &Path) -> Result<Vec<u8>, DerlemeHatasi> {
+    Ok(wasm_derle(dosya)?.0)
+}
+
+/// WebAssembly modülü ve programın bir arayüz programı olup olmadığı.
+pub fn wasm_derle(dosya: &Path) -> Result<(Vec<u8>, bool), DerlemeHatasi> {
     let program = yukle(dosya)?;
-    Ok(wasm_uretici::uret(&program)
-        .map_err(|e| format!("WebAssembly kod üretimi başarısız: {e}"))?)
+    let wasm = wasm_uretici::uret(&program)
+        .map_err(|e| format!("WebAssembly kod üretimi başarısız: {e}"))?;
+    Ok((wasm, program.arayuz_programi()))
+}
+
+/// Dosya bir arayüz programı mı (`arayüz:` ya da `durum`)? Hatalıysa `false`.
+pub fn arayuz_programi_mi(dosya: &Path) -> bool {
+    yukle(dosya).is_ok_and(|p| p.arayuz_programi())
 }
 
 /// WebAssembly'ye derler. Çıktı `.wasm` ise program modülünün yanına
 /// `orhunca_rt.wasm` ve `orhunca.js` yazılır; değilse her şeyi içinde taşıyan,
 /// tarayıcıda doğrudan açılan tek bir HTML sayfası.
 pub fn derle_web(dosya: &Path, cikti: &Path) -> Result<(), DerlemeHatasi> {
-    let wasm = wasm_uret(dosya)?;
+    let (wasm, arayuz) = wasm_derle(dosya)?;
     let yaz = |yol: &Path, veri: &[u8]| {
         std::fs::write(yol, veri).map_err(|e| format!("'{}' yazılamadı: {e}", yol.display()))
     };
@@ -347,18 +366,20 @@ pub fn derle_web(dosya: &Path, cikti: &Path) -> Result<(), DerlemeHatasi> {
         .file_stem()
         .map(|k| k.to_string_lossy().into_owned())
         .unwrap_or_else(|| "program".into());
-    yaz(cikti, web_sayfasi(&baslik, &wasm).as_bytes())?;
+    yaz(cikti, web_sayfasi(&baslik, &wasm, arayuz).as_bytes())?;
     Ok(())
 }
 
-/// Programı ve çalışma zamanını (base64) içeren tarayıcı sayfası.
-pub fn web_sayfasi(baslik: &str, wasm: &[u8]) -> String {
+/// Programı ve çalışma zamanını (base64) içeren tarayıcı sayfası. Arayüz
+/// programları tüm sayfayı kullanır; diğerlerinin çıktısı bir konsolda görünür.
+pub fn web_sayfasi(baslik: &str, wasm: &[u8], arayuz: bool) -> String {
     let baslik = baslik
         .replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
         .replace('"', "&quot;");
-    WASM_SAYFASI
+    let sablon = if arayuz { ARAYUZ_SAYFASI } else { WASM_SAYFASI };
+    sablon
         .replace("__BASLIK__", &baslik)
         .replace("__YUKLEYICI__", WASM_YUKLEYICI)
         .replace("__CALISMA_ZAMANI__", &base64(WASM_CALISMA_ZAMANI))

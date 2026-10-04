@@ -150,6 +150,8 @@ pub struct Ayristirici {
     /// İfade içinde yakalanan hâl eki: eki taşıyan öğe ifadeyi bitirir ve ek
     /// tüm ifadeye ait sayılır (`a + b'yi yaz` → `(a + b)'yi yaz`).
     yakalanan: Option<(Hal, Konum)>,
+    /// `arayüz:` ya da `bileşen` gövdesi ayrıştırılıyor: arayüz öğeleri yazılabilir.
+    arayuzde: bool,
 }
 
 #[cfg(test)]
@@ -277,12 +279,12 @@ fn sozluk_kur(s: &[Sozcuk]) -> Tanimlar {
                 sozluk.ekle(k);
             }
         }
-        if s[i].tok == Tok::Kelime("sabit".into()) {
+        if s[i].tok == Tok::Kelime("sabit".into()) || s[i].tok == Tok::Kelime("durum".into()) {
             if let Some(k) = kelime(i + 1) {
                 sozluk.ekle(k);
             }
         }
-        if s[i].tok == Tok::Kelime("işlev".into()) {
+        if s[i].tok == Tok::Kelime("işlev".into()) || s[i].tok == Tok::Kelime("bileşen".into()) {
             if let Some(ad) = kelime(i + 1) {
                 sozluk.ekle(ad);
             }
@@ -410,6 +412,7 @@ impl Ayristirici {
             poz: 0,
             t: Rc::clone(t),
             yakalanan: None,
+            arayuzde: false,
         }
     }
 
@@ -497,6 +500,25 @@ impl Ayristirici {
                 }
                 Tok::Girinti => return Err(Hata::yeni(self.konum(), "beklenmeyen girinti")),
                 _ if self.kelime_mi("işlev") => p.islevler.push(self.islev()?),
+                _ if self.bilesen_basi_mi() => p.islevler.push(self.islev()?),
+                _ if self.arayuz_basi_mi() && !kutuphane => {
+                    let f = self.arayuz_blogu()?;
+                    if p.islevler.iter().any(|x| x.ad == ARAYUZ_ISLEVI) {
+                        return Err(Hata::yeni(f.konum, "programda yalnızca bir 'arayüz:' bloğu olabilir")
+                            .ipucu("arayüzün parçalarını 'bileşen' olarak tanımlayıp çağırın"));
+                    }
+                    p.islevler.push(f);
+                }
+                _ if self.durum_basi_mi() => {
+                    let d = self.durum()?;
+                    if p.durumlar.iter().any(|x| x.ad == d.ad) {
+                        return Err(Hata::yeni(
+                            d.konum,
+                            format!("'{}' durumu iki kez tanımlanmış", d.ad),
+                        ));
+                    }
+                    p.durumlar.push(d);
+                }
                 _ if self.kelime_mi("fiil") => p.islevler.push(self.fiil_tanimi()?),
                 _ if self.model_basi_mi() => {
                     let m = self.model_tanimi()?;
@@ -535,7 +557,7 @@ impl Ayristirici {
                 _ if kutuphane => {
                     return Err(Hata::yeni(
                         self.konum(),
-                        "kütüphane dosyalarında yalnızca tanımlar (işlev, fiil, sabit, model, web yolu) olabilir",
+                        "kütüphane dosyalarında yalnızca tanımlar (işlev, fiil, sabit, model, web yolu, bileşen, durum) olabilir",
                     ))
                 }
                 _ => p.ana.push(self.deyim()?),
@@ -563,10 +585,13 @@ impl Ayristirici {
                 || self.kelime_mi("fiil")
                 || self.model_basi_mi()
                 || self.rota_basi_mi()
+                || self.bilesen_basi_mi()
+                || self.arayuz_basi_mi()
+                || self.durum_basi_mi()
             {
                 return Err(Hata::yeni(
                     self.konum(),
-                    "işlevler, fiiller, modeller ve web yolları yalnızca en dış düzeyde tanımlanabilir",
+                    "işlevler, fiiller, modeller, web yolları, bileşenler, durumlar ve arayüz yalnızca en dış düzeyde tanımlanabilir",
                 ));
             }
             govde.push(self.deyim()?);
@@ -575,6 +600,149 @@ impl Ayristirici {
             self.ilerle();
         }
         Ok(govde)
+    }
+
+    /// `arayüz:` satırı mı?
+    fn arayuz_basi_mi(&self) -> bool {
+        self.kelime_mi("arayüz") && *self.bak_n(1) == Tok::Op(":")
+    }
+
+    /// `bileşen Kart(başlık: metin):` satırı mı?
+    fn bilesen_basi_mi(&self) -> bool {
+        self.kelime_mi("bileşen")
+            && matches!(self.bak_n(1), Tok::Kelime(_))
+            && *self.bak_n(2) == Tok::Op("(")
+    }
+
+    /// `durum sayaç = 0` ya da `durum işler: liste<metin> = []` satırı mı?
+    fn durum_basi_mi(&self) -> bool {
+        self.kelime_mi("durum")
+            && matches!(self.bak_n(1), Tok::Kelime(_))
+            && matches!(self.bak_n(2), Tok::Op("=") | Tok::Op(":"))
+    }
+
+    fn durum(&mut self) -> Sonuc<Durum> {
+        self.bekle_kelime("durum")?;
+        let konum = self.konum();
+        let ad = self.isim_adi("durum adı")?;
+        let tip = if self.op_mu(":") {
+            self.ilerle();
+            Some(self.tip()?)
+        } else {
+            None
+        };
+        self.bekle_op("=", "durumun ilk değeri")?;
+        let deger = self.duz_ifade()?;
+        self.deyim_bitir()?;
+        Ok(Durum {
+            ad,
+            tip,
+            deger,
+            konum,
+        })
+    }
+
+    /// `arayüz:` bloğu: programın arayüzünü çizen işlev.
+    fn arayuz_blogu(&mut self) -> Sonuc<Islev> {
+        let konum = self.konum();
+        self.ilerle();
+        self.arayuzde = true;
+        let govde = self.blok();
+        self.arayuzde = false;
+        Ok(Islev {
+            ad: ARAYUZ_ISLEVI.into(),
+            parametreler: Vec::new(),
+            haller: Vec::new(),
+            donus: Some(Tip::Bos),
+            govde: govde?,
+            konum,
+            yereller: Vec::new(),
+            rota: None,
+            arayuz: true,
+        })
+    }
+
+    /// Arayüz öğesi satırı mı? (`düğme(...)`, `satır:`)
+    fn oge_basi_mi(&self) -> bool {
+        self.arayuzde
+            && matches!(self.bak(), Tok::Kelime(k) if crate::arayuz::oge(k).is_some())
+            && matches!(self.bak_n(1), Tok::Op("(") | Tok::Op(":"))
+    }
+
+    /// ```text
+    /// düğme("Artır", renk: "yeşil") tıklanınca:
+    ///     sayaç += 1
+    /// satır:
+    ///     yazı("a")
+    /// ```
+    fn oge(&mut self) -> Sonuc<Deyim> {
+        let konum = self.konum();
+        let Tok::Kelime(ad) = self.ilerle().tok else {
+            unreachable!()
+        };
+        let mut argumanlar = Vec::new();
+        let mut secenekler: Vec<(String, Ifade)> = Vec::new();
+        if self.op_mu("(") {
+            self.ilerle();
+            while !self.op_mu(")") {
+                if let (Tok::Kelime(s), Tok::Op(":")) = (self.bak().clone(), self.bak_n(1)) {
+                    let sk = self.konum();
+                    self.ilerle();
+                    self.ilerle();
+                    let d = self.duz_ifade()?;
+                    if secenekler.iter().any(|(a, _)| *a == s) {
+                        return Err(Hata::yeni(sk, format!("'{s}' seçeneği iki kez verilmiş")));
+                    }
+                    secenekler.push((s, d));
+                } else {
+                    if !secenekler.is_empty() {
+                        return Err(Hata::yeni(
+                            self.konum(),
+                            "adlı seçenekler (renk: ...) değerlerden sonra yazılır",
+                        ));
+                    }
+                    argumanlar.push(self.duz_ifade()?);
+                }
+                if !self.op_mu(")") {
+                    self.bekle_op(",", "değerler arasında")?;
+                }
+            }
+            self.ilerle();
+        }
+        let mut olay = None;
+        let mut cocuklar = Vec::new();
+        if let Tok::Kelime(k) = self.bak().clone() {
+            if !crate::arayuz::olay_mi(&k) {
+                return Err(Hata::yeni(self.konum(), format!("'{k}' bir olay değil"))
+                    .ipucu("olaylar: tıklanınca, değişince, gönderilince, çalınca"));
+            }
+            let ok = self.konum();
+            self.ilerle();
+            // Olay bloğu sıradan koddur: içinde öğe yazılmaz.
+            self.arayuzde = false;
+            let govde = self.blok();
+            self.arayuzde = true;
+            olay = Some(Olay {
+                ad: k,
+                govde: govde?,
+                yakalananlar: Vec::new(),
+                yereller: Vec::new(),
+                konum: ok,
+            });
+        } else if self.op_mu(":") {
+            cocuklar = self.blok()?;
+        } else {
+            self.deyim_bitir()?;
+        }
+        Ok(Deyim::Oge(Box::new(Oge {
+            ad,
+            argumanlar,
+            secenekler,
+            cocuklar,
+            olay,
+            baglama: None,
+            konum,
+        })))
     }
 
     /// `model Ürün:` satırı mı? (`model` ayrılmış değildir; değişken adı olabilir.)
@@ -805,6 +973,7 @@ impl Ayristirici {
             govde: tum,
             konum,
             yereller: Vec::new(),
+            arayuz: false,
             rota: Some(Rota {
                 yontem: yontem.into(),
                 kalip,
@@ -812,10 +981,22 @@ impl Ayristirici {
         })
     }
 
+    /// `işlev ad(...) -> tip:` ya da `bileşen Ad(...):` (arayüz parçası)
     fn islev(&mut self) -> Sonuc<Islev> {
         let konum = self.konum();
-        self.bekle_kelime("işlev")?;
-        let ad = self.isim_adi("işlev adı")?;
+        let bilesen = self.kelime_mi("bileşen");
+        self.ilerle();
+        let ad = self.isim_adi(if bilesen {
+            "bileşen adı"
+        } else {
+            "işlev adı"
+        })?;
+        if bilesen && crate::arayuz::oge(&ad).is_some() {
+            return Err(Hata::yeni(
+                konum,
+                format!("'{ad}' yerleşik bir arayüz öğesinin adı"),
+            ));
+        }
         if YERLESIK.contains(&ad.as_str()) {
             return Err(Hata::yeni(
                 konum,
@@ -838,21 +1019,26 @@ impl Ayristirici {
             }
         }
         self.ilerle();
-        let donus = if self.op_mu("->") {
+        let donus = if bilesen {
+            Some(Tip::Bos)
+        } else if self.op_mu("->") {
             self.ilerle();
             Some(self.tip()?)
         } else {
             None
         };
-        let govde = self.blok()?;
+        self.arayuzde = bilesen;
+        let govde = self.blok();
+        self.arayuzde = false;
         Ok(Islev {
             ad,
             parametreler,
             haller: Vec::new(),
             donus,
-            govde,
+            govde: govde?,
             konum,
             yereller: Vec::new(),
+            arayuz: bilesen,
             rota: None,
         })
     }
@@ -951,6 +1137,7 @@ impl Ayristirici {
             govde,
             konum,
             yereller: Vec::new(),
+            arayuz: false,
             rota: None,
         })
     }
@@ -1016,6 +1203,9 @@ impl Ayristirici {
 
     fn deyim(&mut self) -> Sonuc<Deyim> {
         let konum = self.konum();
+        if self.oge_basi_mi() {
+            return self.oge();
+        }
         if self.kelime_mi("eğer") {
             self.ilerle();
             return self.eger();
@@ -2317,6 +2507,7 @@ fn sablon_islevi(t: &Rc<Tanimlar>, s: Sablon) -> Sonuc<Islev> {
         konum,
         yereller: Vec::new(),
         rota: None,
+        arayuz: false,
     })
 }
 

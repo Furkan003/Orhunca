@@ -430,6 +430,14 @@ DISA(ohc_guvenli_nokta) void ohc_guvenli_nokta(int64_t tepe) {
     if (toplama_gerekli) topla();
 }
 
+/* JavaScript'ten gelen metin (arayüz olaylarında kullanıcının girdiği değer):
+ * n baytlık yönetilen bir metin ayrılır, JavaScript içini doldurur. */
+DISA(ohc_wasm_metin) int64_t ohc_wasm_metin(int64_t n) {
+    char *m = metin_ayir((size_t)n + 1);
+    m[n] = 0;
+    return D(m);
+}
+
 DISA(ohc_yigin_tasti) void ohc_yigin_tasti(void) {
     hata(0, "çok derin özyineleme: işlevler birbirini bitmeyecek kadar çok çağırıyor");
 }

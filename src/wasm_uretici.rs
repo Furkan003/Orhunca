@@ -14,12 +14,17 @@
 //! değerleri Wasm yerel değişkenlerinde durur.
 
 use crate::agac::*;
+use crate::arayuz::{self, Beklenen};
+use crate::denetci::OLAY_DEGERI;
+use crate::hata::Konum;
 use crate::uretici::{CALISMA_ZAMANI, ILK_ALAN};
+use std::borrow::Cow;
 use std::collections::HashMap;
 use wasm_encoder::{
-    BlockType, CodeSection, ConstExpr, DataCountSection, DataSection, EntityType, ExportKind,
-    ExportSection, Function, FunctionSection, GlobalSection, GlobalType, ImportSection,
-    Instruction as K, MemArg, MemoryType, Module, TypeSection, ValType,
+    BlockType, CodeSection, ConstExpr, DataCountSection, DataSection, ElementSection, Elements,
+    EntityType, ExportKind, ExportSection, Function, FunctionSection, GlobalSection, GlobalType,
+    ImportSection, Instruction as K, MemArg, MemoryType, Module, RefType, TableSection, TableType,
+    TypeSection, ValType,
 };
 
 /// Yalnızca WebAssembly'de kullanılan çalışma zamanı işlevleri: ad, parametre
@@ -31,7 +36,15 @@ const WASM_EKLERI: &[(&str, usize, bool)] = &[
     ("ohc_guvenli_nokta", 1, false),
     ("ohc_yigin_tasti", 0, false),
     ("ohc_carp", 3, true),
+    ("ohc_wasm_metin", 1, true),
 ];
+
+/// Arayüz programlarının JavaScript'ten içe aktardığı işlevler (`ui` modülü):
+/// çizim sırasında öğe ağacını kurar. Değerler bellekteki metinlerin adresidir.
+const UI_ISLEVLERI: &[(&str, usize)] = &[("ac", 1), ("ozellik", 2), ("olay", 2), ("kapat", 0)];
+
+/// Olay işlevlerinin ilk parametresi: çizim anında yakalanan değerlerin listesi.
+const YAKALANANLAR: &str = "‹yakalananlar›";
 
 /// Web sunucusu WebAssembly'de yoktur.
 const YALNIZ_YEREL: &[&str] = &["ohc_web_yol", "ohc_sun"];
@@ -44,6 +57,7 @@ const G_TEPE: u32 = 0; // gölge yığıtın tepesi (i32)
 const G_SINIR: u32 = 1; // gölge yığıtın sonu (i32)
 const G_BAYRAK: u32 = 2; // "toplama gerekli" bayrağının adresi (i32)
 const G_METINLER: u32 = 3; // sabit metinlerin bellekteki başı (i64)
+const G_GENEL: u32 = 4; // durum değişkenlerinin ve olay listesinin yuvaları (i32)
 
 /// Bir değişkenin ya da ara değerin yeri.
 #[derive(Clone, Copy, Debug)]
@@ -95,27 +109,40 @@ fn bellek(ofset: u32) -> MemArg {
 
 struct Ortak {
     turler: TypeSection,
-    tur_sirasi: HashMap<(usize, bool), u32>,
+    tur_sirasi: HashMap<(Vec<ValType>, Vec<ValType>), u32>,
     calisma: HashMap<&'static str, (u32, bool)>,
     islevler: HashMap<String, (u32, bool)>,
     metinler: Vec<u8>,
     metin_yeri: HashMap<String, u32>,
     modeller: HashMap<String, Model>,
+    /// Durum değişkenlerinin genel bölgedeki yuvası
+    genel: HashMap<String, u32>,
+    /// Çizimde kaydedilen olayların listesinin genel bölgedeki yuvası
+    olay_yuvasi: u32,
+    /// `ui` modülünden içe aktarılan işlevler
+    ui: HashMap<&'static str, u32>,
+    /// Öğenin (konum, olay adı) → olay işlevinin tablodaki sırası
+    olay_sirasi: HashMap<(Konum, String), u32>,
 }
 
 impl Ortak {
-    /// `n` adet i64 alan, `doner` ise i64 döndüren işlev tipi.
-    fn tur(&mut self, n: usize, doner: bool) -> u32 {
-        if let Some(t) = self.tur_sirasi.get(&(n, doner)) {
+    fn tur_ekle(&mut self, p: &[ValType], r: &[ValType]) -> u32 {
+        let anahtar = (p.to_vec(), r.to_vec());
+        if let Some(t) = self.tur_sirasi.get(&anahtar) {
             return *t;
         }
         let sira = self.tur_sirasi.len() as u32;
-        let sonuc: &[ValType] = if doner { &[ValType::I64] } else { &[] };
         self.turler
             .ty()
-            .function(std::iter::repeat_n(ValType::I64, n), sonuc.iter().copied());
-        self.tur_sirasi.insert((n, doner), sira);
+            .function(p.iter().copied(), r.iter().copied());
+        self.tur_sirasi.insert(anahtar, sira);
         sira
+    }
+
+    /// `n` adet i64 alan, `doner` ise i64 döndüren işlev tipi.
+    fn tur(&mut self, n: usize, doner: bool) -> u32 {
+        let sonuc: &[ValType] = if doner { &[ValType::I64] } else { &[] };
+        self.tur_ekle(&vec![ValType::I64; n], sonuc)
     }
 
     fn metin(&mut self, m: &str) -> u32 {
@@ -166,7 +193,22 @@ pub fn uret(p: &Program) -> Result<Vec<u8>, String> {
             .iter()
             .map(|m| (m.ad.clone(), m.clone()))
             .collect(),
+        genel: p
+            .durumlar
+            .iter()
+            .enumerate()
+            .map(|(i, d)| (d.ad.clone(), i as u32))
+            .collect(),
+        olay_yuvasi: p.durumlar.len() as u32,
+        ui: HashMap::new(),
+        olay_sirasi: HashMap::new(),
     };
+    let arayuz_var = p.islevler.iter().any(|f| f.arayuz && f.ad == ARAYUZ_ISLEVI);
+    // Olay blokları ayrı işlevlere çevrilir; çizimde tabloya göre çağrılırlar.
+    let mut olaylar = Vec::new();
+    for f in p.islevler.iter().filter(|f| f.arayuz) {
+        olaylari_topla(&f.govde, &mut olaylar, &mut o.olay_sirasi);
+    }
 
     let mut ice = ImportSection::new();
     ice.import(
@@ -190,9 +232,17 @@ pub fn uret(p: &Program) -> Result<Vec<u8>, String> {
         o.calisma.insert(ad, (sira, *doner));
         sira += 1;
     }
+    if arayuz_var {
+        for (ad, n) in UI_ISLEVLERI {
+            let t = o.tur_ekle(&vec![ValType::I32; *n], &[]);
+            ice.import("ui", ad, EntityType::Function(t));
+            o.ui.insert(ad, sira);
+            sira += 1;
+        }
+    }
 
     let mut islevler = FunctionSection::new();
-    for f in &p.islevler {
+    for f in p.islevler.iter().chain(&olaylar) {
         let doner = f.donus.as_ref().is_some_and(|t| *t != Tip::Bos);
         let t = o.tur(f.parametreler.len(), doner);
         islevler.function(t);
@@ -202,20 +252,47 @@ pub fn uret(p: &Program) -> Result<Vec<u8>, String> {
     let ana_sirasi = sira;
     let t = o.tur(0, false);
     islevler.function(t);
+    let olay_turu = o.tur(2, false);
+    if arayuz_var {
+        islevler.function(t); // ohc_ciz
+        let t = o.tur_ekle(&[ValType::I32, ValType::I32], &[]);
+        islevler.function(t); // ohc_olay
+    }
 
     let mut kod = CodeSection::new();
-    for f in &p.islevler {
+    for f in p.islevler.iter().chain(&olaylar) {
         let (_, doner) = o.islevler[&f.ad];
         let govde = islev_uret(&mut o, &f.yereller, &f.parametreler, &f.govde, Some(doner))
             .map_err(|e| format!("'{}': {e}", f.ad))?;
         kod.function(&govde);
     }
     // Ana program en sona: sabit metinlerin tamamı ancak o zaman bilinir.
-    let ana = islev_uret(&mut o, &p.ana_yereller, &[], &p.ana, None)?;
+    // Durum değişkenleri programın başında ilk değerlerini alır.
+    let mut ana_govde: Vec<Deyim> = p
+        .durumlar
+        .iter()
+        .map(|d| Deyim::Atama {
+            hedef: d.ad.clone(),
+            deger: d.deger.clone(),
+            konum: d.konum,
+        })
+        .collect();
+    ana_govde.extend(p.ana.iter().cloned());
+    let ana = islev_uret(&mut o, &p.ana_yereller, &[], &ana_govde, None)?;
     kod.function(&ana);
+    if arayuz_var {
+        kod.function(&ciz_islevi(&o));
+        kod.function(&olay_islevi(&o, olay_turu));
+    }
 
     let mut genel = GlobalSection::new();
-    for tur in [ValType::I32, ValType::I32, ValType::I32, ValType::I64] {
+    for tur in [
+        ValType::I32,
+        ValType::I32,
+        ValType::I32,
+        ValType::I64,
+        ValType::I32,
+    ] {
         let ilk = if tur == ValType::I32 {
             ConstExpr::i32_const(0)
         } else {
@@ -232,20 +309,181 @@ pub fn uret(p: &Program) -> Result<Vec<u8>, String> {
     }
     let mut disa = ExportSection::new();
     disa.export("ohc_ana", ExportKind::Func, ana_sirasi);
+    if arayuz_var {
+        disa.export("ohc_ciz", ExportKind::Func, ana_sirasi + 1);
+        disa.export("ohc_olay", ExportKind::Func, ana_sirasi + 2);
+    }
+
+    // Olay işlevleri tablosu (call_indirect)
+    let olay_islevleri: Vec<u32> = olaylar.iter().map(|f| o.islevler[&f.ad].0).collect();
+    let mut tablo = TableSection::new();
+    tablo.table(TableType {
+        element_type: RefType::FUNCREF,
+        table64: false,
+        minimum: olay_islevleri.len() as u64,
+        maximum: Some(olay_islevleri.len() as u64),
+        shared: false,
+    });
+    let mut ogeler = ElementSection::new();
+    ogeler.active(
+        Some(0),
+        &ConstExpr::i32_const(0),
+        Elements::Functions(Cow::Borrowed(&olay_islevleri)),
+    );
 
     let mut veri = DataSection::new();
     veri.passive(o.metinler.iter().copied());
 
     let mut m = Module::new();
-    m.section(&o.turler)
-        .section(&ice)
-        .section(&islevler)
-        .section(&genel)
-        .section(&disa)
-        .section(&DataCountSection { count: 1 })
+    m.section(&o.turler).section(&ice).section(&islevler);
+    if arayuz_var {
+        m.section(&tablo);
+    }
+    m.section(&genel).section(&disa);
+    if arayuz_var && !olay_islevleri.is_empty() {
+        m.section(&ogeler);
+    }
+    m.section(&DataCountSection { count: 1 })
         .section(&kod)
         .section(&veri);
     Ok(m.finish())
+}
+
+/// Arayüz işlevlerindeki olay bloklarını (ve bağlı öğelerin güncelleme bloklarını)
+/// birer işleve çevirir: `(yakalananlar, değer)` alırlar; önce yakalanan
+/// değerleri yerel değişkenlere açar, sonra bloğu çalıştırırlar.
+fn olaylari_topla(
+    govde: &[Deyim],
+    olaylar: &mut Vec<Islev>,
+    sira: &mut HashMap<(Konum, String), u32>,
+) {
+    for d in govde {
+        match d {
+            Deyim::Oge(o) => {
+                for olay in o.baglama.iter().chain(&o.olay) {
+                    sira.insert((o.konum, olay.ad.clone()), olaylar.len() as u32);
+                    olaylar.push(olay_islevi_kur(olay, olaylar.len()));
+                }
+                olaylari_topla(&o.cocuklar, olaylar, sira);
+            }
+            Deyim::Eger { govde, degilse, .. } => {
+                olaylari_topla(govde, olaylar, sira);
+                olaylari_topla(degilse, olaylar, sira);
+            }
+            Deyim::Surece { govde, .. }
+            | Deyim::HerAralik { govde, .. }
+            | Deyim::HerListe { govde, .. } => olaylari_topla(govde, olaylar, sira),
+            _ => {}
+        }
+    }
+}
+
+fn olay_islevi_kur(olay: &Olay, no: usize) -> Islev {
+    let k = olay.konum;
+    let yakalanan_tipi = Tip::Liste(Box::new(Tip::Bilinmeyen));
+    let parametreler = vec![
+        (YAKALANANLAR.to_string(), yakalanan_tipi),
+        (OLAY_DEGERI.to_string(), Tip::Metin),
+    ];
+    let mut yereller = parametreler.clone();
+    yereller.extend(olay.yakalananlar.iter().cloned());
+    yereller.extend(
+        olay.yereller
+            .iter()
+            .filter(|(a, _)| a != OLAY_DEGERI)
+            .cloned(),
+    );
+    let mut govde: Vec<Deyim> = olay
+        .yakalananlar
+        .iter()
+        .enumerate()
+        .map(|(i, (ad, tip))| Deyim::Atama {
+            hedef: ad.clone(),
+            deger: Ifade {
+                tur: IfadeTuru::Indeks(
+                    Box::new(Ifade {
+                        tur: IfadeTuru::Isim(YAKALANANLAR.into()),
+                        konum: k,
+                        tip: parametreler[0].1.clone(),
+                    }),
+                    Box::new(Ifade {
+                        tur: IfadeTuru::Sayi(i as i64),
+                        konum: k,
+                        tip: Tip::Sayi,
+                    }),
+                ),
+                konum: k,
+                tip: tip.clone(),
+            },
+            konum: k,
+        })
+        .collect();
+    govde.extend(olay.govde.iter().cloned());
+    Islev {
+        ad: format!("‹olay›{no}"),
+        parametreler,
+        haller: Vec::new(),
+        donus: Some(Tip::Bos),
+        govde,
+        konum: k,
+        yereller,
+        rota: None,
+        arayuz: false,
+    }
+}
+
+/// `ohc_ciz()`: olay listesini sıfırlar ve arayüzü çizer (JavaScript ağacı kurar).
+fn ciz_islevi(o: &Ortak) -> Function {
+    let mut f = Function::new([]);
+    for k in [
+        K::GlobalGet(G_GENEL),
+        K::Call(o.calisma["ohc_liste_yeni"].0),
+        K::I64Store(bellek(o.olay_yuvasi * 8)),
+        K::Call(o.islevler[ARAYUZ_ISLEVI].0),
+        K::End,
+    ] {
+        f.instruction(&k);
+    }
+    f
+}
+
+/// `ohc_olay(sıra, değer)`: çizimde kaydedilen olayın işlevini, yakalanan
+/// değerler ve kullanıcının girdiği değerle (metin ya da 0) çağırır.
+fn olay_islevi(o: &Ortak, olay_turu: u32) -> Function {
+    let liste_al = o.calisma["ohc_liste_al"].0;
+    let mut f = Function::new([(1, ValType::I32)]);
+    let kayit = |tek: bool| {
+        let mut v = vec![
+            K::GlobalGet(G_GENEL),
+            K::I64Load(bellek(o.olay_yuvasi * 8)),
+            K::LocalGet(0),
+            K::I64ExtendI32U,
+            K::I64Const(1),
+            K::I64Shl,
+        ];
+        if tek {
+            v.extend([K::I64Const(1), K::I64Or]);
+        }
+        v.extend([K::I64Const(0), K::Call(liste_al)]);
+        v
+    };
+    let mut kod = kayit(false);
+    kod.extend([K::I32WrapI64, K::LocalSet(2)]);
+    kod.extend(kayit(true));
+    kod.extend([
+        K::LocalGet(1),
+        K::I64ExtendI32U,
+        K::LocalGet(2),
+        K::CallIndirect {
+            type_index: olay_turu,
+            table_index: 0,
+        },
+        K::End,
+    ]);
+    for k in &kod {
+        f.instruction(k);
+    }
+    f
 }
 
 /// `donus`: `None` ana program, `Some(true)` değer döndüren işlev.
@@ -451,11 +689,17 @@ impl Uretici<'_> {
     }
 
     fn degisken_oku(&mut self, ad: &str) -> Result<(), String> {
-        let y = *self
-            .degiskenler
+        if let Some(y) = self.degiskenler.get(ad).copied() {
+            self.yukle(y);
+            return Ok(());
+        }
+        let g = *self
+            .o
+            .genel
             .get(ad)
             .ok_or_else(|| format!("tanımsız değişken '{ad}'"))?;
-        self.yukle(y);
+        self.e(K::GlobalGet(G_GENEL));
+        self.e(K::I64Load(bellek(g * 8)));
         Ok(())
     }
 
@@ -465,10 +709,17 @@ impl Uretici<'_> {
         ad: &str,
         deger: impl FnOnce(&mut Self) -> Result<(), String>,
     ) -> Result<(), String> {
-        let y = *self
-            .degiskenler
-            .get(ad)
-            .ok_or_else(|| format!("tanımsız değişken '{ad}'"))?;
+        let Some(y) = self.degiskenler.get(ad).copied() else {
+            let g = *self
+                .o
+                .genel
+                .get(ad)
+                .ok_or_else(|| format!("tanımsız değişken '{ad}'"))?;
+            self.e(K::GlobalGet(G_GENEL));
+            deger(self)?;
+            self.e(K::I64Store(bellek(g * 8)));
+            return Ok(());
+        };
         match y {
             Yer::Yuva(s) => {
                 self.e(K::LocalGet(self.cerceve));
@@ -538,6 +789,14 @@ impl Uretici<'_> {
             K::Call(c("ohc_wasm_bayrak")),
             K::I32WrapI64,
             K::GlobalSet(G_BAYRAK),
+            // Genel bölge: durum değişkenleri ve olay listesi (gölge yığıtın dibinde,
+            // çöp toplayıcı her zaman tarar).
+            K::GlobalGet(G_TEPE),
+            K::GlobalSet(G_GENEL),
+            K::GlobalGet(G_TEPE),
+            K::I32Const(((self.o.olay_yuvasi + 1) * 8) as i32),
+            K::I32Add,
+            K::GlobalSet(G_TEPE),
         ]);
     }
 
@@ -908,7 +1167,106 @@ impl Uretici<'_> {
                 self.ifade(i)?;
                 self.e(K::Drop);
             }
+            Deyim::Oge(o) => self.oge(o)?,
         }
+        Ok(())
+    }
+
+    fn ui(&mut self, ad: &str) {
+        let sira = self.o.ui[ad];
+        self.e(K::Call(sira));
+    }
+
+    /// Yığıta bir metnin adresini (i32) koyar.
+    fn metin_adresi(&mut self, m: &str) {
+        self.metin_sabiti(m);
+        self.e(K::I32WrapI64);
+    }
+
+    /// Öğenin bir özelliği: ad ve metne çevrilmiş değer JavaScript ağacına gider.
+    fn ozellik(&mut self, ad: &str, deger: &Ifade, liste: bool) -> Result<(), String> {
+        self.metin_adresi(ad);
+        if liste {
+            self.ifade(deger)?;
+            self.sabit(deger.tip.kod());
+            self.cz("ohc_json");
+        } else {
+            self.arg_yukle(&Arg::Metne(deger))?;
+        }
+        self.e(K::I32WrapI64);
+        self.ui("ozellik");
+        Ok(())
+    }
+
+    /// Arayüz öğesi: JavaScript'teki ağaca bir düğüm açar, özelliklerini ve
+    /// olaylarını ekler, içindekileri çizer ve düğümü kapatır.
+    fn oge(&mut self, o: &Oge) -> Result<(), String> {
+        let tanim = arayuz::oge(&o.ad).ok_or_else(|| format!("bilinmeyen öğe '{}'", o.ad))?;
+        self.metin_adresi(&o.ad);
+        self.ui("ac");
+        for (a, (ad, beklenen)) in o.argumanlar.iter().zip(tanim.degerler) {
+            self.ozellik(ad, a, *beklenen == Beklenen::MetinListesi)?;
+        }
+        for (ad, d) in &o.secenekler {
+            self.ozellik(ad, d, false)?;
+        }
+        for olay in o.baglama.iter().chain(&o.olay) {
+            self.olay_kaydet(o, olay)?;
+        }
+        self.blok(&o.cocuklar)?;
+        self.ui("kapat");
+        Ok(())
+    }
+
+    /// Olayı bu çizimin olay listesine ekler: [işlevin tablodaki sırası,
+    /// yakalanan değerler]. JavaScript, olay olunca listedeki sırayla `ohc_olay`ı çağırır.
+    fn olay_kaydet(&mut self, o: &Oge, olay: &Olay) -> Result<(), String> {
+        let tablo = *self
+            .o
+            .olay_sirasi
+            .get(&(o.konum, olay.ad.clone()))
+            .ok_or("olay işlevi bulunamadı")?;
+        // Yakalanan değerlerin listesi (güvenli nokta yok: yerelde durabilir)
+        let yakalanan = if olay.yakalananlar.is_empty() {
+            None
+        } else {
+            self.cz("ohc_liste_yeni");
+            let l = self.sakla(false);
+            for (ad, _) in &olay.yakalananlar {
+                self.yukle(l);
+                self.degisken_oku(ad)?;
+                self.cz("ohc_liste_ekle");
+            }
+            Some(l)
+        };
+        let g = self.o.olay_yuvasi * 8;
+        // Olayın sırası: listenin o anki uzunluğunun yarısı
+        self.metin_adresi(match olay.ad.as_str() {
+            "bağ" => "bağ",
+            a => a,
+        });
+        self.e(K::GlobalGet(G_GENEL));
+        self.e(K::I64Load(bellek(g)));
+        self.cz("ohc_liste_uzunluk");
+        self.sabit(1);
+        self.e(K::I64ShrU);
+        self.e(K::I32WrapI64);
+        // Listeye ekle
+        self.e(K::GlobalGet(G_GENEL));
+        self.e(K::I64Load(bellek(g)));
+        self.sabit(tablo as i64);
+        self.cz("ohc_liste_ekle");
+        self.e(K::GlobalGet(G_GENEL));
+        self.e(K::I64Load(bellek(g)));
+        match yakalanan {
+            Some(l) => {
+                self.yukle(l);
+                self.birak(l);
+            }
+            None => self.sabit(0),
+        }
+        self.cz("ohc_liste_ekle");
+        self.ui("olay");
         Ok(())
     }
 
@@ -1557,14 +1915,16 @@ mod testler {
     }
 
     fn ornek_modulleri() -> Vec<(String, Vec<u8>)> {
-        let klasor = Path::new(env!("CARGO_MANIFEST_DIR")).join("örnekler");
+        let kok = Path::new(env!("CARGO_MANIFEST_DIR")).join("örnekler");
         let mut sonuc = Vec::new();
-        for g in std::fs::read_dir(klasor).unwrap() {
-            let yol = g.unwrap().path();
-            if yol.extension().is_some_and(|u| u == "ohc") {
-                let p = crate::derleme::yukle(&yol).unwrap();
-                let wasm = super::uret(&p).unwrap();
-                sonuc.push((yol.display().to_string(), wasm));
+        for klasor in [kok.clone(), kok.join("arayüz")] {
+            for g in std::fs::read_dir(klasor).unwrap() {
+                let yol = g.unwrap().path();
+                if yol.extension().is_some_and(|u| u == "ohc") {
+                    let p = crate::derleme::yukle(&yol).unwrap();
+                    let wasm = super::uret(&p).unwrap();
+                    sonuc.push((yol.display().to_string(), wasm));
+                }
             }
         }
         sonuc
@@ -1573,7 +1933,7 @@ mod testler {
     #[test]
     fn uretilen_moduller_gecerli() {
         let moduller = ornek_modulleri();
-        assert!(moduller.len() >= 10);
+        assert!(moduller.len() >= 13);
         for (ad, wasm) in moduller {
             Validator::new()
                 .validate_all(&wasm)
@@ -1586,6 +1946,10 @@ mod testler {
         let rt = ozet(crate::derleme::WASM_CALISMA_ZAMANI);
         for (ad, wasm) in ornek_modulleri() {
             for (modul, isim, tur) in ozet(&wasm).ice {
+                if modul == "ui" {
+                    // Arayüz işlevleri JavaScript'ten gelir (orhunca.js).
+                    continue;
+                }
                 assert_eq!(modul, "rt", "{ad}");
                 assert_eq!(
                     rt.disa.get(&isim),

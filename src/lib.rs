@@ -4,6 +4,7 @@
 //! bu kütüphaneyi kullanır.
 
 pub mod agac;
+pub mod arayuz;
 pub mod ayristirici;
 pub mod bicimlendirici;
 pub mod denetci;

@@ -70,6 +70,64 @@ orhunca çalıştır oyun.ohc --hedef web              # derler ve Node.js ile �
 - Program tarayıcının ana iş parçacığında çalışır: çıktı program bitince görünür, `bekle()` sayfayı
   bekletir.
 
+## Türkçe arayüz dili
+
+Düğmeli, giriş kutulu, listeli uygulamalar Orhunca ile yazılır; JavaScript gerekmez. Program
+WebAssembly'ye derlenir ve tarayıcıda (ya da Stüdyo'nun canlı önizlemesinde) çalışır.
+
+```orhunca
+durum sayaç = 0
+durum adım = 1
+
+arayüz:
+    başlık("Sayaç")
+    yazı("Şu anki değer: " + sayaç, boyut: 24)
+    satır:
+        düğme("− " + adım) tıklanınca:
+            sayaç -= adım
+        düğme("+ " + adım) tıklanınca:
+            sayaç += adım
+    kaydırıcı(adım, 1, 10)
+    eğer sayaç 10'dan büyükse:
+        yazı("On'u geçtin!", renk: "kırmızı", kalın: doğru)
+```
+
+```sh
+orhunca çalıştır sayaç.ohc               # sayfayı derler ve tarayıcıda açar
+orhunca derle sayaç.ohc --hedef web       # → sayaç.html (tek dosya)
+```
+
+- **`durum ad = değer`** — uygulamanın değişkenleri; programın her yerinden (işlevler dahil)
+  görülür ve değiştirilir. Tipi ilk değerden çıkarılır; boş liste için yazılır:
+  `durum işler: liste<İş> = []`.
+- **`arayüz:`** — ekranda görünenler. Her olaydan sonra yeniden çizilir; `eğer`, `her ... için` ve
+  yerel değişkenler kullanılabilir, yalnızca değişen yerler sayfada güncellenir.
+- **Olaylar:** `düğme("Ekle") tıklanınca:` gibi bir bloğun içinde sıradan Orhunca kodu yazılır.
+  Bloğun kullandığı çevre değişkenleri (ör. döngü değişkeni) öğe çizilirken yakalanır:
+  `her iş için işler'den:` içindeki her "Sil" düğmesi kendi işini siler.
+- **Bağlama:** `giriş(ad)`, `onay_kutusu(iş.bitti, "Bitti")`, `seçim(şehir, [...])`,
+  `kaydırıcı(ses, 0, 100)` değeri bir durum değişkenine (ya da liste öğesine, model alanına) bağlar:
+  kullanıcı değiştirince değişken güncellenir.
+- **`bileşen Kart(başlık: metin):`** — arayüzün yeniden kullanılan parçası; `Kart("...")` diye çağrılır.
+
+| Öğe | Örnek | Olaylar |
+|---|---|---|
+| `başlık`, `alt_başlık`, `yazı` | `yazı("Toplam: " + toplam)` | tıklanınca |
+| `düğme` | `düğme("Kaydet") tıklanınca:` | tıklanınca |
+| `giriş`, `metin_alanı` | `giriş(ad, "Adınız", tür: "şifre")` | değişince, gönderilince (Enter) |
+| `onay_kutusu`, `seçim`, `kaydırıcı` | `seçim(şehir, ["Ankara", "İzmir"])` | değişince |
+| `resim`, `bağlantı`, `ilerleme`, `ayraç`, `boşluk` | `bağlantı("Orhunca", "https://...")` | tıklanınca |
+| `satır:`, `sütun:`, `kart:`, `kutu:`, `ızgara(3):` | içine öğe alan kapsayıcılar | tıklanınca |
+| `zamanlayıcı(1)` | `zamanlayıcı(1) çalınca:` (her saniye) | çalınca |
+
+Seçenekler bütün öğelerde kullanılabilir: `renk`, `arka`, `boyut`, `kalın`, `eğik`, `hizala`
+(`"sol"`, `"orta"`, `"sağ"`), `genişlik`, `yükseklik`, `boşluk`, `iç_boşluk`, `köşe`, `kenarlık`,
+`ipucu`, `etkin`, `gizli`, `sınıf`. Renkler Türkçe yazılabilir (`"kırmızı"`, `"lacivert"`,
+`"açık_gri"` …) ya da CSS biçiminde (`"#3366ff"`). Örnekler: [örnekler/arayüz/](örnekler/arayüz)
+(sayaç, yapılacaklar listesi, hesap makinesi).
+
+![Orhunca Stüdyo — arayüz uygulaması canlı önizlemede](docs/ekran/arayuz.png)
+
 ## Orhunca Stüdyo
 
 ```sh
@@ -78,14 +136,16 @@ orhunca stüdyo
 
 Tarayıcıda Orhunca'nın geliştirme ortamını açar: son projeler, şablon sihirbazı (Konsol Uygulaması,
 Sayı Tahmin Oyunu, Kütüphane; Boş Web Sayfası, Web Sitesi, Web Uygulaması, Açılış Sayfası, Web API,
-Tam Yığın Uygulama), sözdizimi renklendirmeli düzenleyici (`.ohc`, `.ohchtml`, CSS, JavaScript),
+Tam Yığın Uygulama; Arayüz Uygulaması), sözdizimi renklendirmeli düzenleyici (`.ohc`, `.ohchtml`, CSS, JavaScript),
 yazarken hata gösterimi, F5 ile derleyip çalıştırma (programın girdisi terminalden verilir),
 Linux/Windows için dağıtım derlemesi ve Türkçe anahtar kelime rehberi. İnternet gerekmez; arayüz ve
 yazı tipleri ikili dosyanın içindedir.
 
 Web projelerinde F5 sunucuyu başlatır ve sayfa sağdaki **canlı önizlemede** açılır. Kaydettiğinizde
 sunucu yeniden derlenir ve önizleme bulunduğu adreste yenilenir (yalnızca `statik/` dosyası
-değiştiyse sayfa yenilenir). Stüdyo kapanınca başlattığı sunucular da kapanır.
+değiştiyse sayfa yenilenir). Stüdyo kapanınca başlattığı sunucular da kapanır. Arayüz
+uygulamalarında F5 programı WebAssembly'ye derler ve uygulama önizlemede (Stüdyo'dan yalıtılmış bir
+çerçevede) çalışır; kaydettiğinizde yeniden derlenir.
 
 ![Orhunca Stüdyo — canlı önizleme](docs/ekran/canli-onizleme.png)
 
@@ -417,6 +477,12 @@ dosya.ohc
 [Bağlama]  nesne + runtime/orhunca_rt.c → Linux çalıştırılabilir dosyası / Windows .exe
            wasm + runtime/wasm/orhunca_rt.wasm + orhunca.js → tek dosyalık HTML sayfası
 ```
+
+Arayüz dili: `arayüz:` bloğu ve bileşenler sıradan işlevlere derlenir; öğeler (`src/arayuz.rs`
+tablosu) çizim sırasında JavaScript'teki bir öğe ağacına eklenir ve `orhunca.js` ağacı önceki
+çizimle karşılaştırarak sayfayı günceller. Olay blokları ayrı işlevlere çevrilir; çizimde yakalanan
+değerlerle bir olay listesine kaydedilir ve olay olunca tablo üzerinden çağrılır. `durum`
+değişkenleri gölge yığıtın dibindeki genel bölgede durur (toplayıcı her zaman tarar).
 
 WebAssembly: program modülü, C çalışma zamanının wasm32 derlemesini (`runtime/wasm/orhunca_rt.wasm`;
 `araclar/wasm_calisma_zamani.sh` ile clang'la derlenir, küçük C kütüphanesi `runtime/wasm/libc.c`)

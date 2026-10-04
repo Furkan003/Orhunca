@@ -2,7 +2,7 @@
 
 use super::http::{Istek, Yanit};
 use super::{calisma, depo, sablonlar};
-use crate::derleme;
+use crate::{agac, derleme};
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -606,10 +606,63 @@ fn denetle(dosya: &str, acik: &Value) -> Yanit {
     Yanit::json(&json!({ "hatalar": hatalar, "uyarilar": uyarilar }))
 }
 
+/// Arayüz programlarının derlenmiş sayfaları (son birkaçı tutulur).
+fn onizlemeler() -> &'static Mutex<std::collections::VecDeque<(u64, String)>> {
+    static O: OnceLock<Mutex<std::collections::VecDeque<(u64, String)>>> = OnceLock::new();
+    O.get_or_init(Default::default)
+}
+
+pub fn onizleme(kimlik: &str) -> Yanit {
+    let kimlik: u64 = kimlik.parse().unwrap_or(0);
+    let liste = onizlemeler().lock().unwrap();
+    match liste.iter().find(|(k, _)| *k == kimlik) {
+        Some((_, sayfa)) => Yanit {
+            durum: 200,
+            tur: "text/html; charset=utf-8",
+            govde: sayfa.clone().into_bytes(),
+        },
+        None => Yanit::hata(404, "önizleme bulunamadı; programı yeniden çalıştırın"),
+    }
+}
+
+/// Arayüz programı: WebAssembly'ye derlenir, sayfası önizleme için saklanır.
+fn arayuz_calistir(program: &agac::Program, dosya: &Path, baslangic: Instant) -> Yanit {
+    let wasm = match crate::wasm_uretici::uret(program) {
+        Ok(w) => w,
+        Err(e) => {
+            let m = format!("WebAssembly kod üretimi başarısız: {e}");
+            return Yanit::json(&json!({ "derleme_hatasi": m, "hatalar": [] }));
+        }
+    };
+    let ad = dosya
+        .file_stem()
+        .map(|a| a.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "uygulama".into());
+    static SAYAC: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    let kimlik = SAYAC.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let mut liste = onizlemeler().lock().unwrap();
+    liste.push_back((kimlik, derleme::web_sayfasi(&ad, &wasm, true)));
+    while liste.len() > 8 {
+        liste.pop_front();
+    }
+    Yanit::json(&json!({
+        "arayuz": format!("/onizleme/{kimlik}"),
+        "derleme_ms": baslangic.elapsed().as_millis(),
+    }))
+}
+
 fn calistir(g: &Value) -> Yanit {
     let dosya = PathBuf::from(metin(g, "dosya"));
     if !izinli_mi(&dosya) {
         return Yanit::hata(403, "bu dosyaya erişim yok");
+    }
+    let baslangic = Instant::now();
+    match derleme::yukle(&dosya) {
+        Ok(p) if p.arayuz_programi() => return arayuz_calistir(&p, &dosya, baslangic),
+        Ok(_) => {}
+        Err(h) => {
+            return Yanit::json(&json!({ "derleme_hatasi": h.metin, "hatalar": teshis_json(&h) }))
+        }
     }
     let klasor = PathBuf::from(metin(g, "klasor"));
     let argumanlar: Vec<String> = g["argumanlar"]
@@ -629,7 +682,6 @@ fn calistir(g: &Value) -> Yanit {
     } else {
         "program"
     });
-    let baslangic = Instant::now();
     if let Err(h) = derleme::derle(&dosya, &program, None) {
         let _ = std::fs::remove_dir_all(&gecici);
         return Yanit::json(&json!({ "derleme_hatasi": h.metin, "hatalar": teshis_json(&h) }));
@@ -713,7 +765,9 @@ fn derle(dosya: &str, hedef: &str) -> Yanit {
         .and_then(|pd| derleme::proje_ayari(&pd, &["ad"]))
         .unwrap_or_else(|| "program".into());
     let mut cikti = klasor.join(&ad);
-    if derleme::windows_mu(hedef) {
+    if derleme::web_hedefi_mi(hedef) {
+        cikti.set_extension("html");
+    } else if derleme::windows_mu(hedef) {
         cikti.set_extension("exe");
     }
     let baslangic = Instant::now();

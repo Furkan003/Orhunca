@@ -70,6 +70,17 @@
           }
         },
         {
+          "match": "^\\s*(bileşen)\\s+([\\p{L}_][\\p{L}\\p{N}_]*)",
+          "captures": {
+            "1": {
+              "name": "keyword.declaration.function.orhunca"
+            },
+            "2": {
+              "name": "entity.name.type.class.orhunca"
+            }
+          }
+        },
+        {
           "begin": "^\\s*(fiil)\\b",
           "beginCaptures": {
             "1": {
@@ -120,6 +131,28 @@
               "name": "punctuation.separator.orhunca"
             }
           }
+        },
+        {
+          "match": "^(durum)\\s+([\\p{L}_][\\p{L}\\p{N}_]*)(?=\\s*[=:])",
+          "captures": {
+            "1": {
+              "name": "keyword.declaration.orhunca"
+            },
+            "2": {
+              "name": "variable.other.readwrite.global.orhunca"
+            }
+          }
+        },
+        {
+          "match": "^(arayüz)\\s*(:)\\s*$",
+          "captures": {
+            "1": {
+              "name": "keyword.declaration.orhunca"
+            },
+            "2": {
+              "name": "punctuation.separator.orhunca"
+            }
+          }
         }
       ]
     },
@@ -148,6 +181,14 @@
         {
           "name": "constant.language.boolean.orhunca",
           "match": "(?<![\\p{L}\\p{N}_])(doğru|yanlış)(?![\\p{L}\\p{N}_])"
+        },
+        {
+          "name": "keyword.control.event.orhunca",
+          "match": "(?<![\\p{L}\\p{N}_])(tıklanınca|değişince|gönderilince|çalınca)(?=\\s*:)"
+        },
+        {
+          "name": "support.class.component.orhunca",
+          "match": "(?<![\\p{L}\\p{N}_])(satır|sütun|kart|kutu)(?=\\s*:\\s*(#.*)?$)"
         }
       ]
     },

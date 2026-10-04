@@ -40,7 +40,7 @@ fn bilgi(metin: &str) {
     let _ = writeln!(cikti, "{metin}").and_then(|_| cikti.flush());
 }
 
-pub(crate) fn tarayicida_ac(adres: &str) {
+pub fn tarayicida_ac(adres: &str) {
     let sonuc = if cfg!(windows) {
         Command::new("cmd").args(["/C", "start", "", adres]).spawn()
     } else if cfg!(target_os = "macos") {
@@ -142,6 +142,9 @@ fn isle(mut akis: TcpStream, anahtar: &str, kapi: u16) {
         } else {
             api::yonlendir(&istek)
         }
+    } else if let Some(kimlik) = istek.yol.strip_prefix("/onizleme/") {
+        // Arayüz programlarının derlenmiş sayfası (Stüdyo'da yalıtılmış çerçevede açılır).
+        api::onizleme(kimlik.trim_end_matches('/'))
     } else {
         statik(&istek.yol)
     };

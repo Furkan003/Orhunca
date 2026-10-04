@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="Orhunca">
+<title>__BASLIK__</title>
+<style>
+  html, body { margin: 0; min-height: 100%; background: #f4f5f7; }
+  @media (prefers-color-scheme: dark) { html, body { background: #0f1216; } }
+  #konsol { position: fixed; left: 12px; right: 12px; bottom: 12px; max-height: 40vh; overflow: auto; margin: 0;
+    padding: 10px 14px; background: #13161b; color: #e6e9ee; border: 1px solid #262b33; border-radius: 10px;
+    font: 13px/1.5 ui-monospace, 'JetBrains Mono', Consolas, monospace; white-space: pre-wrap;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, .25); }
+  #konsol .hata { color: #ff8a7a; }
+  #konsol button { position: sticky; float: right; top: 0; font: inherit; color: inherit; background: #1f242c;
+    border: 1px solid #2a3039; border-radius: 6px; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="uygulama"></div>
+<pre id="konsol" hidden><button type="button" id="kapat" title="Kapat">×</button></pre>
+<script>
+__YUKLEYICI__
+</script>
+<script>
+(function () {
+  'use strict';
+  var CALISMA_ZAMANI = '__CALISMA_ZAMANI__';
+  var PROGRAM = '__PROGRAM__';
+  var konsol = document.getElementById('konsol');
+  document.getElementById('kapat').addEventListener('click', function () { konsol.hidden = true; });
+
+  function baytlar(b64) {
+    var s = atob(b64);
+    var b = new Uint8Array(s.length);
+    for (var i = 0; i < s.length; i++) b[i] = s.charCodeAt(i);
+    return b;
+  }
+
+  // Programın ekrana yazdıkları ve çalışma hataları küçük bir konsolda görünür.
+  function yaz(metin, hata) {
+    var s = document.createElement('span');
+    if (hata) s.className = 'hata';
+    s.textContent = metin;
+    konsol.appendChild(s);
+    konsol.hidden = false;
+    konsol.scrollTop = konsol.scrollHeight;
+  }
+
+  var cozuculer = { 1: new TextDecoder(), 2: new TextDecoder() };
+  Orhunca.baslat({
+    calismaZamani: baytlar(CALISMA_ZAMANI),
+    program: baytlar(PROGRAM),
+    arayuzKoku: document.getElementById('uygulama'),
+    cikti: function (akis, b) {
+      yaz(cozuculer[akis].decode(b, { stream: true }), akis === 2);
+    },
+    satirOku: function () { return window.prompt('Girdi:'); },
+    dosyalar: Orhunca.tarayiciDosyalari('orhunca:' + document.title + ':'),
+    ortam: {},
+    argumanlar: [],
+  }).catch(function (h) { yaz('Çalışma hatası: ' + h + '\n', true); });
+})();
+</script>
+</body>
+</html>

@@ -14,7 +14,7 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 | 5 | Standart kütüphane ✅, paket yöneticisi ✅ (Git tabanlı, kilit dosyalı) | ✅ |
 | 6 | Modeller ✅, JSON veri deposu ✅, web sunucusu ✅, `.ohchtml` görünümleri ✅, Stüdyo web şablonları ve canlı önizleme ✅ | ✅ |
 | 7 | Orhunca Stüdyo: arayüz ✅ (tarayıcıda, `orhunca stüdyo`), Tauri masaüstü uygulaması ✅ (`masaustu/`) | ✅ |
-| 8 | WebAssembly ✅ (`--hedef web`), Türkçe arayüz dili ⏳, self-hosting ⏳ | ⏳ |
+| 8 | WebAssembly ✅ (`--hedef web`), Türkçe arayüz dili ✅, self-hosting ⏳ | ⏳ |
 
 ## v0.2'de eklenenler
 
@@ -71,6 +71,23 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 - Yapılmayanlar: web sunucusu (tarayıcıda anlamsız), programın ayrı bir iş parçacığında (Web Worker)
   çalışması — şimdilik ana iş parçacığında, çıktı program bitince görünür.
 
+## Aşama 8b – Türkçe arayüz dili
+
+- `durum` (her yerden görülen, değişince arayüzü yeniden çizdiren değişkenler), `arayüz:` bloğu,
+  `bileşen Ad(...):`, 20 öğe (`src/arayuz.rs`), olaylar (`tıklanınca`, `değişince`, `gönderilince`,
+  `çalınca`), durum değişkenine/liste öğesine/model alanına bağlanan girişler, adlı seçenekler.
+- Çizim: program her olaydan sonra arayüz işlevini çalıştırır, JavaScript öğe ağacını kurar ve
+  önceki ağaçla karşılaştırarak DOM'u günceller (sıraya göre; odak ve imleç korunur, kullanıcının
+  yazmakta olduğu değer program değiştirmedikçe ezilmez).
+- Olay blokları kapanış (closure) gibi çalışır: çevredeki yerel değişkenler çizim anında yakalanır ve
+  yalnızca okunur; kalıcı değişiklikler durum değişkenlerine yapılır.
+- Stüdyo: "Arayüz Uygulaması" şablonu, F5 ile yalıtılmış canlı önizleme, kaydedince yeniden derleme.
+  `orhunca çalıştır` arayüz programını tarayıcıda açar.
+- Testler: örnekler Node.js'te DOM olmadan olay tetiklenerek sınanır (`tests/arayuz_senaryolari.js`,
+  toplayıcı her ayırmada çalışırken); hata mesajları için ayrı test.
+- Yapılmayanlar: anahtarlı liste karşılaştırması (öğeler sıraya göre eşleşir), yerel (Tauri)
+  pencerede paketleme, animasyonlar, gezinme (çok sayfalı arayüz).
+
 ## Henüz yapılmayanlar
 
 - **Çalışma zamanı C ile yazılı** (`runtime/orhunca_rt.c`). Bağlama zaten bir C araç zinciri
@@ -86,7 +103,7 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 
 ## Sıradaki adımlar (öneri sırası)
 
-1. **Aşama 8**: Türkçe arayüz dili (WebAssembly + DOM), self-hosting ilk adımı.
+1. **Aşama 8**: self-hosting ilk adımı (Orhunca ile yazılmış sözcük çözümleyici).
 2. Windows'ta bağlayıcı gereksinimini kaldırmak (MinGW yerine hazır bağlayıcı ve çalışma zamanı).
 
 ## Çalışma şekli
