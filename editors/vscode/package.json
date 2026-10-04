@@ -2,7 +2,7 @@
   "name": "orhunca",
   "displayName": "Orhunca",
   "description": "Türkçe tabanlı programlama dili Orhunca için sözdizimi renklendirme, hata gösterimi, tamamlama ve biçimlendirme; .ohchtml görünümleri",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "publisher": "orhunca",
   "license": "SEE LICENSE IN README.md",
   "repository": {

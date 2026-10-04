@@ -1,0 +1,16 @@
+# Bir Orhunca dosyasının sözcüklerini yazar (öz/sözcük.ohc ile).
+# Kullanım: orhunca çalıştır öz/sözcükle.ohc -- örnekler/merhaba.ohc
+#
+# Her satırda bir sözcük: "satır:sütun Tür değer" (metinler JSON biçiminde).
+kullan "sözcük.ohc"
+
+argümanlar_ = argümanlar()
+eğer uzunluk(argümanlar_) 0'a eşitse:
+    "kullanım: sözcükle <dosya.ohc>"'u yaz.
+    çık(2)
+
+her s için sözcükle(dosya_oku(argümanlar_[0]))'dan:
+    değer = s.değer
+    eğer s.tür == "Metin" ise:
+        değer = json(s.değer)
+    s.satır + ":" + s.sütun + " " + s.tür + " " + değer'i yaz.

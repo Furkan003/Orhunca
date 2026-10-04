@@ -603,6 +603,7 @@ impl Denetci {
         match d {
             Deyim::Atama {
                 hedef,
+                tip,
                 deger,
                 konum,
             } => {
@@ -610,6 +611,18 @@ impl Denetci {
                 if self.kapsam.get(hedef.as_str()) == Some(&Tip::Ondalik) {
                     genislet(deger, &Tip::Ondalik);
                     t = deger.tip.clone();
+                }
+                // `ad: tip = değer`: değişken yazılan tiple tanımlanır.
+                if let Some(bildirilen) = tip {
+                    if !bildirilen.kabul_eder(&t) {
+                        return Err(Hata::yeni(
+                            deger.konum,
+                            format!("'{hedef}' {bildirilen} olarak tanımlandı; değeri {t}"),
+                        ));
+                    }
+                    genislet(deger, bildirilen);
+                    t = bildirilen.clone();
+                    deger.tip = t.clone();
                 }
                 if self.sabitler.contains_key(hedef.as_str()) {
                     return Err(Hata::yeni(
@@ -1590,6 +1603,8 @@ impl Denetci {
             ("başlar" | "biter", [Metin, Metin]) => Mantik,
             ("tekrarla", [Metin, Sayi]) => Metin,
             ("harfler" | "satırlar", [Metin]) => Liste(Box::new(Metin)),
+            ("kod", [Metin]) => Sayi,
+            ("karakter", [Sayi]) => Metin,
             ("sil", [Liste(_), Sayi]) => ic(&t[0]),
             ("sil", [Sozluk(a, _), x]) if a.kabul_eder(x) => Bos,
             ("ters", [Liste(_) | Metin]) => t[0].clone(),
@@ -1688,6 +1703,7 @@ fn bag_atamasi(hedef: Ifade, tur: BagTuru) -> Deyim {
     let ata = |yeni: Ifade| match hedef.tur.clone() {
         IfadeTuru::Isim(ad) => Deyim::Atama {
             hedef: ad,
+            tip: None,
             deger: yeni,
             konum: k,
         },

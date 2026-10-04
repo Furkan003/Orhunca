@@ -1,0 +1,250 @@
+# Orhunca'nın sözcük çözümleyicisi — Orhunca ile yazılmış.
+#
+# Öz-barındırmanın (self-hosting) ilk adımı: derleyicinin src/sozcuk.rs dosyasındaki
+# çözümleyiciyle aynı sözcükleri, aynı konumlarla ve aynı hata mesajlarıyla üretir.
+# tests/oz.rs ikisini örnek programların hepsinde karşılaştırır.
+#
+# Kullanım: kullan "sözcük.ohc"  …  sözcükler = sözcükle(kaynak)
+
+# Bir sözcük. tür: Sayi, Ondalik, Metin, Kelime, Ek, Op, Uye, YeniSatir, Girinti,
+# Cikinti, Son ya da HATA (değer hata mesajıdır; çözümleme orada durur).
+model Sözcük:
+    tür: metin
+    değer: metin
+    satır: sayı
+    sütun: sayı
+
+işlev rakam_mı(c: metin) -> mantık:
+    k = kod(c)
+    döndür k >= 48 ve k <= 57
+
+# Harf mi? ASCII ve Latin harfleri (Türkçe dahil), Yunan, Kiril, İbrani, Arap, Çin, Kore ve
+# Göktürk (Orhun) yazıları. Derleyici Unicode'un tamamına bakar; bu aralıklar Orhunca
+# kaynaklarında kullanılan yazıları kapsar.
+işlev harf_mi(c: metin) -> mantık:
+    k = kod(c)
+    eğer k < 128 ise:
+        döndür (k >= 65 ve k <= 90) veya (k >= 97 ve k <= 122)
+    eğer k == 170 veya k == 181 veya k == 186 ise:
+        döndür doğru
+    eğer k >= 192 ve k <= 687 ise:
+        döndür k != 215 ve k != 247
+    eğer k >= 880 ve k <= 1327 ise:
+        döndür değil (k >= 1154 ve k <= 1161) ve k != 885 ve k != 894 ve k != 900 ve k != 901 ve k != 903 ve k != 1014
+    eğer k >= 1488 ve k <= 1514 ise:
+        döndür doğru
+    eğer k >= 1568 ve k <= 1610 ise:
+        döndür doğru
+    eğer k >= 19968 ve k <= 40959 ise:
+        döndür doğru
+    eğer k >= 44032 ve k <= 55203 ise:
+        döndür doğru
+    döndür k >= 68608 ve k <= 68680
+
+işlev kelime_başı_mı(c: metin) -> mantık:
+    döndür harf_mi(c) veya c == "_"
+
+işlev kelime_devamı_mı(c: metin) -> mantık:
+    döndür harf_mi(c) veya rakam_mı(c) veya c == "_"
+
+işlev kesme_mi(c: metin) -> mantık:
+    döndür c == "'" veya c == "’"
+
+işlev ekle_sözcük(çıktı: liste<Sözcük>, tür: metin, değer: metin, satır: sayı, sütun: sayı):
+    Sözcük(tür: tür, değer: değer, satır: satır, sütun: sütun)'ü çıktı'ya ekle.
+
+# Hata sözcüğünü ekler ve çıktıyı döndürür: `döndür hata(çıktı, ...)`
+işlev hata(çıktı: liste<Sözcük>, mesaj: metin, satır: sayı, sütun: sayı) -> liste<Sözcük>:
+    ekle_sözcük(çıktı, "HATA", mesaj, satır, sütun)
+    döndür çıktı
+
+# Kesme işaretiyle başlayan bir ek varsa okur (`5'i`, `x'den`). Yeni konumu döndürür;
+# hata olursa -1 (hata sözcüğü eklenmiştir).
+işlev ek_oku(k: liste<metin>, i: sayı, satır: sayı, çıktı: liste<Sözcük>) -> sayı:
+    n = uzunluk(k)
+    eğer i >= n veya değil kesme_mi(k[i]) ise:
+        döndür i
+    sütun = i + 1
+    i += 1
+    ek = ""
+    i < n ve harf_mi(k[i]) olduğu sürece:
+        ek = ek + k[i]
+        i += 1
+    eğer ek == "" ise:
+        ekle_sözcük(çıktı, "HATA", "kesme işaretinden sonra bir ek bekleniyordu", satır, sütun)
+        döndür -1
+    ekle_sözcük(çıktı, "Ek", ek, satır, sütun)
+    döndür i
+
+# İşleçler: iki karakterliler önce denenir.
+işlev işleçler() -> liste<metin>:
+    döndür ["->", "//", "==", "!=", "<=", ">=", "+=", "-=", "+", "-", "*", "/", "%", "=", "<", ">", "(", ")", "[", "]", "{", "}", ",", ":"]
+
+işlev sözcükle(kaynak: metin) -> liste<Sözcük>:
+    çıktı: liste<Sözcük> = []
+    girintiler = [0]
+    parantez = 0
+    satırlar_ = satırlar(kaynak)
+    her satır_i için 0'dan uzunluk(satırlar_) - 1'e kadar:
+        satır_no = satır_i + 1
+        k = harfler(satırlar_[satır_i])
+        n = uzunluk(k)
+
+        # Girinti (sekme = 4 boşluk); boş ve yalnızca yorum içeren satırlar yok sayılır.
+        girinti = 0
+        i = 0
+        i < n ve (k[i] == " " veya k[i] == "\t") olduğu sürece:
+            eğer k[i] == "\t" ise:
+                girinti += 4
+            değilse:
+                girinti += 1
+            i += 1
+        eğer i >= n veya k[i] == "#" ise:
+            sürdür
+
+        eğer parantez == 0 ise:
+            üst = girintiler[uzunluk(girintiler) - 1]
+            eğer girinti > üst ise:
+                girinti'yi girintiler'e ekle.
+                ekle_sözcük(çıktı, "Girinti", "", satır_no, i + 1)
+            değilse:
+                girinti < girintiler[uzunluk(girintiler) - 1] olduğu sürece:
+                    sil(girintiler, uzunluk(girintiler) - 1)
+                    ekle_sözcük(çıktı, "Cikinti", "", satır_no, i + 1)
+                eğer girinti != girintiler[uzunluk(girintiler) - 1] ise:
+                    döndür hata(çıktı, "girinti önceki satırların hiçbiriyle uyuşmuyor", satır_no, i + 1)
+
+        i < n olduğu sürece:
+            c = k[i]
+            sütun = i + 1
+            eğer c == " " veya c == "\t" ise:
+                i += 1
+                sürdür
+            eğer c == "#" ise:
+                dur
+
+            # Sayı: 42, 1_000, 3.14 (noktadan sonra rakam gelmezse nokta cümle sonudur)
+            eğer rakam_mı(c) ise:
+                yazı = ""
+                i < n ve (rakam_mı(k[i]) veya k[i] == "_") olduğu sürece:
+                    eğer k[i] != "_" ise:
+                        yazı = yazı + k[i]
+                    i += 1
+                tür = "Sayi"
+                eğer i + 1 < n ve k[i] == "." ve rakam_mı(k[i + 1]) ise:
+                    tür = "Ondalik"
+                    yazı = yazı + "."
+                    i += 1
+                    i < n ve (rakam_mı(k[i]) veya k[i] == "_") olduğu sürece:
+                        eğer k[i] != "_" ise:
+                            yazı = yazı + k[i]
+                        i += 1
+                eğer tür == "Sayi" ve değil sayı_mı(yazı) ise:
+                    döndür hata(çıktı, "'" + yazı + "' sayısı çok büyük", satır_no, sütun)
+                eğer i < n ve kelime_başı_mı(k[i]) ise:
+                    ek = ""
+                    j = i
+                    j < n ve kelime_devamı_mı(k[j]) olduğu sürece:
+                        ek = ek + k[j]
+                        j += 1
+                    döndür hata(çıktı, "sayıdan sonra gelen '" + ek + "' ekinin önünde kesme işareti olmalı", satır_no, sütun)
+                ekle_sözcük(çıktı, tür, yazı, satır_no, sütun)
+                i = ek_oku(k, i, satır_no, çıktı)
+                eğer i < 0 ise:
+                    döndür çıktı
+                sürdür
+
+            # Metin: "..." ve kaçış dizileri \n \t \" \\
+            eğer c == "\"" ise:
+                i += 1
+                yazı = ""
+                doğru olduğu sürece:
+                    eğer i >= n ise:
+                        döndür hata(çıktı, "metin kapatılmamış", satır_no, sütun)
+                    d = k[i]
+                    i += 1
+                    eğer d == "\"" ise:
+                        dur
+                    eğer d == "\\" ise:
+                        e = " "
+                        eğer i < n ise:
+                            e = k[i]
+                        i += 1
+                        eğer e == "n" ise:
+                            yazı = yazı + "\n"
+                        değilse eğer e == "t" ise:
+                            yazı = yazı + "\t"
+                        değilse eğer e == "\"" veya e == "\\" ise:
+                            yazı = yazı + e
+                        değilse:
+                            döndür hata(çıktı, "bilinmeyen kaçış dizisi '\\" + e + "'", satır_no, i)
+                    değilse:
+                        yazı = yazı + d
+                ekle_sözcük(çıktı, "Metin", yazı, satır_no, sütun)
+                i = ek_oku(k, i, satır_no, çıktı)
+                eğer i < 0 ise:
+                    döndür çıktı
+                sürdür
+
+            # Kelime: isimler ve anahtar kelimeler
+            eğer kelime_başı_mı(c) ise:
+                yazı = ""
+                i < n ve kelime_devamı_mı(k[i]) olduğu sürece:
+                    yazı = yazı + k[i]
+                    i += 1
+                ekle_sözcük(çıktı, "Kelime", yazı, satır_no, sütun)
+                i = ek_oku(k, i, satır_no, çıktı)
+                eğer i < 0 ise:
+                    döndür çıktı
+                sürdür
+
+            # Nokta: boşluksuz `ürün.ad` üye erişimidir, değilse cümle sonu.
+            eğer c == "." ise:
+                önceki_uygun = yanlış
+                eğer uzunluk(çıktı) > 0 ve i > 0 ve k[i - 1] != " " ve k[i - 1] != "\t" ise:
+                    son = çıktı[uzunluk(çıktı) - 1]
+                    önceki_uygun = son.tür == "Kelime" veya (son.tür == "Op" ve (son.değer == ")" veya son.değer == "]"))
+                sonraki_kelime = i + 1 < n ve kelime_başı_mı(k[i + 1])
+                eğer önceki_uygun ve sonraki_kelime ise:
+                    ekle_sözcük(çıktı, "Uye", "", satır_no, sütun)
+                değilse:
+                    ekle_sözcük(çıktı, "Op", ".", satır_no, sütun)
+                i += 1
+                sürdür
+
+            # İşleçler
+            kalan = c
+            eğer i + 1 < n ise:
+                kalan = c + k[i + 1]
+            bulunan = ""
+            her op için işleçler()'den:
+                eğer bulunan == "" ve başlar(kalan, op) ise:
+                    bulunan = op
+            eğer bulunan != "" ise:
+                eğer bulunan == "(" veya bulunan == "[" veya bulunan == "{" ise:
+                    parantez += 1
+                eğer bulunan == ")" veya bulunan == "]" veya bulunan == "}" ise:
+                    parantez -= 1
+                ekle_sözcük(çıktı, "Op", bulunan, satır_no, sütun)
+                i += uzunluk(bulunan)
+                eğer bulunan == ")" veya bulunan == "]" veya bulunan == "}" ise:
+                    i = ek_oku(k, i, satır_no, çıktı)
+                    eğer i < 0 ise:
+                        döndür çıktı
+                sürdür
+
+            eğer kesme_mi(c) ise:
+                döndür hata(çıktı, "kesme işaretinden önce bir isim, sayı ya da metin olmalı", satır_no, sütun)
+            döndür hata(çıktı, "beklenmeyen karakter '" + c + "'", satır_no, sütun)
+
+        eğer parantez == 0 ise:
+            ekle_sözcük(çıktı, "YeniSatir", "", satır_no, n + 1)
+
+    son_satır = uzunluk(satırlar_) + 1
+    eğer parantez > 0 ise:
+        döndür hata(çıktı, "kapatılmamış parantez", son_satır, 1)
+    uzunluk(girintiler) > 1 olduğu sürece:
+        sil(girintiler, uzunluk(girintiler) - 1)
+        ekle_sözcük(çıktı, "Cikinti", "", son_satır, 1)
+    ekle_sözcük(çıktı, "Son", "", son_satır, 1)
+    döndür çıktı

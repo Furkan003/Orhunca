@@ -270,6 +270,18 @@ fn sozluk_kur(s: &[Sozcuk]) -> Tanimlar {
                 }
             }
         }
+        // `işler: liste<metin> = []`: tipi yazılmış değişken tanımı
+        if satir_basi(i) && s.get(i + 1).map(|s| &s.tok) == Some(&Tok::Op(":")) {
+            if let (Some(k), Some(Tok::Kelime(_))) = (kelime(i), s.get(i + 2).map(|s| &s.tok)) {
+                let satirda_esittir = s[i + 2..]
+                    .iter()
+                    .take_while(|t| !matches!(t.tok, Tok::YeniSatir | Tok::Son))
+                    .any(|t| t.tok == Tok::Op("="));
+                if satirda_esittir {
+                    sozluk.ekle(k);
+                }
+            }
+        }
         let onceki_her = i > 0 && s[i - 1].tok == Tok::Kelime("her".into());
         if let Some(k) = kelime(i) {
             let sonraki = s.get(i + 1).map(|s| &s.tok);
@@ -960,6 +972,7 @@ impl Ayristirici {
             }
             tum.push(Deyim::Atama {
                 hedef: ad,
+                tip: None,
                 deger,
                 konum: kkonum,
             });
@@ -1280,6 +1293,7 @@ impl Ayristirici {
                 self.deyim_bitir()?;
                 Ok(Some(Deyim::Atama {
                     hedef: ad,
+                    tip: None,
                     deger,
                     konum,
                 }))
@@ -1316,8 +1330,38 @@ impl Ayristirici {
                 }))
             }
             Tok::Uye => self.uye_atamasi(konum),
+            Tok::Op(":") if self.tip_bildirimi_mi() => {
+                // `işler: liste<metin> = []`
+                self.ilerle();
+                self.ilerle();
+                let tip = self.tip()?;
+                self.bekle_op("=", "değişkenin ilk değeri")?;
+                let deger = self.duz_ifade()?;
+                self.deyim_bitir()?;
+                Ok(Some(Deyim::Atama {
+                    hedef: ad,
+                    tip: Some(tip),
+                    deger,
+                    konum,
+                }))
+            }
             _ => Ok(None),
         }
+    }
+
+    /// `ad: tip = değer` satırı mı? (`:` sonrasında bir kelime ve satırda `=` var)
+    fn tip_bildirimi_mi(&self) -> bool {
+        if !matches!(self.bak_n(2), Tok::Kelime(_)) {
+            return false;
+        }
+        let mut i = self.poz + 2;
+        while !matches!(self.sozcukler[i].tok, Tok::YeniSatir | Tok::Son) {
+            if self.sozcukler[i].tok == Tok::Op("=") {
+                return true;
+            }
+            i += 1;
+        }
+        false
     }
 
     /// `ürün.fiyat = 12.5`, `ürün.stok += 1`, `ürün.etiketler[0] = "yeni"`
@@ -2457,6 +2501,7 @@ fn sablon_islevi(t: &Rc<Tanimlar>, s: Sablon) -> Sonuc<Islev> {
     }
     let mut govde = vec![Deyim::Atama {
         hedef: CIKTI.into(),
+        tip: None,
         deger: Ifade::yeni(IfadeTuru::Liste(Vec::new()), konum),
         konum,
     }];

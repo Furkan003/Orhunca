@@ -22,5 +22,5 @@ Ayarlar → **orhunca.derleyiciYolu** ile tam yolunu verin.
 ```sh
 npm install
 npx @vscode/vsce package
-code --install-extension orhunca-0.4.0.vsix
+code --install-extension orhunca-0.5.0.vsix
 ```

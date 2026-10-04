@@ -272,6 +272,8 @@ fn tanimlar(metin: &str) -> Vec<Tanim> {
         } else if girinti == 0 && govde.trim_end() == "arayüz:" {
             ekle(&mut cikti, "arayüz", "arayüz");
         } else if let Some((ad, _)) = govde.split_once('=') {
+            // `liste: liste<metin> = []` → liste
+            let ad = ad.split(':').next().unwrap_or(ad);
             let ad = ad.trim().trim_end_matches(['+', '-']).trim();
             let ilk = !cikti.iter().any(|t: &Tanim| t.ad == ad);
             if ilk

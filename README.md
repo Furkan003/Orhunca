@@ -128,6 +128,17 @@ Seçenekler bütün öğelerde kullanılabilir: `renk`, `arka`, `boyut`, `kalın
 
 ![Orhunca Stüdyo — arayüz uygulaması canlı önizlemede](docs/ekran/arayuz.png)
 
+## Öz-barındırma
+
+Derleyicinin parçaları Orhunca'ya taşınıyor: [öz/sözcük.ohc](öz/sözcük.ohc), derleyicinin sözcük
+çözümleyicisinin Orhunca ile yazılmış karşılığıdır ve onunla aynı sözcükleri, konumları ve hata
+mesajlarını üretir (`tests/oz.rs` bütün örneklerde karşılaştırır). Ayrıntılar ve sıradaki adımlar:
+[öz/BENİOKU.md](öz/BENİOKU.md).
+
+```sh
+orhunca çalıştır öz/sözcükle.ohc -- örnekler/merhaba.ohc
+```
+
 ## Orhunca Stüdyo
 
 ```sh
@@ -246,6 +257,7 @@ x = 10
 x += 1
 l[0] = 99
 "Toplam: " + x'i yaz.    # metin + sayı otomatik metne çevrilir
+isimler: liste<metin> = []    # tipi yazılmış tanım (boş liste ve sözlükler için)
 ```
 - `/` her zaman ondalık sonuç verir: `7 / 2` → `3.5`
 - `//` tam bölmedir, aşağı yuvarlar: `7 // 2` → `3`, `-7 // 2` → `-4`
@@ -343,7 +355,7 @@ sabit KDV_ORANI = 0.20           # her yerden (işlevlerden de) görülür
 | Alan | İşlevler |
 |---|---|
 | Dönüşüm | `uzunluk` `metin` `sayı` `ondalık` `yuvarla(x)` `yuvarla(x, 2)` `sayı_mı` `ondalık_mı` |
-| Metin | `büyük_harf` `küçük_harf` (Türkçe i/İ, ı/I) `kırp` `parça(m, baş, uzunluk)` `böl` `birleştir` `içerir` `bul` `değiştir` `başlar` `biter` `tekrarla` `harfler` `satırlar` `ters` · `m[i]` · `<` `>` Türk alfabesine göre |
+| Metin | `büyük_harf` `küçük_harf` (Türkçe i/İ, ı/I) `kırp` `parça(m, baş, uzunluk)` `böl` `birleştir` `içerir` `bul` `değiştir` `başlar` `biter` `tekrarla` `harfler` `satırlar` `ters` `kod` `karakter` · `m[i]` · `<` `>` Türk alfabesine göre |
 | Liste | `sil(l, sıra)` `içerir` `bul` `parça` `ters` `kopya` `karıştır` `en_büyük` `en_küçük` `toplam` |
 | Sözlük | `s[a]` `içerir` `sil` `anahtarlar` `değerler` `uzunluk` |
 | Dosya | `dosya_oku` `dosyaya_yaz` `dosyaya_ekle` `dosya_var` `dosya_sil` |

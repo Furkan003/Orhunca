@@ -2,7 +2,7 @@
 
 Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 
-## Durum (v0.4)
+## Durum (v0.5)
 
 | Aşama | İçerik | Durum |
 |---|---|---|
@@ -14,7 +14,7 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 | 5 | Standart kütüphane ✅, paket yöneticisi ✅ (Git tabanlı, kilit dosyalı) | ✅ |
 | 6 | Modeller ✅, JSON veri deposu ✅, web sunucusu ✅, `.ohchtml` görünümleri ✅, Stüdyo web şablonları ve canlı önizleme ✅ | ✅ |
 | 7 | Orhunca Stüdyo: arayüz ✅ (tarayıcıda, `orhunca stüdyo`), Tauri masaüstü uygulaması ✅ (`masaustu/`) | ✅ |
-| 8 | WebAssembly ✅ (`--hedef web`), Türkçe arayüz dili ✅, self-hosting ⏳ | ⏳ |
+| 8 | WebAssembly ✅ (`--hedef web`), Türkçe arayüz dili ✅, öz-barındırmanın ilk adımı ✅ (Orhunca ile sözcük çözümleyici) | ✅ |
 
 ## v0.2'de eklenenler
 
@@ -88,6 +88,15 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 - Yapılmayanlar: anahtarlı liste karşılaştırması (öğeler sıraya göre eşleşir), yerel (Tauri)
   pencerede paketleme, animasyonlar, gezinme (çok sayfalı arayüz).
 
+## Aşama 8c – Öz-barındırmanın ilk adımı
+
+- `öz/sözcük.ohc`: derleyicinin sözcük çözümleyicisinin Orhunca ile yazılmış karşılığı; bütün
+  örneklerde, şablonlarda ve hatalı girdilerde aynı sözcükleri, konumları ve hata mesajlarını
+  üretir (`tests/oz.rs`; yerel ve WebAssembly derlemesiyle).
+- Dile eklenenler: tipi yazılmış değişkenler (`çıktı: liste<Sözcük> = []`), `kod(m)` ve
+  `karakter(n)`.
+- Sıradaki adımlar `öz/BENİOKU.md`'de: ayrıştırıcı, tip denetçisi, WebAssembly kod üretimi.
+
 ## Henüz yapılmayanlar
 
 - **Çalışma zamanı C ile yazılı** (`runtime/orhunca_rt.c`). Bağlama zaten bir C araç zinciri
@@ -103,8 +112,10 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 
 ## Sıradaki adımlar (öneri sırası)
 
-1. **Aşama 8**: self-hosting ilk adımı (Orhunca ile yazılmış sözcük çözümleyici).
-2. Windows'ta bağlayıcı gereksinimini kaldırmak (MinGW yerine hazır bağlayıcı ve çalışma zamanı).
+1. Öz-barındırma: ayrıştırıcının Orhunca'ya taşınması (`öz/BENİOKU.md`).
+2. Hata yakalama (`dene / yakala`) ve numaralandırmalar (enum): öz-barındırmayı kolaylaştırır.
+3. Arayüz uygulamalarını yerel pencerede (Tauri) paketleme: `orhunca paketle`.
+4. Windows'ta bağlayıcı gereksinimini kaldırmak (MinGW yerine hazır bağlayıcı ve çalışma zamanı).
 
 ## Çalışma şekli
 

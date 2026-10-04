@@ -236,3 +236,15 @@ fn standart_kutuphane_hatalari() {
     assert!(!ok);
     assert!(hata.contains("kullanım: böl(metin, ayraç)"), "{hata}");
 }
+
+#[test]
+fn tipi_yazilmis_degiskenler_ve_karakter_kodlari() {
+    let (ok, cikti, hata) = calistir(
+        "isimler: liste<metin> = []\n\"Ayşe\"'yi isimler'e ekle.\nsayaç: sözlük<metin, sayı> = {}\nsayaç[\"a\"] = 2\nisimler'i yaz.\nsayaç'ı yaz.\nkod(\"ç\")'yi yaz.\nkarakter(kod(\"Ğ\") + 1)'i yaz.\noran: ondalık = 3\noran'ı yaz.\n",
+    );
+    assert!(ok, "{hata}");
+    assert_eq!(cikti, "[\"Ayşe\"]\n{\"a\": 2}\n231\nğ\n3.0\n");
+    let (ok, _, hata) = calistir("x: sayı = \"beş\"\n");
+    assert!(!ok);
+    assert!(hata.contains("'x' sayı olarak tanımlandı; değeri metin"), "{hata}");
+}

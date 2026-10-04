@@ -172,6 +172,8 @@ pub enum IfadeTuru {
 pub enum Deyim {
     Atama {
         hedef: String,
+        /// Tipi yazılmış tanım: `liste: liste<metin> = []`
+        tip: Option<Tip>,
         deger: Ifade,
         konum: Konum,
     },

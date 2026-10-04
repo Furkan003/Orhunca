@@ -273,6 +273,7 @@ pub fn uret(p: &Program) -> Result<Vec<u8>, String> {
         .iter()
         .map(|d| Deyim::Atama {
             hedef: d.ad.clone(),
+            tip: None,
             deger: d.deger.clone(),
             konum: d.konum,
         })
@@ -399,6 +400,7 @@ fn olay_islevi_kur(olay: &Olay, no: usize) -> Islev {
         .enumerate()
         .map(|(i, (ad, tip))| Deyim::Atama {
             hedef: ad.clone(),
+            tip: None,
             deger: Ifade {
                 tur: IfadeTuru::Indeks(
                     Box::new(Ifade {
@@ -1656,6 +1658,11 @@ impl Uretici<'_> {
                 self.cagri("ohc_tekrarla", &d)?
             }
             "harfler" => self.cagri("ohc_harfler", &d)?,
+            "kod" => self.cagri("ohc_kod", &d)?,
+            "karakter" => {
+                d.push(satir);
+                self.cagri("ohc_karakter", &d)?
+            }
             "satırlar" => self.cagri("ohc_satirlar", &d)?,
             "sayı_mı" => self.cagri("ohc_sayi_mi", &d)?,
             "ondalık_mı" => self.cagri("ohc_ondalik_mi", &d)?,

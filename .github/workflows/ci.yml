@@ -19,7 +19,7 @@ jobs:
           cargo run -- derle örnekler/asal.ohc --hedef windows -o asal.exe
           file asal.exe
       - name: Biçim denetimi (Orhunca örnekleri)
-        run: cargo run -- biçimlendir --denetle örnekler
+        run: cargo run -- biçimlendir --denetle örnekler öz
   wasm:
     # Çalışma zamanını kaynaktan WebAssembly'ye derler ve WebAssembly testlerini onunla çalıştırır
     # (depodaki runtime/wasm/orhunca_rt.wasm'ın kaynakla tutarlı olduğunu da gösterir).
@@ -34,7 +34,7 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y clang lld
           araclar/wasm_calisma_zamani.sh
-      - run: cargo test --test wasm
+      - run: cargo test --test wasm --test oz
       - run: cargo test --lib wasm_uretici
   vscode:
     runs-on: ubuntu-latest

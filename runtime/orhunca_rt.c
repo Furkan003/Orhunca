@@ -901,6 +901,24 @@ int64_t ohc_satirlar(int64_t m) {
     return l;
 }
 
+/* İlk karakterin Unicode kodu: kod("A") = 65, kod("ç") = 231; boş metinde 0. */
+int64_t ohc_kod(int64_t m) {
+    const char *s = M(m);
+    return *s ? (int64_t)u8_oku(&s) : 0;
+}
+
+/* Unicode kodundan tek karakterlik metin: karakter(231) = "ç". */
+int64_t ohc_karakter(int64_t n, int64_t satir) {
+    if (n <= 0 || n > 0x10FFFF || (n >= 0xD800 && n <= 0xDFFF)) {
+        char m[96];
+        snprintf(m, sizeof m, "%" PRId64 " geçerli bir karakter kodu değil", n);
+        hata(satir, m);
+    }
+    Tampon t = {0};
+    u8_yaz(&t, (uint32_t)n);
+    return t_metin(&t);
+}
+
 int64_t ohc_harfler(int64_t m) {
     int64_t l = ohc_liste_yeni();
     const char *s = M(m);
