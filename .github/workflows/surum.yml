@@ -157,7 +157,12 @@ jobs:
             cp komut/paket/orhunca.exe "masaustu/bin/orhunca-${{ matrix.uclu }}.exe"
           else
             cp komut/paket/orhunca "masaustu/bin/orhunca-${{ matrix.uclu }}"
-            chmod +x "masaustu/bin/orhunca-${{ matrix.uclu }}"
+            # Evrensel macOS derlemesi her mimari için de ayrı ad arar (aynı evrensel dosya)
+            if [ "${{ matrix.ad }}" = macos ]; then
+              cp komut/paket/orhunca masaustu/bin/orhunca-aarch64-apple-darwin
+              cp komut/paket/orhunca masaustu/bin/orhunca-x86_64-apple-darwin
+            fi
+            chmod +x masaustu/bin/orhunca-*
           fi
       - name: Kurulum dosyalarını oluştur
         working-directory: masaustu
