@@ -333,9 +333,10 @@
         <div class="islem vurgulu" data-e="git" data-a="yeni">${S('add')}<div class="esnek"><div class="islem-ust"><span class="islem-ad">Yeni proje oluştur</span><span class="islem-tus">Ctrl+⇧+N</span></div><div class="islem-alt">Konsol, web sitesi, API ya da kütüphane şablonu seçin</div></div></div>
         <div class="islem" data-e="klasorModal" data-a="ac">${S('folder_open')}<div class="esnek"><div class="islem-ad">Var olan projeyi aç</div><div class="islem-alt">Bir klasör veya .ohcproj dosyası seçin</div></div></div>
         <div class="islem" data-e="klonlaModal">${S('cloud_download')}<div class="esnek"><div class="islem-ad">Depodan klonla</div><div class="islem-alt">Git deposundan proje indirin</div></div></div>
-        <div class="islem" data-e="git" data-a="ogren">${S('school')}<div class="esnek"><div class="islem-ad">Orhunca'yı öğren</div><div class="islem-alt">Türkçe anahtar kelimeler rehberi</div></div></div>
+        <div class="islem" data-e="dersleriAc">${S('school')}<div class="esnek"><div class="islem-ad">Derslerle öğren</div><div class="islem-alt">13 ders, otomatik denetlenen alıştırmalar</div></div></div>
+        <div class="islem" data-e="git" data-a="ogren">${S('menu_book')}<div class="esnek"><div class="islem-ad">Başvuru rehberi</div><div class="islem-alt">Anahtar kelimeler, hâl ekleri, kütüphane</div></div></div>
         <div style="flex:1"></div>
-        <div class="guncelleme" data-e="guncellemeModal">${S('new_releases')}<div class="esnek"><div class="guncelleme-ad">Ekim 2026 güncellemesi</div><div class="guncelleme-alt">Modeller, web sunucusu, .ohchtml görünümleri ve canlı önizleme.</div></div>${S('chevron_right')}</div>
+        <div class="guncelleme" data-e="guncellemeModal">${S('new_releases')}<div class="esnek"><div class="guncelleme-ad">Orhunca 0.6</div><div class="guncelleme-alt">Dersler, hata ayıklayıcı, adım adım gösterim, açık tema ve masaüstü paketleme.</div></div>${S('chevron_right')}</div>
       </div>
     </div>`;
   }
@@ -491,6 +492,7 @@
       <h2>Hâl ekleri</h2>
       ${tablo(['Ek', 'Rolü', 'Örnek'], HAL_TABLOSU)}
       <div class="cagri-kart"><div class="esnek"><div class="cagri-ad">İlk programını yaz</div><div class="cagri-alt">Konsol Uygulaması şablonuyla başla, F5 ile çalıştır, sonucu terminalde anında gör.</div></div><div class="dugme birincil" data-e="ilkProgram">Başla</div></div>
+      <div class="cagri-kart"><div class="esnek"><div class="cagri-ad">Derslerle öğren</div><div class="cagri-alt">13 ders, otomatik denetlenen alıştırmalar: ilk programdan arayüz ve web uygulamalarına.</div></div><div class="dugme" data-e="dersleriAc">Derslere başla</div></div>
       <h2>Standart kütüphane</h2>
       ${tablo(['İşlev', 'Kullanım', 'Açıklama'], D.yerlesikler.map(y => [y.ad, y.kullanim, y.aciklama]), 'genis')}
     </div></div>`;
@@ -672,7 +674,7 @@
   }
 
   function cizEtkinlik() {
-    const ogeler = [['gezgin', 'description', 'Gezgin'], ['ara', 'search', 'Ara'], ['yapi', 'account_tree', 'Yapı'], ['calistir', 'play_circle', 'Çalıştır'], ['eklentiler', 'extension', 'Paketler']];
+    const ogeler = [['gezgin', 'description', 'Gezgin'], ['ara', 'search', 'Ara'], ['yapi', 'account_tree', 'Yapı'], ['calistir', 'play_circle', 'Çalıştır'], ['dersler', 'school', 'Dersler'], ['eklentiler', 'extension', 'Paketler']];
     $('#etkinlik').innerHTML = ogeler.map(([id, simge, ad]) => `<span class="simge ${D.yanPanel === id ? 'etkin' : ''}" title="${ad}" data-e="yanPanelSec" data-a="${id}">${simge}</span>`).join('')
       + `<div style="flex:1"></div><span class="simge" title="Başlangıç ekranı" data-e="baslangicaDon">home</span><span class="simge" title="Ayarlar" data-e="ayarlarModal">settings</span>`;
   }
@@ -687,6 +689,7 @@
 
   function cizYanPanel() {
     const kap = $('#yanPanel');
+    kap.classList.toggle('genis', D.yanPanel === 'dersler');
     const baslik = (ad, ek = '') => `<div class="panel-baslik"><span style="flex:1">${ad}</span>${ek}</div>`;
     if (D.yanPanel === 'gezgin') {
       const satirlar = gorunurAgac().map(g => {
@@ -716,6 +719,9 @@
       });
       kap.innerHTML = baslik('YAPI') + `<div class="panel-ic">${ogeler.map(([t, ad, n]) => `<div class="yapi-oge" data-e="satiraGit" data-a="${n}"><span class="tur">${t}</span><span class="${t === 'fiil' || t === 'işlev' ? 'f' : t === 'sabit' ? 't' : 's'}">${kac(ad)}</span><span class="satir-no">${n}</span></div>`).join('')
         || '<div class="panel-not">Bu dosyada işlev, fiil ya da sabit tanımı yok.</div>'}</div>`;
+    } else if (D.yanPanel === 'dersler') {
+      kap.innerHTML = baslik('DERSLER') + `<div class="panel-ic ders-panel">${dersPaneli()}</div>`;
+      kap.querySelectorAll('pre[data-orhunca]').forEach(p => { p.innerHTML = p.textContent.split('\n').map(x => vurgula(x, 'ohc')).join('\n'); });
     } else if (D.yanPanel === 'calistir') {
       const giris = girisDosyasi();
       kap.innerHTML = baslik('ÇALIŞTIR') + `<div class="panel-ic">
@@ -751,6 +757,67 @@
       return `<div class="sekme ${s.yol === D.etkin ? 'etkin' : ''}" data-e="sekmeSec" data-a="${kac(s.yol)}" title="${kac(s.yol)}"><span>${kac(sonParca(s.yol))}</span>${kirli ? `<span class="kirli" data-e="sekmeKapat" data-a="${kac(s.yol)}"></span>` : `<span class="simge kapat" data-e="sekmeKapat" data-a="${kac(s.yol)}">close</span>`}</div>`;
     }).join('');
     $('#kirinti').textContent = D.etkin ? [D.proje.ad, ...D.etkin.split('/')].join('  ›  ') : D.proje.ad;
+  }
+
+  // ---- Dersler: dersler.json (dersler/*.md'den üretilir), alıştırmalar ~/Orhunca/Dersler
+  // projesinde yapılır ve "Kontrol et" ile denetlenir.
+  let DERSLER = null;
+  async function dersleriYukle() {
+    if (!DERSLER) DERSLER = await fetch('dersler.json').then(r => r.json()).catch(() => []);
+    return DERSLER;
+  }
+  const dersTamam = () => ayarOku('derslerTamam', {});
+  function dersPaneli() {
+    if (!DERSLER) { dersleriYukle().then(() => cizYanPanel()); return '<div class="panel-not">Yükleniyor…</div>'; }
+    const tamam = dersTamam();
+    const d = DERSLER.find(x => x.kimlik === D.ders);
+    if (!d) {
+      return DERSLER.map(x => {
+        const bitti = x.gorevler.filter((_, i) => tamam[x.kimlik + '-' + (i + 1)]).length;
+        return `<div class="ders-oge" data-e="dersSec" data-a="${x.kimlik}"><span class="ders-no ${bitti === x.gorevler.length && bitti ? 'bitti' : ''}">${bitti === x.gorevler.length && bitti ? '✓' : x.sira}</span><span class="esnek"><b>${kac(x.baslik)}</b><span>${kac(x.ozet)}</span></span></div>`;
+      }).join('');
+    }
+    const gorevler = d.gorevler.map((g, i) => {
+      const k = d.kimlik + '-' + (i + 1), sonuc = D.dersSonuc?.[k];
+      return `<div class="ders-gorev ${tamam[k] ? 'tamam' : ''}"><div class="ders-gorev-baslik">${tamam[k] ? S('check_circle') : S('task_alt')}<b>${kac(g.baslik)}</b></div>${g.aciklama}
+        ${g.girdi ? `<div class="ders-kutu"><span>Girdi</span><pre>${kac(g.girdi)}</pre></div>` : ''}
+        ${g.cikti != null ? `<div class="ders-kutu"><span>Beklenen çıktı</span><pre>${kac(g.cikti)}</pre></div>` : ''}
+        <div class="ders-dugmeler"><div class="panel-dugme birincil" data-e="gorevBasla" data-a="${i}">${S('edit')}Başla</div><div class="panel-dugme" data-e="gorevDenetle" data-a="${i}">${S('check')}Kontrol et</div></div>
+        ${sonuc ? `<div class="ders-sonuc ${sonuc.basarili ? 'iyi' : 'kotu'}">${kac(sonuc.mesaj)}${sonuc.cikti != null ? `<pre>${kac(sonuc.cikti)}</pre>` : ''}</div>` : ''}
+        <details><summary>Çözümü göster</summary><pre data-orhunca>${kac(g.cozum)}</pre></details></div>`;
+    }).join('');
+    const sira = DERSLER.indexOf(d);
+    return `<div class="ders-ust"><span data-e="dersSec" data-a="">${S('arrow_back')} Dersler</span>${DERSLER[sira + 1] ? `<span data-e="dersSec" data-a="${DERSLER[sira + 1].kimlik}">Sonraki ${S('arrow_forward')}</span>` : ''}</div>
+      <div class="ders-baslik"><small>Ders ${d.sira}</small>${kac(d.baslik)}</div><div class="ders-icerik">${d.html}</div>
+      <div class="ders-alt-baslik">ALIŞTIRMALAR</div>${gorevler}`;
+  }
+  async function gorevBasla(i) {
+    const d = DERSLER.find(x => x.kimlik === D.ders), g = d.gorevler[i];
+    const r = await api('/api/ders/hazirla', { dosya: `${d.kimlik}-${i + 1}`, baslangic: g.baslangic }).catch(e => ({ hata: e.message }));
+    if (r.hata) { bildir(r.hata, true); return; }
+    if (D.proje?.yol !== r.proje.yol) await projeyiAc(r.proje);
+    D.yanPanel = 'dersler';
+    await dosyaAc(r.dosya);
+    if (g.girdi) bildir('Bu alıştırma girdi okur: çalıştırınca terminale yazın ya da "Kontrol et" ile hazır girdiyle denetleyin.');
+    guncelle('yan', 'etkinlik');
+  }
+  async function gorevDenetle(i) {
+    const d = DERSLER.find(x => x.kimlik === D.ders), g = d.gorevler[i], k = `${d.kimlik}-${i + 1}`;
+    if (!D.proje || !D.sekmeler.some(s => s.yol === k + '.ohc')) { await gorevBasla(i); return; }
+    await tumunuKaydet();
+    const r = await api('/api/ders/denetle', { dosya: tamYol(k + '.ohc'), girdi: g.girdi || '', beklenen: g.cikti }).catch(e => ({ hata: e.message }));
+    D.dersSonuc = D.dersSonuc || {};
+    if (r.basarili) {
+      const t = dersTamam(); t[k] = true; ayarYaz('derslerTamam', t);
+      D.dersSonuc[k] = { basarili: true, mesaj: 'Tebrikler! Alıştırma doğru. 🎉' };
+    } else if (r.derleme_hatasi) {
+      D.dersSonuc[k] = { basarili: false, mesaj: 'Program derlenmedi:', cikti: r.derleme_hatasi };
+    } else if (r.hata && r.cikti == null) {
+      D.dersSonuc[k] = { basarili: false, mesaj: r.hata };
+    } else {
+      D.dersSonuc[k] = { basarili: false, mesaj: 'Çıktı beklenenden farklı. Programın çıktısı:', cikti: (r.cikti || '') + (r.hata || '') };
+    }
+    cizYanPanel();
   }
 
   /** Hata ayıklama: araç çubuğu, değişkenler, çağrı yığını, kesme noktaları */
@@ -1777,6 +1844,18 @@
     derleWindows() { derle('windows'); },
     derleWeb() { derle('web'); },
     ayikla() { calistir(true); },
+    dersSec(k) { D.ders = k || null; cizYanPanel(); $('#yanPanel .panel-ic')?.scrollTo(0, 0); },
+    gorevBasla(i) { gorevBasla(+i); },
+    gorevDenetle(i) { gorevDenetle(+i); },
+    async dersleriAc() {
+      await dersleriYukle();
+      const r = await api('/api/ders/hazirla', { dosya: '00-deneme', baslangic: '# Deneme sayfası: istediğinizi yazın, F5 ile çalıştırın.\n"Merhaba!"\'yı yaz.\n' }).catch(e => ({ hata: e.message }));
+      if (r.hata) { bildir(r.hata, true); return; }
+      await projeyiAc(r.proje);
+      await dosyaAc(r.dosya);
+      D.yanPanel = 'dersler'; D.ders = null;
+      guncelle('yan', 'etkinlik');
+    },
     yavasCalistir() { yavasCalistir(); },
     yavasDegistir() {
       const c = D.calisma;

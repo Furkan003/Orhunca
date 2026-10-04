@@ -1,0 +1,13 @@
+# Bir metindeki kelimeleri sayar.
+yazı = "bir berber bir berbere bre berber gel beraber bir berber dükkanı açalım demiş"
+kelimeler = böl(yazı, " ")
+sayılar: sözlük<metin, sayı> = {}
+her k için kelimeler'den:
+    eğer içerir(sayılar, k) ise:
+        sayılar[k] += 1
+    değilse:
+        sayılar[k] = 1
+
+("Kelime sayısı: " + uzunluk(kelimeler))'i yaz.
+("\"bir\" sayısı: " + sayılar["bir"])'i yaz.
+("\"berber\" sayısı: " + sayılar["berber"])'i yaz.

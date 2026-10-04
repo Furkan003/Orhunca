@@ -624,3 +624,40 @@ h1, h2 { margin: 0; }
 .ay-yavas { white-space: nowrap; display: flex; align-items: center; gap: 8px; margin: 2px 0 4px; padding: 6px 8px; border-radius: 8px; background: var(--vurgu-10); color: var(--yazi2); font-size: 12.5px; }
 .ay-yavas .simge { font-size: 20px; cursor: pointer; color: var(--vurgu); }
 .ay-yavas select { margin-left: auto; background: var(--girdi); border: 1px solid var(--girdi-kenar); border-radius: 6px; color: var(--yazi); font-size: 12px; padding: 2px 4px; }
+/* Dersler paneli */
+.yan-panel.genis { width: clamp(300px, 30vw, 440px); }
+.ders-panel { font-size: 13px; }
+.ders-oge { display: flex; gap: 10px; align-items: flex-start; padding: 8px; margin: 0 -8px; border-radius: 8px; cursor: pointer; }
+.ders-oge:hover { background: var(--hover); }
+.ders-oge b { display: block; font-weight: 600; color: var(--yazi); }
+.ders-oge span span { display: block; color: var(--soluk3); font-size: 12px; line-height: 1.4; }
+.ders-no { flex-shrink: 0; width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; background: var(--vurgu-12); color: var(--vurgu); font: 600 12px var(--mono); }
+.ders-no.bitti { background: var(--vurgu); color: var(--vurgu-koyu); }
+.ders-ust { display: flex; justify-content: space-between; margin-bottom: 8px; }
+.ders-ust span { display: inline-flex; align-items: center; gap: 4px; color: var(--soluk); cursor: pointer; font-size: 12.5px; }
+.ders-ust span:hover { color: var(--yazi); }
+.ders-ust .simge { font-size: 15px; }
+.ders-baslik { font-size: 18px; font-weight: 600; margin-bottom: 6px; color: var(--yazi); }
+.ders-baslik small { display: block; font-size: 11px; color: var(--vurgu); letter-spacing: 0.06em; text-transform: uppercase; }
+.ders-icerik p, .ders-gorev p { color: var(--yazi2); line-height: 1.55; margin: 8px 0; }
+.ders-icerik code, .ders-gorev p code { font-family: var(--mono); font-size: 12px; background: var(--girdi); padding: 0 4px; border-radius: 4px; }
+.ders-icerik h2 { font-size: 14px; margin: 16px 0 6px; }
+.ders-icerik ul { padding-left: 18px; color: var(--yazi2); }
+.ders-panel pre { margin: 6px 0; padding: 8px 10px; background: var(--koyu); border: 1px solid var(--cizgi); border-radius: 7px; font: 12px/1.6 var(--mono); overflow-x: auto; white-space: pre; font-variant-ligatures: none; }
+.ders-kod { position: relative; }
+.ders-cikti, .ders-kutu { margin: -2px 0 8px; }
+.ders-cikti span, .ders-kutu span { display: block; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--soluk4); }
+.ders-cikti pre, .ders-kutu pre { color: var(--soluk); margin-top: 2px; }
+.ders-cikti.girdi pre { color: var(--sari); }
+.ders-alt-baslik { margin: 18px 0 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; color: var(--soluk3); }
+.ders-gorev { border: 1px solid var(--kart-kenar); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; background: var(--kart); }
+.ders-gorev.tamam { border-color: var(--vurgu-45); }
+.ders-gorev-baslik { display: flex; align-items: center; gap: 6px; font-size: 13.5px; }
+.ders-gorev-baslik .simge { color: var(--vurgu); font-size: 18px; }
+.ders-dugmeler { display: flex; gap: 6px; margin: 8px 0; }
+.ders-dugmeler .panel-dugme { flex: 1; justify-content: center; }
+.ders-sonuc { padding: 8px 10px; border-radius: 7px; margin: 6px 0; font-size: 12.5px; }
+.ders-sonuc.iyi { background: var(--vurgu-12); color: var(--vurgu); }
+.ders-sonuc.kotu { background: oklch(0.65 0.16 25 / 0.12); color: var(--hata); }
+.ders-sonuc pre { color: var(--yazi2); }
+.ders-gorev summary { cursor: pointer; color: var(--soluk); font-size: 12.5px; margin-top: 4px; }

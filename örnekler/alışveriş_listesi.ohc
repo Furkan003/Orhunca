@@ -1,0 +1,14 @@
+# Alışveriş listesi: ürünler, fiyatlar ve toplam tutar.
+fiyatlar = {"ekmek": 15, "süt": 32.5, "yumurta": 60, "elma": 25}
+sepet = ["ekmek", "süt", "elma", "elma"]
+
+tutar = 0.0
+her ürün için sepet'ten:
+    (ürün + ": " + fiyatlar[ürün] + " TL")'yi yaz.
+    tutar += fiyatlar[ürün]
+
+("Toplam: " + tutar + " TL")'yi yaz.
+eğer tutar 100'den büyükse:
+    "Bütçe aşıldı!"'yı yaz.
+değilse:
+    "Bütçe yeterli."'yi yaz.

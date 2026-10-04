@@ -21,6 +21,8 @@ jobs:
           file asal.exe
       - name: Biçim denetimi (Orhunca örnekleri)
         run: cargo run -- biçimlendir --denetle örnekler öz runtime/ön_kütüphane.ohc
+      - name: Stüdyo ders verisi güncel (dersler/*.md → studio/dersler.json)
+        run: python3 araclar/dersler.py --studyo && git diff --exit-code studio/dersler.json
   wasm:
     # Çalışma zamanını kaynaktan WebAssembly'ye derler ve WebAssembly testlerini onunla çalıştırır
     # (depodaki runtime/wasm/orhunca_rt.wasm'ın kaynakla tutarlı olduğunu da gösterir).

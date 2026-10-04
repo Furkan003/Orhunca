@@ -1,0 +1,28 @@
+# Sınıfın not ortalaması, en yüksek not ve harf notları.
+model Öğrenci:
+    ad: metin
+    not: sayı
+
+işlev harf_notu(n) -> metin:
+    eğer n 85'ten büyükse:
+        döndür "A"
+    değilse eğer n 70'ten büyükse:
+        döndür "B"
+    değilse eğer n 50'den büyükse:
+        döndür "C"
+    döndür "F"
+
+sınıf = [
+    Öğrenci(ad: "Ayşe", not: 92),
+    Öğrenci(ad: "Mehmet", not: 74),
+    Öğrenci(ad: "Elif", not: 88),
+    Öğrenci(ad: "Can", not: 45),
+]
+notlar: liste<sayı> = []
+her ö için sınıf'tan:
+    ö.not'u notlara ekle.
+    (ö.ad + ": " + ö.not + " (" + harf_notu(ö.not) + ")")'yi yaz.
+
+ortalama = toplam(notlar) / uzunluk(notlar)
+("Ortalama: " + ortalama)'yı yaz.
+("En yüksek: " + en_büyük(notlar))'i yaz.

@@ -1,0 +1,11 @@
+# Birim çevirici: sıcaklık ve uzunluk.
+işlev fahrenhayta(c):
+    döndür c * 9 / 5 + 32
+
+işlev mile(km):
+    döndür km / 1.609
+
+her c için [0, 25, 100]'den:
+    (c + " °C = " + fahrenhayta(c) + " °F")'yi yaz.
+
+("42 km = " + yuvarla(mile(42), 2) + " mil")'i yaz.

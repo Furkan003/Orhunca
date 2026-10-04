@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Mutex, OnceLock};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 /// Dosya işlemlerine izin verilen klasörler: bu oturumda açılan ya da oluşturulan projeler.
 fn izinli_kokler() -> &'static Mutex<Vec<PathBuf>> {
@@ -63,6 +63,8 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
         ("GET", "/api/sablonlar") => sablon_listesi(),
         ("GET", "/api/yerlesikler") => yerlesikler(),
         ("GET", "/api/ekler") => ek_onerileri(istek.sorgu("ifade")),
+        ("POST", "/api/ders/hazirla") => ders_hazirla(&g),
+        ("POST", "/api/ders/denetle") => ders_denetle(&g),
         ("GET", "/api/klasor") => klasor(istek.sorgu("yol")),
         ("GET", "/api/dosya") => dosya_oku(istek.sorgu("yol")),
         ("GET", "/api/agac") => agac(istek.sorgu("kok")),
@@ -201,6 +203,125 @@ fn yerlesikler() -> Yanit {
         .map(|y| json!({ "ad": y.ad, "kullanim": y.kullanim, "aciklama": y.aciklama }))
         .collect();
     Yanit::json(&json!({ "yerlesikler": liste }))
+}
+
+/// Dersler projesi (`~/Orhunca/Dersler`): alıştırmanın dosyası yoksa başlangıç koduyla
+/// oluşturulur; proje bilgisi ve dosyanın göreli yolu döner.
+fn ders_hazirla(g: &Value) -> Yanit {
+    let kok = depo::ev_klasoru().join("Orhunca").join("Dersler");
+    if let Err(e) = std::fs::create_dir_all(&kok) {
+        return hata(format!("Dersler klasörü oluşturulamadı: {e}"));
+    }
+    let proje = kok.join("dersler.ohcproj");
+    if !proje.exists() {
+        let _ = std::fs::write(
+            &proje,
+            "# Orhunca dersleri: alıştırma dosyaları\nad = \"dersler\"\nsürüm = \"1.0.0\"\n",
+        );
+    }
+    let ad: String = metin(g, "dosya")
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
+        .collect();
+    if ad.is_empty() {
+        return hata("dosya adı gerekli");
+    }
+    let dosya = kok.join(format!("{ad}.ohc"));
+    if !dosya.exists() {
+        if let Err(e) = std::fs::write(&dosya, metin(g, "baslangic")) {
+            return hata(format!("alıştırma dosyası yazılamadı: {e}"));
+        }
+    }
+    koke_izin_ver(&kok);
+    Yanit::json(&json!({ "proje": proje_bilgisi(&kok), "dosya": format!("{ad}.ohc") }))
+}
+
+/// Alıştırmayı denetler: program verilen girdiyle çalıştırılır ve çıktısı beklenenle
+/// karşılaştırılır (beklenen yoksa yalnızca derlenebilmesi yeterlidir).
+fn ders_denetle(g: &Value) -> Yanit {
+    let dosya = PathBuf::from(metin(g, "dosya"));
+    if !izinli_mi(&dosya) {
+        return Yanit::hata(403, "bu dosyaya erişim yok");
+    }
+    let beklenen = g["beklenen"].as_str();
+    let Some(beklenen) = beklenen else {
+        return match derleme::yukle(&dosya) {
+            Ok(_) => Yanit::json(&json!({ "basarili": true })),
+            Err(h) => Yanit::json(&json!({ "basarili": false, "derleme_hatasi": h.metin })),
+        };
+    };
+    let gecici = match derleme::gecici_klasor("ders") {
+        Ok(k) => k,
+        Err(e) => return hata(e),
+    };
+    let program = gecici.join(if cfg!(windows) { "p.exe" } else { "p" });
+    if let Err(h) = derleme::derle(&dosya, &program, None) {
+        let _ = std::fs::remove_dir_all(&gecici);
+        return Yanit::json(&json!({ "basarili": false, "derleme_hatasi": h.metin }));
+    }
+    let sonuc = sinirli_calistir(
+        &program,
+        &gecici,
+        metin(g, "girdi"),
+        Duration::from_secs(10),
+    );
+    let _ = std::fs::remove_dir_all(&gecici);
+    match sonuc {
+        Ok((cikti, hata_ciktisi)) => {
+            let duz = |m: &str| m.replace("\r\n", "\n").trim_end().to_string();
+            Yanit::json(&json!({
+                "basarili": duz(&cikti) == duz(beklenen) && hata_ciktisi.is_empty(),
+                "cikti": cikti,
+                "hata": hata_ciktisi,
+            }))
+        }
+        Err(e) => Yanit::json(&json!({ "basarili": false, "hata": e })),
+    }
+}
+
+/// Programı girdiyle çalıştırır; süre aşılırsa durdurur.
+fn sinirli_calistir(
+    program: &Path,
+    klasor: &Path,
+    girdi: &str,
+    sure: Duration,
+) -> Result<(String, String), String> {
+    use std::io::{Read, Write};
+    let mut c = Command::new(program)
+        .current_dir(klasor)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("program başlatılamadı: {e}"))?;
+    if let Some(mut s) = c.stdin.take() {
+        let _ = s.write_all(girdi.as_bytes());
+    }
+    let mut cikis = c.stdout.take().unwrap();
+    let mut hatalar = c.stderr.take().unwrap();
+    let o1 = std::thread::spawn(move || {
+        let mut s = String::new();
+        let _ = cikis.read_to_string(&mut s);
+        s
+    });
+    let o2 = std::thread::spawn(move || {
+        let mut s = String::new();
+        let _ = hatalar.read_to_string(&mut s);
+        s
+    });
+    let bas = Instant::now();
+    loop {
+        match c.try_wait() {
+            Ok(Some(_)) => break,
+            Ok(None) if bas.elapsed() < sure => std::thread::sleep(Duration::from_millis(20)),
+            _ => {
+                let _ = c.kill();
+                let _ = c.wait();
+                return Err("program 10 saniyede bitmedi (sonsuz döngü olabilir)".into());
+            }
+        }
+    }
+    Ok((o1.join().unwrap_or_default(), o2.join().unwrap_or_default()))
 }
 
 /// Düzenleyicide `'` yazılınca: ifadenin her hâldeki doğru eki (ünlü uyumuyla).

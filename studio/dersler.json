@@ -1,0 +1,247 @@
+[
+ {
+  "kimlik": "01-ilk-program",
+  "sira": 1,
+  "baslik": "İlk program",
+  "ozet": "Ekrana yazı yazdırmak, metinler ve yorumlar.",
+  "html": "<p>Bilgisayara ne yapacağını Türkçe cümlelerle söyleriz. Ekrana bir şey yazdırmak için önce yazdırılacak değeri, sonra <b>yaz</b> fiilini yazarız; cümle nokta ile biter:</p>\n<div class=\"ders-kod\"><pre data-orhunca>&quot;Merhaba, dünya!&quot;&#x27;yı yaz.</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>Merhaba, dünya!</pre></div>\n<p>Tırnak içindeki yazılara <b>metin</b> denir. Metinden sonra gelen ek (<code>&#x27;yı</code>) Türkçede olduğu gibi kesme işaretiyle ayrılır. Ek, kelimenin son hecesine uyar: <code>&quot;dünya&quot;&#x27;yı</code>, <code>&quot;Ali&quot;&#x27;yi</code>, <code>&quot;okul&quot;&#x27;u</code>, <code>&quot;gül&quot;&#x27;ü</code>. Yanlış ek yazarsanız program yine çalışır; Stüdyo doğrusunu önerir.</p>\n<p>Her satır sırayla çalışır. <code>#</code> ile başlayan satırlar <b>yorumdur</b>; bilgisayar onları okumaz, kodu okuyan insanlar için yazılır:</p>\n<div class=\"ders-kod\"><pre data-orhunca># Benim ilk programım\n&quot;Merhaba!&quot;&#x27;yı yaz.\n&quot;Orhunca öğreniyorum.&quot;&#x27;u yaz.</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>Merhaba!\nOrhunca öğreniyorum.</pre></div>\n<p>Metinleri <code>+</code> ile birleştirebilirsiniz. Birleştirilmiş bir ifadeyi yazdırırken parantez kullanın; ek parantezin tamamına aittir:</p>\n<div class=\"ders-kod\"><pre data-orhunca>(&quot;Orhunca&quot; + &quot; &quot; + &quot;Stüdyo&quot;)&#x27;yu yaz.</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>Orhunca Stüdyo</pre></div>",
+  "gorevler": [
+   {
+    "baslik": "Kendini tanıt",
+    "aciklama": "<p>Ekrana iki satır yazdıran bir program yazın: önce <code>Merhaba, ben Orhunca.</code>, sonra <code>Programlamayı seviyorum.</code></p>",
+    "baslangic": "# İlk satırı yazdırın, sonra ikinciyi\n",
+    "girdi": "",
+    "cikti": "Merhaba, ben Orhunca.\nProgramlamayı seviyorum.\n",
+    "cozum": "\"Merhaba, ben Orhunca.\"'yı yaz.\n\"Programlamayı seviyorum.\"'u yaz.\n"
+   }
+  ]
+ },
+ {
+  "kimlik": "02-degiskenler",
+  "sira": 2,
+  "baslik": "Değişkenler ve sayılar",
+  "ozet": "Değerleri isimlendirmek, aritmetik işlemler, sayı ve ondalık.",
+  "html": "<p><b>Değişken</b>, bir değere verdiğimiz isimdir. <code>=</code> ile atanır; sonra ismiyle kullanılır:</p>\n<div class=\"ders-kod\"><pre data-orhunca>yaş = 14\nad = &quot;Zeynep&quot;\n(ad + &quot; &quot; + yaş + &quot; yaşında.&quot;)&#x27;yı yaz.</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>Zeynep 14 yaşında.</pre></div>\n<p>Metne bir sayı eklendiğinde sayı kendiliğinden metne çevrilir.</p>\n<p>Sayılarla dört işlem yapılır: <code>+</code> toplama, <code>-</code> çıkarma, <code>*</code> çarpma, <code>/</code> bölme. Ayrıca <code>//</code> tam bölme (küsuratı atar), <code>%</code> bölümden kalanı verir:</p>\n<div class=\"ders-kod\"><pre data-orhunca>a = 17\nb = 5\n(a + b)&#x27;yi yaz.\n(a * b)&#x27;yi yaz.\n(a / b)&#x27;yi yaz.\n(a // b)&#x27;yi yaz.\n(a % b)&#x27;yi yaz.</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>22\n85\n3.4\n3\n2</pre></div>\n<p><code>3.4</code> gibi virgüllü sayılara <b>ondalık</b> denir; Orhunca&#x27;da ondalık ayıracı noktadır.</p>\n<p>Bir değişkenin değeri değiştirilebilir. <code>+=</code> ve <code>-=</code> kısaltmadır: <code>puan += 10</code>, <code>puan = puan + 10</code> demektir:</p>\n<div class=\"ders-kod\"><pre data-orhunca>puan = 50\npuan += 10\npuan -= 5\n(&quot;Puan: &quot; + puan)&#x27;ı yaz.</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>Puan: 55</pre></div>",
+  "gorevler": [
+   {
+    "baslik": "Dikdörtgen",
+    "aciklama": "<p>Kenarları <code>uzun = 8</code> ve <code>kısa = 3</code> olan dikdörtgenin alanını ve çevresini yazdırın.</p>",
+    "baslangic": "uzun = 8\nkısa = 3\n# alan = ...\n# çevre = ...\n",
+    "girdi": "",
+    "cikti": "Alan: 24\nÇevre: 22\n",
+    "cozum": "uzun = 8\nkısa = 3\nalan = uzun * kısa\nçevre = 2 * (uzun + kısa)\n(\"Alan: \" + alan)'ı yaz.\n(\"Çevre: \" + çevre)'yi yaz.\n"
+   }
+  ]
+ },
+ {
+  "kimlik": "03-girdi",
+  "sira": 3,
+  "baslik": "Kullanıcıdan girdi",
+  "ozet": "oku() ile klavyeden satır okumak, metni sayıya çevirmek.",
+  "html": "<p><code>oku()</code> kullanıcının yazdığı bir satırı metin olarak verir:</p>\n<div class=\"ders-kod\"><pre data-orhunca>&quot;Adın ne?&quot;&#x27;yi yaz.\nad = oku()\n(&quot;Merhaba, &quot; + ad + &quot;!&quot;)&#x27;yı yaz.</pre></div>\n<div class=\"ders-cikti girdi\"><span>Girdi</span><pre>Ali</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>Adın ne?\nMerhaba, Ali!</pre></div>\n<p>Stüdyo&#x27;da program girdi beklerken terminale yazıp Enter&#x27;a basın. Tarayıcıda deneme sayfasında girdiler &quot;Program girdisi&quot; kutusuna önceden yazılır.</p>\n<p>Okunan her şey metindir. Hesap yapmak için <code>sayı(...)</code> ile sayıya çevirin (virgüllü sayılar için <code>ondalık(...)</code>):</p>\n<div class=\"ders-kod\"><pre data-orhunca>&quot;Doğum yılın?&quot;&#x27;nı yaz.\nyıl = sayı(oku())\n(&quot;2030 yılında &quot; + (2030 - yıl) + &quot; yaşında olacaksın.&quot;)&#x27;ı yaz.</pre></div>\n<div class=\"ders-cikti girdi\"><span>Girdi</span><pre>2012</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>Doğum yılın?\n2030 yılında 18 yaşında olacaksın.</pre></div>",
+  "gorevler": [
+   {
+    "baslik": "Toplama makinesi",
+    "aciklama": "<p>Kullanıcıdan iki sayı okuyun ve toplamlarını <code>Toplam: ...</code> biçiminde yazdırın.</p>",
+    "baslangic": "birinci = sayı(oku())\n# ikinci sayıyı okuyun ve toplamı yazdırın\n",
+    "girdi": "12\n30\n",
+    "cikti": "Toplam: 42\n",
+    "cozum": "birinci = sayı(oku())\nikinci = sayı(oku())\n(\"Toplam: \" + (birinci + ikinci))'yı yaz.\n"
+   }
+  ]
+ },
+ {
+  "kimlik": "04-kosullar",
+  "sira": 4,
+  "baslik": "Koşullar",
+  "ozet": "eğer, değilse eğer, değilse; karşılaştırmalar ve mantık.",
+  "html": "<p>Program bir koşula göre farklı şeyler yapabilir. <code>eğer</code> satırı <code>:</code> ile biter; koşul doğruysa altındaki <b>içeri girintili</b> satırlar çalışır (girinti 4 boşluktur):</p>\n<div class=\"ders-kod\"><pre data-orhunca>puan = 72\neğer puan 50&#x27;den büyükse:\n    &quot;Geçti&quot;&#x27;yi yaz.\ndeğilse:\n    &quot;Kaldı&quot;&#x27;yı yaz.</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>Geçti</pre></div>\n<p>Karşılaştırmalar Türkçe yazılabilir: <code>x 5&#x27;ten büyükse</code>, <code>x 5&#x27;ten küçükse</code>, <code>x 5&#x27;e eşitse</code>, <code>x 5&#x27;e eşit değilse</code>, <code>x 5&#x27;ten büyük veya eşitse</code>. Simgelerle de yazılabilir: <code>eğer x &gt; 5 ise:</code> — simgeler <code>==</code>, <code>!=</code>, <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code>.</p>\n<p>Birden çok durum için <code>değilse eğer</code> kullanılır:</p>\n<div class=\"ders-kod\"><pre data-orhunca>sıcaklık = 18\neğer sıcaklık 25&#x27;ten büyükse:\n    &quot;Sıcak&quot;&#x27;ı yaz.\ndeğilse eğer sıcaklık 10&#x27;dan büyükse:\n    &quot;Ilık&quot;&#x27;ı yaz.\ndeğilse:\n    &quot;Soğuk&quot;&#x27;u yaz.</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>Ilık</pre></div>\n<p>Koşullar <code>ve</code>, <code>veya</code>, <code>değil</code> ile birleşir:</p>\n<div class=\"ders-kod\"><pre data-orhunca>yaş = 15\nbilet_var = doğru\neğer yaş &gt;= 12 ve bilet_var ise:\n    &quot;Girebilirsin.&quot;&#x27;i yaz.</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>Girebilirsin.</pre></div>",
+  "gorevler": [
+   {
+    "baslik": "Tek mi çift mi?",
+    "aciklama": "<p>Okunan sayı çiftse <code>çift</code>, tekse <code>tek</code> yazdırın. İpucu: çift sayıların 2&#x27;ye bölümünden kalan 0&#x27;dır (<code>n % 2</code>).</p>",
+    "baslangic": "n = sayı(oku())\n",
+    "girdi": "7\n",
+    "cikti": "tek\n",
+    "cozum": "n = sayı(oku())\neğer n % 2 == 0 ise:\n    \"çift\"'i yaz.\ndeğilse:\n    \"tek\"'i yaz.\n"
+   },
+   {
+    "baslik": "Not harfi",
+    "aciklama": "<p>Okunan notu harfe çevirin: 85 ve üstü <code>A</code>, 70 ve üstü <code>B</code>, 50 ve üstü <code>C</code>, altı <code>F</code>.</p>",
+    "baslangic": "puan = sayı(oku())\n",
+    "girdi": "78\n",
+    "cikti": "B\n",
+    "cozum": "puan = sayı(oku())\neğer puan >= 85 ise:\n    \"A\"'yı yaz.\ndeğilse eğer puan >= 70 ise:\n    \"B\"'yi yaz.\ndeğilse eğer puan >= 50 ise:\n    \"C\"'yi yaz.\ndeğilse:\n    \"F\"'yi yaz.\n"
+   }
+  ]
+ },
+ {
+  "kimlik": "05-donguler",
+  "sira": 5,
+  "baslik": "Döngüler",
+  "ozet": "Bir işi tekrar tekrar yapmak: her ... için, ... iken, dur ve sürdür.",
+  "html": "<p>Bir sayı aralığında dönmek için <code>her ... için ...&#x27;den ...&#x27;e kadar:</code> yazılır; iki uç da dahildir:</p>\n<div class=\"ders-kod\"><pre data-orhunca>her i için 1&#x27;den 5&#x27;e kadar:\n    (i + &quot;. tekrar&quot;)&#x27;ı yaz.</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>1. tekrar\n2. tekrar\n3. tekrar\n4. tekrar\n5. tekrar</pre></div>\n<p>Bir koşul doğru olduğu sürece dönmek için <code>...iken:</code> ya da <code>... olduğu sürece:</code> yazılır:</p>\n<div class=\"ders-kod\"><pre data-orhunca>para = 100\ngün = 0\npara 0&#x27;dan büyükken:\n    para -= 30\n    gün += 1\n(gün + &quot; günde para bitti.&quot;)&#x27;yi yaz.</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>4 günde para bitti.</pre></div>\n<p><code>dur</code> döngüden hemen çıkar, <code>sürdür</code> döngünün sonraki adımına geçer:</p>\n<div class=\"ders-kod\"><pre data-orhunca>her n için 1&#x27;den 10&#x27;a kadar:\n    eğer n % 2 == 0 ise:\n        sürdür\n    eğer n 7&#x27;den büyükse:\n        dur\n    n&#x27;yi yaz.</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>1\n3\n5\n7</pre></div>",
+  "gorevler": [
+   {
+    "baslik": "Çarpım tablosu",
+    "aciklama": "<p>Okunan sayının 1&#x27;den 5&#x27;e kadar çarpım tablosunu <code>3 x 1 = 3</code> biçiminde yazdırın.</p>",
+    "baslangic": "n = sayı(oku())\n",
+    "girdi": "3\n",
+    "cikti": "3 x 1 = 3\n3 x 2 = 6\n3 x 3 = 9\n3 x 4 = 12\n3 x 5 = 15\n",
+    "cozum": "n = sayı(oku())\nher i için 1'den 5'e kadar:\n    (n + \" x \" + i + \" = \" + (n * i))'yi yaz.\n"
+   },
+   {
+    "baslik": "1'den 100'e toplam",
+    "aciklama": "<p>1&#x27;den 100&#x27;e kadar olan sayıların toplamını bir döngüyle hesaplayıp yazdırın.</p>",
+    "baslangic": "toplam = 0\n",
+    "girdi": "",
+    "cikti": "5050\n",
+    "cozum": "toplam = 0\nher i için 1'den 100'e kadar:\n    toplam += i\ntoplam'ı yaz.\n"
+   }
+  ]
+ },
+ {
+  "kimlik": "06-listeler",
+  "sira": 6,
+  "baslik": "Listeler",
+  "ozet": "Birçok değeri bir arada tutmak: ekleme, sıra numarası, gezme, sıralama.",
+  "html": "<p>Liste köşeli parantezle yazılır. Öğelere <b>sıra numarasıyla</b> ulaşılır; ilk öğe 0&#x27;dır:</p>\n<div class=\"ders-kod\"><pre data-orhunca>meyveler = [&quot;elma&quot;, &quot;armut&quot;, &quot;kiraz&quot;]\nmeyveler[0]&#x27;ı yaz.\nuzunluk(meyveler)&#x27;i yaz.</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>elma\n3</pre></div>\n<p>Listeye eklemek, listeden çıkarmak ve sıralamak birer cümledir:</p>\n<div class=\"ders-kod\"><pre data-orhunca>sayılar = [42, 7, 19]\n3&#x27;ü sayılara ekle.\n7&#x27;yi sayılardan çıkar.\nsayıları sırala.\nsayıları yaz.</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>[3, 19, 42]</pre></div>\n<p>Listeyi baştan sona gezmek için <code>her ... için ...&#x27;den:</code> kullanılır:</p>\n<div class=\"ders-kod\"><pre data-orhunca>notlar = [85, 92, 78]\nher n için notlar&#x27;dan:\n    eğer n 80&#x27;den büyükse:\n        n&#x27;yi yaz.</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>85\n92</pre></div>\n<p>Hazır işlevler: <code>toplam(l)</code>, <code>en_büyük(l)</code>, <code>en_küçük(l)</code>, <code>içerir(l, x)</code>, <code>ters(l)</code>.</p>",
+  "gorevler": [
+   {
+    "baslik": "Sınıf ortalaması",
+    "aciklama": "<p><code>notlar</code> listesinin ortalamasını hesaplayın ve en yüksek notu yazdırın.</p>",
+    "baslangic": "notlar = [70, 85, 90, 55, 100]\n",
+    "girdi": "",
+    "cikti": "Ortalama: 80.0\nEn yüksek: 100\n",
+    "cozum": "notlar = [70, 85, 90, 55, 100]\nortalama = toplam(notlar) / uzunluk(notlar)\n(\"Ortalama: \" + ortalama)'yı yaz.\n(\"En yüksek: \" + en_büyük(notlar))'i yaz.\n"
+   },
+   {
+    "baslik": "Ters sıra",
+    "aciklama": "<p>Kullanıcının yazdığı 3 kelimeyi bir listeye ekleyip ters sırada yazdırın.</p>",
+    "baslangic": "kelimeler: liste<metin> = []\n",
+    "girdi": "bir\niki\nüç\n",
+    "cikti": "üç\niki\nbir\n",
+    "cozum": "kelimeler: liste<metin> = []\nher i için 1'den 3'e kadar:\n    oku()'yu kelimelere ekle.\nher k için ters(kelimeler)'den:\n    k'yi yaz.\n"
+   }
+  ]
+ },
+ {
+  "kimlik": "07-islevler",
+  "sira": 7,
+  "baslik": "İşlevler",
+  "ozet": "Kodu isimlendirip tekrar kullanmak: parametreler, döndür, tipler.",
+  "html": "<p><b>İşlev</b>, bir işi yapan ve istendiğinde çağrılan kod parçasıdır. <code>işlev</code> ile tanımlanır, <code>döndür</code> ile sonucunu verir:</p>\n<div class=\"ders-kod\"><pre data-orhunca>işlev kare(n):\n    döndür n * n\n\nkare(7)&#x27;yi yaz.\n(kare(3) + kare(4))&#x27;ü yaz.</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>49\n25</pre></div>\n<p>Parametrelerin ve sonucun tipi yazılabilir; bu, hataları erkenden yakalar:</p>\n<div class=\"ders-kod\"><pre data-orhunca>işlev selamla(ad: metin, saat: sayı) -&gt; metin:\n    eğer saat 12&#x27;den küçükse:\n        döndür &quot;Günaydın, &quot; + ad\n    döndür &quot;İyi günler, &quot; + ad\n\nselamla(&quot;Elif&quot;, 9)&#x27;u yaz.\nselamla(&quot;Can&quot;, 15)&#x27;i yaz.</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>Günaydın, Elif\nİyi günler, Can</pre></div>\n<p>İşlevler kendilerini çağırabilir (özyineleme):</p>\n<div class=\"ders-kod\"><pre data-orhunca>işlev faktöriyel(n):\n    eğer n 1&#x27;den küçük veya eşitse:\n        döndür 1\n    döndür n * faktöriyel(n - 1)\n\nfaktöriyel(5)&#x27;i yaz.</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>120</pre></div>",
+  "gorevler": [
+   {
+    "baslik": "Asal mı?",
+    "aciklama": "<p><code>asal_mı(n)</code> işlevini yazın: n asalsa <code>doğru</code>, değilse <code>yanlış</code> döndürsün. Sonra 1&#x27;den 20&#x27;ye kadar asal sayıları yazdırın.</p>",
+    "baslangic": "işlev asal_mı(n) -> mantık:\n    döndür yanlış\n\nher i için 1'den 20'ye kadar:\n    eğer asal_mı(i) ise:\n        i'yi yaz.\n",
+    "girdi": "",
+    "cikti": "2\n3\n5\n7\n11\n13\n17\n19\n",
+    "cozum": "işlev asal_mı(n) -> mantık:\n    eğer n 2'den küçükse:\n        döndür yanlış\n    her b için 2'den n - 1'e kadar:\n        eğer n % b == 0 ise:\n            döndür yanlış\n    döndür doğru\n\nher i için 1'den 20'ye kadar:\n    eğer asal_mı(i) ise:\n        i'yi yaz.\n"
+   }
+  ]
+ },
+ {
+  "kimlik": "08-fiiller",
+  "sira": 8,
+  "baslik": "Kendi fiillerin",
+  "ozet": "Türkçe cümle gibi çağrılan işlevler: parametreler hâl ekleriyle.",
+  "html": "<p>Orhunca&#x27;da kendi fiillerinizi tanımlayabilirsiniz. Parametreler hâl ekleriyle yazılır; çağrı bir Türkçe cümleye benzer:</p>\n<div class=\"ders-kod\"><pre data-orhunca>fiil (kişi: metin)&#x27;yi selamla:\n    (&quot;Merhaba, &quot; + kişi + &quot;!&quot;)&#x27;yı yaz.\n\n&quot;Ayşe&quot;&#x27;yi selamla.\n&quot;Mehmet&quot;&#x27;i selamla.</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>Merhaba, Ayşe!\nMerhaba, Mehmet!</pre></div>\n<p>Ekler parametrenin görevini anlatır: <code>&#x27;yi</code> belirtme (nesne), <code>&#x27;ye</code> yönelme (hedef), <code>&#x27;den</code> ayrılma (kaynak). Bu yüzden çağrıda sıra önemli değildir:</p>\n<div class=\"ders-kod\"><pre data-orhunca>fiil (miktar: ondalık)&#x27;ı (bakiye: ondalık)&#x27;dan düş -&gt; ondalık:\n    döndür bakiye - miktar\n\ncüzdan = 50.0\ncüzdan = 12.5&#x27;i cüzdan&#x27;dan düş\ncüzdan = cüzdan&#x27;dan 7.5&#x27;i düş\ncüzdan&#x27;ı yaz.</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>30.0</pre></div>\n<p>Değer döndüren fiiller ifadelerde ve koşullarda kullanılabilir:</p>\n<div class=\"ders-kod\"><pre data-orhunca>fiil sayı&#x27;yı karele:\n    döndür sayı * sayı\n\neğer 5&#x27;i karele 20&#x27;den büyükse:\n    &quot;25, 20&#x27;den büyük&quot;&#x27;ü yaz.</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>25, 20&#x27;den büyük</pre></div>",
+  "gorevler": [
+   {
+    "baslik": "Geri sayım",
+    "aciklama": "<p><code>n&#x27;den geri_say</code> fiilini tanımlayın: n&#x27;den 1&#x27;e kadar sayıları yazsın, sonra <code>Kalkış!</code> yazsın.</p>",
+    "baslangic": "fiil n'den geri_say:\n    \"Kalkış!\"'ı yaz.\n\n3'ten geri_say.\n",
+    "girdi": "",
+    "cikti": "3\n2\n1\nKalkış!\n",
+    "cozum": "fiil n'den geri_say:\n    n 0'dan büyükken:\n        n'yi yaz.\n        n -= 1\n    \"Kalkış!\"'ı yaz.\n\n3'ten geri_say.\n"
+   }
+  ]
+ },
+ {
+  "kimlik": "09-sozlukler-metinler",
+  "sira": 9,
+  "baslik": "Sözlükler ve metinler",
+  "ozet": "Anahtar–değer çiftleri; metinlerle çalışmak.",
+  "html": "<p><b>Sözlük</b>, her anahtara bir değer bağlar. Süslü parantezle yazılır:</p>\n<div class=\"ders-kod\"><pre data-orhunca>stok = {&quot;elma&quot;: 12, &quot;armut&quot;: 5}\nstok[&quot;kiraz&quot;] = 30\nstok[&quot;elma&quot;] = stok[&quot;elma&quot;] - 2\nher meyve için stok&#x27;tan:\n    (meyve + &quot;: &quot; + stok[meyve])&#x27;yi yaz.</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>elma: 10\narmut: 5\nkiraz: 30</pre></div>\n<p><code>içerir(s, anahtar)</code> anahtar var mı diye bakar, <code>sil(s, anahtar)</code> siler.</p>\n<p>Metinler için hazır işlevler vardır: <code>büyük_harf</code>, <code>küçük_harf</code> (Türkçe i/İ, ı/I doğru çevrilir), <code>uzunluk</code>, <code>böl</code>, <code>içerir</code>, <code>değiştir</code>, <code>kırp</code>, <code>ters</code>:</p>\n<div class=\"ders-kod\"><pre data-orhunca>cümle = &quot;Orhun yazıtları Türkçenin ilk yazılı belgeleridir&quot;\nbüyük_harf(&quot;istanbul&quot;)&#x27;u yaz.\nuzunluk(cümle)&#x27;yi yaz.\nkelimeler = böl(cümle, &quot; &quot;)\nuzunluk(kelimeler)&#x27;i yaz.\ndeğiştir(cümle, &quot;ilk&quot;, &quot;en eski&quot;)&#x27;yi yaz.</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>İSTANBUL\n49\n6\nOrhun yazıtları Türkçenin en eski yazılı belgeleridir</pre></div>",
+  "gorevler": [
+   {
+    "baslik": "Harf sayacı",
+    "aciklama": "<p>Okunan kelimede her harfin kaç kez geçtiğini sayıp, harflerin ilk görülme sırasıyla yazdırın. Bir metnin harflerini <code>her h için kelime&#x27;den:</code> ile gezebilirsiniz.</p>",
+    "baslangic": "kelime = oku()\nsayaç: sözlük<metin, sayı> = {}\n",
+    "girdi": "ankara\n",
+    "cikti": "a: 3\nn: 1\nk: 1\nr: 1\n",
+    "cozum": "kelime = oku()\nsayaç: sözlük<metin, sayı> = {}\nher h için kelime'den:\n    eğer içerir(sayaç, h) ise:\n        sayaç[h] = sayaç[h] + 1\n    değilse:\n        sayaç[h] = 1\nher h için sayaç'tan:\n    (h + \": \" + sayaç[h])'yi yaz.\n"
+   }
+  ]
+ },
+ {
+  "kimlik": "10-hata-yakalama",
+  "sira": 10,
+  "baslik": "Hata yakalama",
+  "ozet": "Programın çökmesini önlemek: dene, yakala, hata_ver.",
+  "html": "<p>Bazı işlemler çalışırken hata verebilir: sıfıra bölme, sayıya çevrilemeyen bir metin, listede olmayan bir sıra numarası. <code>dene:</code> bloğunda hata olursa program durmaz, <code>yakala</code> bloğu çalışır:</p>\n<div class=\"ders-kod\"><pre data-orhunca>girdiler = [&quot;42&quot;, &quot;kırk&quot;, &quot;7&quot;]\nher g için girdiler&#x27;den:\n    dene:\n        n = sayı(g)\n        (n * 2)&#x27;yi yaz.\n    yakala hata:\n        (&quot;Sayı değil: &quot; + g)&#x27;yi yaz.</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>84\nSayı değil: kırk\n14</pre></div>\n<p><code>yakala hata:</code> satırındaki <code>hata</code> değişkeni hatanın mesajını tutar. Kendi hatanızı <code>hata_ver(&quot;mesaj&quot;)</code> ile verebilirsiniz:</p>\n<div class=\"ders-kod\"><pre data-orhunca>işlev yaş_kontrol(yaş: sayı):\n    eğer yaş &lt; 0 veya yaş &gt; 150 ise:\n        hata_ver(&quot;geçersiz yaş: &quot; + yaş)\n    (&quot;Yaş tamam: &quot; + yaş)&#x27;ı yaz.\n\ndene:\n    yaş_kontrol(30)\n    yaş_kontrol(-4)\nyakala hata:\n    hata&#x27;yı yaz.</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>Yaş tamam: 30\ngeçersiz yaş: -4</pre></div>",
+  "gorevler": [
+   {
+    "baslik": "Güvenli bölme",
+    "aciklama": "<p>İki sayı okuyun ve birinciyi ikinciye tam bölün (<code>//</code>). İkinci sayı 0 ise program çökmesin, <code>Sıfıra bölünemez</code> yazsın.</p>",
+    "baslangic": "a = sayı(oku())\nb = sayı(oku())\n(a // b)'yi yaz.\n",
+    "girdi": "10\n0\n",
+    "cikti": "Sıfıra bölünemez\n",
+    "cozum": "a = sayı(oku())\nb = sayı(oku())\ndene:\n    (a // b)'yi yaz.\nyakala:\n    \"Sıfıra bölünemez\"'i yaz.\n"
+   }
+  ]
+ },
+ {
+  "kimlik": "11-modeller",
+  "sira": 11,
+  "baslik": "Modeller",
+  "ozet": "Kendi veri türlerini tanımlamak: model, alanlar, seçenekler.",
+  "html": "<p><b>Model</b>, birlikte anlam taşıyan değerleri bir arada tutar. Alanların adı ve tipi yazılır:</p>\n<div class=\"ders-kod\"><pre data-orhunca>model Öğrenci:\n    ad: metin\n    numara: sayı\n    not_ortalaması: ondalık\n\nö = Öğrenci(ad: &quot;Deniz&quot;, numara: 1071, not_ortalaması: 87.5)\nö.ad&#x27;ı yaz.\nö.not_ortalaması = 90.0\n(ö.ad + &quot; → &quot; + ö.not_ortalaması)&#x27;nı yaz.</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>Deniz\nDeniz → 90.0</pre></div>\n<p>Modeller listelerde tutulabilir:</p>\n<div class=\"ders-kod\"><pre data-orhunca>model Kitap:\n    ad: metin\n    sayfa: sayı\n\nkitaplar = [Kitap(ad: &quot;Kutadgu Bilig&quot;, sayfa: 680), Kitap(ad: &quot;Dede Korkut&quot;, sayfa: 320)]\ntoplam_sayfa = 0\nher k için kitaplar&#x27;dan:\n    toplam_sayfa += k.sayfa\n(&quot;Toplam sayfa: &quot; + toplam_sayfa)&#x27;yı yaz.</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>Toplam sayfa: 1000</pre></div>\n<p><b>Seçenek</b> (numaralandırma), bir değerin alabileceği sabit durumları tanımlar:</p>\n<div class=\"ders-kod\"><pre data-orhunca>seçenek Mevsim: İlkbahar, Yaz, Sonbahar, Kış\n\nm = Mevsim.Kış\neğer m == Mevsim.Kış ise:\n    &quot;Kar yağabilir.&quot;&#x27;i yaz.</pre></div>\n<div class=\"ders-cikti\"><span>Çıktı</span><pre>Kar yağabilir.</pre></div>",
+  "gorevler": [
+   {
+    "baslik": "En uzun kitap",
+    "aciklama": "<p><code>kitaplar</code> listesindeki en çok sayfalı kitabın adını yazdırın.</p>",
+    "baslangic": "model Kitap:\n    ad: metin\n    sayfa: sayı\n\nkitaplar = [Kitap(ad: \"Çalıkuşu\", sayfa: 512), Kitap(ad: \"Sinekli Bakkal\", sayfa: 448), Kitap(ad: \"Saatleri Ayarlama Enstitüsü\", sayfa: 560)]\n",
+    "girdi": "",
+    "cikti": "Saatleri Ayarlama Enstitüsü\n",
+    "cozum": "model Kitap:\n    ad: metin\n    sayfa: sayı\n\nkitaplar = [Kitap(ad: \"Çalıkuşu\", sayfa: 512), Kitap(ad: \"Sinekli Bakkal\", sayfa: 448), Kitap(ad: \"Saatleri Ayarlama Enstitüsü\", sayfa: 560)]\nen_uzun = kitaplar[0]\nher k için kitaplar'dan:\n    eğer k.sayfa > en_uzun.sayfa ise:\n        en_uzun = k\nen_uzun.ad'ı yaz.\n"
+   }
+  ]
+ },
+ {
+  "kimlik": "12-arayuz",
+  "sira": 12,
+  "baslik": "Arayüz uygulamaları",
+  "ozet": "Düğmeli, girişli uygulamalar: durum, arayüz, olaylar.",
+  "html": "<p>Orhunca ile pencereli uygulamalar da yazılır. <code>durum</code> değişkenleri uygulamanın verisidir; değiştiklerinde ekran kendiliğinden güncellenir. <code>arayüz:</code> bloğu ekranda ne görüneceğini anlatır:</p>\n<div class=\"ders-kod\"><pre data-orhunca>durum sayaç = 0\n\narayüz:\n    başlık(&quot;Sayaç&quot;)\n    yazı(&quot;Değer: &quot; + sayaç, boyut: 24)\n    satır:\n        düğme(&quot;−&quot;) tıklanınca:\n            sayaç -= 1\n        düğme(&quot;+&quot;) tıklanınca:\n            sayaç += 1</pre></div>\n<p>Stüdyo&#x27;da F5 ile çalıştırınca uygulama sağdaki önizlemede açılır. <code>orhunca paketle sayaç.ohc</code> ile kendi penceresinde açılan bir masaüstü uygulamasına dönüşür.</p>\n<p>Öğeler: <code>başlık</code>, <code>yazı</code>, <code>düğme</code>, <code>giriş</code>, <code>onay_kutusu</code>, <code>seçim</code>, <code>kaydırıcı</code>, <code>resim</code>, <code>bağlantı</code>; kapsayıcılar: <code>satır:</code>, <code>sütun:</code>, <code>kart:</code>, <code>ızgara(3):</code>. Olaylar: <code>tıklanınca</code>, <code>değişince</code>, <code>gönderilince</code> (Enter).</p>\n<div class=\"ders-kod\"><pre data-orhunca>durum ad = &quot;&quot;\n\narayüz:\n    başlık(&quot;Selamlayıcı&quot;)\n    giriş(ad, &quot;Adınızı yazın&quot;)\n    eğer ad &quot;&quot;&#x27;ye eşit değilse:\n        yazı(&quot;Merhaba, &quot; + ad + &quot;!&quot;, renk: &quot;yeşil&quot;, kalın: doğru)</pre></div>",
+  "gorevler": [
+   {
+    "baslik": "Renk değiştirici",
+    "aciklama": "<p>Bir düğmeye her tıklandığında yazının rengi <code>kırmızı</code> ve <code>mavi</code> arasında değişsin.</p>",
+    "baslangic": "durum kırmızı_mı = doğru\n\narayüz:\n    başlık(\"Renk değiştirici\")\n",
+    "girdi": "",
+    "cikti": null,
+    "cozum": "durum kırmızı_mı = doğru\n\narayüz:\n    başlık(\"Renk değiştirici\")\n    eğer kırmızı_mı ise:\n        yazı(\"Merhaba!\", renk: \"kırmızı\", boyut: 28)\n    değilse:\n        yazı(\"Merhaba!\", renk: \"mavi\", boyut: 28)\n    düğme(\"Rengi değiştir\") tıklanınca:\n        kırmızı_mı = değil kırmızı_mı\n"
+   }
+  ]
+ },
+ {
+  "kimlik": "13-web",
+  "sira": 13,
+  "baslik": "Web sitesi",
+  "ozet": "Web sunucusu: yollar, modeller, JSON.",
+  "html": "<p>Orhunca ile bir web sitesi ya da API yazmak birkaç satırdır. <code>al &quot;/yol&quot;:</code> tarayıcının o adrese yaptığı isteği karşılar; döndürülen değer sayfada görünür. <code>sun(3000)</code> sunucuyu başlatır:</p>\n<div class=\"ders-kod\"><pre data-orhunca>al &quot;/&quot;:\n    döndür &quot;Merhaba, web!&quot;\n\nal &quot;/saat&quot;:\n    döndür &quot;Şu an: &quot; + tarih()\n\nsun(3000)</pre></div>\n<p>Stüdyo&#x27;da F5&#x27;e basınca sunucu başlar ve sayfa canlı önizlemede açılır. Kendi bilgisayarınızda tarayıcıda <code>http://localhost:3000</code> adresini de açabilirsiniz.</p>\n<p>Modeller kalıcı olarak saklanır ve kendiliğinden JSON&#x27;a çevrilir:</p>\n<div class=\"ders-kod\"><pre data-orhunca>model Not:\n    başlık: metin\n    içerik: metin\n\nal &quot;/notlar&quot;:\n    döndür Not.hepsi()\n\ngönder &quot;/notlar&quot;:\n    n = Not.formdan(istek)\n    n&#x27;yi kaydet.\n    döndür n\n\nsun(3000)</pre></div>\n<p>Daha fazlası için Stüdyo&#x27;daki <b>Web Sitesi</b>, <b>Web API</b> ve <b>Tam Yığın</b> şablonlarına bakın: sayfa şablonları (<code>.ohchtml</code>), oturumlar, dosya yükleme ve doğrulama kuralları.</p>",
+  "gorevler": [
+   {
+    "baslik": "Kişisel sayfa",
+    "aciklama": "<p><code>/</code> adresinde adınızı, <code>/hobiler</code> adresinde hobilerinizi listeleyen bir site yazın.</p>",
+    "baslangic": "al \"/\":\n    döndür \"...\"\n\nsun(3000)\n",
+    "girdi": "",
+    "cikti": null,
+    "cozum": "al \"/\":\n    döndür \"Merhaba, ben Ece!\"\n\nal \"/hobiler\":\n    döndür [\"kitap okumak\", \"satranç\", \"kodlama\"]\n\nsun(3000)\n"
+   }
+  ]
+ }
+]

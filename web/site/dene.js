@@ -268,6 +268,7 @@
     await ornekYukle;
     if (h.get('kod')) {
       try { ta.value = await ac(h.get('kod')); } catch { ta.value = ''; }
+      if (h.get('girdi')) { try { $('#girdi').value = await ac(h.get('girdi')); } catch { /* yok */ } }
     } else if (h.get('ornek') && ornekAc(h.get('ornek'))) {
       // örnek açıldı
     } else {
