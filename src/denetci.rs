@@ -1730,6 +1730,24 @@ impl Denetci {
 
     /// Çağrıyı denetler. Ön kütüphanedeki karşılığı olan yerleşik çağrının adı
     /// (ve gerekirse bağımsız değişkenleri) o işleve göre değiştirilir.
+    /// Tanımsız işlev: başka dillerdeki karşılığı ya da benzer adlı işlev önerilir.
+    fn tanimsiz_islev(&self, ad: &str, konum: Konum) -> Hata {
+        let h = Hata::yeni(konum, format!("tanımsız işlev '{ad}'"));
+        if let Some(oneri) = crate::oneriler::yabanci(ad) {
+            return h.oneri(oneri);
+        }
+        let adaylar = self
+            .imzalar
+            .keys()
+            .map(String::as_str)
+            .filter(|a| !a.starts_with(crate::on_kutuphane::ON_EK))
+            .chain(crate::yerlesik::YERLESIKLER.iter().map(|y| y.ad));
+        match crate::oneriler::benzer(ad, adaylar) {
+            Some(b) => h.oneri(format!("bunu mu demek istediniz: {b}(...)")),
+            None => h,
+        }
+    }
+
     fn cagri(&mut self, ad_: &mut String, arg: &mut Vec<Ifade>, konum: Konum) -> Sonuc<Tip> {
         let mut tipler = Vec::new();
         for a in arg.iter_mut() {
@@ -2002,7 +2020,7 @@ impl Denetci {
                         ),
                     )
                     .ipucu(format!("kullanım: {}", y.kullanim)),
-                    None => Hata::yeni(konum, format!("tanımsız işlev '{ad}'")),
+                    None => self.tanimsiz_islev(ad, konum),
                 });
             }
         };

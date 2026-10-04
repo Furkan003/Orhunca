@@ -180,6 +180,13 @@ işlev sözcükle(kaynak: metin) -> liste<Sözcük>:
                             döndür hata(çıktı, "bilinmeyen kaçış dizisi '\\" + e + "'", satır_no, i)
                     değilse:
                         yazı = yazı + d
+                eğer i < n ve kelime_başı_mı(k[i]) ise:
+                    ek = ""
+                    j = i
+                    j < n ve kelime_devamı_mı(k[j]) olduğu sürece:
+                        ek = ek + k[j]
+                        j += 1
+                    döndür hata(çıktı, "metinden sonra gelen '" + ek + "' ekinin önünde kesme işareti olmalı", satır_no, sütun)
                 ekle_sözcük(çıktı, "Metin", yazı, satır_no, sütun)
                 i = ek_oku(k, i, satır_no, çıktı)
                 eğer i < 0 ise:

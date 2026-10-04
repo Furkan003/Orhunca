@@ -327,7 +327,13 @@ pub fn hata(h: &Hata) -> String {
 pub fn kaynak(kaynak: &str) -> String {
     let sozcukler = match crate::sozcuk::sozcukle(kaynak) {
         Ok(s) => s,
-        Err(h) => return hata(&Hata { ipucu: None, ..h }),
+        Err(h) => {
+            return hata(&Hata {
+                ipucu: None,
+                oneri: None,
+                ..h
+            })
+        }
     };
     match crate::ayristirici::ayristir_cok(vec![sozcukler], Vec::new()) {
         Ok(p) => program(&p),

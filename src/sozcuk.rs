@@ -199,6 +199,22 @@ pub fn sozcukle(kaynak: &str) -> Sonuc<Vec<Sozcuk>> {
                         _ => metin.push(d),
                     }
                 }
+                if i < karakterler.len() && kelime_basi(karakterler[i]) {
+                    let ek: String = karakterler[i..]
+                        .iter()
+                        .take_while(|c| kelime_devami(**c))
+                        .collect();
+                    let goster = if metin.chars().count() > 30 {
+                        "...".to_string()
+                    } else {
+                        metin.clone()
+                    };
+                    return Err(Hata::yeni(
+                        konum,
+                        format!("metinden sonra gelen '{ek}' ekinin önünde kesme işareti olmalı"),
+                    )
+                    .ipucu(format!("\"{goster}\"'{ek} şeklinde yazın")));
+                }
                 cikti.push(Sozcuk {
                     tok: Tok::Metin(metin),
                     konum,

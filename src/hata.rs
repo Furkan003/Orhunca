@@ -15,6 +15,9 @@ pub struct Hata {
     pub mesaj: String,
     pub konum: Konum,
     pub ipucu: Option<String>,
+    /// Duruma özel öneri (ör. "bunu mu demek istediniz", başka dillerdeki karşılık);
+    /// varsa genel ipucunun yerine gösterilir.
+    pub oneri: Option<String>,
 }
 
 impl Hata {
@@ -23,12 +26,23 @@ impl Hata {
             mesaj: mesaj.into(),
             konum,
             ipucu: None,
+            oneri: None,
         }
     }
 
     pub fn ipucu(mut self, ipucu: impl Into<String>) -> Self {
         self.ipucu = Some(ipucu.into());
         self
+    }
+
+    pub fn oneri(mut self, oneri: impl Into<String>) -> Self {
+        self.oneri = Some(oneri.into());
+        self
+    }
+
+    /// Gösterilecek ipucu: özel öneri, yoksa genel ipucu.
+    pub fn gosterilecek_ipucu(&self) -> Option<&str> {
+        self.oneri.as_deref().or(self.ipucu.as_deref())
     }
 
     /// Hatayı dosya adı, satır ve işaretçiyle birlikte biçimlendirir.
@@ -50,7 +64,7 @@ impl Hata {
                 "{bosluk} |\n{no} | {satir}\n{bosluk} | {isaret}^\n"
             ));
         }
-        if let Some(i) = &self.ipucu {
+        if let Some(i) = self.gosterilecek_ipucu() {
             s.push_str(&format!("ipucu: {i}\n"));
         }
         s

@@ -282,6 +282,53 @@ fn karakter_parcasi(satir: &str, bas: usize, son: usize) -> String {
         .collect()
 }
 
+/// Bir ifadenin (kaynak metni) alması gereken ek: `"merhaba"` + belirtme → `yı`.
+/// Hata mesajlarındaki önerilerde kullanılır; bilinmiyorsa `i`.
+pub fn ek_oner(ifade: &str, hal: Hal) -> String {
+    let ifade = ifade.trim();
+    let ses = if let Some(m) = ifade.strip_prefix('"').and_then(|m| m.strip_suffix('"')) {
+        let son: String = m
+            .chars()
+            .rev()
+            .skip_while(|c| !c.is_alphanumeric())
+            .take_while(|c| c.is_alphanumeric())
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
+        if !son.is_empty() && son.chars().all(|c| c.is_ascii_digit()) {
+            sayi_metni_okunusu(&son).and_then(sesi_bul)
+        } else {
+            isim_okunuslari(&son).into_iter().next()
+        }
+    } else if ifade.ends_with(')') || ifade.ends_with(']') {
+        None
+    } else if ifade.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+        sayi_metni_okunusu(ifade).and_then(sesi_bul)
+    } else {
+        let son: String = ifade
+            .rsplit(|c: char| !c.is_alphanumeric() && c != '_')
+            .next()
+            .unwrap_or("")
+            .to_string();
+        isim_okunuslari(&son).into_iter().next()
+    };
+    match ses {
+        Some(s) => dogru_ekler(s, hal).into_iter().next().unwrap_or_default(),
+        None => dogru_ekler(
+            Ses {
+                son_unlu: 'i',
+                unluyle_biter: false,
+                sert_biter: false,
+            },
+            hal,
+        )
+        .into_iter()
+        .next()
+        .unwrap_or_default(),
+    }
+}
+
 /// Kesme işaretli eklerdeki yazım uyarıları.
 pub fn uyarilar(kaynak: &str) -> Vec<Uyari> {
     let Ok(sozcukler) = sozcukle(kaynak) else {
@@ -289,6 +336,44 @@ pub fn uyarilar(kaynak: &str) -> Vec<Uyari> {
     };
     let satirlar: Vec<&str> = kaynak.lines().collect();
     let mut cikti = Vec::new();
+    // "5" + 3 → "53": sayı gibi görünen metin + ile birleştirilir, toplanmaz.
+    for w in sozcukler.windows(3) {
+        let (sol, op, sag) = (&w[0], &w[1], &w[2]);
+        if op.tok != Tok::Op("+") {
+            continue;
+        }
+        let sayi_gibi = |t: &Tok| matches!(t, Tok::Metin(m) if !m.trim().is_empty() && m.trim().parse::<f64>().is_ok());
+        let sayi_ya_da_isim =
+            |t: &Tok| matches!(t, Tok::Sayi(_) | Tok::Ondalik(_) | Tok::Kelime(_));
+        let metin = if sayi_gibi(&sol.tok) && sayi_ya_da_isim(&sag.tok) {
+            sol
+        } else if sayi_gibi(&sag.tok) && sayi_ya_da_isim(&sol.tok) {
+            sag
+        } else {
+            continue;
+        };
+        let Tok::Metin(m) = &metin.tok else { continue };
+        let satir = satirlar.get(metin.konum.satir - 1).copied().unwrap_or("");
+        let bas = metin.konum.sutun - 1;
+        let karakterler: Vec<char> = satir.chars().collect();
+        let mut son = bas + 1;
+        while son < karakterler.len() && karakterler[son] != '"' {
+            son += if karakterler[son] == '\\' { 2 } else { 1 };
+        }
+        if son >= karakterler.len() {
+            continue;
+        }
+        let yazilan: String = karakterler[bas..=son].iter().collect();
+        cikti.push(Uyari {
+            konum: metin.konum,
+            uzunluk: son + 1 - bas,
+            mesaj: format!(
+                "{yazilan} bir metin: + ile toplanmaz, yan yana eklenir (\"5\" + 3 → \"53\"); sayı olarak toplamak için: sayı({yazilan}) ya da {}",
+                m.trim()
+            ),
+            duzeltme: yazilan,
+        });
+    }
     for w in sozcukler.windows(2) {
         let (onceki, simdiki) = (&w[0], &w[1]);
         let Tok::Ek(ek) = &simdiki.tok else { continue };

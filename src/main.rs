@@ -121,8 +121,25 @@ fn proje_girisi() -> Result<PathBuf, String> {
         .unwrap_or(giris))
 }
 
+/// Biçimlendiricinin uyarıları (ek uyumu, "5" + 3 gibi) hata çıkışına yazılır.
+fn uyarilari_yaz(dosya: &Path) {
+    let Ok(kaynak) = std::fs::read_to_string(dosya) else {
+        return;
+    };
+    for u in bicimlendirici::uyarilar(&kaynak) {
+        eprintln!(
+            "uyarı: {}:{}:{}: {}",
+            dosya.display(),
+            u.konum.satir,
+            u.konum.sutun,
+            u.mesaj
+        );
+    }
+}
+
 fn denetle_komutu(args: &[String]) -> Result<(), String> {
     let s = secenekleri_oku(args)?;
+    uyarilari_yaz(&s.dosya);
     derleme::yukle(&s.dosya).map_err(|h| h.metin)?;
     println!("{}: hata yok", s.dosya.display());
     Ok(())
@@ -176,6 +193,7 @@ fn paketle_komutu(args: &[String]) -> Result<(), String> {
 
 fn calistir_komutu(args: &[String]) -> Result<ExitCode, String> {
     let mut s = secenekleri_oku(args)?;
+    uyarilari_yaz(&s.dosya);
     if derleme::web_hedefi_mi(s.hedef.as_deref()) {
         return web_calistir(&s);
     }

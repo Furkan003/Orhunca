@@ -147,6 +147,11 @@ impl Sozluk {
         }
     }
 
+    /// Tanımlı isimler (öneriler için).
+    pub fn isimler(&self) -> impl Iterator<Item = &str> {
+        self.isimler.iter().map(String::as_str)
+    }
+
     /// Kesme işaretiyle yazılmış bir kökün asıl ismini verir (`kitab'ı` → `kitap`).
     pub fn asil_isim(&self, kok: &str) -> Option<&str> {
         if self.isimler.contains(kok) {

@@ -56,8 +56,8 @@ impl DerlemeHatasi {
                 dosya,
                 satir: h.konum.satir,
                 sutun: h.konum.sutun,
+                ipucu: h.gosterilecek_ipucu().map(str::to_string),
                 mesaj: h.mesaj,
-                ipucu: h.ipucu,
             }),
         }
     }
@@ -447,9 +447,13 @@ pub fn paketle(dosya: &Path, cikti: &Path, hedef: Option<&str>) -> Result<(), De
         _ if macos && !KABUK_MACOS.is_empty() => KABUK_MACOS,
         _ => {
             return Err(DerlemeHatasi::duz(format!(
-                "'{triple}' için hazır pencere kabuğu yok (Linux ve Windows x86-64{} destekleniyor)",
-                if KABUK_MACOS.is_empty() { "" } else { ", macOS" }
-            )))
+            "'{triple}' için hazır pencere kabuğu yok (Linux ve Windows x86-64{} destekleniyor)",
+            if KABUK_MACOS.is_empty() {
+                ""
+            } else {
+                ", macOS"
+            }
+        )))
         }
     };
     let (wasm, arayuz) = wasm_derle(dosya)?;
@@ -462,8 +466,7 @@ pub fn paketle(dosya: &Path, cikti: &Path, hedef: Option<&str>) -> Result<(), De
     if macos {
         return macos_uygulamasi(cikti, &baslik, &program);
     }
-    std::fs::write(cikti, program)
-        .map_err(|e| format!("'{}' yazılamadı: {e}", cikti.display()))?;
+    std::fs::write(cikti, program).map_err(|e| format!("'{}' yazılamadı: {e}", cikti.display()))?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -487,7 +490,11 @@ fn macos_uygulamasi(cikti: &Path, baslik: &str, program: &[u8]) -> Result<(), De
         std::fs::write(yol, veri)
             .map_err(|e| DerlemeHatasi::duz(format!("'{}' yazılamadı: {e}", yol.display())))
     };
-    let kac = |m: &str| m.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
+    let kac = |m: &str| {
+        m.replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;")
+    };
     let kimlik: String = baslik
         .chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })

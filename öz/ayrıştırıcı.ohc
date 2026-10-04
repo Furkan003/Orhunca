@@ -1150,8 +1150,20 @@ işlev tip_(a: Ayrıştırıcı) -> metin:
 # Deyimler
 # ---------------------------------------------------------------------------
 
+# `yaz("merhaba")`, `print(x)`: başka dillerdeki yazdırma alışkanlığı
+işlev yazdırma_alışkanlığı_mı(a: Ayrıştırıcı) -> mantık:
+    k = bak(a)
+    eğer k.tür != "Kelime" ise:
+        döndür yanlış
+    eğer değil içerir(["yaz", "print", "println", "printf", "puts", "echo", "yazdır", "yazdir"], k.değer) ise:
+        döndür yanlış
+    s = bak_n(a, 1)
+    döndür s_op(s, "(") veya s.tür == "Metin" veya s.tür == "Sayi" veya s.tür == "Ondalik" veya s.tür == "Kelime"
+
 işlev deyim(a: Ayrıştırıcı) -> Deyim:
     k = bak(a)
+    eğer yazdırma_alışkanlığı_mı(a) ise:
+        hata_s(a, k, "Orhunca'da ekrana yazmak bir cümledir: önce değer, sonra fiil", "örnek: \"Merhaba\"'yı yaz.")
     eğer öğe_başı_mı(a) ise:
         döndür öğe(a)
     eğer kelime_mi(a, "eğer") ise:

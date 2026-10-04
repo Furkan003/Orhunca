@@ -1346,8 +1346,83 @@ impl Ayristirici {
 
     // ---------- deyimler ----------
 
+    /// Tanımsız isim hatası; başka dillerden gelen kelimeler için Orhunca karşılığı,
+    /// yanlış yazılmış isimler için "bunu mu demek istediniz?" önerisi.
+    fn tanimsiz(&self, k: &str, konum: Konum) -> Hata {
+        let h = Hata::yeni(konum, format!("tanımsız isim '{k}'"))
+            .ipucu("değişkeni önce tanımlayın (ör. x = 5) ya da ekini kesme işaretiyle ayırın");
+        if let Some(oneri) = crate::oneriler::yabanci(k) {
+            return h.oneri(oneri);
+        }
+        let adaylar = self
+            .t
+            .sozluk
+            .isimler()
+            .chain(self.t.fiiller.iter().map(String::as_str))
+            .chain(AYRILMIS.iter().copied())
+            .chain(crate::yerlesik::YERLESIKLER.iter().map(|y| y.ad));
+        match crate::oneriler::benzer(k, adaylar) {
+            Some(b) => h.oneri(format!("bunu mu demek istediniz: {b}")),
+            None => h,
+        }
+    }
+
+    /// `yaz("merhaba")`, `print(x)`: başka dillerdeki yazdırma alışkanlığı.
+    fn yazdirma_aliskanligi(&self) -> Option<Hata> {
+        let Tok::Kelime(k) = self.bak() else {
+            return None;
+        };
+        let yabanci = matches!(
+            k.as_str(),
+            "print" | "println" | "printf" | "puts" | "echo" | "yazdır" | "yazdir"
+        );
+        if k != "yaz" && !yabanci {
+            return None;
+        }
+        if !matches!(
+            self.bak_n(1),
+            Tok::Op("(") | Tok::Metin(_) | Tok::Sayi(_) | Tok::Ondalik(_) | Tok::Kelime(_)
+        ) {
+            return None;
+        }
+        let son = self.sozcukler[self.poz..]
+            .iter()
+            .position(|z| {
+                matches!(
+                    z.tok,
+                    Tok::YeniSatir | Tok::Son | Tok::Girinti | Tok::Cikinti
+                )
+            })
+            .map(|n| self.poz + n)
+            .unwrap_or(self.sozcukler.len());
+        let mut arguman = &self.sozcukler[self.poz + 1..son];
+        if matches!(arguman.first().map(|z| &z.tok), Some(Tok::Op("(")))
+            && matches!(arguman.last().map(|z| &z.tok), Some(Tok::Op(")")))
+        {
+            arguman = &arguman[1..arguman.len() - 1];
+        }
+        let mut metin = sozcuk_metni(arguman);
+        if metin.is_empty() {
+            return None;
+        }
+        if arguman.len() > 1 && !matches!(arguman.last().map(|z| &z.tok), Some(Tok::Op(")"))) {
+            metin = format!("({metin})");
+        }
+        let ek = crate::bicimlendirici::ek_oner(&metin, crate::ekler::Hal::Belirtme);
+        Some(
+            Hata::yeni(
+                self.konum(),
+                "Orhunca'da ekrana yazmak bir cümledir: önce değer, sonra fiil",
+            )
+            .ipucu(format!("şöyle yazın: {metin}'{ek} yaz.")),
+        )
+    }
+
     fn deyim(&mut self) -> Sonuc<Deyim> {
         let konum = self.konum();
+        if let Some(h) = self.yazdirma_aliskanligi() {
+            return Err(h);
+        }
         if self.oge_basi_mi() {
             return self.oge();
         }
@@ -2503,7 +2578,7 @@ impl Ayristirici {
                 .sozluk
                 .asil_isim(&k)
                 .map(str::to_string)
-                .ok_or_else(|| tanimsiz(&k, konum))?;
+                .ok_or_else(|| self.tanimsiz(&k, konum))?;
             return Ok(Ifade::yeni(IfadeTuru::Isim(isim), konum));
         }
 
@@ -2518,7 +2593,7 @@ impl Ayristirici {
                 format!("'{k}' belirsiz: {}", adaylar.join(" ya da ")),
             )
             .ipucu("ekli kullanımı kesme işaretiyle ayırın (ör. kitap'la)")),
-            Cozum::Bilinmiyor => Err(tanimsiz(&k, konum)),
+            Cozum::Bilinmiyor => Err(self.tanimsiz(&k, konum)),
         }
     }
 }
@@ -2735,9 +2810,36 @@ fn sablon_islevi(t: &Rc<Tanimlar>, s: Sablon) -> Sonuc<Islev> {
     })
 }
 
-fn tanimsiz(k: &str, konum: Konum) -> Hata {
-    Hata::yeni(konum, format!("tanımsız isim '{k}'"))
-        .ipucu("değişkeni önce tanımlayın (ör. x = 5) ya da ekini kesme işaretiyle ayırın")
+/// Satırdaki sözcüklerin kaynak metni (öneriler için yaklaşık yeniden yazım).
+fn sozcuk_metni(sozcukler: &[Sozcuk]) -> String {
+    let mut s = String::new();
+    for (i, z) in sozcukler.iter().enumerate() {
+        let parca = match &z.tok {
+            Tok::Sayi(n) => n.to_string(),
+            Tok::Ondalik(f) => f.to_string(),
+            Tok::Metin(m) => format!("{m:?}"),
+            Tok::Kelime(k) => k.clone(),
+            Tok::Ek(e) => format!("'{e}"),
+            Tok::Op(o) => o.to_string(),
+            Tok::Uye => ".".into(),
+            _ => continue,
+        };
+        let bitisik = matches!(z.tok, Tok::Ek(_) | Tok::Uye)
+            || matches!(z.tok, Tok::Op(")" | "]" | "," | ":"))
+            || i > 0 && matches!(sozcukler[i - 1].tok, Tok::Op("(" | "[") | Tok::Uye)
+            || i > 0
+                && matches!(z.tok, Tok::Op("("))
+                && matches!(sozcukler[i - 1].tok, Tok::Kelime(_));
+        if !s.is_empty() && !bitisik {
+            s.push(' ');
+        }
+        if matches!(z.tok, Tok::Op(",")) {
+            s.push_str(", ");
+            continue;
+        }
+        s.push_str(&parca);
+    }
+    s.replace(",  ", ", ").trim().to_string()
 }
 
 fn tok_adi(t: &Tok) -> String {
