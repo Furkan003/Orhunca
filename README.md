@@ -294,7 +294,7 @@ x 10'dan küçükken:
 ### İşlevler
 
 ```
-işlev topla(a, b):               # parametreler varsayılan olarak sayı
+işlev topla(a, b):
     döndür a + b
 
 işlev selamla(ad: metin) -> metin:
@@ -303,6 +303,9 @@ işlev selamla(ad: metin) -> metin:
 topla(2, 3)'ü yaz.
 ```
 İşlevler yalnızca kendi parametrelerini ve yerel değişkenlerini görür. Özyineleme desteklenir.
+Tipi yazılmayan parametre, işlevin ilk çağrısındaki değerin tipini alır (`selamla2(ad)` →
+`selamla2("Ali")` ile metin); hiç çağrılmayan işlevde sayıdır. Sonraki çağrılar aynı tipte
+olmalıdır; farklı tipler (ör. hem sayı hem ondalık) için tipi tanımda yazın.
 
 ### Kendi fiilleriniz
 

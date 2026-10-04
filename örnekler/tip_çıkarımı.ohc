@@ -1,0 +1,38 @@
+# Tipi yazılmayan parametreler ilk çağrıdaki değerin tipini alır.
+işlev selamla(ad):
+    döndür "Merhaba, " + ad + "!"
+
+işlev ortalama(değerler):
+    t = 0.0
+    her x için değerler'den:
+        t += x
+    döndür t / uzunluk(değerler)
+
+işlev en_uzun(kelimeler):
+    sonuç = ""
+    her k için kelimeler'den:
+        eğer uzunluk(k) > uzunluk(sonuç) ise:
+            sonuç = k
+    döndür sonuç
+
+fiil kelime'yi kaç'a çoğalt:
+    döndür tekrarla(kelime, kaç)
+
+model Ürün:
+    ad: metin
+    fiyat: ondalık
+
+işlev etiket(ü):
+    döndür ü.ad + " (" + para(ü.fiyat) + " TL)"
+
+işlev faktöriyel(n):
+    eğer n < 2 ise:
+        döndür 1
+    döndür n * faktöriyel(n - 1)
+
+selamla("Ayşe")'yi yaz.
+ortalama([1.5, 2.5, 3.5])'yı yaz.
+en_uzun(["elma", "karpuz", "üzüm"])'ü yaz.
+("ha"'yı 3'e çoğalt)'ı yaz.
+etiket(Ürün(ad: "Kalem", fiyat: 12.5))'i yaz.
+faktöriyel(10)'u yaz.

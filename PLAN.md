@@ -117,6 +117,11 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
   (`boş_mu(x)`). Kayıtlarda iç nesneler gömülü JSON'dur; doğrulama iç modellere iner. Çalışma
   zamanı iç modelin tanımını adla bulur (tanım metninde `@Model` sütunu, programın başında kayıt).
 
+### 9d – Parametre tipi çıkarımı
+- İşlev gövdeleri ilk çağrıldıklarında denetlenir (önce ana program); tipi yazılmayan parametre
+  (işlev, fiil, bileşen) ilk çağrıdaki değerin tipini alır, hiç çağrılmayan işlevde sayıdır.
+  Dönüş tipleri de böylece çağrıdan önce bilinir (yalnızca özyinelemede varsayılan kalır).
+
 ## Henüz yapılmayanlar
 
 - **Çalışma zamanı C ile yazılı** (`runtime/orhunca_rt.c`). Bağlama zaten bir C araç zinciri
@@ -124,7 +129,6 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 - Web sunucusu tek iş parçacıklıdır; oturum/çerez, dosya yükleme ve HTTPS yok (geliştirme için).
 - Ünlü uyumu derleyicide hoşgörüyle kabul edilir; biçimlendirici ve dil sunucusu uyarır ve düzeltir.
   Metinlerde (yabancı kelimeler olabileceği için) yalnızca tampon harf ve ünsüz benzeşmesi denetlenir.
-- Fiil parametrelerinin tipi çağrılardan çıkarılmıyor; `sayı` dışındaki tipler yazılmalı.
 - Listelerde indeks 0'dan başlar.
 
 ## Sıradaki adımlar (öneri sırası)

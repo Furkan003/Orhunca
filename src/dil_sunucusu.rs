@@ -161,7 +161,7 @@ const ANAHTAR_KELIMELER: &[(&str, &str)] = &[
     ("olduğu", "`... olduğu sürece:` döngüsü: koşul doğru olduğu sürece döner"),
     ("sürece", "`x 10'dan küçük olduğu sürece:` döngüsü"),
     ("iken", "`... iken:` döngüsü: koşul doğru olduğu sürece döner"),
-    ("işlev", "İşlev tanımı: `işlev topla(a, b):` — tipi yazılmayan parametreler sayıdır"),
+    ("işlev", "İşlev tanımı: `işlev topla(a, b):` — tipi yazılmayan parametre ilk çağrıdaki değerin tipini alır"),
     ("fiil", "Fiil tanımı: parametreler hâl ekleriyle belirlenir: `fiil sayı'yı karele:` → `5'i karele.`"),
     ("döndür", "İşlevden ya da fiilden değer döndürür"),
     ("dur", "Döngüden çıkar (break)"),

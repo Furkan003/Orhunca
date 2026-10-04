@@ -1142,7 +1142,8 @@ impl Ayristirici {
                 self.ilerle();
                 self.tip()?
             } else {
-                Tip::Sayi
+                // Tipi denetçi çıkarır (ilk çağrıdan; yoksa sayı).
+                Tip::Bilinmeyen
             };
             parametreler.push((p, tip));
             if !self.op_mu(")") {
@@ -1189,12 +1190,12 @@ impl Ayristirici {
                     self.ilerle();
                     self.tip()?
                 } else {
-                    Tip::Sayi
+                    Tip::Bilinmeyen
                 };
                 self.bekle_op(")", "parametrenin sonunda")?;
                 (ad, tip)
             } else if matches!(self.bak_n(1), Tok::Ek(_)) {
-                (self.isim_adi("parametre adı")?, Tip::Sayi)
+                (self.isim_adi("parametre adı")?, Tip::Bilinmeyen)
             } else {
                 break;
             };

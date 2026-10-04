@@ -51,6 +51,10 @@ pub struct Denetci {
     cevre: Option<HashMap<String, Tip>>,
     /// Olay bloğunun kullandığı çevre değişkenleri (sırayla).
     yakalanan: Vec<(String, Tip)>,
+    /// Gövdesi henüz denetlenmemiş işlevler: ilk çağrıldıklarında denetlenir.
+    bekleyen: HashMap<String, Islev>,
+    /// Denetimi bitmiş işlevler
+    biten: HashMap<String, Islev>,
 }
 
 pub fn denetle(p: &mut Program) -> Sonuc<()> {
@@ -72,6 +76,8 @@ pub fn denetle(p: &mut Program) -> Sonuc<()> {
         bilesenler: HashSet::new(),
         cevre: None,
         yakalanan: Vec::new(),
+        bekleyen: HashMap::new(),
+        biten: HashMap::new(),
     };
     for (ad, deger) in p.sabitler.iter_mut() {
         d.ifade(deger)?;
@@ -137,6 +143,12 @@ pub fn denetle(p: &mut Program) -> Sonuc<()> {
         }
     }
 
+    let islev_sirasi: Vec<String> = p.islevler.iter().map(|f| f.ad.clone()).collect();
+    let rota_var = p.islevler.iter().any(|f| f.rota.is_some());
+    for f in std::mem::take(&mut p.islevler) {
+        d.bekleyen.insert(f.ad.clone(), f);
+    }
+
     // Durum değişkenleri: sırayla (öncekilere başvurabilir).
     for durum in p.durumlar.iter_mut() {
         d.kapsam.clear();
@@ -155,52 +167,15 @@ pub fn denetle(p: &mut Program) -> Sonuc<()> {
     }
 
     // Web yolları varsa ve program sunucuyu kendisi başlatmıyorsa sonunda başlatılır.
-    if p.islevler.iter().any(|f| f.rota.is_some()) && !cagri_var(&p.ana, "sun") {
+    if rota_var && !cagri_var(&p.ana, "sun") {
         p.ana.push(Deyim::IfadeDeyimi(Ifade::yeni(
             IfadeTuru::Cagri("sun".into(), Vec::new()),
             Konum::default(),
         )));
     }
 
-    for f in p.islevler.iter_mut() {
-        d.kapsam.clear();
-        d.sira.clear();
-        d.islevde = true;
-        d.arayuzde = f.arayuz;
-        d.rotada = f.rota.is_some();
-        d.donus_belirtildi = f.donus.is_some();
-        d.donus = f.donus.clone();
-        for (ad, tip) in &f.parametreler {
-            if d.kapsam.contains_key(ad) {
-                return Err(Hata::yeni(
-                    f.konum,
-                    format!("'{ad}' parametresi iki kez yazılmış"),
-                ));
-            }
-            d.tanimla(ad, tip.clone());
-        }
-        d.blok(&mut f.govde)?;
-        let donus = d.donus.clone().unwrap_or(Tip::Bos);
-        f.donus = Some(donus.clone());
-        d.imzalar.get_mut(&f.ad).unwrap().donus = Some(donus.clone());
-        if let Some(k) = d.varsayilan.get(&f.ad) {
-            if donus != Tip::Sayi {
-                return Err(Hata::yeni(
-                    *k,
-                    format!(
-                        "'{}' işlevinin dönüş tipi tanımından önce çıkarılamadı",
-                        f.ad
-                    ),
-                )
-                .ipucu(format!(
-                    "tanımda dönüş tipini belirtin: işlev {}(...) -> {donus}:",
-                    f.ad
-                )));
-            }
-        }
-        f.yereller = d.yereller();
-    }
-
+    // Önce ana program: işlevler ilk çağrıldıklarında denetlenir; tipi yazılmayan
+    // parametreler ilk çağrıdaki değerin tipini alır. Hiç çağrılmayanlar sonra.
     d.kapsam.clear();
     d.sira.clear();
     d.islevde = false;
@@ -209,6 +184,13 @@ pub fn denetle(p: &mut Program) -> Sonuc<()> {
     d.donus = None;
     d.blok(&mut p.ana)?;
     p.ana_yereller = d.yereller();
+    for ad in &islev_sirasi {
+        d.islevi_denetle(ad)?;
+    }
+    p.islevler = islev_sirasi
+        .iter()
+        .map(|ad| d.biten.remove(ad).expect("denetlenmiş işlev"))
+        .collect();
     Ok(())
 }
 
@@ -593,6 +575,93 @@ impl Denetci {
         };
         e.tur = yeni.0;
         Ok(Some(yeni.1))
+    }
+
+    /// İşlevin gövdesini denetler (henüz denetlenmemişse). Bir çağrının içinden
+    /// çağrılabilir: çağıranın denetim durumu saklanıp geri yüklenir.
+    fn islevi_denetle(&mut self, ad: &str) -> Sonuc<()> {
+        let Some(mut f) = self.bekleyen.remove(ad) else {
+            return Ok(());
+        };
+        let eski = (
+            std::mem::take(&mut self.kapsam),
+            std::mem::take(&mut self.sira),
+            self.islevde,
+            self.arayuzde,
+            self.rotada,
+            self.donus_belirtildi,
+            self.donus.take(),
+            self.dongu,
+            self.cevre.take(),
+            std::mem::take(&mut self.yakalanan),
+        );
+        self.dongu = 0;
+        let sonuc = self.islev_govdesi(&mut f);
+        (
+            self.kapsam,
+            self.sira,
+            self.islevde,
+            self.arayuzde,
+            self.rotada,
+            self.donus_belirtildi,
+            self.donus,
+            self.dongu,
+            self.cevre,
+            self.yakalanan,
+        ) = eski;
+        self.biten.insert(ad.to_string(), f);
+        sonuc
+    }
+
+    fn islev_govdesi(&mut self, f: &mut Islev) -> Sonuc<()> {
+        // Tipi yazılmayan parametreler: ilk çağrıdan çıkarılan tip, yoksa sayı.
+        let imza = self.imzalar.get_mut(&f.ad).expect("işlevin imzası");
+        for (i, (_, tip)) in f.parametreler.iter_mut().enumerate() {
+            if *tip == Tip::Bilinmeyen {
+                *tip = match &imza.parametreler[i] {
+                    Tip::Bilinmeyen => Tip::Sayi,
+                    t => t.clone(),
+                };
+                imza.parametreler[i] = tip.clone();
+            }
+        }
+        self.kapsam.clear();
+        self.sira.clear();
+        self.islevde = true;
+        self.arayuzde = f.arayuz;
+        self.rotada = f.rota.is_some();
+        self.donus_belirtildi = f.donus.is_some();
+        self.donus = f.donus.clone();
+        for (ad, tip) in &f.parametreler {
+            if self.kapsam.contains_key(ad) {
+                return Err(Hata::yeni(
+                    f.konum,
+                    format!("'{ad}' parametresi iki kez yazılmış"),
+                ));
+            }
+            self.tanimla(ad, tip.clone());
+        }
+        self.blok(&mut f.govde)?;
+        let donus = self.donus.clone().unwrap_or(Tip::Bos);
+        f.donus = Some(donus.clone());
+        self.imzalar.get_mut(&f.ad).unwrap().donus = Some(donus.clone());
+        if let Some(k) = self.varsayilan.get(&f.ad) {
+            if donus != Tip::Sayi {
+                return Err(Hata::yeni(
+                    *k,
+                    format!(
+                        "'{}' işlevinin dönüş tipi tanımından önce çıkarılamadı",
+                        f.ad
+                    ),
+                )
+                .ipucu(format!(
+                    "tanımda dönüş tipini belirtin: işlev {}(...) -> {donus}:",
+                    f.ad
+                )));
+            }
+        }
+        f.yereller = self.yereller();
+        Ok(())
     }
 
     fn metod(&mut self, e: &mut Ifade) -> Sonuc<Tip> {
@@ -1671,6 +1740,17 @@ impl Denetci {
                 format!("'{ad}' bir bileşen; yalnızca arayüz: bloğunda ya da başka bir bileşende kullanılabilir"),
             ));
         }
+        // Tipi yazılmayan parametre ilk çağrıdaki değerin tipini alır; sonra gövde denetlenir.
+        if let Some(imza) = self.imzalar.get_mut(ad) {
+            if self.bekleyen.contains_key(ad) {
+                for (p, t) in imza.parametreler.iter_mut().zip(&tipler) {
+                    if *p == Tip::Bilinmeyen && !tip_belirsiz(t) && *t != Tip::Bos {
+                        *p = t.clone();
+                    }
+                }
+            }
+            self.islevi_denetle(ad)?;
+        }
         if let Some(imza) = self.imzalar.get(ad).cloned() {
             if let (Some(g), true) = (
                 ad.strip_prefix("görünüm:"),
@@ -1730,7 +1810,7 @@ impl Denetci {
                         ),
                     )
                     .ipucu(format!(
-                        "tipi belirtilmeyen parametreler sayıdır; tanımda belirtin: (ad: {t})"
+                        "tipi yazılmayan parametre ilk çağrıdaki değerin tipini alır; tanımda belirtin: (ad: {t})"
                     )));
                 }
             }
