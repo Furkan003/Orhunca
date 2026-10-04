@@ -1,0 +1,1352 @@
+/* Orhunca Stüdyo — arayüz. Bağımlılık yok; `orhunca stüdyo` sunucusuyla konuşur. */
+'use strict';
+(() => {
+  // =====================================================================
+  // Yardımcılar
+  // =====================================================================
+  const $ = (s, k = document) => k.querySelector(s);
+  const kac = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const S = (ad, sinif = '', stil = '') => `<span class="simge ${sinif}"${stil ? ` style="${stil}"` : ''}>${ad}</span>`;
+  const GOKTURK = '𐰆';
+  const TAURI = !!window.__TAURI__;
+  const ilkBuyuk = s => s ? s.charAt(0).toLocaleUpperCase('tr') + s.slice(1) : s;
+  const buyuk = s => String(s).toLocaleUpperCase('tr');
+  const kucuk = s => String(s).toLocaleLowerCase('tr');
+  const iki = n => String(n).padStart(2, '0');
+  const tarihBicim = sn => { const d = new Date(sn * 1000); return `${iki(d.getDate())}.${iki(d.getMonth() + 1)}.${d.getFullYear()} ${iki(d.getHours())}:${iki(d.getMinutes())}`; };
+  const sureBicim = ms => { const s = ms / 1000; return (s < 0.1 ? s.toFixed(2) : s.toFixed(1)).replace('.', ',') + ' sn'; };
+  const boyutBicim = b => b > 1048576 ? (b / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
+  const uzanti = ad => { const i = ad.lastIndexOf('.'); return i > 0 ? ad.slice(i + 1).toLowerCase() : ''; };
+  const sonParca = yol => yol.split(/[\\/]/).pop();
+  const bekle = ms => new Promise(r => setTimeout(r, ms));
+  const ayarOku = (a, v) => { try { const x = localStorage.getItem('orhunca.' + a); return x === null ? v : JSON.parse(x); } catch { return v; } };
+  const ayarYaz = (a, v) => { try { localStorage.setItem('orhunca.' + a, JSON.stringify(v)); } catch { /* yok */ } };
+
+  // Oturum anahtarı: sunucu tarayıcıyı ?anahtar=... ile açar.
+  const ANAHTAR = (() => {
+    const u = new URL(location.href);
+    let a = u.searchParams.get('anahtar');
+    if (a) {
+      try { sessionStorage.setItem('orhunca-anahtar', a); } catch { /* yok */ }
+      history.replaceState(null, '', location.pathname);
+    } else {
+      try { a = sessionStorage.getItem('orhunca-anahtar'); } catch { /* yok */ }
+    }
+    return a;
+  })();
+
+  async function api(yol, govde) {
+    const r = await fetch(yol, {
+      method: govde === undefined ? 'GET' : 'POST',
+      headers: { 'X-Orhunca-Anahtar': ANAHTAR || '', 'Content-Type': 'application/json' },
+      body: govde === undefined ? undefined : JSON.stringify(govde),
+    });
+    const j = await r.json().catch(() => ({ hata: 'Sunucudan geçersiz yanıt geldi.' }));
+    if (r.status === 403) throw new Error(j.hata || 'Erişim reddedildi.');
+    return j;
+  }
+  const sorgu = o => Object.entries(o).map(([a, d]) => `${a}=${encodeURIComponent(d)}`).join('&');
+
+  // =====================================================================
+  // Durum
+  // =====================================================================
+  const D = {
+    ekran: 'baslangic', // baslangic | yeni | yapilandir | ogren | duzenleyici
+    bilgi: { kullanici: '', surum: '0.0.0', isletim: 'linux', ayrac: '/', varsayilan_konum: '', ev: '' },
+    yuklendi: false,
+    projeler: [], sonSablonlar: [], sablonlar: [], yerlesikler: [],
+    q: '', siralama: 'tarih',
+    tq: '', kategori: 'Tümü', secili: 'konsol',
+    projeAdi: 'yeni_konsol', adDokunuldu: false, konum: '', mevcutAdlar: new Set(),
+    secenekler: { git: true, ornek: true, calistir: true },
+    olusturuluyor: false,
+    proje: null, agac: [], kapaliKlasorler: new Set(),
+    sekmeler: [], etkin: null, imlec: { satir: 1, sutun: 1 },
+    terminal: [], cikti: [], sorunlar: [], altSekme: 'terminal', altPanel: true,
+    calisma: null, argumanlar: '',
+    yanPanel: 'gezgin', araMetin: '', araSonuc: [],
+    menu: null, modal: null, bildirim: null,
+    yaziBoyutu: ayarOku('yaziBoyutu', 13),
+    yazarkenDenetle: ayarOku('yazarkenDenetle', true),
+  };
+
+  const ayrac = () => D.bilgi.ayrac || '/';
+  const tamYol = goreli => D.proje.yol.replace(/[\\/]+$/, '') + ayrac() + goreli.split('/').join(ayrac());
+  /** `a/b/../c` → `a/c` (her iki ayraç da) */
+  const normal = yol => {
+    const parcalar = [];
+    for (const p of yol.split(/[\\/]/)) {
+      if (p === '..') parcalar.pop(); else if (p !== '.') parcalar.push(p);
+    }
+    return parcalar.join('/');
+  };
+  const goreliYol = tam => {
+    const kok = normal(D.proje.yol), t = normal(tam);
+    return t.startsWith(kok + '/') ? t.slice(kok.length + 1) : t;
+  };
+  const kisaYol = yol => D.bilgi.ev && yol.startsWith(D.bilgi.ev) && D.bilgi.isletim !== 'windows' ? '~' + yol.slice(D.bilgi.ev.length) : yol;
+  const surumAdi = () => 'Orhunca ' + D.bilgi.surum.split('.').slice(0, 2).join('.');
+  const kullaniciAdi = () => ilkBuyuk(D.bilgi.kullanici || 'geliştirici');
+  const sablon = kimlik => D.sablonlar.find(s => s.kimlik === kimlik) || D.sablonlar[0];
+
+  // =====================================================================
+  // Orhunca sözdizimi renklendirme
+  // =====================================================================
+  const ANAHTAR_KELIMELER = new Set(['eğer', 'değilse', 'ise', 'her', 'için', 'kadar', 'işlev', 'fiil', 'döndür', 'dur', 'sürdür', 've', 'veya', 'değil', 'olduğu', 'sürece', 'iken', 'kullan', 'sabit', 'doğru', 'yanlış', 'ekrana']);
+  const YERLESIK_FIILLER = new Set(['yaz', 'ekle', 'sırala', 'çıkar']);
+  const TIPLER = new Set(['sayı', 'ondalık', 'metin', 'mantık', 'liste', 'sözlük']);
+  const YUKLEM = /^(büyük|küçük|eşit|değil)(se|sa|ken)?$/;
+  const HARF = 'A-Za-zÇĞİÖŞÜçğıöşüÂâÎîÛû_';
+  const SOZCUK = new RegExp(`(#.*$)|("(?:[^"\\\\]|\\\\.)*"?)|(\\d[\\d_]*(?:\\.\\d+)?)|(['’][${HARF}]+)|([${HARF}][${HARF}0-9]*)|(\\s+)|(.)`, 'gu');
+  let kullaniciFiilleri = new Set();
+
+  function fiilleriTopla() {
+    kullaniciFiilleri = new Set();
+    for (const s of D.sekmeler) {
+      if (!s.icerik) continue;
+      for (const m of s.icerik.matchAll(/^\s*fiil\b(.*?)([^\s:'’()]+)\s*(->[^:]*)?:\s*$/gmu)) kullaniciFiilleri.add(m[2]);
+    }
+  }
+
+  function vurgulaSatir(satir) {
+    let html = '', m;
+    SOZCUK.lastIndex = 0;
+    let onceki = '';
+    while ((m = SOZCUK.exec(satir))) {
+      const t = m[0];
+      let c = '';
+      if (m[1]) c = 'c';
+      else if (m[2]) c = 's';
+      else if (m[3]) c = 'n';
+      else if (m[4]) c = 'e';
+      else if (m[5]) {
+        const sonra = satir.slice(SOZCUK.lastIndex).trimStart()[0];
+        if (ANAHTAR_KELIMELER.has(t) || YUKLEM.test(t)) c = 'k';
+        else if (YERLESIK_FIILLER.has(t) || kullaniciFiilleri.has(t) || /^uzunluğu/.test(t)) c = 'f';
+        else if (sonra === '(') c = 'f';
+        else if (TIPLER.has(t) && /(:|->|<|,)$/.test(onceki)) c = 't';
+      }
+      if (!m[6]) onceki = (onceki + t).slice(-2);
+      html += c ? `<span class="${c}">${kac(t)}</span>` : kac(t);
+    }
+    return html;
+  }
+
+  // =====================================================================
+  // Menüler
+  // =====================================================================
+  const MENULER = [
+    { ad: 'Dosya', ogeler: [['Yeni dosya…', '', 'yeniDosyaModal'], ['Yeni klasör…', '', 'yeniKlasorModal'], '-', ['Kaydet', 'Ctrl+S', 'kaydet'], ['Tümünü kaydet', 'Ctrl+Alt+S', 'tumunuKaydet'], '-', ['Başlangıç ekranı', '', 'baslangicaDon'], ['Projeyi kapat', '', 'projeyiKapat'], '-', ["Stüdyo'yu kapat", '', 'studyoyuKapat']] },
+    { ad: 'Düzen', ogeler: [['Geri al', 'Ctrl+Z', 'geriAl'], ['Yinele', 'Ctrl+Y', 'yinele'], '-', ['Kes', 'Ctrl+X', 'kes'], ['Kopyala', 'Ctrl+C', 'kopyala'], ['Yapıştır', 'Ctrl+V', 'yapistir'], '-', ['Satırı yorum yap', 'Ctrl+/', 'yorumYap']] },
+    { ad: 'Seçim', ogeler: [['Tümünü seç', 'Ctrl+A', 'tumunuSec'], ['Satırı seç', 'Ctrl+L', 'satiriSec'], ['Satırı çoğalt', 'Ctrl+⇧+D', 'satiriCogalt']] },
+    { ad: 'Görünüm', ogeler: [['Gezgin', '', 'panelGezgin'], ['Ara', '', 'panelAra'], ['Yapı', '', 'panelYapi'], ['Çalıştır', '', 'panelCalistir'], '-', ['Alt paneli göster/gizle', 'Ctrl+J', 'altPanelAcKapa'], '-', ['Yazıyı büyüt', 'Ctrl+=', 'yaziBuyut'], ['Yazıyı küçült', 'Ctrl+-', 'yaziKucult']] },
+    { ad: 'Çalıştır', ogeler: [['Çalıştır', 'F5', 'calistir'], ['Durdur', '⇧+F5', 'durdur'], ['Denetle', 'F7', 'denetleKomut'], '-', ['Linux için derle', '', 'derleLinux'], ['Windows için derle', '', 'derleWindows']] },
+    { ad: 'Terminal', ogeler: [['Terminali temizle', '', 'terminalTemizle'], ['Sorunları göster', '', 'altSorunlar'], ['Çıktıyı göster', '', 'altCikti']] },
+    { ad: 'Yardım', ogeler: [["Orhunca'yı öğren", '', 'ogrenAc'], ['Klavye kısayolları', '', 'kisayollarModal'], ['Sürüm notları', '', 'guncellemeModal'], '-', ['Hakkında', '', 'hakkindaModal']] },
+  ];
+
+  function cizAcilir(m) {
+    return `<div class="acilir-menu">${m.ogeler.map(o => o === '-' ? '<div class="acilir-ayrac"></div>'
+      : `<div class="acilir-oge" data-e="${o[2]}"><span>${kac(o[0])}</span>${o[1] ? `<span class="kisayol">${kac(o[1])}</span>` : ''}</div>`).join('')}</div>`;
+  }
+
+  // =====================================================================
+  // Ortak parçalar
+  // =====================================================================
+  function cizBaslik() {
+    const duz = D.ekran === 'duzenleyici' && D.proje;
+    return `<div class="baslik-cubugu">
+      <div class="logo"><div class="logo-kutu gokturk">${GOKTURK}</div><span class="logo-ad">Orhunca</span></div>
+      ${duz ? `<div class="menuler">${MENULER.map(m => `<span class="menu-baslik ${D.menu === m.ad ? 'acik' : ''}" data-e="menuAc" data-a="${m.ad}">${m.ad}${D.menu === m.ad ? cizAcilir(m) : ''}</span>`).join('')}</div>
+      <div class="pencere-adi">${kac(D.proje.ad)} — Orhunca</div>` : ''}
+      <div style="flex:1"></div>
+      ${TAURI ? `<div class="pencere-dugmeleri"><span class="simge" data-e="pencereKucult">remove</span><span class="simge" style="font-size:16px" data-e="pencereBuyut">crop_square</span><span class="simge kapat" data-e="pencereKapat">close</span></div>` : ''}
+    </div>`;
+  }
+
+  function cizYanMenu() {
+    const etkin = D.ekran === 'yapilandir' ? 'yeni' : D.ekran;
+    const ogeler = [['baslangic', 'Başlangıç', 'home'], ['yeni', 'Şablonlar', 'grid_view'], ['ogren', 'Öğren', 'menu_book']];
+    return `<div class="yan-menu">
+      ${ogeler.map(([id, ad, simge]) => `<div class="yan-oge ${etkin === id ? 'etkin' : ''}" data-e="git" data-a="${id}"><div class="cubuk"></div>${S(simge)}<span>${ad}</span></div>`).join('')}
+      <div style="flex:1"></div>
+      <div class="kullanici">
+        <div class="avatar">${kac(kullaniciAdi().charAt(0))}</div>
+        <div class="esnek"><div class="kullanici-ad">${kac(kullaniciAdi())}</div><div class="kullanici-alt">${kac(surumAdi())} · Topluluk</div></div>
+        ${S('settings', 'ayar-simge').replace('<span ', '<span data-e="ayarlarModal" title="Ayarlar" ')}
+      </div>
+    </div>`;
+  }
+
+  // =====================================================================
+  // 01 Başlangıç
+  // =====================================================================
+  function cizBaslangic() {
+    const ql = kucuk(D.q.trim());
+    const liste = D.projeler.filter(p => !ql || kucuk(p.ad).includes(ql))
+      .sort((a, b) => D.siralama === 'tarih' ? b.tarih - a.tarih : a.ad.localeCompare(b.ad, 'tr'));
+    const satirlar = liste.map(p => `
+      <div class="proje ${p.var ? '' : 'kayip'}" data-e="projeAc" data-a="${kac(p.yol)}" title="${p.var ? '' : 'Bu klasör artık yok'}">
+        <div class="proje-simge">${S(p.simge || 'folder')}</div>
+        <div style="min-width:0"><div class="proje-ad">${kac(p.ad)}<span>.ohcproj</span></div><div class="proje-yol">${kac(p.yol)}</div></div>
+        <div class="proje-sag"><span class="etiket">${kac(p.var ? (p.sablon_adi || 'Orhunca projesi') : 'Bulunamadı')}</span><span class="proje-tarih">${tarihBicim(p.tarih)}</span></div>
+      </div>`).join('');
+    const bos = D.projeler.length === 0
+      ? `<div class="bos-durum">Henüz bir proje yok.<br>Sağdaki <b>Yeni proje oluştur</b> ile başlayın ya da var olan bir projeyi açın.</div>`
+      : liste.length === 0 ? `<div class="bos-durum">“${kac(D.q)}” ile eşleşen proje bulunamadı.</div>` : '';
+    return `<div class="baslangic" data-screen-label="01 Başlangıç">
+      <div class="baslangic-sol">
+        <div><div class="selam">Tekrar hoş geldin, ${kac(kullaniciAdi())}</div><h1>Başlayın</h1></div>
+        <div class="arama">${S('search')}<input id="q" data-g="q" value="${kac(D.q)}" placeholder="Son projelerde ara" autocomplete="off"><span class="tus">Alt+S</span></div>
+        <div class="bolum-baslik"><h2>Son projeler</h2><span class="sayi-rozet">${liste.length}</span><div style="flex:1"></div>
+          <div class="siralama" data-e="siralamaDegistir"><span>${D.siralama === 'tarih' ? 'Son açılma tarihi' : 'Ada göre (A–Z)'}</span>${S('swap_vert')}</div></div>
+        <div class="proje-listesi">${satirlar}${bos}</div>
+      </div>
+      <div class="hizli">
+        <h2>Hızlı işlemler</h2>
+        <div class="islem vurgulu" data-e="git" data-a="yeni">${S('add')}<div class="esnek"><div class="islem-ust"><span class="islem-ad">Yeni proje oluştur</span><span class="islem-tus">Ctrl+⇧+N</span></div><div class="islem-alt">Konsol, kütüphane veya oyun şablonu seçin</div></div></div>
+        <div class="islem" data-e="klasorModal" data-a="ac">${S('folder_open')}<div class="esnek"><div class="islem-ad">Var olan projeyi aç</div><div class="islem-alt">Bir klasör veya .ohcproj dosyası seçin</div></div></div>
+        <div class="islem" data-e="klonlaModal">${S('cloud_download')}<div class="esnek"><div class="islem-ad">Depodan klonla</div><div class="islem-alt">Git deposundan proje indirin</div></div></div>
+        <div class="islem" data-e="git" data-a="ogren">${S('school')}<div class="esnek"><div class="islem-ad">Orhunca'yı öğren</div><div class="islem-alt">Türkçe anahtar kelimeler rehberi</div></div></div>
+        <div style="flex:1"></div>
+        <div class="guncelleme" data-e="guncellemeModal">${S('new_releases')}<div class="esnek"><div class="guncelleme-ad">Ekim 2026 güncellemesi</div><div class="guncelleme-alt">Standart kütüphane, sözlükler ve çoklu dosya desteği.</div></div>${S('chevron_right')}</div>
+      </div>
+    </div>`;
+  }
+
+  // =====================================================================
+  // 02 Yeni proje
+  // =====================================================================
+  function dosyaSimgesi(ad, klasor) {
+    if (klasor) return { gokturk: false, simge: 'folder_open' };
+    const u = uzanti(ad);
+    if (u === 'ohc' || u === 'ohchtml') return { gokturk: true };
+    const tablo = { ohcproj: 'tune', md: 'info', json: 'data_object', svg: 'image', png: 'image', jpg: 'image', css: 'palette', txt: 'description' };
+    return { gokturk: false, simge: tablo[u] || 'description' };
+  }
+
+  /** ['a/b.ohc', 'c.ohc'] → girintili ağaç satırları */
+  function agacSatirlari(dosyalar) {
+    const satirlar = [], gorulen = new Set();
+    for (const f of dosyalar) {
+      const p = f.split('/');
+      for (let i = 0; i < p.length - 1; i++) {
+        const a = p.slice(0, i + 1).join('/');
+        if (!gorulen.has(a)) { gorulen.add(a); satirlar.push({ ad: p[i], derinlik: i, klasor: true, yol: a }); }
+      }
+      satirlar.push({ ad: p[p.length - 1], derinlik: p.length - 1, klasor: false, yol: f });
+    }
+    return satirlar;
+  }
+
+  function cizYeni() {
+    const tql = kucuk(D.tq.trim());
+    const liste = D.sablonlar.filter(t => (D.kategori === 'Tümü' || t.kategoriler.includes(D.kategori))
+      && (!tql || kucuk(t.ad + ' ' + t.aciklama + ' ' + t.etiketler.join(' ')).includes(tql)));
+    const sec = sablon(D.secili);
+    const son = (D.sonSablonlar.length ? D.sonSablonlar : ['konsol', 'kutuphane']).map(sablon).filter(Boolean);
+    const onizleme = agacSatirlari(sec.dosyalar.map(f => f.replace('{ad}', D.projeAdi.trim() || sec.kimlik))).map(r => {
+      const s = dosyaSimgesi(r.ad, r.klasor);
+      return `<div class="agac-satir" style="padding-left:${12 + r.derinlik * 14}px;color:${r.klasor ? 'var(--yazi2)' : 'var(--ikincil)'}">${s.gokturk ? `<span class="gokturk">${GOKTURK}</span>` : S(s.simge, '', `color:${r.klasor ? 'var(--sari)' : 'var(--soluk2)'}`)}<span>${kac(r.ad)}</span></div>`;
+    }).join('');
+    const kartlar = liste.map(t => {
+      const secili = t.kimlik === D.secili;
+      return `<div class="sablon ${secili ? 'secili' : ''} ${t.yakinda ? 'yakinda' : ''}" data-e="sablonSec" data-ee="sablonCift" data-a="${t.kimlik}">
+        <div class="sablon-simge">${S(t.simge)}</div>
+        <div style="min-width:0"><div class="sablon-ad">${kac(t.ad)}</div><div class="sablon-aciklama">${kac(t.aciklama)}</div>
+          <div class="etiketler">${t.etiketler.map(g => `<span>${kac(g)}</span>`).join('')}</div></div>
+        ${secili ? S('check_circle', 'dolu tik') : '<span></span>'}
+        ${t.yakinda ? `<div class="yakinda-not" style="grid-column:2;margin-top:-4px"><div class="etiketler" style="margin-top:0"><span class="kilit">${S('lock', '', 'font-size:13px')}${kac(t.yakinda)}'da geliyor</span></div></div>` : ''}
+      </div>`;
+    }).join('');
+    const kategoriler = ['Tümü', 'Web', 'Sunucu', 'Masaüstü', 'Konsol', 'Kütüphane'];
+    return `<div class="sihirbaz" data-screen-label="02 Yeni proje">
+      <div class="ust-satir"><div class="geri simge" data-e="git" data-a="baslangic">arrow_back</div><h1>Yeni proje oluşturun</h1><div style="flex:1"></div><span class="adim">Adım 1 / 2 · Şablon</span></div>
+      <div class="yeni-govde">
+        <div class="yeni-sol">
+          <h2>Son kullanılan şablonlar</h2>
+          ${son.map(t => `<div class="son-sablon" data-e="sablonSec" data-a="${t.kimlik}">${S(t.simge)}<span class="son-sablon-ad">${kac(t.ad)}</span><span class="son-sablon-alt">Orhunca</span></div>`).join('')}
+          <div class="ince-ayrac"></div>
+          <div><div class="kucuk-baslik">Oluşturulacak dosyalar</div><div class="secili-ad">${kac(sec.ad)}</div></div>
+          <div class="dosya-onizleme">${onizleme}</div>
+        </div>
+        <div class="yeni-sag">
+          <div class="arama">${S('search')}<input id="tq" data-g="tq" value="${kac(D.tq)}" placeholder="Şablon ara (ör. konsol, oyun, kütüphane)" autocomplete="off"></div>
+          <div class="kategoriler">${kategoriler.map(k => `<div class="kategori ${D.kategori === k ? 'etkin' : ''}" data-e="kategoriSec" data-a="${k}">${k}</div>`).join('')}</div>
+          <div class="sablon-listesi">${kartlar}${liste.length ? '' : '<div class="bos-durum">Bu filtreyle eşleşen şablon yok.</div>'}</div>
+        </div>
+      </div>
+      <div class="alt-cubuk"><span class="ipucu-metni">İpucu: şablona çift tıklayarak doğrudan devam edebilirsiniz.</span>
+        <div class="dugme" data-e="git" data-a="baslangic">Geri</div>
+        <div class="dugme birincil ${sec.yakinda ? 'pasif' : ''}" data-e="git" data-a="yapilandir">Sonraki</div></div>
+    </div>`;
+  }
+
+  // =====================================================================
+  // 03 Yapılandır
+  // =====================================================================
+  function adHatasi() {
+    const n = D.projeAdi.trim();
+    if (!n) return 'Proje adı gerekli.';
+    if (!/^[\p{L}\p{N}_-]+$/u.test(n)) return 'Yalnızca harf, rakam, alt çizgi (_) ve tire (-) kullanılabilir.';
+    if (D.mevcutAdlar.has(n)) return 'Bu konumda aynı adlı bir proje zaten var.';
+    return null;
+  }
+
+  function cizYapilandir() {
+    const sec = sablon(D.secili), hata = adHatasi();
+    const konum = D.konum || D.bilgi.varsayilan_konum;
+    const secenekler = [['git', 'Git deposu başlat', 'Proje klasöründe yeni bir depo ve .gitignore oluşturur.'],
+      ['ornek', 'Örnek içerik ekle', 'Şablonu çalışan bir örnek programla doldurur.'],
+      ['calistir', 'Açılınca çalıştır', 'Proje açıldığında ilk çalıştırma terminalde gösterilir.']];
+    return `<div class="sihirbaz" data-screen-label="03 Yapılandır">
+      <div class="ust-satir"><div class="geri simge" data-e="git" data-a="yeni">arrow_back</div><h1>Projenizi yapılandırın</h1><div style="flex:1"></div><span class="adim">Adım 2 / 2 · Ayarlar</span></div>
+      <div class="yapilandir-govde"><div class="form">
+        <div class="ozet-kart"><div class="ozet-simge">${S(sec.simge)}</div><div class="esnek"><div class="ozet-ad">${kac(sec.ad)}</div><div class="ozet-alt">${kac(sec.etiketler.join(' · '))}</div></div><div class="baglanti" data-e="git" data-a="yeni">Değiştir</div></div>
+        <div class="alan"><label for="projeAdi">Proje adı</label>
+          <input id="projeAdi" data-g="projeAdi" class="metin-girdi ${hata ? 'hatali' : ''}" value="${kac(D.projeAdi)}" spellcheck="false" autocomplete="off">
+          ${hata ? `<div class="alan-hata">${S('error')}${kac(hata)}</div>` : ''}</div>
+        <div class="alan"><label for="konum">Konum</label>
+          <div class="yan-yana"><input id="konum" data-g="konum" class="metin-girdi" style="flex:1;font-size:13px" value="${kac(konum)}" spellcheck="false" autocomplete="off"><div class="kare-dugme simge" data-e="klasorModal" data-a="konum" title="Klasör seç">folder_open</div></div></div>
+        <div class="yol-kutusu"><div>Proje şu klasörde oluşturulacak</div><div>${kac(konum.replace(/[\\/]+$/, '') + ayrac() + (D.projeAdi.trim() || '…'))}</div></div>
+        <div class="alan" style="gap:2px"><div style="font-size:13px;font-weight:500;color:var(--yazi2);margin-bottom:6px">Seçenekler</div>
+          ${secenekler.map(([a, ad, alt]) => `<div class="secenek" data-e="secenekDegistir" data-a="${a}"><div class="esnek"><div class="secenek-ad">${ad}</div><div class="secenek-alt">${alt}</div></div><div class="anahtar ${D.secenekler[a] ? 'acik' : ''}"><div></div></div></div>`).join('')}
+        </div>
+      </div></div>
+      <div class="alt-cubuk"><div class="dugme" data-e="git" data-a="yeni">Geri</div>
+        <div class="dugme birincil ${hata ? 'pasif' : ''}" data-e="olustur"><span>Oluştur</span>${S('arrow_forward', '', 'font-size:18px')}</div></div>
+    </div>`;
+  }
+
+  // =====================================================================
+  // 05 Öğren
+  // =====================================================================
+  const ANAHTAR_TABLOSU = [
+    ['x = değer', 'let / var', 'yaş = 21'],
+    ['sabit', 'const', 'sabit PI = 3.14159'],
+    ['işlev', 'function', 'işlev topla(a, b):'],
+    ['fiil', '(Orhunca’ya özgü)', "fiil sayı'yı karele:"],
+    ['eğer … ise / değilse', 'if / else', "eğer yaş 18'den büyükse:"],
+    ['her … için', 'for each', 'her öğe için listeden:'],
+    ['… olduğu sürece', 'while', "x 10'dan küçük olduğu sürece:"],
+    ['dur / sürdür', 'break / continue', 'dur'],
+    ['döndür', 'return', 'döndür sonuç'],
+    ["… 'i yaz", 'print', '"Merhaba"\'yı yaz.'],
+    ['ve / veya / değil', 'and / or / not', 'eğer a ve değil b ise:'],
+    ['kullan', 'import', 'kullan "araçlar.ohc"'],
+  ];
+  const HAL_TABLOSU = [
+    ['-(y)ı / -(y)i', 'belirtme · nesne', "5'i sayılara ekle."],
+    ['-(y)a / -(y)e', 'yönelme · hedef', "metni \"not.txt\"'ye yaz."],
+    ['-dan / -den', 'ayrılma · kaynak', "her sayı için sayılardan:"],
+    ['-(n)ın / -(n)in', 'ilgi · sahiplik', 'sayıların uzunluğunu yaz.'],
+    ['-(y)la / -(y)le', 'vasıta · araç', "ad'ı (x > 0)'la doğrula."],
+  ];
+
+  function cizOgren() {
+    const tablo = (b, satirlar, sinif = '') => `<div class="tablo ${sinif}"><div class="tablo-baslik">${b.map(x => `<span>${x}</span>`).join('')}</div>
+      ${satirlar.map(([a, b2, c]) => `<div class="tablo-satir"><span>${kac(a)}</span><span>${kac(b2)}</span><span>${sinif ? kac(c) : vurgulaSatir(c)}</span></div>`).join('')}</div>`;
+    return `<div class="ogren" data-screen-label="05 Öğren"><div class="ogren-ic">
+      <div><h1>Öğren</h1><p class="giris">Orhunca'da anahtar kelimeler Türkçedir ve cümleler Türkçe gibi kurulur: değerler hâl ekleriyle işaretlenir, fiil sona gelir. Başka bir dilden geliyorsanız karşılıkları aşağıda.</p></div>
+      ${tablo(['Orhunca', 'Karşılığı', 'Örnek'], ANAHTAR_TABLOSU)}
+      <h2>Hâl ekleri</h2>
+      ${tablo(['Ek', 'Rolü', 'Örnek'], HAL_TABLOSU)}
+      <div class="cagri-kart"><div class="esnek"><div class="cagri-ad">İlk programını yaz</div><div class="cagri-alt">Konsol Uygulaması şablonuyla başla, F5 ile çalıştır, sonucu terminalde anında gör.</div></div><div class="dugme birincil" data-e="ilkProgram">Başla</div></div>
+      <h2>Standart kütüphane</h2>
+      ${tablo(['İşlev', 'Kullanım', 'Açıklama'], D.yerlesikler.map(y => [y.ad, y.kullanim, y.aciklama]), 'genis')}
+    </div></div>`;
+  }
+
+  // =====================================================================
+  // Modallar
+  // =====================================================================
+  function cizModal() {
+    const m = D.modal;
+    if (!m) return '';
+    const kabuk = (baslik, govde, alt) => `<div class="ortu" data-e="modalDis"><div class="modal" data-e="hic">
+      <div class="modal-baslik"><h2>${baslik}</h2>${S('close').replace('<span ', '<span data-e="modalKapat" ')}</div>
+      <div class="modal-govde">${govde}</div>${alt ? `<div class="modal-alt">${alt}</div>` : ''}</div></div>`;
+    if (m.tur === 'klasor') {
+      const liste = m.yukleniyor ? '<div class="bos-durum"><div class="donen kucuk" style="margin:auto"></div></div>'
+        : (m.klasorler || []).map((k, i) => `<div class="klasor-oge ${m.secili === i ? 'secili' : ''}" data-e="klasorSec" data-ee="klasorGir" data-a="${i}">
+            ${k.proje ? `<span class="gokturk">${GOKTURK}</span>` : S('folder')}<span>${kac(k.ad)}</span>${k.proje ? '<span class="etiket">Orhunca projesi</span>' : ''}</div>`).join('')
+          || '<div class="bos-durum">Bu klasörde alt klasör yok.</div>';
+      const ac = m.mod === 'ac';
+      return kabuk(ac ? 'Proje klasörünü seçin' : 'Konum seçin', `
+        <div class="klasor-yolu"><div class="kare-dugme simge" data-e="klasorUst" title="Üst klasör">arrow_upward</div><input id="klasorYolu" data-g="klasorYolu" class="metin-girdi" value="${kac(m.yol || '')}" spellcheck="false"></div>
+        <div class="klasor-listesi">${liste}</div>
+        ${m.hata ? `<div class="modal-hata">${kac(m.hata)}</div>` : ''}
+        ${ac && m.proje ? `<div class="panel-not">${S('check_circle', 'dolu', 'font-size:16px;color:var(--vurgu);vertical-align:-3px')} Bu klasör bir Orhunca projesi.</div>` : ''}`,
+        `<div class="dugme" data-e="modalKapat">İptal</div><div class="dugme birincil" data-e="klasorOnayla">${ac ? 'Aç' : 'Bu konumu seç'}</div>`);
+    }
+    if (m.tur === 'klonla') {
+      return kabuk('Depodan klonla', `
+        <div class="alan"><label>Depo adresi</label><input id="klonUrl" data-g="klonUrl" class="metin-girdi" value="${kac(m.url)}" placeholder="https://github.com/kullanici/proje.git" spellcheck="false"></div>
+        <div class="alan"><label>Konum</label><input id="klonKonum" data-g="klonKonum" class="metin-girdi" value="${kac(m.konum)}" spellcheck="false"></div>
+        ${m.hata ? `<div class="modal-hata">${kac(m.hata)}</div>` : ''}`,
+        `${m.calisiyor ? '<div class="donen kucuk"></div><span class="ipucu-metni">Klonlanıyor…</span>' : ''}<div class="dugme" data-e="modalKapat">İptal</div><div class="dugme birincil ${m.calisiyor ? 'pasif' : ''}" data-e="klonla">Klonla</div>`);
+    }
+    if (m.tur === 'yeniDosya') {
+      return kabuk(m.klasor ? 'Yeni klasör' : 'Yeni dosya', `
+        <div class="alan"><label>Proje içindeki yol</label><input id="yeniDosyaAdi" data-g="yeniDosyaAdi" class="metin-girdi" value="${kac(m.ad)}" placeholder="${m.klasor ? 'araclar' : 'araclar.ohc'}" spellcheck="false"></div>
+        ${m.hata ? `<div class="modal-hata">${kac(m.hata)}</div>` : ''}`,
+        `<div class="dugme" data-e="modalKapat">İptal</div><div class="dugme birincil" data-e="yeniDosyaOlustur">Oluştur</div>`);
+    }
+    if (m.tur === 'ayarlar') {
+      return kabuk('Ayarlar', `
+        <div class="secenek" style="cursor:default"><div class="esnek"><div class="secenek-ad">Düzenleyici yazı boyutu</div><div class="secenek-alt">Kod ve satır numaraları</div></div>
+          <div class="kare-dugme simge" style="width:32px;height:32px;font-size:18px" data-e="yaziKucult">remove</div><span class="mono" style="width:32px;text-align:center">${D.yaziBoyutu}</span><div class="kare-dugme simge" style="width:32px;height:32px;font-size:18px" data-e="yaziBuyut">add</div></div>
+        <div class="secenek" data-e="yazarkenDenetleDegistir"><div class="esnek"><div class="secenek-ad">Yazarken denetle</div><div class="secenek-alt">Hatalar siz yazarken altı çizili gösterilir.</div></div><div class="anahtar ${D.yazarkenDenetle ? 'acik' : ''}"><div></div></div></div>`,
+        `<div class="dugme birincil" data-e="modalKapat">Tamam</div>`);
+    }
+    if (m.tur === 'guncelleme') {
+      return kabuk('Sürüm notları', `
+        <div class="surum-notu"><h3>0.3 · Ekim 2026</h3><ul><li>Standart kütüphane: metin, liste, dosya, matematik ve zaman işlevleri</li><li><code>sözlük</code> tipi: <code>{"elma": 5}</code></li><li><code>kullan "dosya.ohc"</code> ile birden fazla dosya, <code>sabit</code> tanımları</li><li>Tamsayı taşması denetimi, Türkçe hata açıklamaları</li><li>Orhunca Stüdyo</li></ul></div>
+        <div class="surum-notu"><h3>0.2</h3><ul><li>Ondalık sayılar</li><li>Kendi fiillerinizi tanımlama: <code>fiil sayı'yı karele:</code></li><li>Otomatik bellek yönetimi (çöp toplayıcı)</li></ul></div>
+        <div class="surum-notu"><h3>0.1</h3><ul><li>İlk derleyici: hâl ekleri, Türkçe koşullar ve döngüler</li><li>Cranelift ile Linux ve Windows programları</li></ul></div>`,
+        `<div class="dugme birincil" data-e="modalKapat">Kapat</div>`);
+    }
+    if (m.tur === 'kisayollar') {
+      const k = [['Çalıştır', 'F5'], ['Durdur', '⇧+F5'], ['Denetle', 'F7'], ['Kaydet', 'Ctrl+S'], ['Tümünü kaydet', 'Ctrl+Alt+S'], ['Satırı yorum yap', 'Ctrl+/'], ['Satırı çoğalt', 'Ctrl+⇧+D'], ['Alt paneli göster/gizle', 'Ctrl+J'], ['Girinti / geri girinti', 'Tab / ⇧+Tab'], ['Projelerde ara', 'Alt+S'], ['Yeni proje', 'Ctrl+⇧+N']];
+      return kabuk('Klavye kısayolları', `<div class="kisayol-listesi">${k.map(([a, b]) => `<span>${a}</span><span>${b}</span>`).join('')}</div>`, `<div class="dugme birincil" data-e="modalKapat">Kapat</div>`);
+    }
+    if (m.tur === 'hakkinda') {
+      return kabuk('Hakkında', `<div style="display:flex;gap:16px;align-items:center"><div class="logo-kutu gokturk" style="width:48px;height:48px;font-size:30px;border-radius:12px">${GOKTURK}</div>
+        <div><div style="font-size:16px;font-weight:600">Orhunca Stüdyo</div><div class="panel-not">${kac(surumAdi())} (${kac(D.bilgi.surum)}) · ${kac(D.bilgi.isletim)}</div></div></div>
+        <div class="panel-not">Türkçe tabanlı programlama dili Orhunca için geliştirme ortamı. Derleyici Rust ile yazılmıştır ve Cranelift ile doğrudan makine kodu üretir.</div>
+        <div class="panel-not"><a href="https://github.com/furkan003/orhunca" target="_blank" rel="noopener">github.com/furkan003/orhunca</a></div>`, `<div class="dugme birincil" data-e="modalKapat">Kapat</div>`);
+    }
+    return '';
+  }
+
+  function cizOlusturuluyor() {
+    if (!D.olusturuluyor) return '';
+    return `<div class="ortu"><div class="olusturuluyor"><div class="donen"></div><div>
+      <div class="olusturuluyor-ad">“${kac(D.projeAdi.trim())}” oluşturuluyor</div>
+      <div class="olusturuluyor-alt">Şablon dosyaları kopyalanıyor…</div></div></div></div>`;
+  }
+
+  function cizBildirim() {
+    if (!D.bildirim) return '';
+    return `<div class="bildirim ${D.bildirim.hata ? 'hata' : ''}">${S(D.bildirim.hata ? 'error' : 'check_circle')}<span>${kac(D.bildirim.metin)}</span></div>`;
+  }
+
+  let bildirimZamani;
+  function bildir(metin, hata = false) {
+    D.bildirim = { metin, hata };
+    clearTimeout(bildirimZamani);
+    bildirimZamani = setTimeout(() => { D.bildirim = null; katmanlariCiz(); }, hata ? 6000 : 3500);
+    katmanlariCiz();
+  }
+
+  // =====================================================================
+  // Ana çizim
+  // =====================================================================
+  function odakKaydet() {
+    const a = document.activeElement;
+    if (!a || !a.id || a.tagName !== 'INPUT') return null;
+    return { id: a.id, bas: a.selectionStart, son: a.selectionEnd };
+  }
+  function odakGeriYukle(o) {
+    if (!o) return;
+    const el = document.getElementById(o.id);
+    if (el) { el.focus(); try { el.setSelectionRange(o.bas, o.son); } catch { /* yok */ } }
+  }
+
+  function ciz() {
+    const kok = $('#uygulama');
+    if (!ANAHTAR) {
+      kok.innerHTML = `<div class="pencere">${cizBaslik()}<div class="tam-ekran-mesaj"><div class="gokturk">${GOKTURK}</div>
+        <div style="font-size:18px;color:var(--yazi);font-weight:600">Orhunca Stüdyo</div>
+        <div>Stüdyo'yu açmak için terminalde <code>orhunca stüdyo</code> komutunu çalıştırın.</div></div></div>`;
+      return;
+    }
+    if (D.ekran === 'duzenleyici') { duzenleyiciIskelet(); return; }
+    const odak = odakKaydet();
+    const ekran = { baslangic: cizBaslangic, yeni: cizYeni, yapilandir: cizYapilandir, ogren: cizOgren }[D.ekran] || cizBaslangic;
+    const kaydirma = $('.proje-listesi, .sablon-listesi, .ogren, .yapilandir-govde')?.scrollTop;
+    kok.innerHTML = `<div class="pencere">${cizBaslik()}<div class="govde">${cizYanMenu()}${D.yuklendi ? ekran() : '<div class="tam-ekran-mesaj"><div class="donen"></div></div>'}</div><div id="katman"></div></div>`;
+    const yeniKap = $('.proje-listesi, .sablon-listesi, .ogren, .yapilandir-govde');
+    if (yeniKap && kaydirma) yeniKap.scrollTop = kaydirma;
+    katmanlariCiz();
+    odakGeriYukle(odak);
+  }
+
+  /** Modal, "oluşturuluyor" örtüsü ve bildirimler: ekranı yeniden çizmeden güncellenir. */
+  function katmanlariCiz() {
+    const k = $('#katman');
+    if (!k) return;
+    const odak = odakKaydet();
+    k.innerHTML = cizModal() + cizOlusturuluyor() + cizBildirim();
+    odakGeriYukle(odak);
+  }
+
+  // =====================================================================
+  // 04 Düzenleyici
+  // =====================================================================
+  let iskeletVar = false;
+
+  function duzenleyiciIskelet() {
+    const kok = $('#uygulama');
+    if (!iskeletVar || !$('#kodBolge')) {
+      kok.innerHTML = `<div class="pencere"><div id="baslikKap">${cizBaslik()}</div>
+        <div class="govde"><div class="duzenleyici" data-screen-label="04 Düzenleyici">
+          <div class="duz-govde">
+            <div class="etkinlik-cubugu" id="etkinlik"></div>
+            <div class="yan-panel" id="yanPanel"></div>
+            <div class="duz-orta">
+              <div class="sekmeler" id="sekmeler"></div>
+              <div class="kirinti" id="kirinti"></div>
+              <div id="kodBolge" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>
+              <div class="alt-panel" id="altPanel"></div>
+            </div>
+          </div>
+          <div class="durum-cubugu" id="durumCubugu"></div>
+        </div></div><div id="katman"></div></div>`;
+      iskeletVar = true;
+      guncelle('hepsi');
+    } else {
+      guncelle('baslik');
+    }
+  }
+
+  function guncelle(...parcalar) {
+    if (D.ekran !== 'duzenleyici') { ciz(); return; }
+    const hepsi = parcalar.includes('hepsi');
+    const p = a => hepsi || parcalar.includes(a);
+    if (p('baslik')) { const b = $('#baslikKap'); if (b) b.innerHTML = cizBaslik(); }
+    if (p('etkinlik')) cizEtkinlik();
+    if (p('yan')) cizYanPanel();
+    if (p('sekmeler')) cizSekmeler();
+    if (p('kod')) cizKod();
+    if (p('isaretler')) isaretleriCiz();
+    if (p('alt')) cizAltPanel();
+    if (p('durum')) cizDurum();
+    if (p('katman') || hepsi) katmanlariCiz();
+  }
+
+  function cizEtkinlik() {
+    const ogeler = [['gezgin', 'description', 'Gezgin'], ['ara', 'search', 'Ara'], ['yapi', 'account_tree', 'Yapı'], ['calistir', 'play_circle', 'Çalıştır'], ['eklentiler', 'extension', 'Eklentiler']];
+    $('#etkinlik').innerHTML = ogeler.map(([id, simge, ad]) => `<span class="simge ${D.yanPanel === id ? 'etkin' : ''}" title="${ad}" data-e="yanPanelSec" data-a="${id}">${simge}</span>`).join('')
+      + `<div style="flex:1"></div><span class="simge" title="Başlangıç ekranı" data-e="baslangicaDon">home</span><span class="simge" title="Ayarlar" data-e="ayarlarModal">settings</span>`;
+  }
+
+  function gorunurAgac() {
+    return D.agac.filter(g => {
+      const p = g.yol.split('/');
+      for (let i = 1; i < p.length; i++) if (D.kapaliKlasorler.has(p.slice(0, i).join('/'))) return false;
+      return true;
+    });
+  }
+
+  function cizYanPanel() {
+    const kap = $('#yanPanel');
+    const baslik = (ad, ek = '') => `<div class="panel-baslik"><span style="flex:1">${ad}</span>${ek}</div>`;
+    if (D.yanPanel === 'gezgin') {
+      const satirlar = gorunurAgac().map(g => {
+        const ad = sonParca(g.yol), derinlik = g.yol.split('/').length - 1;
+        const s = dosyaSimgesi(ad, g.klasor);
+        const kapali = g.klasor && D.kapaliKlasorler.has(g.yol);
+        const simge = g.klasor ? S(kapali ? 'folder' : 'folder_open') : s.gokturk ? `<span class="gokturk">${GOKTURK}</span>` : S(s.simge);
+        return `<div class="agac-oge ${g.klasor ? 'klasor' : ''} ${D.etkin === g.yol ? 'etkin' : ''}" style="padding-left:${14 + derinlik * 14}px" data-e="${g.klasor ? 'klasorAcKapa' : 'dosyaAc'}" data-a="${kac(g.yol)}" title="${kac(g.yol)}">${simge}<span class="ad">${kac(ad)}</span></div>`;
+      }).join('');
+      kap.innerHTML = baslik('GEZGİN', `<span class="simge" title="Yeni dosya" data-e="yeniDosyaModal" style="margin-right:6px">note_add</span><span class="simge" title="Yenile" data-e="agaciYenile">refresh</span>`)
+        + `<div class="proje-baslik">${S('expand_more')}<span>${kac(buyuk(D.proje.ad))}</span></div><div class="agac">${satirlar}</div>`;
+    } else if (D.yanPanel === 'ara') {
+      const gruplar = {};
+      for (const r of D.araSonuc) (gruplar[r.dosya] ||= []).push(r);
+      const vurgu = t => { const i = kucuk(t).indexOf(kucuk(D.araMetin)); return i < 0 ? kac(t) : kac(t.slice(0, i)) + '<b>' + kac(t.slice(i, i + D.araMetin.length)) + '</b>' + kac(t.slice(i + D.araMetin.length)); };
+      kap.innerHTML = baslik('ARA') + `<div class="panel-ic"><input id="araMetin" data-g="araMetin" class="metin-girdi" placeholder="Projede ara" value="${kac(D.araMetin)}" spellcheck="false" autocomplete="off">
+        ${Object.entries(gruplar).map(([d, l]) => `<div><div class="ara-dosya">${dosyaSimgesi(d).gokturk ? `<span class="gokturk" style="color:var(--vurgu)">${GOKTURK}</span>` : S('description', '', 'font-size:15px')}${kac(d)}</div>${l.map(r => `<div class="ara-sonuc" data-e="konumaGit" data-a="${kac(r.dosya)}|${r.satir}">${vurgu(r.metin)}</div>`).join('')}</div>`).join('')}
+        ${D.araMetin && !D.araSonuc.length ? '<div class="panel-not">Sonuç yok.</div>' : ''}</div>`;
+    } else if (D.yanPanel === 'yapi') {
+      const s = etkinSekme(), ogeler = [];
+      if (s && !s.ikili) s.icerik.split('\n').forEach((l, i) => {
+        let m;
+        if ((m = l.match(/^\s*işlev\s+([^\s(]+)/u))) ogeler.push(['işlev', m[1], i + 1]);
+        else if ((m = l.match(/^\s*fiil\b(.*?)([^\s:'’()]+)\s*(->[^:]*)?:\s*$/u))) ogeler.push(['fiil', m[2], i + 1]);
+        else if ((m = l.match(/^\s*sabit\s+([^\s=]+)/u))) ogeler.push(['sabit', m[1], i + 1]);
+        else if ((m = l.match(/^\s*kullan\s+"([^"]+)"/u))) ogeler.push(['kullan', m[1], i + 1]);
+      });
+      kap.innerHTML = baslik('YAPI') + `<div class="panel-ic">${ogeler.map(([t, ad, n]) => `<div class="yapi-oge" data-e="satiraGit" data-a="${n}"><span class="tur">${t}</span><span class="${t === 'fiil' || t === 'işlev' ? 'f' : t === 'sabit' ? 't' : 's'}">${kac(ad)}</span><span class="satir-no">${n}</span></div>`).join('')
+        || '<div class="panel-not">Bu dosyada işlev, fiil ya da sabit tanımı yok.</div>'}</div>`;
+    } else if (D.yanPanel === 'calistir') {
+      const giris = girisDosyasi();
+      kap.innerHTML = baslik('ÇALIŞTIR') + `<div class="panel-ic">
+        <div class="panel-not">Giriş dosyası<br><span class="mono" style="color:var(--yazi2)">${kac(giris || '—')}</span></div>
+        ${D.calisma ? `<div class="panel-dugme" data-e="durdur">${S('stop')}Durdur</div>` : `<div class="panel-dugme birincil" data-e="calistir">${S('play_arrow')}Çalıştır (F5)</div>`}
+        <div class="alan" style="gap:6px"><label style="font-size:12px">Program argümanları</label><input id="argumanlar" data-g="argumanlar" class="metin-girdi" placeholder="ör. bir iki" value="${kac(D.argumanlar)}" spellcheck="false"></div>
+        <div class="panel-dugme" data-e="denetleKomut">${S('bug_report')}Denetle (F7)</div>
+        <div class="ince-ayrac"></div>
+        <div class="panel-not">Dağıtım için derle (proje/cikti/)</div>
+        <div class="panel-dugme" data-e="derleLinux">${S('terminal')}Linux için derle</div>
+        <div class="panel-dugme" data-e="derleWindows">${S('desktop_windows')}Windows için derle</div>
+      </div>`;
+    } else {
+      const gruplar = [['Metin', 'büyük_harf, böl, birleştir, değiştir…'], ['Liste', 'sil, bul, en_büyük, toplam…'], ['Sözlük', 'anahtarlar, değerler, içerir…'], ['Dosya', 'dosya_oku, dosyaya_yaz…'], ['Matematik', 'karekök, üs, rastgele…'], ['Zaman', 'tarih, zaman, bekle']];
+      kap.innerHTML = baslik('EKLENTİLER') + `<div class="panel-ic"><div class="panel-not">Paket yöneticisi bir sonraki aşamada geliyor. Standart kütüphane her projede hazır:</div>
+        ${gruplar.map(([a, b]) => `<div style="padding:8px 10px;border-radius:8px;background:var(--kart);border:1px solid var(--kart-kenar)"><div style="font-size:13px;font-weight:500">${a}</div><div class="panel-not" style="font-size:12px">${b}</div></div>`).join('')}
+        <div class="panel-dugme" data-e="ogrenAc">${S('menu_book')}Tümünü gör</div></div>`;
+    }
+  }
+
+  function cizSekmeler() {
+    $('#sekmeler').innerHTML = D.sekmeler.map(s => {
+      const kirli = !s.ikili && s.icerik !== s.kayitli;
+      return `<div class="sekme ${s.yol === D.etkin ? 'etkin' : ''}" data-e="sekmeSec" data-a="${kac(s.yol)}" title="${kac(s.yol)}"><span>${kac(sonParca(s.yol))}</span>${kirli ? `<span class="kirli" data-e="sekmeKapat" data-a="${kac(s.yol)}"></span>` : `<span class="simge kapat" data-e="sekmeKapat" data-a="${kac(s.yol)}">close</span>`}</div>`;
+    }).join('');
+    $('#kirinti').textContent = D.etkin ? [D.proje.ad, ...D.etkin.split('/')].join('  ›  ') : D.proje.ad;
+  }
+
+  const etkinSekme = () => D.sekmeler.find(s => s.yol === D.etkin);
+  let karakterGenisligi = 7.8;
+
+  function cizKod() {
+    const kap = $('#kodBolge'), s = etkinSekme();
+    document.documentElement.style.setProperty('--kod-boyut', D.yaziBoyutu + 'px');
+    if (!s) {
+      kap.innerHTML = `<div class="bos-duzenleyici"><div class="gokturk">${GOKTURK}</div><div class="kisayollar">Çalıştır<span>F5</span><br>Denetle<span>F7</span><br>Kaydet<span>Ctrl+S</span></div></div>`;
+      return;
+    }
+    if (s.ikili) {
+      kap.innerHTML = `<div class="bos-duzenleyici">${S('draft', '', 'font-size:40px')}<div>Bu dosya metin değil; düzenleyicide açılamaz.</div></div>`;
+      return;
+    }
+    kap.innerHTML = `<div class="kod-kap" id="kodKap"><div class="kod-ic" id="kodIc">
+      <div class="etkin-satir" id="etkinSatir"></div><div id="hataKatmani"></div>
+      <div class="satir-nolari" id="satirNolari"></div>
+      <pre class="vurgu-katman" id="vurguKatman"></pre>
+      <textarea class="kod-alani" id="kodAlani" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off"></textarea>
+    </div></div>`;
+    const ta = $('#kodAlani');
+    ta.value = s.icerik;
+    // karakter genişliği (hata çizgileri için)
+    const olcu = document.createElement('span');
+    olcu.textContent = 'x'.repeat(100);
+    olcu.style.cssText = 'position:absolute;visibility:hidden;white-space:pre';
+    $('#kodIc').appendChild(olcu);
+    karakterGenisligi = olcu.getBoundingClientRect().width / 100 || 7.8;
+    olcu.remove();
+    vurguyuGuncelle();
+    $('#kodKap').scrollTop = s.kaydirma?.y || 0;
+    $('#kodKap').scrollLeft = s.kaydirma?.x || 0;
+    ta.focus({ preventScroll: true });
+    ta.setSelectionRange(s.secim?.[0] || 0, s.secim?.[1] || 0);
+    imleciGuncelle();
+    duzenleyiciOlaylari(ta);
+  }
+
+  function vurguyuGuncelle() {
+    const ta = $('#kodAlani'), s = etkinSekme();
+    if (!ta || !s) return;
+    const satirlar = s.icerik.split('\n');
+    $('#vurguKatman').innerHTML = satirlar.map(vurgulaSatir).join('\n') + '\n';
+    const no = $('#satirNolari');
+    if (no.childElementCount !== satirlar.length) {
+      no.innerHTML = satirlar.map((_, i) => `<div>${i + 1}</div>`).join('');
+    }
+    const pre = $('#vurguKatman');
+    ta.style.width = Math.max(pre.scrollWidth, $('#kodKap').clientWidth - 56) + 'px';
+    ta.style.height = (satirlar.length * 21 + 8) + 'px';
+    isaretleriCiz();
+  }
+
+  /** Hata çizgileri ve satır numarası işaretleri */
+  function isaretleriCiz() {
+    const katman = $('#hataKatmani'), s = etkinSekme();
+    if (!katman || !s) return;
+    const tam = normal(tamYol(s.yol));
+    const satirlar = s.icerik.split('\n');
+    const benim = D.sorunlar.filter(h => h.dosya && normal(h.dosya) === tam && h.satir > 0);
+    katman.innerHTML = benim.map(h => {
+      const metin = satirlar[h.satir - 1] ?? '';
+      const bas = Math.max(0, h.sutun - 1);
+      const uz = Math.max(2, metin.length - bas);
+      return `<div class="hata-cizgi" style="top:${4 + (h.satir - 1) * 21}px;left:${56 + bas * karakterGenisligi}px;width:${uz * karakterGenisligi}px"></div>`;
+    }).join('');
+    const no = $('#satirNolari');
+    if (no) [...no.children].forEach((d, i) => d.classList.toggle('hatali', benim.some(h => h.satir === i + 1)));
+  }
+
+  function imleciGuncelle() {
+    const ta = $('#kodAlani'), s = etkinSekme();
+    if (!ta || !s) return;
+    const once = ta.value.slice(0, ta.selectionStart);
+    const satir = once.split('\n').length;
+    const sutun = ta.selectionStart - once.lastIndexOf('\n');
+    D.imlec = { satir, sutun };
+    s.secim = [ta.selectionStart, ta.selectionEnd];
+    $('#etkinSatir').style.top = (4 + (satir - 1) * 21) + 'px';
+    const no = $('#satirNolari');
+    no.querySelector('.etkin')?.classList.remove('etkin');
+    no.children[satir - 1]?.classList.add('etkin');
+    const d = $('#durumImlec');
+    if (d) d.textContent = `Satır ${satir}, Sütun ${sutun}`;
+  }
+
+  /** Görünür alanın dışına çıkan imleci kaydırır. */
+  function imleciGoster() {
+    const kap = $('#kodKap'), ta = $('#kodAlani');
+    if (!kap || !ta) return;
+    const y = 4 + (D.imlec.satir - 1) * 21, x = 56 + (D.imlec.sutun - 1) * karakterGenisligi;
+    if (y < kap.scrollTop) kap.scrollTop = y - 8;
+    else if (y + 21 > kap.scrollTop + kap.clientHeight) kap.scrollTop = y + 21 - kap.clientHeight + 8;
+    if (x < kap.scrollLeft + 56) kap.scrollLeft = Math.max(0, x - 80);
+    else if (x > kap.scrollLeft + kap.clientWidth - 24) kap.scrollLeft = x - kap.clientWidth + 80;
+  }
+
+  function metinEkle(ta, metin) {
+    // execCommand geri alma geçmişini korur
+    if (!document.execCommand('insertText', false, metin)) {
+      ta.setRangeText(metin, ta.selectionStart, ta.selectionEnd, 'end');
+      ta.dispatchEvent(new Event('input'));
+    }
+  }
+
+  /** Seçili satırları dönüştürür (girinti, yorum). */
+  function satirlariDonustur(ta, f) {
+    const v = ta.value;
+    const bas = v.lastIndexOf('\n', ta.selectionStart - 1) + 1;
+    let son = v.indexOf('\n', ta.selectionEnd - (ta.selectionEnd > ta.selectionStart && v[ta.selectionEnd - 1] === '\n' ? 1 : 0));
+    if (son < 0) son = v.length;
+    const eski = v.slice(bas, son).split('\n');
+    const yeni = f(eski);
+    ta.setSelectionRange(bas, son);
+    metinEkle(ta, yeni.join('\n'));
+    ta.setSelectionRange(bas, bas + yeni.join('\n').length);
+  }
+
+  function yorumYap() {
+    const ta = $('#kodAlani');
+    if (!ta) return;
+    satirlariDonustur(ta, sat => {
+      const hepsi = sat.filter(l => l.trim()).every(l => /^\s*#/.test(l));
+      return sat.map(l => !l.trim() ? l : hepsi ? l.replace(/^(\s*)# ?/, '$1') : l.replace(/^(\s*)/, '$1# '));
+    });
+  }
+
+  function satiriCogalt() {
+    const ta = $('#kodAlani');
+    if (!ta) return;
+    const v = ta.value, bas = v.lastIndexOf('\n', ta.selectionStart - 1) + 1;
+    let son = v.indexOf('\n', ta.selectionStart);
+    if (son < 0) son = v.length;
+    const satir = v.slice(bas, son), konum = ta.selectionStart;
+    ta.setSelectionRange(son, son);
+    metinEkle(ta, '\n' + satir);
+    ta.setSelectionRange(konum + satir.length + 1, konum + satir.length + 1);
+  }
+
+  let olaylarBagli = new WeakSet();
+  function duzenleyiciOlaylari(ta) {
+    if (olaylarBagli.has(ta)) return;
+    olaylarBagli.add(ta);
+    ta.addEventListener('input', () => {
+      const s = etkinSekme();
+      if (!s) return;
+      const onceKirli = s.icerik !== s.kayitli;
+      s.icerik = ta.value;
+      if (/^\s*fiil\b/m.test(s.icerik) || kullaniciFiilleri.size) fiilleriTopla();
+      vurguyuGuncelle();
+      imleciGuncelle();
+      imleciGoster();
+      if (onceKirli !== (s.icerik !== s.kayitli)) cizSekmeler();
+      if (D.yanPanel === 'yapi') cizYanPanel();
+      denetlemeyiPlanla();
+    });
+    ['keyup', 'click', 'select', 'focus'].forEach(o => ta.addEventListener(o, imleciGuncelle));
+    $('#kodKap').addEventListener('scroll', () => { const s = etkinSekme(), k = $('#kodKap'); if (s && k) s.kaydirma = { x: k.scrollLeft, y: k.scrollTop }; });
+    ta.addEventListener('mousemove', e => {
+      const kap = $('#kodKap').getBoundingClientRect(), k = $('#kodKap');
+      const satir = Math.floor((e.clientY - kap.top + k.scrollTop - 4) / 21) + 1;
+      const s = etkinSekme();
+      const h = s && D.sorunlar.find(x => x.dosya && normal(x.dosya) === normal(tamYol(s.yol)) && x.satir === satir);
+      baloncukGoster(h, e.clientX, e.clientY);
+    });
+    ta.addEventListener('mouseleave', () => baloncukGoster(null));
+    ta.addEventListener('keydown', e => {
+      const v = ta.value, bas = ta.selectionStart, son = ta.selectionEnd;
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        if (e.shiftKey) satirlariDonustur(ta, sat => sat.map(l => l.replace(/^( {1,4}|\t)/, '')));
+        else if (v.slice(bas, son).includes('\n')) satirlariDonustur(ta, sat => sat.map(l => '    ' + l));
+        else metinEkle(ta, '    ');
+      } else if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        const satirBas = v.lastIndexOf('\n', bas - 1) + 1;
+        const satir = v.slice(satirBas, bas);
+        let girinti = satir.match(/^[ \t]*/)[0];
+        if (/:\s*(#.*)?$/.test(satir.replace(/"(?:[^"\\]|\\.)*"/g, '""'))) girinti += '    ';
+        metinEkle(ta, '\n' + girinti);
+      } else if (e.key === 'Backspace' && bas === son && bas > 0) {
+        const satirBas = v.lastIndexOf('\n', bas - 1) + 1;
+        const once = v.slice(satirBas, bas);
+        if (once.length > 0 && /^ +$/.test(once) && once.length % 4 === 0) {
+          e.preventDefault();
+          ta.setSelectionRange(bas - 4, bas);
+          metinEkle(ta, '');
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+        e.preventDefault(); yorumYap();
+      } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
+        e.preventDefault(); satiriCogalt();
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'l' || e.key === 'L')) {
+        e.preventDefault();
+        const sb = v.lastIndexOf('\n', bas - 1) + 1; let ss = v.indexOf('\n', bas); if (ss < 0) ss = v.length;
+        ta.setSelectionRange(sb, Math.min(v.length, ss + 1));
+      }
+    });
+  }
+
+  function baloncukGoster(h, x, y) {
+    let b = $('#baloncuk');
+    if (!h) { b?.remove(); return; }
+    if (!b) { b = document.createElement('div'); b.id = 'baloncuk'; b.className = 'baloncuk'; document.body.appendChild(b); }
+    b.innerHTML = `<div>${kac(h.mesaj)}</div>${h.ipucu ? `<div class="ipucu">ipucu: ${kac(h.ipucu)}</div>` : ''}`;
+    b.style.left = Math.min(x + 12, innerWidth - 480) + 'px';
+    b.style.top = (y + 18) + 'px';
+  }
+
+  function cizAltPanel() {
+    const p = $('#altPanel');
+    p.classList.toggle('gizli', !D.altPanel);
+    const sorunSayisi = D.sorunlar.length;
+    const sekme = (id, ad) => `<span class="${D.altSekme === id ? 'etkin' : ''}" data-e="altSekme" data-a="${id}">${ad}</span>`;
+    let icerik;
+    if (D.altSekme === 'sorunlar') {
+      icerik = D.sorunlar.length ? D.sorunlar.map((h, i) => `<div class="sorun" data-e="sorunaGit" data-a="${i}">${S('error')}<div><span>${kac(h.mesaj)}</span><span class="yer">${kac(h.dosya ? goreliYol(h.dosya) : '')}${h.satir ? `:${h.satir}:${h.sutun}` : ''}</span>${h.ipucu ? `<div class="ipucu">ipucu: ${kac(h.ipucu)}</div>` : ''}</div></div>`).join('')
+        : '<div class="tl dim">Sorun yok.</div>';
+    } else {
+      const liste = D.altSekme === 'cikti' ? D.cikti : D.terminal;
+      icerik = liste.map(l => `<div class="tl ${l.c || ''}">${kac(l.t.replace(/\n$/, ''))}</div>`).join('')
+        + (D.altSekme === 'terminal' && D.calisma ? `<div class="terminal-girdi"><span>›</span><input id="terminalGirdi" placeholder="Programa girdi yazıp Enter'a basın" autocomplete="off" spellcheck="false"></div>` : '')
+        + (!liste.length && !D.calisma ? `<div class="tl dim">${D.altSekme === 'cikti' ? 'Derleme çıktısı burada görünür.' : 'Çalıştırmak için F5’e basın.'}</div>` : '');
+    }
+    const odak = odakKaydet();
+    p.innerHTML = `<div class="alt-sekmeler">${sekme('terminal', 'TERMİNAL')}${sekme('sorunlar', `SORUNLAR${sorunSayisi ? ' (' + sorunSayisi + ')' : ''}`)}${sekme('cikti', 'ÇIKTI')}
+      <div style="flex:1"></div><span class="simge" title="${D.calisma ? 'Durdur' : 'Çalıştır'}" data-e="${D.calisma ? 'durdur' : 'calistir'}">${D.calisma ? 'stop' : 'add'}</span><span class="simge" title="Temizle" data-e="terminalTemizle">delete</span></div>
+      <div class="terminal" id="terminal">${icerik}</div>`;
+    const t = $('#terminal');
+    t.scrollTop = t.scrollHeight;
+    if (odak && odak.id === 'terminalGirdi') odakGeriYukle(odak);
+  }
+
+  function cizDurum() {
+    const n = D.sorunlar.length;
+    $('#durumCubugu').innerHTML = `<div class="durum-rozet"><span class="gokturk">${GOKTURK}</span>Orhunca</div>
+      ${D.proje.dal ? `<span class="ogeler">${S('fork_right')}${kac(D.proje.dal)}</span>` : ''}
+      <span class="tiklanir ${n ? 'hatali' : ''}" data-e="altSorunlar">${n} hata · 0 uyarı</span>
+      <div style="flex:1"></div>
+      <span id="durumImlec">Satır ${D.imlec.satir}, Sütun ${D.imlec.sutun}</span><span>UTF-8</span><span>${kac(surumAdi())}</span>
+      <span>${D.calisma ? 'Çalışıyor…' : 'Konsol'}</span>`;
+  }
+
+  // =====================================================================
+  // Proje işlemleri
+  // =====================================================================
+  function girisDosyasi() {
+    if (!D.proje) return null;
+    if (D.proje.giris && D.agac.some(g => g.yol === D.proje.giris)) return D.proje.giris;
+    const s = etkinSekme();
+    if (s && uzanti(s.yol) === 'ohc') return s.yol;
+    return D.agac.find(g => !g.klasor && uzanti(g.yol) === 'ohc')?.yol || null;
+  }
+
+  async function agaciYukle() {
+    const r = await api('/api/agac?' + sorgu({ kok: D.proje.yol }));
+    D.agac = r.girdiler || [];
+  }
+
+  async function projeyiAc(bilgi, { ilkCalistirma = false } = {}) {
+    D.proje = bilgi;
+    D.sekmeler = []; D.etkin = null; D.sorunlar = []; D.terminal = []; D.cikti = [];
+    D.kapaliKlasorler = new Set(); D.calisma = null; D.menu = null; D.modal = null;
+    D.yanPanel = 'gezgin'; D.imlec = { satir: 1, sutun: 1 };
+    await agaciYukle();
+    const giris = girisDosyasi();
+    if (giris) await dosyaAc(giris, false);
+    const projeDosyasi = D.agac.find(g => uzanti(g.yol) === 'ohcproj');
+    if (projeDosyasi) await dosyaAc(projeDosyasi.yol, false);
+    if (giris) D.etkin = giris;
+    D.ekran = 'duzenleyici';
+    iskeletVar = false;
+    ciz();
+    if (bilgi.uyari) bildir(bilgi.uyari, true);
+    if (ilkCalistirma && giris) calistir();
+    else {
+      D.terminal = [{ t: istem(), c: 'mut' }, { t: 'Çalıştırmak için F5’e basın.', c: 'dim' }];
+      guncelle('alt');
+      denetle();
+    }
+  }
+
+  async function dosyaAc(yol, ciz_ = true) {
+    if (!D.sekmeler.some(s => s.yol === yol)) {
+      const r = await api('/api/dosya?' + sorgu({ yol: tamYol(yol) }));
+      if (r.hata) { bildir(r.hata, true); return; }
+      D.sekmeler.push({ yol, icerik: r.icerik ?? '', kayitli: r.icerik ?? '', ikili: !!r.ikili });
+      fiilleriTopla();
+    }
+    D.etkin = yol;
+    if (ciz_) guncelle('sekmeler', 'kod', 'yan', 'durum');
+  }
+
+  async function kaydet(s = etkinSekme(), sessiz = false) {
+    if (!s || s.ikili || s.icerik === s.kayitli) return true;
+    const r = await api('/api/dosya', { yol: tamYol(s.yol), icerik: s.icerik });
+    if (r.hata) { bildir(r.hata, true); return false; }
+    s.kayitli = s.icerik;
+    if (!sessiz) { cizSekmeler(); }
+    return true;
+  }
+
+  async function tumunuKaydet() {
+    for (const s of D.sekmeler) if (!(await kaydet(s, true))) return false;
+    if (D.ekran === 'duzenleyici') cizSekmeler();
+    return true;
+  }
+
+  let denetimZamani;
+  function denetlemeyiPlanla() {
+    if (!D.yazarkenDenetle) return;
+    clearTimeout(denetimZamani);
+    denetimZamani = setTimeout(denetle, 450);
+  }
+
+  let denetimSirasi = 0;
+  async function denetle() {
+    if (!D.proje) return;
+    const sira = ++denetimSirasi;
+    const acik = {};
+    for (const s of D.sekmeler) if (!s.ikili && uzanti(s.yol) === 'ohc') acik[tamYol(s.yol)] = s.icerik;
+    const hedefler = [...new Set([girisDosyasi(), etkinSekme() && uzanti(D.etkin) === 'ohc' ? D.etkin : null].filter(Boolean))];
+    const hatalar = [];
+    for (const h of hedefler) {
+      const r = await api('/api/denetle', { dosya: tamYol(h), acik }).catch(() => ({ hatalar: [] }));
+      for (const x of r.hatalar || []) {
+        if (!hatalar.some(y => y.mesaj === x.mesaj && y.satir === x.satir && normal(y.dosya) === normal(x.dosya))) hatalar.push(x);
+      }
+    }
+    if (sira !== denetimSirasi || D.ekran !== 'duzenleyici') return;
+    D.sorunlar = hatalar;
+    guncelle('isaretler', 'durum');
+    if (D.altSekme === 'sorunlar') guncelle('alt');
+    else { const sekme = $('.alt-sekmeler span[data-a="sorunlar"]'); if (sekme) sekme.textContent = `SORUNLAR${hatalar.length ? ' (' + hatalar.length + ')' : ''}`; }
+  }
+
+  function istem() {
+    const yol = D.proje.yol;
+    return D.bilgi.isletim === 'windows' ? `PS ${yol}> orhunca çalıştır` : `${kisaYol(yol)} $ orhunca çalıştır`;
+  }
+
+  function terminaleEkle(t, c = '', birlestir = false) {
+    // Programın art arda gelen çıktı parçaları tek blokta birleştirilir.
+    const son = D.terminal[D.terminal.length - 1];
+    if (birlestir && son && son.c === c && son.birlesik) son.t += t;
+    else D.terminal.push({ t, c, birlesik: birlestir });
+    if (D.terminal.length > 3000) D.terminal.splice(0, D.terminal.length - 3000);
+  }
+
+  async function calistir() {
+    if (!D.proje) return;
+    if (D.calisma) await durdur();
+    await tumunuKaydet();
+    const giris = girisDosyasi();
+    if (!giris) { bildir('Çalıştırılacak .ohc dosyası yok.', true); return; }
+    D.altPanel = true; D.altSekme = 'terminal';
+    if (D.terminal.length) terminaleEkle('');
+    terminaleEkle(istem(), 'mut');
+    guncelle('alt');
+    const argumanlar = D.argumanlar.match(/"[^"]*"|\S+/g)?.map(a => a.replace(/^"|"$/g, '')) || [];
+    const r = await api('/api/calistir', { dosya: tamYol(giris), klasor: D.proje.yol, argumanlar }).catch(e => ({ hata: e.message }));
+    if (r.derleme_hatasi) {
+      terminaleEkle('✗ Derleme başarısız', 'err');
+      terminaleEkle(r.derleme_hatasi, 'err');
+      D.sorunlar = r.hatalar || [];
+      guncelle('alt', 'isaretler', 'durum');
+      return;
+    }
+    if (r.hata) { terminaleEkle(r.hata, 'err'); guncelle('alt'); return; }
+    D.sorunlar = [];
+    terminaleEkle(`✓ Derleme tamamlandı · ${sureBicim(r.derleme_ms)}`, 'ok');
+    D.calisma = { kimlik: r.kimlik, konum: 0 };
+    guncelle('alt', 'isaretler', 'durum', 'yan');
+    $('#terminalGirdi')?.focus();
+    ciktiyiIzle(r.kimlik);
+  }
+
+  async function ciktiyiIzle(kimlik) {
+    while (D.calisma && D.calisma.kimlik === kimlik) {
+      const r = await api('/api/cikti?' + sorgu({ kimlik, konum: D.calisma.konum })).catch(() => null);
+      if (!r || r.hata) { D.calisma = null; break; }
+      for (const p of r.parcalar) terminaleEkle(p.t, p.tur === 'hata' ? 'err' : '', true);
+      D.calisma.konum = r.konum;
+      if (r.bitti) {
+        const kod = r.kod;
+        terminaleEkle(`— Program bitti · çıkış kodu ${kod ?? '?'} · ${sureBicim(r.sure_ms)}`, kod === 0 ? 'dim' : 'err');
+        D.calisma = null;
+        if (D.ekran === 'duzenleyici') guncelle('alt', 'durum', 'yan');
+        return;
+      }
+      if (r.parcalar.length && D.ekran === 'duzenleyici' && D.altSekme === 'terminal') cizAltPanel();
+      await bekle(r.parcalar.length ? 30 : 90);
+    }
+  }
+
+  async function durdur() {
+    if (!D.calisma) return;
+    const k = D.calisma.kimlik;
+    await api('/api/durdur', { kimlik: k }).catch(() => null);
+  }
+
+  async function derle(hedef) {
+    if (!D.proje) return;
+    await tumunuKaydet();
+    const giris = girisDosyasi();
+    if (!giris) { bildir('Derlenecek .ohc dosyası yok.', true); return; }
+    const ad = hedef === 'windows' ? 'Windows' : 'Linux';
+    D.altPanel = true; D.altSekme = 'cikti';
+    D.cikti.push({ t: `${ad} için derleniyor: ${giris}`, c: 'mut' });
+    guncelle('alt');
+    const r = await api('/api/derle', { dosya: tamYol(giris), hedef }).catch(e => ({ hata: e.message }));
+    if (r.derleme_hatasi) {
+      D.cikti.push({ t: r.derleme_hatasi, c: 'err' });
+      if (hedef === 'windows' && !D.bilgi.mingw && /bağlayıcı/.test(r.derleme_hatasi)) D.cikti.push({ t: 'ipucu: Linux’ta Windows için derlemek üzere MinGW-w64 kurun: sudo apt install gcc-mingw-w64-x86-64', c: 'dim' });
+      if (r.hatalar?.[0]?.satir) { D.sorunlar = r.hatalar; guncelle('isaretler', 'durum'); }
+    } else if (r.hata) D.cikti.push({ t: r.hata, c: 'err' });
+    else {
+      D.cikti.push({ t: `✓ ${goreliYol(r.cikti)} oluşturuldu · ${boyutBicim(r.boyut)} · ${sureBicim(r.sure_ms)}`, c: 'ok' });
+      bildir(`${ad} programı hazır: ${goreliYol(r.cikti)}`);
+      await agaciYukle();
+      guncelle('yan');
+    }
+    guncelle('alt');
+  }
+
+  async function verileriYukle() {
+    try {
+      const [bilgi, projeler, sablonlar, yerlesikler] = await Promise.all([api('/api/durum'), api('/api/projeler'), api('/api/sablonlar'), api('/api/yerlesikler')]);
+      D.bilgi = bilgi;
+      D.projeler = projeler.projeler || [];
+      D.sonSablonlar = projeler.son_sablonlar || [];
+      D.sablonlar = sablonlar.sablonlar || [];
+      D.yerlesikler = yerlesikler.yerlesikler || [];
+      D.konum = bilgi.varsayilan_konum;
+      D.yuklendi = true;
+    } catch (e) {
+      $('#uygulama').innerHTML = `<div class="pencere"><div class="tam-ekran-mesaj"><div class="gokturk">${GOKTURK}</div><div>${kac(e.message)}</div><div>Terminalde <code>orhunca stüdyo</code> ile yeniden açın.</div></div></div>`;
+      throw e;
+    }
+  }
+
+  async function projeleriYenile() {
+    const p = await api('/api/projeler');
+    D.projeler = p.projeler || [];
+    D.sonSablonlar = p.son_sablonlar || [];
+  }
+
+  async function mevcutAdlariYukle() {
+    const r = await api('/api/klasor?' + sorgu({ yol: D.konum || D.bilgi.varsayilan_konum })).catch(() => ({}));
+    D.mevcutAdlar = new Set((r.klasorler || []).map(k => k.ad));
+    if (D.ekran === 'yapilandir') ciz();
+  }
+
+  async function klasorYukle(yol) {
+    const m = D.modal;
+    m.yukleniyor = true; m.hata = null; katmanlariCiz();
+    const r = await api('/api/klasor?' + sorgu({ yol })).catch(e => ({ hata: e.message }));
+    if (D.modal !== m) return;
+    m.yukleniyor = false;
+    if (r.hata) { m.hata = r.hata; katmanlariCiz(); return; }
+    Object.assign(m, { yol: r.yol, ust: r.ust, klasorler: r.klasorler, proje: r.proje, secili: null });
+    katmanlariCiz();
+  }
+
+  // =====================================================================
+  // Eylemler
+  // =====================================================================
+  const EYLEM = {
+    hic() { /* modalın içine tıklama örtüyü kapatmasın */ },
+    git(ekran) {
+      if (ekran === 'yapilandir') {
+        if (sablon(D.secili).yakinda) return;
+        mevcutAdlariYukle();
+      }
+      if (ekran === 'baslangic') projeleriYenile().then(() => D.ekran === 'baslangic' && ciz());
+      D.ekran = ekran; D.menu = null; ciz();
+    },
+    siralamaDegistir() { D.siralama = D.siralama === 'tarih' ? 'ad' : 'tarih'; ciz(); },
+    async projeAc(yol) {
+      const p = D.projeler.find(x => x.yol === yol);
+      if (p && !p.var) {
+        await api('/api/proje/unut', { yol });
+        await projeleriYenile();
+        ciz();
+        bildir(`“${p.ad}” bulunamadı; listeden kaldırıldı.`, true);
+        return;
+      }
+      const r = await api('/api/proje/ac', { yol });
+      if (r.hata) { bildir(r.hata, true); return; }
+      projeyiAc(r);
+    },
+    sablonSec(kimlik) {
+      const t = sablon(kimlik);
+      if (t.yakinda) { bildir(`${t.ad} şablonu ${t.yakinda}'da gelecek.`); return; }
+      if (!D.adDokunuldu) D.projeAdi = 'yeni_' + kimlik;
+      D.secili = kimlik;
+      if (D.ekran !== 'yeni') D.ekran = 'yeni';
+      ciz();
+    },
+    sablonCift(kimlik) { if (!sablon(kimlik).yakinda) { EYLEM.sablonSec(kimlik); EYLEM.git('yapilandir'); } },
+    kategoriSec(k) { D.kategori = k; ciz(); },
+    secenekDegistir(a) { D.secenekler[a] = !D.secenekler[a]; ciz(); },
+    async olustur() {
+      if (adHatasi() || D.olusturuluyor) return;
+      D.olusturuluyor = true; katmanlariCiz();
+      const t0 = Date.now();
+      const r = await api('/api/proje/olustur', { sablon: D.secili, ad: D.projeAdi.trim(), konum: D.konum || D.bilgi.varsayilan_konum, git: D.secenekler.git, ornek: D.secenekler.ornek }).catch(e => ({ hata: e.message }));
+      await bekle(Math.max(0, 900 - (Date.now() - t0)));
+      D.olusturuluyor = false;
+      if (r.hata) { katmanlariCiz(); bildir(r.hata, true); return; }
+      D.adDokunuldu = false;
+      projeyiAc(r, { ilkCalistirma: D.secenekler.calistir });
+    },
+    ilkProgram() { D.secili = 'konsol'; if (!D.adDokunuldu) D.projeAdi = 'ilk_programim'; EYLEM.git('yapilandir'); },
+
+    // modallar
+    modalKapat() { D.modal = null; katmanlariCiz(); },
+    modalDis(_, el, e) { if (e.target === el) EYLEM.modalKapat(); },
+    klasorModal(mod) {
+      const yol = mod === 'konum' ? (D.konum || D.bilgi.varsayilan_konum) : (D.bilgi.varsayilan_konum || D.bilgi.ev);
+      D.modal = { tur: 'klasor', mod, yol, klasorler: [] };
+      klasorYukle(yol).then(() => { if (D.modal?.hata && D.modal.yol !== D.bilgi.ev) klasorYukle(D.bilgi.ev); });
+    },
+    klasorSec(i) { D.modal.secili = +i; katmanlariCiz(); },
+    klasorGir(i) { klasorYukle(D.modal.klasorler[+i].yol); },
+    klasorUst() { if (D.modal.ust) klasorYukle(D.modal.ust); },
+    async klasorOnayla() {
+      const m = D.modal;
+      const yol = m.secili != null ? m.klasorler[m.secili].yol : m.yol;
+      if (m.mod === 'konum') { D.konum = yol; D.modal = null; ciz(); mevcutAdlariYukle(); return; }
+      const r = await api('/api/proje/ac', { yol });
+      if (r.hata) { m.hata = r.hata; katmanlariCiz(); return; }
+      D.modal = null;
+      projeyiAc(r);
+    },
+    klonlaModal() { D.modal = { tur: 'klonla', url: '', konum: D.bilgi.varsayilan_konum }; katmanlariCiz(); $('#klonUrl')?.focus(); },
+    async klonla() {
+      const m = D.modal;
+      if (m.calisiyor) return;
+      m.calisiyor = true; m.hata = null; katmanlariCiz();
+      const r = await api('/api/proje/klonla', { url: m.url, konum: m.konum }).catch(e => ({ hata: e.message }));
+      m.calisiyor = false;
+      if (r.hata) { m.hata = r.hata; katmanlariCiz(); return; }
+      D.modal = null;
+      projeyiAc(r);
+    },
+    ayarlarModal() { D.modal = { tur: 'ayarlar' }; katmanlariCiz(); },
+    guncellemeModal() { D.menu = null; D.modal = { tur: 'guncelleme' }; guncelleVeyaCiz(); },
+    kisayollarModal() { D.modal = { tur: 'kisayollar' }; guncelleVeyaCiz(); },
+    hakkindaModal() { D.modal = { tur: 'hakkinda' }; guncelleVeyaCiz(); },
+    yeniDosyaModal() { if (!D.proje) return; D.modal = { tur: 'yeniDosya', ad: '', klasor: false }; guncelleVeyaCiz(); $('#yeniDosyaAdi')?.focus(); },
+    yeniKlasorModal() { if (!D.proje) return; D.modal = { tur: 'yeniDosya', ad: '', klasor: true }; guncelleVeyaCiz(); $('#yeniDosyaAdi')?.focus(); },
+    async yeniDosyaOlustur() {
+      const m = D.modal, ad = m.ad.trim().replace(/\\/g, '/').replace(/^\/+/, '');
+      if (!ad || ad.split('/').includes('..')) { m.hata = 'Geçerli bir ad girin.'; katmanlariCiz(); return; }
+      const r = await api('/api/dosya/yeni', { yol: tamYol(ad), klasor: m.klasor });
+      if (r.hata) { m.hata = r.hata; katmanlariCiz(); return; }
+      D.modal = null;
+      await agaciYukle();
+      if (!m.klasor) await dosyaAc(ad, false);
+      guncelle('yan', 'sekmeler', 'kod', 'katman');
+    },
+    yaziBuyut() { D.yaziBoyutu = Math.min(20, D.yaziBoyutu + 1); ayarYaz('yaziBoyutu', D.yaziBoyutu); yaziDegisti(); },
+    yaziKucult() { D.yaziBoyutu = Math.max(11, D.yaziBoyutu - 1); ayarYaz('yaziBoyutu', D.yaziBoyutu); yaziDegisti(); },
+    yazarkenDenetleDegistir() { D.yazarkenDenetle = !D.yazarkenDenetle; ayarYaz('yazarkenDenetle', D.yazarkenDenetle); katmanlariCiz(); },
+
+    // düzenleyici
+    menuAc(ad, el, e) {
+      if (e.target.closest('.acilir-menu')) return;
+      D.menu = D.menu === ad ? null : ad; guncelle('baslik');
+    },
+    yanPanelSec(p) { D.yanPanel = p; guncelle('etkinlik', 'yan'); if (p === 'ara') $('#araMetin')?.focus(); },
+    panelGezgin() { EYLEM.yanPanelSec('gezgin'); }, panelAra() { EYLEM.yanPanelSec('ara'); },
+    panelYapi() { EYLEM.yanPanelSec('yapi'); }, panelCalistir() { EYLEM.yanPanelSec('calistir'); },
+    klasorAcKapa(yol) { D.kapaliKlasorler.has(yol) ? D.kapaliKlasorler.delete(yol) : D.kapaliKlasorler.add(yol); cizYanPanel(); },
+    dosyaAc(yol) { dosyaAc(yol); },
+    async agaciYenile() { await agaciYukle(); cizYanPanel(); },
+    sekmeSec(yol) { D.etkin = yol; guncelle('sekmeler', 'kod', 'yan', 'durum'); },
+    sekmeKapat(yol, el, e) {
+      e.stopPropagation();
+      const s = D.sekmeler.find(x => x.yol === yol);
+      if (s && !s.ikili && s.icerik !== s.kayitli && !confirm(`“${sonParca(yol)}” dosyasında kaydedilmemiş değişiklikler var. Yine de kapatılsın mı?`)) return;
+      const i = D.sekmeler.indexOf(s);
+      D.sekmeler.splice(i, 1);
+      if (D.etkin === yol) D.etkin = (D.sekmeler[i] || D.sekmeler[i - 1])?.yol || null;
+      guncelle('sekmeler', 'kod', 'yan');
+    },
+    satiraGit(n) { satiraGit(+n); },
+    async konumaGit(a) { const [d, n] = a.split('|'); await dosyaAc(d); satiraGit(+n); },
+    async sorunaGit(i) {
+      const h = D.sorunlar[+i];
+      if (!h?.dosya) return;
+      await dosyaAc(goreliYol(h.dosya));
+      satiraGit(h.satir, h.sutun);
+    },
+    altSekme(a) { D.altSekme = a; cizAltPanel(); },
+    altSorunlar() { D.altPanel = true; D.altSekme = 'sorunlar'; guncelle('alt'); },
+    altCikti() { D.altPanel = true; D.altSekme = 'cikti'; guncelle('alt'); },
+    altPanelAcKapa() { D.altPanel = !D.altPanel; guncelle('alt'); },
+    terminalTemizle() { if (D.altSekme === 'cikti') D.cikti = []; else D.terminal = []; guncelle('alt'); },
+    calistir() { calistir(); },
+    durdur() { durdur(); },
+    denetleKomut() { tumunuKaydet().then(denetle).then(() => { if (!D.sorunlar.length) bildir('Hata yok.'); else EYLEM.altSorunlar(); }); },
+    derleLinux() { derle('linux'); },
+    derleWindows() { derle('windows'); },
+    kaydet() { kaydet(); },
+    tumunuKaydet() { tumunuKaydet(); },
+    async baslangicaDon() {
+      await projeleriYenile();
+      D.ekran = 'baslangic'; D.menu = null; iskeletVar = false; ciz();
+    },
+    async projeyiKapat() {
+      if (D.sekmeler.some(s => !s.ikili && s.icerik !== s.kayitli) && !confirm('Kaydedilmemiş değişiklikler var. Proje kapatılsın mı?')) return;
+      if (D.calisma) await durdur();
+      D.proje = null; D.calisma = null;
+      EYLEM.baslangicaDon();
+    },
+    async studyoyuKapat() {
+      if (D.sekmeler.some(s => !s.ikili && s.icerik !== s.kayitli) && !confirm('Kaydedilmemiş değişiklikler var. Stüdyo kapatılsın mı?')) return;
+      await api('/api/kapat', {}).catch(() => null);
+      $('#uygulama').innerHTML = `<div class="pencere"><div class="tam-ekran-mesaj"><div class="gokturk">${GOKTURK}</div><div>Orhunca Stüdyo kapatıldı. Bu sekmeyi kapatabilirsiniz.</div></div></div>`;
+    },
+    ogrenAc() { iskeletVar = false; D.menu = null; D.ekran = 'ogren'; ciz(); },
+    geriAl() { $('#kodAlani')?.focus(); document.execCommand('undo'); },
+    yinele() { $('#kodAlani')?.focus(); document.execCommand('redo'); },
+    kes() { $('#kodAlani')?.focus(); document.execCommand('cut'); },
+    kopyala() { $('#kodAlani')?.focus(); document.execCommand('copy'); },
+    async yapistir() { const ta = $('#kodAlani'); if (!ta) return; ta.focus(); try { metinEkle(ta, await navigator.clipboard.readText()); } catch { bildir('Pano okunamadı; Ctrl+V kullanın.', true); } },
+    yorumYap() { yorumYap(); },
+    tumunuSec() { const ta = $('#kodAlani'); if (ta) { ta.focus(); ta.select(); } },
+    satiriSec() { const ta = $('#kodAlani'); if (!ta) return; ta.focus(); ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'l', ctrlKey: true })); },
+    satiriCogalt() { satiriCogalt(); },
+    pencereKucult() { try { window.__TAURI__.window.getCurrentWindow().minimize(); } catch { /* yok */ } },
+    pencereBuyut() { try { window.__TAURI__.window.getCurrentWindow().toggleMaximize(); } catch { /* yok */ } },
+    pencereKapat() { try { window.__TAURI__.window.getCurrentWindow().close(); } catch { /* yok */ } },
+  };
+
+  function guncelleVeyaCiz() { D.menu = null; if (D.ekran === 'duzenleyici') guncelle('baslik', 'katman'); else ciz(); }
+
+  function yaziDegisti() {
+    document.documentElement.style.setProperty('--kod-boyut', D.yaziBoyutu + 'px');
+    katmanlariCiz();
+    if (D.ekran === 'duzenleyici') cizKod();
+  }
+
+  function satiraGit(satir, sutun = 1) {
+    const ta = $('#kodAlani');
+    if (!ta) return;
+    const satirlar = ta.value.split('\n');
+    let konum = 0;
+    for (let i = 0; i < Math.min(satir - 1, satirlar.length); i++) konum += satirlar[i].length + 1;
+    konum += Math.max(0, sutun - 1);
+    ta.focus();
+    ta.setSelectionRange(konum, konum);
+    imleciGuncelle();
+    const kap = $('#kodKap');
+    kap.scrollTop = Math.max(0, 4 + (satir - 1) * 21 - kap.clientHeight / 3);
+  }
+
+  const GIRDI = {
+    q(v) { D.q = v; ciz(); },
+    tq(v) { D.tq = v; ciz(); },
+    projeAdi(v) { D.projeAdi = v; D.adDokunuldu = true; ciz(); },
+    konum(v) { D.konum = v; ciz(); clearTimeout(GIRDI._k); GIRDI._k = setTimeout(mevcutAdlariYukle, 300); },
+    klasorYolu(v) { D.modal.yol = v; },
+    klonUrl(v) { D.modal.url = v; },
+    klonKonum(v) { D.modal.konum = v; },
+    yeniDosyaAdi(v) { D.modal.ad = v; },
+    argumanlar(v) { D.argumanlar = v; },
+    araMetin(v) {
+      D.araMetin = v;
+      clearTimeout(GIRDI._a);
+      GIRDI._a = setTimeout(async () => {
+        if (!v.trim()) { D.araSonuc = []; cizYanPanel(); return; }
+        const r = await api('/api/ara?' + sorgu({ kok: D.proje.yol, metin: v }));
+        if (D.araMetin === v) { D.araSonuc = r.sonuclar || []; cizYanPanel(); }
+      }, 200);
+    },
+  };
+
+  // =====================================================================
+  // Olay bağlama
+  // =====================================================================
+  document.addEventListener('click', e => {
+    if (D.menu && !e.target.closest('.menu-baslik')) { D.menu = null; guncelle('baslik'); }
+    const el = e.target.closest('[data-e]');
+    if (!el) return;
+    const ad = el.dataset.e;
+    if (D.menu && el.closest('.acilir-menu')) { D.menu = null; guncelle('baslik'); }
+    EYLEM[ad]?.(el.dataset.a, el, e);
+  });
+  document.addEventListener('dblclick', e => {
+    const el = e.target.closest('[data-ee]');
+    if (el) EYLEM[el.dataset.ee]?.(el.dataset.a, el, e);
+  });
+  document.addEventListener('mouseover', e => {
+    // Bir menü açıkken diğer menü başlığına gelince o menü açılır.
+    if (!D.menu) return;
+    const el = e.target.closest('.menu-baslik');
+    if (el && el.dataset.a !== D.menu) { D.menu = el.dataset.a; guncelle('baslik'); }
+  });
+  document.addEventListener('input', e => {
+    const g = e.target.dataset?.g;
+    if (g) GIRDI[g]?.(e.target.value, e.target);
+  });
+  document.addEventListener('keydown', async e => {
+    const ctrl = e.ctrlKey || e.metaKey;
+    if (e.target.id === 'terminalGirdi' && e.key === 'Enter' && D.calisma) {
+      const metin = e.target.value;
+      e.target.value = '';
+      terminaleEkle(metin + '\n', 'girdi-yanki');
+      cizAltPanel();
+      $('#terminalGirdi')?.focus();
+      const r = await api('/api/girdi', { kimlik: D.calisma.kimlik, metin: metin + '\n' }).catch(x => ({ hata: x.message }));
+      if (r.hata) bildir(r.hata, true);
+      return;
+    }
+    if (e.target.id === 'klasorYolu' && e.key === 'Enter') { klasorYukle(e.target.value); return; }
+    if (e.target.id === 'klonUrl' && e.key === 'Enter') { EYLEM.klonla(); return; }
+    if (e.target.id === 'yeniDosyaAdi' && e.key === 'Enter') { EYLEM.yeniDosyaOlustur(); return; }
+    if (e.target.id === 'projeAdi' && e.key === 'Enter') { EYLEM.olustur(); return; }
+    if (e.key === 'Escape') {
+      if (D.modal) { EYLEM.modalKapat(); return; }
+      if (D.menu) { D.menu = null; guncelle('baslik'); return; }
+    }
+    if (D.ekran === 'duzenleyici') {
+      if (e.key === 'F5') { e.preventDefault(); e.shiftKey ? durdur() : calistir(); return; }
+      if (e.key === 'F7') { e.preventDefault(); EYLEM.denetleKomut(); return; }
+      if (ctrl && e.altKey && (e.key === 's' || e.key === 'S')) { e.preventDefault(); tumunuKaydet(); return; }
+      if (ctrl && (e.key === 's' || e.key === 'S')) { e.preventDefault(); kaydet(); return; }
+      if (ctrl && (e.key === 'j' || e.key === 'J')) { e.preventDefault(); EYLEM.altPanelAcKapa(); return; }
+      if (ctrl && (e.key === '=' || e.key === '+')) { e.preventDefault(); EYLEM.yaziBuyut(); return; }
+      if (ctrl && e.key === '-') { e.preventDefault(); EYLEM.yaziKucult(); return; }
+    } else {
+      if (e.altKey && (e.key === 's' || e.key === 'S' || e.code === 'KeyS')) { e.preventDefault(); if (D.ekran !== 'baslangic') EYLEM.git('baslangic'); setTimeout(() => $('#q')?.focus()); return; }
+      if (ctrl && e.shiftKey && (e.key === 'N' || e.key === 'n')) { e.preventDefault(); EYLEM.git('yeni'); }
+    }
+  });
+  window.addEventListener('resize', () => { if (D.ekran === 'duzenleyici') vurguyuGuncelle(); });
+  window.addEventListener('beforeunload', e => {
+    if (D.sekmeler.some(s => !s.ikili && s.icerik !== s.kayitli)) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  // =====================================================================
+  // Başlat
+  // =====================================================================
+  ciz();
+  if (ANAHTAR) verileriYukle().then(() => { D.projeAdi = 'yeni_' + D.secili; ciz(); });
+
+  // Testler ve Tauri için küçük bir kapı
+  window.orhuncaStudyo = { durum: D, eylem: EYLEM };
+})();

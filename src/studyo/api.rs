@@ -1,0 +1,634 @@
+//! Stüdyo arayüzünün çağırdığı JSON uç noktaları.
+
+use super::http::{Istek, Yanit};
+use super::{calisma, depo, sablonlar};
+use crate::derleme;
+use serde_json::{json, Value};
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::sync::{Mutex, OnceLock};
+use std::time::Instant;
+
+/// Dosya işlemlerine izin verilen klasörler: bu oturumda açılan ya da oluşturulan projeler.
+fn izinli_kokler() -> &'static Mutex<Vec<PathBuf>> {
+    static K: OnceLock<Mutex<Vec<PathBuf>>> = OnceLock::new();
+    K.get_or_init(Default::default)
+}
+
+fn koke_izin_ver(yol: &Path) {
+    if let Ok(tam) = std::fs::canonicalize(yol) {
+        let mut k = izinli_kokler().lock().unwrap();
+        if !k.contains(&tam) {
+            k.push(tam);
+        }
+    }
+}
+
+/// Yol açık projelerden birinin içinde mi? Henüz var olmayan dosyalar için üst klasöre bakılır.
+fn izinli_mi(yol: &Path) -> bool {
+    let mut aday = yol.to_path_buf();
+    let tam = loop {
+        if let Ok(t) = std::fs::canonicalize(&aday) {
+            break t;
+        }
+        match aday.parent() {
+            Some(u) if u != aday => aday = u.to_path_buf(),
+            _ => return false,
+        }
+    };
+    izinli_kokler()
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|k| tam.starts_with(k))
+}
+
+fn govde(istek: &Istek) -> Value {
+    serde_json::from_slice(&istek.govde).unwrap_or(Value::Null)
+}
+
+fn metin<'a>(v: &'a Value, ad: &str) -> &'a str {
+    v[ad].as_str().unwrap_or("")
+}
+
+fn hata(mesaj: impl Into<String>) -> Yanit {
+    Yanit::json(&json!({ "hata": mesaj.into() }))
+}
+
+pub fn yonlendir(istek: &Istek) -> Yanit {
+    let g = govde(istek);
+    match (istek.yontem.as_str(), istek.yol.as_str()) {
+        ("GET", "/api/durum") => durum(),
+        ("GET", "/api/projeler") => projeler(),
+        ("GET", "/api/sablonlar") => sablon_listesi(),
+        ("GET", "/api/yerlesikler") => yerlesikler(),
+        ("GET", "/api/klasor") => klasor(istek.sorgu("yol")),
+        ("GET", "/api/dosya") => dosya_oku(istek.sorgu("yol")),
+        ("GET", "/api/agac") => agac(istek.sorgu("kok")),
+        ("GET", "/api/ara") => ara(istek.sorgu("kok"), istek.sorgu("metin")),
+        ("GET", "/api/cikti") => cikti(istek.sorgu("kimlik"), istek.sorgu("konum")),
+        ("POST", "/api/proje/olustur") => proje_olustur(&g),
+        ("POST", "/api/proje/ac") => proje_ac(metin(&g, "yol")),
+        ("POST", "/api/proje/klonla") => proje_klonla(metin(&g, "url"), metin(&g, "konum")),
+        ("POST", "/api/proje/unut") => {
+            depo::proje_unut(metin(&g, "yol"));
+            Yanit::json(&json!({ "tamam": true }))
+        }
+        ("POST", "/api/dosya") => dosya_yaz(metin(&g, "yol"), metin(&g, "icerik")),
+        ("POST", "/api/dosya/yeni") => {
+            dosya_yeni(metin(&g, "yol"), g["klasor"].as_bool() == Some(true))
+        }
+        ("POST", "/api/denetle") => denetle(metin(&g, "dosya"), &g["acik"]),
+        ("POST", "/api/calistir") => calistir(&g),
+        ("POST", "/api/girdi") => girdi(&g),
+        ("POST", "/api/durdur") => {
+            calisma::durdur(g["kimlik"].as_u64().unwrap_or(0));
+            Yanit::json(&json!({ "tamam": true }))
+        }
+        ("POST", "/api/derle") => derle(metin(&g, "dosya"), metin(&g, "hedef")),
+        _ => Yanit::hata(404, "bilinmeyen uç nokta"),
+    }
+}
+
+fn kullanici_adi() -> String {
+    std::env::var(if cfg!(windows) { "USERNAME" } else { "USER" })
+        .ok()
+        .filter(|a| !a.is_empty())
+        .or_else(|| {
+            depo::ev_klasoru()
+                .file_name()
+                .map(|a| a.to_string_lossy().into_owned())
+        })
+        .unwrap_or_else(|| "geliştirici".into())
+}
+
+fn isletim() -> &'static str {
+    if cfg!(windows) {
+        "windows"
+    } else if cfg!(target_os = "macos") {
+        "macos"
+    } else {
+        "linux"
+    }
+}
+
+fn durum() -> Yanit {
+    let konum = depo::ev_klasoru().join("Orhunca").join("Projeler");
+    Yanit::json(&json!({
+        "kullanici": kullanici_adi(),
+        "surum": env!("CARGO_PKG_VERSION"),
+        "isletim": isletim(),
+        "ayrac": std::path::MAIN_SEPARATOR.to_string(),
+        "ev": depo::ev_klasoru().to_string_lossy(),
+        "varsayilan_konum": konum.to_string_lossy(),
+        "mingw": windows_baglayici_var(),
+    }))
+}
+
+fn windows_baglayici_var() -> bool {
+    if cfg!(windows) {
+        return true;
+    }
+    Command::new("x86_64-w64-mingw32-gcc")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+fn projeler() -> Yanit {
+    let d = depo::oku();
+    let projeler: Vec<Value> = d["projeler"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|mut p| {
+            let var = Path::new(p["yol"].as_str().unwrap_or("")).is_dir();
+            p["var"] = json!(var);
+            if let Some(s) = sablonlar::bul(p["sablon"].as_str().unwrap_or("")) {
+                p["sablon_adi"] = json!(s.ad);
+                p["simge"] = json!(s.simge);
+            }
+            p
+        })
+        .collect();
+    Yanit::json(&json!({ "projeler": projeler, "son_sablonlar": d["son_sablonlar"] }))
+}
+
+fn sablon_listesi() -> Yanit {
+    let liste: Vec<Value> = sablonlar::SABLONLAR
+        .iter()
+        .map(|s| {
+            json!({
+                "kimlik": s.kimlik, "ad": s.ad, "aciklama": s.aciklama, "simge": s.simge,
+                "kategoriler": s.kategoriler, "etiketler": s.etiketler,
+                "yakinda": s.yakinda, "dosyalar": s.dosyalar, "giris": s.giris,
+            })
+        })
+        .collect();
+    Yanit::json(&json!({ "sablonlar": liste }))
+}
+
+fn yerlesikler() -> Yanit {
+    let liste: Vec<Value> = crate::yerlesik::YERLESIKLER
+        .iter()
+        .map(|y| json!({ "ad": y.ad, "kullanim": y.kullanim, "aciklama": y.aciklama }))
+        .collect();
+    Yanit::json(&json!({ "yerlesikler": liste }))
+}
+
+/// Klasör seçici: verilen klasördeki alt klasörleri listeler.
+fn klasor(yol: &str) -> Yanit {
+    let yol = if yol.is_empty() {
+        depo::ev_klasoru()
+    } else {
+        PathBuf::from(yol)
+    };
+    let okunan = match std::fs::read_dir(&yol) {
+        Ok(o) => o,
+        Err(e) => return hata(format!("'{}' açılamadı: {e}", yol.display())),
+    };
+    let mut klasorler: Vec<Value> = okunan
+        .filter_map(|g| g.ok())
+        .filter(|g| g.path().is_dir())
+        .filter(|g| !g.file_name().to_string_lossy().starts_with('.'))
+        .map(|g| {
+            let p = g.path();
+            json!({
+                "ad": g.file_name().to_string_lossy(),
+                "yol": p.to_string_lossy(),
+                "proje": derleme::proje_dosyasi(&p).is_some(),
+            })
+        })
+        .collect();
+    klasorler.sort_by_key(|k| k["ad"].as_str().unwrap_or("").to_lowercase());
+    Yanit::json(&json!({
+        "yol": yol.to_string_lossy(),
+        "ust": yol.parent().map(|u| u.to_string_lossy().into_owned()),
+        "klasorler": klasorler,
+        "proje": derleme::proje_dosyasi(&yol).is_some(),
+    }))
+}
+
+fn gecerli_ad(ad: &str) -> Result<(), String> {
+    if ad.trim().is_empty() {
+        return Err("Proje adı gerekli.".into());
+    }
+    if !ad
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+    {
+        return Err("Yalnızca harf, rakam, alt çizgi (_) ve tire (-) kullanılabilir.".into());
+    }
+    Ok(())
+}
+
+fn proje_olustur(g: &Value) -> Yanit {
+    let Some(sablon) = sablonlar::bul(metin(g, "sablon")) else {
+        return hata("bilinmeyen şablon");
+    };
+    if let Some(asama) = sablon.yakinda {
+        return hata(format!("{} şablonu {asama}'da gelecek.", sablon.ad));
+    }
+    let ad = metin(g, "ad").trim();
+    if let Err(e) = gecerli_ad(ad) {
+        return hata(e);
+    }
+    let kok = PathBuf::from(metin(g, "konum")).join(ad);
+    if kok.exists() {
+        return hata("Bu konumda aynı adlı bir klasör zaten var.");
+    }
+    let ornek = g["ornek"].as_bool() != Some(false);
+    for dosya in sablon.dosyalar {
+        let goreli = dosya.replace("{ad}", ad);
+        let yol = kok.join(&goreli);
+        if let Some(u) = yol.parent() {
+            if let Err(e) = std::fs::create_dir_all(u) {
+                return hata(format!("klasör oluşturulamadı: {e}"));
+            }
+        }
+        if let Err(e) = std::fs::write(&yol, sablonlar::icerik(sablon, dosya, ad, ornek)) {
+            return hata(format!("'{goreli}' yazılamadı: {e}"));
+        }
+    }
+    let mut uyari = None;
+    if g["git"].as_bool() == Some(true) {
+        let _ = std::fs::write(
+            kok.join(".gitignore"),
+            "# Derleme çıktıları\n/cikti/\n*.exe\n",
+        );
+        // Türkçe dal adı; eski Git sürümleri --initial-branch bilmez.
+        let git = Command::new("git")
+            .args(["init", "-q", "--initial-branch=ana"])
+            .current_dir(&kok)
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .or_else(|| {
+                Command::new("git")
+                    .args(["init", "-q"])
+                    .current_dir(&kok)
+                    .output()
+                    .ok()
+            });
+        if !git.map(|o| o.status.success()).unwrap_or(false) {
+            uyari = Some("Git bulunamadı; depo başlatılamadı.");
+        }
+    }
+    depo::sablon_kullanildi(sablon.kimlik);
+    koke_izin_ver(&kok);
+    let mut y = proje_bilgisi(&kok);
+    y["uyari"] = json!(uyari);
+    Yanit::json(&y)
+}
+
+/// Açılan proje hakkında arayüzün ihtiyaç duyduğu bilgiler; son projelere eklenir.
+fn proje_bilgisi(kok: &Path) -> Value {
+    let proje_dosyasi = derleme::proje_dosyasi(kok);
+    let ad = proje_dosyasi
+        .as_ref()
+        .and_then(|p| derleme::proje_ayari(p, &["ad"]))
+        .or_else(|| kok.file_name().map(|a| a.to_string_lossy().into_owned()))
+        .unwrap_or_default();
+    let sablon = proje_dosyasi
+        .as_ref()
+        .and_then(|p| derleme::proje_ayari(p, &["şablon", "sablon"]))
+        .unwrap_or_else(|| "konsol".into());
+    let giris = proje_dosyasi
+        .as_ref()
+        .and_then(|p| derleme::proje_ayari(p, &["giriş", "giris"]));
+    let dal = std::fs::read_to_string(kok.join(".git").join("HEAD"))
+        .ok()
+        .and_then(|h| {
+            h.trim()
+                .strip_prefix("ref: refs/heads/")
+                .map(str::to_string)
+        });
+    let yol = kok.to_string_lossy().into_owned();
+    depo::proje_acildi(&ad, &yol, &sablon);
+    json!({
+        "ad": ad, "yol": yol, "sablon": sablon, "giris": giris, "dal": dal,
+        "proje_dosyasi": proje_dosyasi.map(|p| p.to_string_lossy().into_owned()),
+    })
+}
+
+fn proje_ac(yol: &str) -> Yanit {
+    let mut kok = PathBuf::from(yol);
+    if kok.is_file() {
+        kok = kok.parent().map(Path::to_path_buf).unwrap_or(kok);
+    }
+    if !kok.is_dir() {
+        return hata(format!("'{yol}' bulunamadı."));
+    }
+    koke_izin_ver(&kok);
+    Yanit::json(&proje_bilgisi(&kok))
+}
+
+fn proje_klonla(url: &str, konum: &str) -> Yanit {
+    let url = url.trim();
+    if url.is_empty() || url.starts_with('-') {
+        return hata("Geçerli bir depo adresi girin.");
+    }
+    let ad = url
+        .trim_end_matches('/')
+        .rsplit(['/', ':'])
+        .next()
+        .unwrap_or("proje")
+        .trim_end_matches(".git")
+        .to_string();
+    let hedef = PathBuf::from(konum).join(&ad);
+    if hedef.exists() {
+        return hata(format!("'{}' zaten var.", hedef.display()));
+    }
+    let _ = std::fs::create_dir_all(konum);
+    let sonuc = Command::new("git")
+        .args(["clone", "--depth", "1", "--", url])
+        .arg(&hedef)
+        .output();
+    match sonuc {
+        Ok(o) if o.status.success() => {
+            koke_izin_ver(&hedef);
+            Yanit::json(&proje_bilgisi(&hedef))
+        }
+        Ok(o) => hata(format!(
+            "Depo klonlanamadı:\n{}",
+            String::from_utf8_lossy(&o.stderr).trim()
+        )),
+        Err(_) => hata("Git bulunamadı; depoyu klonlamak için Git kurun."),
+    }
+}
+
+/// Proje ağacı: gizli klasörler ve derleme çıktıları gösterilmez.
+fn agac(kok: &str) -> Yanit {
+    let kok = PathBuf::from(kok);
+    if !izinli_mi(&kok) {
+        return Yanit::hata(403, "bu klasöre erişim yok");
+    }
+    fn gez(kok: &Path, klasor: &Path, cikti: &mut Vec<Value>, derinlik: usize) {
+        if derinlik > 8 || cikti.len() > 2000 {
+            return;
+        }
+        let Ok(okunan) = std::fs::read_dir(klasor) else {
+            return;
+        };
+        let mut girdiler: Vec<_> = okunan.filter_map(|g| g.ok()).collect();
+        // Önce klasörler, sonra dosyalar; her grup kendi içinde ada göre
+        girdiler.sort_by_key(|g| {
+            (
+                !g.path().is_dir(),
+                g.file_name().to_string_lossy().to_lowercase(),
+            )
+        });
+        for g in girdiler {
+            let ad = g.file_name().to_string_lossy().into_owned();
+            if ad.starts_with('.') || ad == "cikti" || ad == "target" {
+                continue;
+            }
+            let p = g.path();
+            let goreli = p
+                .strip_prefix(kok)
+                .unwrap_or(&p)
+                .to_string_lossy()
+                .replace('\\', "/");
+            let klasor_mu = p.is_dir();
+            cikti.push(json!({ "yol": goreli, "klasor": klasor_mu }));
+            if klasor_mu {
+                gez(kok, &p, cikti, derinlik + 1);
+            }
+        }
+    }
+    let mut girdiler = Vec::new();
+    gez(&kok, &kok, &mut girdiler, 0);
+    Yanit::json(&json!({ "girdiler": girdiler }))
+}
+
+fn dosya_oku(yol: &str) -> Yanit {
+    let p = Path::new(yol);
+    if !izinli_mi(p) {
+        return Yanit::hata(403, "bu dosyaya erişim yok");
+    }
+    match std::fs::read(p) {
+        Ok(b) if b.len() > 2 * 1024 * 1024 => hata("Dosya düzenleyicide açılamayacak kadar büyük."),
+        Ok(b) => match String::from_utf8(b) {
+            Ok(m) => Yanit::json(&json!({ "icerik": m })),
+            Err(_) => Yanit::json(&json!({ "ikili": true })),
+        },
+        Err(e) => hata(format!("Dosya okunamadı: {e}")),
+    }
+}
+
+fn dosya_yaz(yol: &str, icerik: &str) -> Yanit {
+    let p = Path::new(yol);
+    if !izinli_mi(p) {
+        return Yanit::hata(403, "bu dosyaya erişim yok");
+    }
+    match std::fs::write(p, icerik) {
+        Ok(()) => Yanit::json(&json!({ "tamam": true })),
+        Err(e) => hata(format!("Kaydedilemedi: {e}")),
+    }
+}
+
+fn dosya_yeni(yol: &str, klasor: bool) -> Yanit {
+    let p = Path::new(yol);
+    if !izinli_mi(p) {
+        return Yanit::hata(403, "bu klasöre erişim yok");
+    }
+    if p.exists() {
+        return hata("Bu adla bir dosya zaten var.");
+    }
+    let sonuc = if klasor {
+        std::fs::create_dir_all(p)
+    } else {
+        p.parent()
+            .map(std::fs::create_dir_all)
+            .unwrap_or(Ok(()))
+            .and_then(|_| std::fs::write(p, ""))
+    };
+    match sonuc {
+        Ok(()) => Yanit::json(&json!({ "tamam": true })),
+        Err(e) => hata(format!("Oluşturulamadı: {e}")),
+    }
+}
+
+fn ara(kok: &str, aranan: &str) -> Yanit {
+    let kok = PathBuf::from(kok);
+    if !izinli_mi(&kok) {
+        return Yanit::hata(403, "bu klasöre erişim yok");
+    }
+    let aranan_k = aranan.to_lowercase();
+    let mut sonuclar = Vec::new();
+    fn gez(klasor: &Path, cikti: &mut Vec<PathBuf>) {
+        let Ok(okunan) = std::fs::read_dir(klasor) else {
+            return;
+        };
+        for g in okunan.filter_map(|g| g.ok()) {
+            let ad = g.file_name().to_string_lossy().into_owned();
+            if ad.starts_with('.') || ad == "cikti" || ad == "target" {
+                continue;
+            }
+            if g.path().is_dir() {
+                gez(&g.path(), cikti);
+            } else {
+                cikti.push(g.path());
+            }
+        }
+    }
+    let mut dosyalar = Vec::new();
+    gez(&kok, &mut dosyalar);
+    dosyalar.sort();
+    'dis: for d in dosyalar {
+        let Ok(icerik) = std::fs::read_to_string(&d) else {
+            continue;
+        };
+        for (i, satir) in icerik.lines().enumerate() {
+            if !aranan_k.is_empty() && satir.to_lowercase().contains(&aranan_k) {
+                sonuclar.push(json!({
+                    "dosya": d.strip_prefix(&kok).unwrap_or(&d).to_string_lossy().replace('\\', "/"),
+                    "satir": i + 1,
+                    "metin": satir.trim(),
+                }));
+                if sonuclar.len() >= 200 {
+                    break 'dis;
+                }
+            }
+        }
+    }
+    Yanit::json(&json!({ "sonuclar": sonuclar }))
+}
+
+fn teshis_json(h: &derleme::DerlemeHatasi) -> Value {
+    match &h.teshis {
+        Some(t) => json!([{
+            "dosya": t.dosya, "satir": t.satir, "sutun": t.sutun,
+            "mesaj": t.mesaj, "ipucu": t.ipucu,
+        }]),
+        None => json!([{ "dosya": "", "satir": 0, "sutun": 0, "mesaj": h.metin, "ipucu": null }]),
+    }
+}
+
+/// `acik`: düzenleyicide açık, kaydedilmemiş dosyalar {tam yol: içerik}
+fn denetle(dosya: &str, acik: &Value) -> Yanit {
+    let p = Path::new(dosya);
+    if !izinli_mi(p) {
+        return Yanit::hata(403, "bu dosyaya erişim yok");
+    }
+    let mut ortulu = std::collections::HashMap::new();
+    if let Some(acik) = acik.as_object() {
+        for (yol, icerik) in acik {
+            let yol = Path::new(yol);
+            if let (true, Ok(tam), Some(icerik)) =
+                (izinli_mi(yol), std::fs::canonicalize(yol), icerik.as_str())
+            {
+                ortulu.insert(tam, icerik.to_string());
+            }
+        }
+    }
+    match derleme::yukle_ortulu(p, &ortulu) {
+        Ok(_) => Yanit::json(&json!({ "hatalar": [] })),
+        Err(h) => Yanit::json(&json!({ "hatalar": teshis_json(&h) })),
+    }
+}
+
+fn calistir(g: &Value) -> Yanit {
+    let dosya = PathBuf::from(metin(g, "dosya"));
+    if !izinli_mi(&dosya) {
+        return Yanit::hata(403, "bu dosyaya erişim yok");
+    }
+    let klasor = PathBuf::from(metin(g, "klasor"));
+    let argumanlar: Vec<String> = g["argumanlar"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|x| x.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+    let gecici = match derleme::gecici_klasor("studyo") {
+        Ok(k) => k,
+        Err(e) => return hata(e),
+    };
+    let program = gecici.join(if cfg!(windows) {
+        "program.exe"
+    } else {
+        "program"
+    });
+    let baslangic = Instant::now();
+    if let Err(h) = derleme::derle(&dosya, &program, None) {
+        let _ = std::fs::remove_dir_all(&gecici);
+        return Yanit::json(&json!({ "derleme_hatasi": h.metin, "hatalar": teshis_json(&h) }));
+    }
+    let derleme_ms = baslangic.elapsed().as_millis();
+    match calisma::baslat(&program, &klasor, &argumanlar, gecici.clone()) {
+        Ok(kimlik) => Yanit::json(&json!({ "kimlik": kimlik, "derleme_ms": derleme_ms })),
+        Err(e) => {
+            let _ = std::fs::remove_dir_all(&gecici);
+            hata(e)
+        }
+    }
+}
+
+fn cikti(kimlik: &str, konum: &str) -> Yanit {
+    let kimlik = kimlik.parse().unwrap_or(0);
+    let konum = konum.parse().unwrap_or(0);
+    match calisma::durum(kimlik, konum) {
+        Some(d) => {
+            let parcalar: Vec<Value> = d
+                .parcalar
+                .into_iter()
+                .map(|(tur, t)| json!({ "tur": tur, "t": t }))
+                .collect();
+            Yanit::json(&json!({
+                "parcalar": parcalar, "konum": d.konum, "bitti": d.bitti,
+                "kod": d.kod, "sure_ms": d.sure_ms as u64,
+            }))
+        }
+        None => hata("çalıştırma bulunamadı"),
+    }
+}
+
+fn girdi(g: &Value) -> Yanit {
+    match calisma::girdi_gonder(g["kimlik"].as_u64().unwrap_or(0), metin(g, "metin")) {
+        Ok(()) => Yanit::json(&json!({ "tamam": true })),
+        Err(e) => hata(e),
+    }
+}
+
+/// Dağıtım için derler: çıktı projenin `cikti/` klasörüne yazılır.
+fn derle(dosya: &str, hedef: &str) -> Yanit {
+    let p = PathBuf::from(dosya);
+    if !izinli_mi(&p) {
+        return Yanit::hata(403, "bu dosyaya erişim yok");
+    }
+    let hedef = (!hedef.is_empty()).then_some(hedef);
+    let kok = izinli_kokler()
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|k| {
+            std::fs::canonicalize(&p)
+                .map(|t| t.starts_with(k))
+                .unwrap_or(false)
+        })
+        .max_by_key(|k| k.as_os_str().len())
+        .cloned()
+        .unwrap_or_else(|| p.parent().map(Path::to_path_buf).unwrap_or_default());
+    let klasor = kok.join("cikti");
+    let _ = std::fs::create_dir_all(&klasor);
+    let ad = derleme::proje_dosyasi(&kok)
+        .and_then(|pd| derleme::proje_ayari(&pd, &["ad"]))
+        .unwrap_or_else(|| "program".into());
+    let mut cikti = klasor.join(&ad);
+    if derleme::windows_mu(hedef) {
+        cikti.set_extension("exe");
+    }
+    let baslangic = Instant::now();
+    match derleme::derle(&p, &cikti, hedef) {
+        Ok(()) => Yanit::json(&json!({
+            "cikti": cikti.to_string_lossy(),
+            "sure_ms": baslangic.elapsed().as_millis() as u64,
+            "boyut": std::fs::metadata(&cikti).map(|m| m.len()).unwrap_or(0),
+        })),
+        Err(h) => Yanit::json(&json!({ "derleme_hatasi": h.metin, "hatalar": teshis_json(&h) })),
+    }
+}

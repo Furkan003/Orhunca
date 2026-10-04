@@ -13,7 +13,7 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 | 4 | Dil sunucusu (LSP) + VS Code eklentisi | ⏳ |
 | 5 | Standart kütüphane ✅, paket yöneticisi ⏳ | 🟡 |
 | 6 | Web sunucusu, `.ohchtml`, veritabanı/ORM | ⏳ |
-| 7 | Orhunca Stüdyo (Tauri + Monaco), "Öğren" sekmesi | ⏳ |
+| 7 | Orhunca Stüdyo: arayüz ✅ (tarayıcıda, `orhunca stüdyo`), Tauri masaüstü paketi ⏳ | 🟡 |
 | 8 | WebAssembly, Türkçe arayüz dili, self-hosting | ⏳ |
 
 ## v0.2'de eklenenler
@@ -32,6 +32,15 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 - `çıkar` fiili, dosyaya yazan `yaz`, metin karşılaştırma (`<`), metinde harf gezme.
 - Tamsayı taşması denetimi; programa argüman geçirme (`--`).
 
+## Orhunca Stüdyo (Aşama 7, ilk sürüm)
+
+- Tasarım: `docs/tasarim/Orhunca Başlangıç.dc.html`. Görünüm birebir uygulandı; içerik gerçek dile
+  uyarlandı (`.ohc`/`.ohcproj`, gerçek söz dizimi, çalışan şablonlar).
+- Düzenleyici bağımlılıksız: sözdizimi renklendirme, otomatik girinti, yorum satırı, hata çizgileri.
+  Monaco gerekirse ileride takılabilir; arayüz aynı API'yi kullanır.
+- Web/sunucu şablonları "Aşama 6'da geliyor" olarak gösterilir; canlı önizleme paneli web desteğiyle gelecek.
+- Tauri: aynı `studio/` arayüzü pencereye sarılacak; pencere düğmeleri (`__TAURI__`) hazır.
+
 ## Henüz yapılmayanlar
 
 - **Çalışma zamanı C ile yazılı** (`runtime/orhunca_rt.c`). Bağlama zaten bir C araç zinciri
@@ -46,7 +55,7 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 
 ## Sıradaki adımlar (öneri sırası)
 
-1. **Orhunca Stüdyo** (tasarım hazır): başlangıç ekranı, şablon sihirbazı, düzenleyici.
+1. **Dil sunucusu (LSP) + VS Code eklentisi** (Aşama 4): Stüdyo'nun denetim altyapısı hazır.
 2. **Modeller** (`model Ürün:` alanlarla) — web çatısının ön koşulu.
 3. **Biçimlendirici** — ünlü uyumu düzeltmesi, girinti.
 4. **Dil sunucusu (LSP)**: `orhunca denetle` zaten hata konumlarını veriyor; `tower-lsp` ile tanı,

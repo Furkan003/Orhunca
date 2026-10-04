@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+Old+Turkic&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,300..500,0..1,0&display=swap">
+<style>
+html,body{margin:0;background:#0a0c0f;color:#e6e9ee;font-family:'IBM Plex Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+a{color:oklch(0.79 0.12 188)}a:hover{color:oklch(0.86 0.10 188)}
+input::placeholder{color:#6b7482}
+@keyframes orh-spin{to{transform:rotate(360deg)}}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#262c35;border-radius:10px;border:2px solid transparent;background-clip:padding-box}
+</style>
+</helmet>
+<div style="min-height:100vh;padding:24px;display:flex;align-items:center;justify-content:center">
+<div data-screen-label="Orhunca pencere" style="position:relative;width:100%;max-width:1360px;height:clamp(720px,calc(100vh - 48px),880px);background:#13161b;border:1px solid #262b33;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,0.5)">
+
+<div style="height:44px;flex-shrink:0;display:flex;align-items:center;gap:18px;padding-left:16px;background:#0f1216;border-bottom:1px solid #20252d;user-select:none">
+  <div style="display:flex;align-items:center;gap:10px">
+    <div style="width:26px;height:26px;border-radius:7px;background:oklch(0.79 0.12 188);color:#071a19;display:flex;align-items:center;justify-content:center;font-family:'Noto Sans Old Turkic';font-size:17px;line-height:1">𐰆</div>
+    <span style="font-weight:600;font-size:14px;letter-spacing:0.01em">Orhunca</span>
+  </div>
+  <sc-if value="{{ isEditor }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;gap:2px;font-size:13px;color:#a3abb8;white-space:nowrap;flex-shrink:1;min-width:0;overflow:hidden">
+      <sc-for list="{{ menus }}" as="m" hint-placeholder-count="6">
+        <span style="padding:5px 9px;border-radius:5px;cursor:default" style-hover="background:#1c2129;color:#e6e9ee">{{ m.label }}</span>
+      </sc-for>
+    </div>
+    <div style="flex:1;min-width:0;text-align:center;font-size:12.5px;color:#8b94a3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ projectName }} — Orhunca</div>
+  </sc-if>
+  <div style="flex:1"></div>
+  <div style="display:flex;height:100%">
+    <span style="width:46px;display:flex;align-items:center;justify-content:center;color:#9aa3b2;font-family:'Material Symbols Rounded';font-size:18px" style-hover="background:#1c2129">remove</span>
+    <span style="width:46px;display:flex;align-items:center;justify-content:center;color:#9aa3b2;font-family:'Material Symbols Rounded';font-size:16px" style-hover="background:#1c2129">crop_square</span>
+    <span style="width:46px;display:flex;align-items:center;justify-content:center;color:#9aa3b2;font-family:'Material Symbols Rounded';font-size:18px" style-hover="background:#c42b1c;color:#fff">close</span>
+  </div>
+</div>
+
+<div style="flex:1;min-height:0;display:flex">
+
+<sc-if value="{{ notEditor }}" hint-placeholder-val="{{ true }}">
+<div style="width:clamp(64px,18vw,232px);flex-shrink:0;overflow:hidden;background:#0f1216;border-right:1px solid #20252d;padding:18px 12px;display:flex;flex-direction:column;gap:4px">
+  <sc-for list="{{ nav }}" as="it" hint-placeholder-count="3">
+    <div onClick="{{ it.onClick }}" style="position:relative;display:flex;align-items:center;gap:12px;height:40px;padding:0 12px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:500;background:{{ it.bg }};color:{{ it.fg }}" style-hover="color:#eef0f3">
+      <div style="position:absolute;left:0;top:11px;bottom:11px;width:3px;border-radius:3px;background:oklch(0.79 0.12 188);opacity:{{ it.bar }}"></div>
+      <span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;color:{{ it.iconFg }}">{{ it.icon }}</span>
+      <span>{{ it.label }}</span>
+    </div>
+  </sc-for>
+  <div style="flex:1"></div>
+  <div style="display:flex;align-items:center;gap:10px;padding:10px;border-top:1px solid #20252d">
+    <div style="width:30px;height:30px;border-radius:50%;background:#232932;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#cfd5de">{{ userInitial }}</div>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:13px;font-weight:500">{{ userCap }}</div>
+      <div style="font-size:11.5px;color:#6b7482">Orhunca 2.1 · Topluluk</div>
+    </div>
+    <span style="font-family:'Material Symbols Rounded';font-size:19px;color:#7d8696;cursor:pointer" style-hover="color:#e6e9ee">settings</span>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+<div data-screen-label="01 Başlangıç" style="flex:1;min-width:0;display:grid;grid-template-columns:minmax(0,1fr) clamp(240px,26vw,340px)">
+  <div style="padding:32px 36px 20px;display:flex;flex-direction:column;gap:20px;min-height:0">
+    <div>
+      <div style="font-size:13px;color:#8b94a3">Tekrar hoş geldin, {{ userCap }}</div>
+      <h1 style="margin:4px 0 0;font-size:28px;font-weight:600;letter-spacing:-0.01em">Başlayın</h1>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;height:42px;padding:0 14px;background:#1a1e25;border:1px solid #272d36;border-radius:8px">
+      <span style="font-family:'Material Symbols Rounded';font-size:20px;color:#7d8696">search</span>
+      <input value="{{ q }}" onChange="{{ onQ }}" placeholder="Son projelerde ara" style="flex:1;min-width:0;background:transparent;border:0;outline:none;color:#e6e9ee;font:inherit;font-size:14px">
+      <span style="font-family:'JetBrains Mono';font-size:11px;color:#7d8696;padding:2px 6px;border:1px solid #2a3039;border-radius:4px">Alt+S</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <h2 style="margin:0;font-size:16px;font-weight:600">Son projeler</h2>
+      <span style="font-size:12px;color:#6b7482">{{ recentCount }}</span>
+      <div style="flex:1"></div>
+      <div onClick="{{ toggleSort }}" style="display:flex;align-items:center;gap:6px;font-size:13px;color:#9aa3b2;cursor:pointer;padding:5px 8px;border-radius:6px" style-hover="background:#1a1e25;color:#e6e9ee">
+        <span>{{ sortLabel }}</span>
+        <span style="font-family:'Material Symbols Rounded';font-size:18px">swap_vert</span>
+      </div>
+    </div>
+    <div style="flex:1;min-height:0;overflow:auto;margin:-8px -12px 0;display:flex;flex-direction:column;gap:2px">
+      <sc-for list="{{ recent }}" as="p" hint-placeholder-count="6">
+        <div onClick="{{ p.open }}" style="display:grid;grid-template-columns:40px minmax(140px,1fr) auto;align-items:center;gap:14px;padding:10px 12px;border-radius:8px;cursor:pointer" style-hover="background:#1a1e25">
+          <div style="width:40px;height:40px;border-radius:8px;background:#1b2028;border:1px solid #262c35;display:flex;align-items:center;justify-content:center;color:#a3abb8;font-family:'Material Symbols Rounded';font-size:20px">{{ p.icon }}</div>
+          <div style="min-width:0">
+            <div style="font-size:14px;font-weight:500">{{ p.name }}<span style="color:#6b7482">.orh</span></div>
+            <div style="font-family:'JetBrains Mono';font-size:11.5px;color:#7d8696;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px">{{ p.path }}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
+            <span style="font-size:11.5px;color:#a3abb8;background:#1d222a;border:1px solid #282e37;padding:3px 8px;border-radius:5px;white-space:nowrap">{{ p.type }}</span>
+            <span style="font-family:'JetBrains Mono';font-size:11.5px;color:#8b94a3;white-space:nowrap">{{ p.date }}</span>
+          </div>
+        </div>
+      </sc-for>
+      <sc-if value="{{ noRecent }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:40px 12px;text-align:center;color:#7d8696;font-size:13.5px">“{{ q }}” ile eşleşen proje bulunamadı.</div>
+      </sc-if>
+    </div>
+  </div>
+  <div style="border-left:1px solid #20252d;background:#111419;padding:32px 24px 24px;display:flex;flex-direction:column;gap:10px">
+    <h2 style="margin:0 0 6px;font-size:16px;font-weight:600">Hızlı işlemler</h2>
+    <div onClick="{{ goNew }}" style="display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:10px;cursor:pointer;background:oklch(0.79 0.12 188 / 0.1);border:1px solid oklch(0.79 0.12 188 / 0.35)" style-hover="background:oklch(0.79 0.12 188 / 0.17)">
+      <span style="font-family:'Material Symbols Rounded';font-size:22px;color:oklch(0.79 0.12 188)">add</span>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;flex-wrap:wrap;align-items:baseline;column-gap:8px;row-gap:2px">
+          <span style="font-size:14px;font-weight:500;white-space:nowrap">Yeni proje oluştur</span>
+          <span style="font-family:'JetBrains Mono';font-size:10.5px;color:#7d8696;white-space:nowrap">Ctrl+⇧+N</span>
+        </div>
+        <div style="font-size:12px;color:#8b94a3;margin-top:2px">Web, sunucu veya masaüstü şablonu seçin</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:10px;cursor:pointer;background:#171b21;border:1px solid #232830" style-hover="background:#1c2129">
+      <span style="font-family:'Material Symbols Rounded';font-size:22px;color:#a3abb8">folder_open</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;font-weight:500">Var olan projeyi aç</div>
+        <div style="font-size:12px;color:#8b94a3;margin-top:2px">Bir klasör veya .orh dosyası seçin</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:10px;cursor:pointer;background:#171b21;border:1px solid #232830" style-hover="background:#1c2129">
+      <span style="font-family:'Material Symbols Rounded';font-size:22px;color:#a3abb8">cloud_download</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;font-weight:500">Depodan klonla</div>
+        <div style="font-size:12px;color:#8b94a3;margin-top:2px">Git deposundan proje indirin</div>
+      </div>
+    </div>
+    <div onClick="{{ goLearn }}" style="display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:10px;cursor:pointer;background:#171b21;border:1px solid #232830" style-hover="background:#1c2129">
+      <span style="font-family:'Material Symbols Rounded';font-size:22px;color:#a3abb8">school</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;font-weight:500">Orhunca'yı öğren</div>
+        <div style="font-size:12px;color:#8b94a3;margin-top:2px">Türkçe anahtar kelimeler rehberi</div>
+      </div>
+    </div>
+    <div style="flex:1"></div>
+    <div style="display:flex;gap:12px;align-items:flex-start;padding:16px 4px 0;border-top:1px solid #20252d;cursor:pointer">
+      <span style="font-family:'Material Symbols Rounded';font-size:20px;color:oklch(0.79 0.12 188)">new_releases</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:500">Ekim 2026 güncellemesi</div>
+        <div style="font-size:12px;color:#8b94a3;margin-top:3px;line-height:1.45;text-wrap:pretty">Türkçe hata açıklamaları ve canlı web önizlemesi.</div>
+      </div>
+      <span style="font-family:'Material Symbols Rounded';font-size:18px;color:#7d8696">chevron_right</span>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isNew }}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="02 Yeni proje" style="flex:1;min-width:0;display:flex;flex-direction:column;min-height:0">
+  <div style="display:flex;align-items:center;gap:12px;padding:24px 32px 0">
+    <div onClick="{{ goHome }}" style="width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#a3abb8;font-family:'Material Symbols Rounded';font-size:20px" style-hover="background:#1c2129;color:#e6e9ee">arrow_back</div>
+    <h1 style="margin:0;font-size:22px;font-weight:600">Yeni proje oluşturun</h1>
+    <div style="flex:1"></div>
+    <span style="font-size:12.5px;color:#7d8696">Adım 1 / 2 · Şablon</span>
+  </div>
+  <div style="flex:1;min-height:0;display:grid;grid-template-columns:clamp(220px,26vw,320px) minmax(0,1fr);padding-top:20px">
+    <div style="padding:0 24px 24px 32px;border-right:1px solid #20252d;display:flex;flex-direction:column;gap:12px;min-height:0;overflow:auto">
+      <h2 style="margin:0;font-size:14px;font-weight:600;color:#cfd5de">Son kullanılan şablonlar</h2>
+      <sc-for list="{{ recentTpl }}" as="r" hint-placeholder-count="2">
+        <div onClick="{{ r.onClick }}" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:8px;background:#171b21;border:1px solid #232830;cursor:pointer" style-hover="background:#1c2129">
+          <span style="font-family:'Material Symbols Rounded';font-size:20px;color:#a3abb8">{{ r.icon }}</span>
+          <span style="flex:1;font-size:13.5px">{{ r.name }}</span>
+          <span style="font-size:11.5px;color:#7d8696">Orhunca</span>
+        </div>
+      </sc-for>
+      <div style="height:1px;background:#20252d;margin:8px 0"></div>
+      <div>
+        <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#7d8696">Oluşturulacak dosyalar</div>
+        <div style="font-size:14px;font-weight:600;margin-top:4px">{{ selName }}</div>
+      </div>
+      <div style="background:#0f1216;border:1px solid #20252d;border-radius:8px;padding:10px 0;font-family:'JetBrains Mono';font-size:12px">
+        <sc-for list="{{ selTree }}" as="f" hint-placeholder-count="6">
+          <div style="display:flex;align-items:center;gap:8px;height:24px;padding-left:{{ f.pad }};color:{{ f.fg }}">
+            <sc-if value="{{ f.isOrh }}"><span style="width:16px;text-align:center;font-family:'Noto Sans Old Turkic';color:oklch(0.79 0.12 188);font-size:13px">𐰆</span></sc-if>
+            <sc-if value="{{ f.notOrh }}"><span style="width:16px;font-family:'Material Symbols Rounded';font-size:16px;color:{{ f.iconFg }}">{{ f.icon }}</span></sc-if>
+            <span>{{ f.label }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="padding:0 32px 0 28px;display:flex;flex-direction:column;gap:14px;min-height:0">
+      <div style="display:flex;align-items:center;gap:10px;height:40px;padding:0 14px;background:#1a1e25;border:1px solid #272d36;border-radius:8px">
+        <span style="font-family:'Material Symbols Rounded';font-size:20px;color:#7d8696">search</span>
+        <input value="{{ tq }}" onChange="{{ onTq }}" placeholder="Şablon ara (ör. web, api, sayfa)" style="flex:1;min-width:0;background:transparent;border:0;outline:none;color:#e6e9ee;font:inherit;font-size:14px">
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <sc-for list="{{ cats }}" as="c" hint-placeholder-count="6">
+          <div onClick="{{ c.onClick }}" style="font-size:13px;padding:6px 14px;border-radius:99px;cursor:pointer;background:{{ c.bg }};color:{{ c.fg }};border:1px solid {{ c.border }}">{{ c.label }}</div>
+        </sc-for>
+      </div>
+      <div style="flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:8px;padding-bottom:20px">
+        <sc-for list="{{ tlist }}" as="t" hint-placeholder-count="5">
+          <div onClick="{{ t.onClick }}" onDoubleClick="{{ t.onDouble }}" style="display:grid;grid-template-columns:44px minmax(0,1fr) 24px;gap:16px;align-items:start;padding:14px 16px;border-radius:10px;cursor:pointer;background:{{ t.bg }};border:1px solid #232830;box-shadow:inset 0 0 0 1px {{ t.ring }}" style-hover="border-color:#353d48">
+            <div style="width:44px;height:44px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-size:24px;background:{{ t.iconBg }};color:{{ t.iconFg }}">{{ t.icon }}</div>
+            <div style="min-width:0">
+              <div style="font-size:14.5px;font-weight:600">{{ t.name }}</div>
+              <div style="font-size:13px;color:#9aa3b2;margin-top:3px;text-wrap:pretty">{{ t.desc }}</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
+                <sc-for list="{{ t.tagList }}" as="g" hint-placeholder-count="3">
+                  <span style="font-size:11.5px;color:#a3abb8;background:#1f242c;padding:3px 9px;border-radius:5px">{{ g.x }}</span>
+                </sc-for>
+              </div>
+            </div>
+            <sc-if value="{{ t.isSel }}"><span style="font-family:'Material Symbols Rounded';font-size:22px;color:oklch(0.79 0.12 188);font-variation-settings:'FILL' 1">check_circle</span></sc-if>
+          </div>
+        </sc-for>
+        <sc-if value="{{ noTpl }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:40px 0;text-align:center;color:#7d8696;font-size:13.5px">Bu filtreyle eşleşen şablon yok.</div>
+        </sc-if>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:14px 32px;border-top:1px solid #20252d;background:#111419">
+    <span style="flex:1;font-size:12.5px;color:#6b7482">İpucu: şablona çift tıklayarak doğrudan devam edebilirsiniz.</span>
+    <div onClick="{{ goHome }}" style="padding:9px 22px;border-radius:8px;background:#1f242c;border:1px solid #2a3039;font-size:14px;cursor:pointer" style-hover="background:#262c35">Geri</div>
+    <div onClick="{{ goConfig }}" style="padding:9px 22px;border-radius:8px;background:oklch(0.79 0.12 188);color:#071a19;font-size:14px;font-weight:600;cursor:pointer" style-hover="background:oklch(0.84 0.11 188)">Sonraki</div>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isConfig }}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="03 Yapılandır" style="flex:1;min-width:0;display:flex;flex-direction:column;min-height:0">
+  <div style="display:flex;align-items:center;gap:12px;padding:24px 32px 0">
+    <div onClick="{{ goNew }}" style="width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#a3abb8;font-family:'Material Symbols Rounded';font-size:20px" style-hover="background:#1c2129;color:#e6e9ee">arrow_back</div>
+    <h1 style="margin:0;font-size:22px;font-weight:600">Projenizi yapılandırın</h1>
+    <div style="flex:1"></div>
+    <span style="font-size:12.5px;color:#7d8696">Adım 2 / 2 · Ayarlar</span>
+  </div>
+  <div style="flex:1;min-height:0;overflow:auto;padding:28px 32px 28px clamp(32px,5vw,78px)">
+    <div style="max-width:620px;display:flex;flex-direction:column;gap:22px">
+      <div style="display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:10px;background:#171b21;border:1px solid #232830">
+        <div style="width:40px;height:40px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-size:22px;background:oklch(0.79 0.12 188 / 0.12);color:oklch(0.79 0.12 188)">{{ selIcon }}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:14.5px;font-weight:600">{{ selName }}</div>
+          <div style="font-size:12.5px;color:#8b94a3;margin-top:2px">{{ selTags }}</div>
+        </div>
+        <div onClick="{{ goNew }}" style="font-size:13px;color:oklch(0.79 0.12 188);cursor:pointer">Değiştir</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <label style="font-size:13px;font-weight:500;color:#cfd5de">Proje adı</label>
+        <input value="{{ projName }}" onChange="{{ onName }}" spellcheck="false" style="height:42px;padding:0 14px;background:#1a1e25;border:1px solid {{ nameBorder }};border-radius:8px;outline:none;color:#e6e9ee;font-family:'JetBrains Mono';font-size:13.5px">
+        <sc-if value="{{ hasNameErr }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:oklch(0.75 0.14 25)"><span style="font-family:'Material Symbols Rounded';font-size:16px">error</span>{{ nameErr }}</div>
+        </sc-if>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <label style="font-size:13px;font-weight:500;color:#cfd5de">Konum</label>
+        <div style="display:flex;gap:8px">
+          <input value="{{ locVal }}" onChange="{{ onLoc }}" spellcheck="false" style="flex:1;min-width:0;height:42px;padding:0 14px;background:#1a1e25;border:1px solid #272d36;border-radius:8px;outline:none;color:#e6e9ee;font-family:'JetBrains Mono';font-size:13px">
+          <div style="width:42px;height:42px;border-radius:8px;background:#1f242c;border:1px solid #2a3039;display:flex;align-items:center;justify-content:center;cursor:pointer;font-family:'Material Symbols Rounded';font-size:20px;color:#a3abb8" style-hover="background:#262c35">folder_open</div>
+        </div>
+      </div>
+      <div style="padding:12px 14px;border-radius:8px;background:#0f1216;border:1px dashed #2a3039">
+        <div style="font-size:11.5px;color:#7d8696">Proje şu klasörde oluşturulacak</div>
+        <div style="font-family:'JetBrains Mono';font-size:12.5px;color:#cfd5de;margin-top:4px;word-break:break-all">{{ fullPath }}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <div style="font-size:13px;font-weight:500;color:#cfd5de;margin-bottom:6px">Seçenekler</div>
+        <sc-for list="{{ toggles }}" as="o" hint-placeholder-count="3">
+          <div onClick="{{ o.onClick }}" style="display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:8px;cursor:pointer" style-hover="background:#171b21">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:14px">{{ o.label }}</div>
+              <div style="font-size:12.5px;color:#8b94a3;margin-top:2px">{{ o.desc }}</div>
+            </div>
+            <div style="width:36px;height:20px;border-radius:99px;padding:2px;background:{{ o.track }};transition:background .15s">
+              <div style="width:16px;height:16px;border-radius:50%;background:{{ o.knob }};transform:translateX({{ o.x }});transition:transform .15s"></div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:14px 32px;border-top:1px solid #20252d;background:#111419">
+    <div onClick="{{ goNew }}" style="padding:9px 22px;border-radius:8px;background:#1f242c;border:1px solid #2a3039;font-size:14px;cursor:pointer" style-hover="background:#262c35">Geri</div>
+    <div onClick="{{ create }}" style="display:flex;align-items:center;gap:8px;padding:9px 20px;border-radius:8px;background:oklch(0.79 0.12 188);color:#071a19;font-size:14px;font-weight:600;cursor:pointer;opacity:{{ createOpacity }}" style-hover="background:oklch(0.84 0.11 188)">
+      <span>Oluştur</span><span style="font-family:'Material Symbols Rounded';font-size:18px">arrow_forward</span>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isLearn }}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="05 Öğren" style="flex:1;min-width:0;overflow:auto;padding:32px 36px">
+  <div style="max-width:900px;display:flex;flex-direction:column;gap:22px">
+    <div>
+      <h1 style="margin:0;font-size:28px;font-weight:600">Öğren</h1>
+      <p style="margin:8px 0 0;font-size:14px;color:#9aa3b2;line-height:1.55;max-width:620px;text-wrap:pretty">Orhunca'da anahtar kelimeler Türkçedir. Başka bir dilden geliyorsanız karşılıkları aşağıda.</p>
+    </div>
+    <div style="border:1px solid #232830;border-radius:10px;overflow:hidden">
+      <div style="display:grid;grid-template-columns:220px 150px minmax(0,1fr);padding:10px 16px;background:#171b21;font-size:11.5px;letter-spacing:0.06em;text-transform:uppercase;color:#7d8696">
+        <span>Orhunca</span><span>Karşılığı</span><span>Örnek</span>
+      </div>
+      <sc-for list="{{ keywords }}" as="kw" hint-placeholder-count="8">
+        <div style="display:grid;grid-template-columns:220px 150px minmax(0,1fr);align-items:center;padding:11px 16px;border-top:1px solid #20252d;font-family:'JetBrains Mono';font-size:13px">
+          <span style="color:oklch(0.79 0.12 188)">{{ kw.tr }}</span>
+          <span style="color:#8b94a3">{{ kw.en }}</span>
+          <span style="white-space:pre"><sc-for list="{{ kw.toks }}" as="tk"><span style="color:{{ tk.c }}">{{ tk.t }}</span></sc-for></span>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display:flex;align-items:center;gap:18px;padding:20px 22px;border-radius:10px;background:oklch(0.79 0.12 188 / 0.08);border:1px solid oklch(0.79 0.12 188 / 0.3)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:15px;font-weight:600">İlk web sayfanı oluştur</div>
+        <div style="font-size:13px;color:#9aa3b2;margin-top:3px">Boş Web Sayfası şablonuyla başla, canlı önizlemede sonucu anında gör.</div>
+      </div>
+      <div onClick="{{ startFirst }}" style="padding:9px 18px;border-radius:8px;background:oklch(0.79 0.12 188);color:#071a19;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap" style-hover="background:oklch(0.84 0.11 188)">Başla</div>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isEditor }}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="04 Düzenleyici" style="flex:1;min-width:0;display:flex;flex-direction:column;min-height:0">
+  <div style="flex:1;min-height:0;display:flex">
+    <div style="width:48px;flex-shrink:0;background:#0f1216;border-right:1px solid #20252d;display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:4px">
+      <span style="width:48px;height:44px;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-size:22px;color:#e6e9ee;box-shadow:inset 2px 0 0 oklch(0.79 0.12 188)">description</span>
+      <span style="width:48px;height:44px;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-size:22px;color:#6b7482" style-hover="color:#e6e9ee">search</span>
+      <span style="width:48px;height:44px;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-size:22px;color:#6b7482" style-hover="color:#e6e9ee">account_tree</span>
+      <span style="width:48px;height:44px;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-size:22px;color:#6b7482" style-hover="color:#e6e9ee">play_circle</span>
+      <span style="width:48px;height:44px;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-size:22px;color:#6b7482" style-hover="color:#e6e9ee">extension</span>
+      <div style="flex:1"></div>
+      <span onClick="{{ goHome }}" title="Başlangıç ekranı" style="width:48px;height:44px;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-size:22px;color:#6b7482;cursor:pointer" style-hover="color:#e6e9ee">home</span>
+      <span style="width:48px;height:44px;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-size:22px;color:#6b7482" style-hover="color:#e6e9ee">settings</span>
+    </div>
+    <div style="width:clamp(170px,18vw,232px);flex-shrink:0;background:#111419;border-right:1px solid #20252d;display:flex;flex-direction:column;min-height:0">
+      <div style="display:flex;align-items:center;padding:12px 14px 8px;font-size:11px;letter-spacing:0.08em;color:#8b94a3">
+        <span style="flex:1">GEZGİN</span>
+        <span style="font-family:'Material Symbols Rounded';font-size:18px">more_horiz</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;padding:4px 10px;font-size:11.5px;font-weight:600;letter-spacing:0.04em;color:#cfd5de">
+        <span style="font-family:'Material Symbols Rounded';font-size:18px">expand_more</span>
+        <span>{{ projectUpper }}</span>
+      </div>
+      <div style="flex:1;overflow:auto;font-size:13px">
+        <sc-for list="{{ edTree }}" as="f" hint-placeholder-count="6">
+          <div onClick="{{ f.onClick }}" style="display:flex;align-items:center;gap:7px;height:26px;padding-left:{{ f.pad }};background:{{ f.bg }};color:{{ f.fg }};cursor:pointer" style-hover="background:#1a1e25">
+            <sc-if value="{{ f.isOrh }}"><span style="width:16px;text-align:center;font-family:'Noto Sans Old Turkic';color:oklch(0.79 0.12 188);font-size:13px">𐰆</span></sc-if>
+            <sc-if value="{{ f.notOrh }}"><span style="width:16px;font-family:'Material Symbols Rounded';font-size:16px;color:{{ f.iconFg }}">{{ f.icon }}</span></sc-if>
+            <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ f.label }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;min-height:0">
+      <div style="height:36px;flex-shrink:0;display:flex;background:#0f1216;border-bottom:1px solid #20252d">
+        <sc-for list="{{ tabs }}" as="tb" hint-placeholder-count="2">
+          <div onClick="{{ tb.onClick }}" style="display:flex;align-items:center;gap:8px;padding:0 12px 0 14px;font-size:12.5px;cursor:pointer;border-right:1px solid #20252d;background:{{ tb.bg }};color:{{ tb.fg }};box-shadow:inset 0 2px 0 {{ tb.top }}">
+            <span>{{ tb.label }}</span>
+            <span onClick="{{ tb.onClose }}" style="font-family:'Material Symbols Rounded';font-size:15px;color:#6b7482;border-radius:4px" style-hover="background:#262c35;color:#e6e9ee">close</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="height:28px;flex-shrink:0;display:flex;align-items:center;padding:0 16px;font-size:12px;color:#7d8696;background:#13161b">{{ crumb }}</div>
+      <div style="flex:1;min-height:0;overflow:auto;padding:4px 0 16px;font-family:'JetBrains Mono';font-size:13px;line-height:21px;background:#13161b">
+        <sc-for list="{{ codeLines }}" as="ln" hint-placeholder-count="12">
+          <div onClick="{{ ln.onClick }}" style="display:flex;background:{{ ln.bg }};cursor:text">
+            <span style="width:56px;flex-shrink:0;text-align:right;padding-right:20px;user-select:none;color:{{ ln.numFg }}">{{ ln.num }}</span>
+            <span style="white-space:pre"><sc-for list="{{ ln.toks }}" as="tk"><span style="color:{{ tk.c }};font-style:{{ tk.i }}">{{ tk.t }}</span></sc-for></span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="height:178px;flex-shrink:0;border-top:1px solid #20252d;background:#0f1216;display:flex;flex-direction:column">
+        <div style="display:flex;gap:20px;padding:0 16px;height:34px;align-items:center;font-size:11px;letter-spacing:0.06em;color:#7d8696">
+          <span style="color:#e6e9ee;box-shadow:0 1px 0 oklch(0.79 0.12 188);padding:4px 0">TERMİNAL</span>
+          <span>SORUNLAR</span>
+          <span>ÇIKTI</span>
+          <div style="flex:1"></div>
+          <span style="font-family:'Material Symbols Rounded';font-size:17px">add</span>
+          <span style="font-family:'Material Symbols Rounded';font-size:17px">delete</span>
+        </div>
+        <div style="flex:1;overflow:auto;padding:4px 16px 10px;font-family:'JetBrains Mono';font-size:12.5px;line-height:20px">
+          <sc-for list="{{ term }}" as="tl" hint-placeholder-count="3">
+            <div style="white-space:pre-wrap;color:{{ tl.c }}">{{ tl.t }}</div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+    <sc-if value="{{ hasPreview }}" hint-placeholder-val="{{ false }}">
+      <div style="width:clamp(240px,24vw,320px);flex-shrink:0;border-left:1px solid #20252d;background:#0f1216;display:flex;flex-direction:column">
+        <div style="display:flex;align-items:center;padding:12px 14px 8px;font-size:11px;letter-spacing:0.08em;color:#8b94a3">
+          <span style="flex:1">CANLI ÖNİZLEME</span>
+          <span onClick="{{ resetPreview }}" style="font-family:'Material Symbols Rounded';font-size:18px;cursor:pointer" style-hover="color:#e6e9ee">refresh</span>
+        </div>
+        <div style="margin:0 12px 8px;height:30px;border-radius:6px;background:#1a1e25;display:flex;align-items:center;gap:6px;padding:0 10px;font-family:'JetBrains Mono';font-size:11.5px;color:#9aa3b2">
+          <span style="width:7px;height:7px;border-radius:50%;background:oklch(0.82 0.12 145)"></span>localhost:3000
+        </div>
+        <div style="flex:1;margin:0 12px 12px;border-radius:8px;background:#f5f3ee;color:#1b1d21;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center">
+          <div style="font-size:26px;font-weight:600;letter-spacing:-0.01em">Merhaba, Dünya!</div>
+          <div onClick="{{ greet }}" style="padding:9px 20px;border-radius:7px;background:#1b1d21;color:#f5f3ee;font-size:14px;font-weight:500;cursor:pointer;user-select:none" style-hover="background:#33363c">Selamla</div>
+          <div style="min-height:20px;font-size:13.5px;color:#4a4f57">{{ greetMsg }}</div>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+  <div style="height:26px;flex-shrink:0;display:flex;align-items:center;gap:16px;padding-right:14px;background:#0f1216;border-top:1px solid #20252d;font-size:11.5px;color:#9aa3b2">
+    <div style="height:100%;display:flex;align-items:center;gap:6px;padding:0 12px;background:oklch(0.79 0.12 188);color:#071a19;font-weight:600"><span style="font-family:'Noto Sans Old Turkic'">𐰆</span>Orhunca</div>
+    <span style="display:flex;align-items:center;gap:4px"><span style="font-family:'Material Symbols Rounded';font-size:15px">fork_right</span>ana</span>
+    <span>0 hata · 0 uyarı</span>
+    <div style="flex:1"></div>
+    <span>{{ cursorLabel }}</span>
+    <span>UTF-8</span>
+    <span>Orhunca 2.1</span>
+    <span>{{ previewLabel }}</span>
+  </div>
+</div>
+</sc-if>
+
+</div>
+
+<sc-if value="{{ creating }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;inset:0;background:rgba(10,12,15,0.72);display:flex;align-items:center;justify-content:center">
+    <div style="display:flex;align-items:center;gap:16px;padding:22px 26px;border-radius:12px;background:#171b21;border:1px solid #262c35">
+      {{ spinner }}
+      <div>
+        <div style="font-size:14.5px;font-weight:600">“{{ projName }}” oluşturuluyor</div>
+        <div style="font-size:12.5px;color:#8b94a3;margin-top:3px">Şablon dosyaları kopyalanıyor…</div>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;home&quot;,&quot;new&quot;,&quot;configure&quot;,&quot;editor&quot;,&quot;learn&quot;],&quot;default&quot;:&quot;home&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prototip&quot;},&quot;userName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;furkan&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prototip&quot;}}">
+class Component extends DCLogic {
+  state = { screen: 'home', q: '', sortBy: 'date', tq: '', cat: 'Tümü', sel: 'web_sitesi', projName: 'yeni_web_sitesi', touched: false, loc: '', opts: { git: true, ornek: true, canli: true }, creating: false, project: null, activeFile: null, tabs: [], clicks: 0, term: [], cursor: 1 };
+
+  TPL = [
+    { id: 'bos_web', name: 'Boş Web Sayfası', desc: 'Tek bir sayfa ve stil dosyasıyla sıfırdan başlayın.', icon: 'draft', cats: ['Web'], tags: ['Orhunca', 'Web', 'Başlangıç'], kind: 'web', files: ['index.orh', 'stil.stil', 'orhunca.ayar'] },
+    { id: 'web_sitesi', name: 'Web Sitesi', desc: 'Çok sayfalı, yönlendirmeli statik web sitesi.', icon: 'language', cats: ['Web'], tags: ['Orhunca', 'Web', 'Statik'], kind: 'web', files: ['sayfalar/anasayfa.orh', 'sayfalar/hakkinda.orh', 'sayfalar/iletisim.orh', 'bilesenler/ustbilgi.orh', 'stiller/ana.stil', 'varliklar/logo.svg', 'orhunca.ayar', 'BENIOKU.md'] },
+    { id: 'web_uyg', name: 'Web Uygulaması', desc: 'Bileşen tabanlı, etkileşimli tek sayfa uygulaması.', icon: 'web', cats: ['Web'], tags: ['Orhunca', 'Web', 'Bileşenler'], kind: 'web', files: ['kaynak/uygulama.orh', 'kaynak/bilesenler/sayac.orh', 'kaynak/bilesenler/liste.orh', 'kaynak/durum.orh', 'stiller/tema.stil', 'orhunca.ayar'] },
+    { id: 'acilis', name: 'Açılış Sayfası', desc: 'Hazır bölümlerle ürün veya etkinlik tanıtım sayfası.', icon: 'rocket_launch', cats: ['Web'], tags: ['Orhunca', 'Web', 'Pazarlama'], kind: 'web', files: ['sayfa.orh', 'bolumler/kahraman.orh', 'bolumler/ozellikler.orh', 'bolumler/iletisim_formu.orh', 'stiller/ana.stil', 'orhunca.ayar'] },
+    { id: 'web_api', name: 'Web API', desc: 'REST uç noktaları sunan sunucu uygulaması.', icon: 'dns', cats: ['Web', 'Sunucu'], tags: ['Orhunca', 'Sunucu', 'REST'], kind: 'api', files: ['sunucu.orh', 'yollar/hava.orh', 'yollar/kullanicilar.orh', 'veri/ornek.json', 'orhunca.ayar'] },
+    { id: 'tam_yigin', name: 'Tam Yığın Uygulama', desc: 'Ön yüz, sunucu ve veritabanı tek projede.', icon: 'stacks', cats: ['Web', 'Sunucu'], tags: ['Orhunca', 'Web', 'Sunucu', 'Veritabanı'], kind: 'web', files: ['istemci/anasayfa.orh', 'istemci/bilesenler/kart.orh', 'sunucu/sunucu.orh', 'sunucu/yollar/urunler.orh', 'veritabani/sema.orh', 'orhunca.ayar'] },
+    { id: 'konsol', name: 'Konsol Uygulaması', desc: 'Komut satırında çalışan uygulama oluşturun.', icon: 'terminal', cats: ['Konsol'], tags: ['Orhunca', 'Windows', 'Konsol'], kind: 'konsol', files: ['ana.orh', 'orhunca.ayar'] },
+    { id: 'masaustu', name: 'Masaüstü Uygulaması', desc: 'Pencere tabanlı masaüstü uygulaması oluşturun.', icon: 'desktop_windows', cats: ['Masaüstü'], tags: ['Orhunca', 'Windows', 'Masaüstü'], kind: 'konsol', files: ['pencere.orh', 'arayuz/ana_ekran.orh', 'orhunca.ayar'] },
+    { id: 'kutuphane', name: 'Kütüphane', desc: 'Yeniden kullanılabilir kod kütüphanesi oluşturun.', icon: 'deployed_code', cats: ['Kütüphane'], tags: ['Orhunca', 'Tüm platformlar', 'Kütüphane'], kind: 'konsol', files: ['kutuphane.orh', 'testler/kutuphane_testi.orh', 'orhunca.ayar', 'BENIOKU.md'] }
+  ];
+  CATS = ['Tümü', 'Web', 'Sunucu', 'Masaüstü', 'Konsol', 'Kütüphane'];
+  RECENT = [
+    { name: 'kisisel_site', tpl: 'web_sitesi', date: '02.10.2026 21:14', ts: 6 },
+    { name: 'kafe_menusu', tpl: 'acilis', date: '28.09.2026 16:06', ts: 5 },
+    { name: 'gorev_listesi', tpl: 'web_uyg', date: '14.09.2026 10:42', ts: 4 },
+    { name: 'hava_durumu_api', tpl: 'web_api', date: '30.08.2026 19:11', ts: 3 },
+    { name: 'kira_takip', tpl: 'tam_yigin', date: '19.08.2026 18:48', ts: 2 },
+    { name: 'hesap_makinesi', tpl: 'konsol', date: '05.07.2026 09:31', ts: 1 }
+  ];
+  CODE = {
+    web: [
+      '// Orhunca — Web Sitesi şablonu',
+      'içe_aktar { Sayfa, Bölüm, Düğme } kaynak "orhunca/web"',
+      '',
+      'sabit başlık = "Merhaba, Dünya!"',
+      'değişken ziyaret = 0',
+      '',
+      'fonksiyon selamla() {',
+      '  ziyaret += 1',
+      '  eğer ziyaret > 1 ise {',
+      '    yazdır("Tekrar hoş geldin!")',
+      '  } değilse {',
+      '    yazdır("Hoş geldin!")',
+      '  }',
+      '}',
+      '',
+      'dışa_aktar sayfa Anasayfa {',
+      '  döndür (',
+      '    <Bölüm sınıf="kahraman">',
+      '      <başlık1>{başlık}</başlık1>',
+      '      <Düğme tıklandığında={selamla}>Selamla</Düğme>',
+      '    </Bölüm>',
+      '  )',
+      '}'
+    ],
+    api: [
+      '// Orhunca — Web API şablonu',
+      'içe_aktar { Sunucu } kaynak "orhunca/sunucu"',
+      '',
+      'sabit sunucu = yeni Sunucu(port: 3000)',
+      '',
+      'sunucu.al("/hava", (istek, yanıt) => {',
+      '  sabit şehir = istek.sorgu.şehir ?? "Ankara"',
+      '  yanıt.json({ şehir, derece: 21, durum: "güneşli" })',
+      '})',
+      '',
+      'sunucu.başlat()'
+    ],
+    konsol: [
+      '// Orhunca — Konsol Uygulaması şablonu',
+      'fonksiyon ana() {',
+      '  sabit ad = oku("Adınız nedir? ")',
+      '  her i için 1..3 {',
+      '    yazdır("Merhaba " + ad + "! " + i)',
+      '  }',
+      '}',
+      '',
+      'ana()'
+    ]
+  };
+  KW = new Set(['içe_aktar', 'dışa_aktar', 'kaynak', 'sabit', 'değişken', 'fonksiyon', 'eğer', 'ise', 'değilse', 'döndür', 'sayfa', 'yeni', 'her', 'için', 'iken', 'doğru', 'yanlış', 'proje']);
+  COL = { p: '#d5d9e0', k: 'oklch(0.79 0.12 188)', s: 'oklch(0.82 0.11 80)', f: 'oklch(0.80 0.10 255)', ty: 'oklch(0.80 0.10 330)', n: 'oklch(0.82 0.12 145)', c: '#5d6673', dim: '#6b7482', mut: '#9aa3b2' };
+
+  componentDidMount() { this.applyStart(this.props.startScreen); }
+  componentDidUpdate(p) { if (p.startScreen !== this.props.startScreen) this.applyStart(this.props.startScreen); }
+  componentWillUnmount() { clearTimeout(this._t); }
+  applyStart(s) {
+    if (!s) return;
+    if (s === 'editor') this.enterEditor({ name: 'kisisel_site', tpl: 'web_sitesi' });
+    else this.setState({ screen: s });
+  }
+
+  user() { return ((this.props.userName ?? 'furkan') + '').trim() || 'furkan'; }
+  baseLoc() { return `C:\\Kullanıcılar\\${this.user()}\\Orhunca\\Projeler`; }
+  tpl(id) { return this.TPL.find(t => t.id === id) || this.TPL[1]; }
+
+  pickTemplate(id) { this.setState(s => ({ sel: id, projName: s.touched ? s.projName : 'yeni_' + id })); }
+
+  nameError() {
+    const n = this.state.projName.trim();
+    if (!n) return 'Proje adı gerekli.';
+    if (!/^[A-Za-z0-9_çğıöşüÇĞİÖŞÜ-]+$/.test(n)) return 'Yalnızca harf, rakam, alt çizgi (_) ve tire (-) kullanılabilir.';
+    if (this.RECENT.some(r => r.name === n)) return 'Bu konumda aynı adlı bir proje zaten var.';
+    return null;
+  }
+
+  create() {
+    if (this.nameError() || this.state.creating) return;
+    this.setState({ creating: true });
+    this._t = setTimeout(() => this.enterEditor({ name: this.state.projName.trim(), tpl: this.state.sel }), 1300);
+  }
+
+  enterEditor(p) {
+    const t = this.tpl(p.tpl);
+    const main = t.files.find(f => f.endsWith('.orh'));
+    const tabs = [main];
+    if (t.files.includes('orhunca.ayar')) tabs.push('orhunca.ayar');
+    this.setState({ screen: 'editor', project: p, activeFile: main, tabs, creating: false, clicks: 0, term: this.initTerm(p, t), cursor: 1 });
+  }
+
+  initTerm(p, t) {
+    const C = this.COL, pr = { t: `PS ${this.baseLoc()}\\${p.name}> orhunca çalıştır`, c: C.mut };
+    if (t.kind === 'web') return [pr, { t: '✓ Derleme tamamlandı · 0,4 sn', c: C.n }, { t: '● Canlı önizleme: http://localhost:3000', c: C.k }, { t: '  Kaydettiğinizde sayfa otomatik yenilenir.', c: C.dim }];
+    if (t.kind === 'api') return [pr, { t: '✓ Derleme tamamlandı · 0,3 sn', c: C.n }, { t: '● Sunucu dinleniyor: http://localhost:3000', c: C.k }, { t: '  GET /hava?şehir=Ankara → 200 · 12 ms', c: C.dim }];
+    return [pr, { t: '✓ Derleme tamamlandı · 0,2 sn', c: C.n }, { t: 'Adınız nedir? ' + this.cap(this.user()), c: C.p }, { t: 'Merhaba ' + this.cap(this.user()) + '! 1', c: C.p }, { t: 'Merhaba ' + this.cap(this.user()) + '! 2', c: C.p }, { t: 'Merhaba ' + this.cap(this.user()) + '! 3', c: C.p }];
+  }
+
+  cap(s) { return s.charAt(0).toLocaleUpperCase('tr') + s.slice(1); }
+
+  tree(files) {
+    const rows = [], seen = new Set();
+    files.forEach(f => {
+      const parts = f.split('/');
+      for (let i = 0; i < parts.length - 1; i++) {
+        const key = parts.slice(0, i + 1).join('/');
+        if (!seen.has(key)) { seen.add(key); rows.push({ label: parts[i], depth: i, dir: true, path: key }); }
+      }
+      rows.push({ label: parts[parts.length - 1], depth: parts.length - 1, dir: false, path: f });
+    });
+    return rows.map(r => {
+      const isOrh = !r.dir && r.label.endsWith('.orh');
+      const icon = r.dir ? 'folder_open' : r.label.endsWith('.ayar') ? 'tune' : r.label.endsWith('.stil') ? 'palette' : r.label.endsWith('.md') ? 'info' : r.label.endsWith('.json') ? 'data_object' : r.label.endsWith('.svg') ? 'image' : 'description';
+      return { ...r, isOrh, notOrh: !isOrh, icon, iconFg: r.dir ? 'oklch(0.82 0.11 80)' : '#8b94a3', pad: (12 + r.depth * 14) + 'px' };
+    });
+  }
+
+  tokenize(line) {
+    const L = 'A-Za-zçğıöşüÇĞİÖŞÜ_', C = this.COL, out = [];
+    const re = new RegExp(`(\\/\\/.*$)|("[^"]*")|(<\\/?[${L}][${L}0-9]*)|([${L}][${L}0-9]*)|(\\d+(?:[.,]\\d+)*)|(\\s+)|(.)`, 'g');
+    let m;
+    while ((m = re.exec(line))) {
+      const t = m[0];
+      let c = C.p, i = 'normal';
+      if (m[1]) { c = C.c; i = 'italic'; }
+      else if (m[2]) c = C.s;
+      else if (m[3]) c = C.ty;
+      else if (m[4]) {
+        const next = line.slice(re.lastIndex).trimStart()[0];
+        const prev = line[m.index - 1];
+        if (this.KW.has(t)) c = C.k;
+        else if (next === '(') c = C.f;
+        else if (prev === '.') c = C.p;
+        else if (t[0] === t[0].toLocaleUpperCase('tr') && /[A-ZÇĞİÖŞÜ]/.test(t[0])) c = C.ty;
+      }
+      else if (m[5]) c = C.n;
+      else if (m[7]) {
+        const prev = line[m.index - 1];
+        if ((t === '>' || (t === '/' && line[re.lastIndex] === '>')) && prev && prev !== ' ' && prev !== '=') c = C.ty;
+      }
+      out.push({ t, c, i });
+    }
+    return out;
+  }
+
+  codeFor(path) {
+    const s = this.state, t = this.tpl(s.project.tpl), main = t.files.find(f => f.endsWith('.orh'));
+    if (path === main) return this.CODE[t.kind];
+    const label = path.split('/').pop();
+    if (label === 'orhunca.ayar') return ['// orhunca.ayar', 'proje {', `  ad: "${s.project.name}"`, '  sürüm: "0.1.0"', `  şablon: "${t.name}"`, `  hedef: "${t.kind === 'web' ? 'tarayıcı' : t.kind === 'api' ? 'sunucu' : 'yerel'}"`, '  dil: "tr"', '}'];
+    return [`// ${label}`, `// Bu dosya "${t.name}" şablonuyla oluşturuldu.`, ''];
+  }
+
+  openFile(path) { this.setState(s => ({ activeFile: path, cursor: 1, tabs: s.tabs.includes(path) ? s.tabs : [...s.tabs, path] })); }
+  closeTab(path, e) {
+    e && e.stopPropagation();
+    this.setState(s => {
+      const tabs = s.tabs.filter(x => x !== path);
+      return { tabs, activeFile: s.activeFile === path ? (tabs[tabs.length - 1] || null) : s.activeFile };
+    });
+  }
+
+  renderVals() {
+    const s = this.state, C = this.COL, ACC = C.k, ACCS = 'oklch(0.79 0.12 188 / 0.12)';
+    const user = this.user(), userCap = this.cap(user);
+    const go = screen => () => this.setState({ screen });
+    const activeNav = s.screen === 'configure' ? 'new' : s.screen;
+    const nav = [['home', 'Başlangıç', 'home'], ['new', 'Şablonlar', 'grid_view'], ['learn', 'Öğren', 'menu_book']].map(([id, label, icon]) => {
+      const a = activeNav === id;
+      return { label, icon, bg: a ? ACCS : 'transparent', fg: a ? '#eef0f3' : '#9aa3b2', iconFg: a ? ACC : '#7d8696', bar: a ? 1 : 0, onClick: go(id) };
+    });
+
+    const ql = s.q.trim().toLocaleLowerCase('tr');
+    const rec = this.RECENT.filter(r => !ql || r.name.toLocaleLowerCase('tr').includes(ql))
+      .sort((a, b) => s.sortBy === 'date' ? b.ts - a.ts : a.name.localeCompare(b.name, 'tr'));
+    const recent = rec.map(r => { const t = this.tpl(r.tpl); return { name: r.name, path: `${this.baseLoc()}\\${r.name}`, type: t.name, icon: t.icon, date: r.date, open: () => this.enterEditor(r) }; });
+
+    const tql = s.tq.trim().toLocaleLowerCase('tr');
+    const tlist = this.TPL.filter(t => (s.cat === 'Tümü' || t.cats.includes(s.cat)) && (!tql || (t.name + ' ' + t.desc + ' ' + t.tags.join(' ')).toLocaleLowerCase('tr').includes(tql))).map(t => {
+      const sel = t.id === s.sel;
+      return { name: t.name, desc: t.desc, icon: t.icon, tagList: t.tags.map(x => ({ x })), isSel: sel, ring: sel ? ACC : 'transparent', bg: sel ? 'oklch(0.79 0.12 188 / 0.07)' : '#171b21', iconBg: sel ? ACCS : '#1f242c', iconFg: sel ? ACC : '#aab2bf', onClick: () => this.pickTemplate(t.id), onDouble: () => { this.pickTemplate(t.id); this.setState({ screen: 'configure' }); } };
+    });
+    const cats = this.CATS.map(label => { const a = s.cat === label; return { label, bg: a ? ACCS : 'transparent', fg: a ? ACC : '#a3abb8', border: a ? 'oklch(0.79 0.12 188 / 0.45)' : '#2a3039', onClick: () => this.setState({ cat: label }) }; });
+    const selT = this.tpl(s.sel);
+    const selTree = this.tree(selT.files).map(r => ({ ...r, fg: r.dir ? '#cfd5de' : '#a3abb8' }));
+
+    const nameErr = this.nameError();
+    const locVal = s.loc === '' && !s.locTouched ? this.baseLoc() : s.loc;
+    const toggles = [['git', 'Git deposu başlat', 'Proje klasöründe yeni bir depo ve .gitignore oluşturur.'], ['ornek', 'Örnek içerik ekle', 'Şablonu çalışan bir örnek sayfayla doldurur.'], ['canli', 'Canlı önizlemeyi aç', 'Kaydettiğiniz anda tarayıcı önizlemesi yenilenir.']].map(([key, label, desc]) => {
+      const on = s.opts[key];
+      return { label, desc, track: on ? ACC : '#2a3039', knob: on ? '#071a19' : '#8b94a3', x: on ? '16px' : '0px', onClick: () => this.setState(st => ({ opts: { ...st.opts, [key]: !st.opts[key] } })) };
+    });
+
+    const KWS = [['değişken', 'let / var', 'değişken yaş = 21'], ['sabit', 'const', 'sabit pi = 3,14'], ['fonksiyon', 'function', 'fonksiyon topla(a, b) { … }'], ['eğer … ise / değilse', 'if / else', 'eğer yaş > 18 ise { … }'], ['her … için', 'for each', 'her öğe için liste { … }'], ['iken', 'while', 'iken çalışıyor { … }'], ['döndür', 'return', 'döndür sonuç'], ['yazdır', 'print', 'yazdır("Merhaba")'], ['içe_aktar … kaynak', 'import … from', 'içe_aktar { Düğme } kaynak "orhunca/web"']];
+    const keywords = KWS.map(([tr, en, ex]) => ({ tr, en, toks: this.tokenize(ex) }));
+
+    let ed = {};
+    if (s.screen === 'editor' && s.project) {
+      const t = this.tpl(s.project.tpl);
+      const edTree = this.tree(t.files).map(r => {
+        const a = r.path === s.activeFile;
+        return { ...r, bg: a ? '#1f2630' : 'transparent', fg: a ? '#eef0f3' : (r.dir ? '#cfd5de' : '#a3abb8'), onClick: r.dir ? undefined : () => this.openFile(r.path) };
+      });
+      const tabs = s.tabs.map(p => { const a = p === s.activeFile; return { label: p.split('/').pop(), bg: a ? '#13161b' : 'transparent', fg: a ? '#eef0f3' : '#8b94a3', top: a ? ACC : 'transparent', onClick: () => this.setState({ activeFile: p, cursor: 1 }), onClose: e => this.closeTab(p, e) }; });
+      const lines = s.activeFile ? this.codeFor(s.activeFile) : [];
+      const codeLines = lines.map((l, i) => { const cur = i + 1 === s.cursor; return { num: i + 1, toks: this.tokenize(l), bg: cur ? '#1a1e25' : 'transparent', numFg: cur ? '#cfd5de' : '#4b535f', onClick: () => this.setState({ cursor: i + 1 }) }; });
+      const greetMsg = s.clicks === 0 ? '' : s.clicks === 1 ? 'Hoş geldin!' : `Tekrar hoş geldin! (${s.clicks}. ziyaret)`;
+      ed = {
+        projectName: s.project.name, projectUpper: s.project.name.toLocaleUpperCase('tr'), edTree, tabs, codeLines,
+        crumb: s.activeFile ? [s.project.name, ...s.activeFile.split('/')].join('  ›  ') : s.project.name,
+        hasPreview: t.kind === 'web' && s.opts.canli !== false,
+        greetMsg,
+        greet: () => this.setState(st => { const n = st.clicks + 1; return { clicks: n, term: [...st.term, { t: '[konsol] ' + (n > 1 ? 'Tekrar hoş geldin!' : 'Hoş geldin!'), c: C.p }] }; }),
+        resetPreview: () => this.setState(st => ({ clicks: 0, term: [...st.term, { t: '↻ Önizleme yenilendi', c: C.dim }] })),
+        cursorLabel: `Satır ${s.cursor}, Sütun 1`,
+        previewLabel: t.kind === 'web' ? 'Önizleme: açık' : t.kind === 'api' ? 'Sunucu: 3000' : 'Konsol',
+        term: s.term
+      };
+    }
+
+    return {
+      isHome: s.screen === 'home', isNew: s.screen === 'new', isConfig: s.screen === 'configure', isLearn: s.screen === 'learn', isEditor: s.screen === 'editor', notEditor: s.screen !== 'editor',
+      menus: ['Dosya', 'Düzen', 'Seçim', 'Görünüm', 'Çalıştır', 'Terminal', 'Yardım'].map(label => ({ label })),
+      nav, userCap, userInitial: userCap.charAt(0),
+      q: s.q, onQ: e => this.setState({ q: e.target.value }),
+      recent, recentCount: rec.length, noRecent: rec.length === 0,
+      sortLabel: s.sortBy === 'date' ? 'Son açılma tarihi' : 'Ada göre (A–Z)',
+      toggleSort: () => this.setState(st => ({ sortBy: st.sortBy === 'date' ? 'name' : 'date' })),
+      goHome: go('home'), goNew: go('new'), goLearn: go('learn'), goConfig: go('configure'),
+      recentTpl: ['web_sitesi', 'web_api'].map(id => { const t = this.tpl(id); return { name: t.name, icon: t.icon, onClick: () => this.pickTemplate(id) }; }),
+      tq: s.tq, onTq: e => this.setState({ tq: e.target.value }),
+      cats, tlist, noTpl: tlist.length === 0,
+      selName: selT.name, selIcon: selT.icon, selTags: selT.tags.join(' · '), selTree,
+      projName: s.projName, onName: e => this.setState({ projName: e.target.value, touched: true }),
+      nameErr, hasNameErr: !!nameErr, nameBorder: nameErr ? 'oklch(0.65 0.16 25)' : '#272d36',
+      locVal, onLoc: e => this.setState({ loc: e.target.value, locTouched: true }),
+      fullPath: `${locVal}\\${s.projName.trim() || '…'}`,
+      toggles, create: () => this.create(), createOpacity: nameErr ? 0.45 : 1,
+      keywords, startFirst: () => { this.pickTemplate('bos_web'); this.setState({ screen: 'configure' }); },
+      creating: s.creating,
+      spinner: React.createElement('div', { style: { width: 26, height: 26, borderRadius: '50%', border: '2.5px solid #2a3039', borderTopColor: ACC, animation: 'orh-spin .8s linear infinite' } }),
+      ...ed
+    };
+  }
+}
+</script>
+</body>
+</html>

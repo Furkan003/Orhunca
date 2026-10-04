@@ -24,9 +24,31 @@ cargo build --release
 ./target/release/orhunca derle örnekler/asal.ohc --hedef windows  # → asal.exe
 ./target/release/orhunca denetle dosya.ohc                       # yalnızca hata denetimi
 ./target/release/orhunca yeni dükkan                             # yeni proje (.ohcproj)
+./target/release/orhunca stüdyo                                  # geliştirme ortamı (tarayıcıda)
 ```
 
 Dosya verilmezse geçerli klasördeki `.ohcproj` dosyasının `giriş` dosyası kullanılır.
+
+## Orhunca Stüdyo
+
+```sh
+orhunca stüdyo
+```
+
+Tarayıcıda Orhunca'nın geliştirme ortamını açar: son projeler, şablon sihirbazı (Konsol Uygulaması,
+Sayı Tahmin Oyunu, Kütüphane), sözdizimi renklendirmeli düzenleyici, yazarken hata gösterimi, F5 ile
+derleyip çalıştırma (programın girdisi terminalden verilir), Linux/Windows için dağıtım derlemesi ve
+Türkçe anahtar kelime rehberi. İnternet gerekmez; arayüz ve yazı tipleri ikili dosyanın içindedir.
+
+![Orhunca Stüdyo — düzenleyici](docs/ekran/duzenleyici.png)
+
+| Başlangıç | Yeni proje |
+|---|---|
+| ![Başlangıç](docs/ekran/baslangic.png) | ![Yeni proje](docs/ekran/yeni-proje.png) |
+
+Sunucu yalnızca `127.0.0.1` üzerinden erişilebilir ve her oturumda rastgele bir anahtar üretir;
+başka web sitelerinin dosyalarınıza ya da derleyiciye erişmesi engellenir. Tasarım kaynağı:
+[docs/tasarim/](docs/tasarim/).
 
 ## Dil rehberi (v0.1)
 
@@ -218,6 +240,9 @@ dosya.ohc
    ↓
 [Bağlama]  nesne + runtime/orhunca_rt.c → Linux çalıştırılabilir dosyası / Windows .exe
 ```
+
+Stüdyo: `src/studyo/` (yerel HTTP sunucusu, proje/dosya API'si, program çalıştırıcı, şablonlar) ve
+`studio/` (arayüz: HTML, CSS, bağımlılıksız JavaScript; `build.rs` ile ikili dosyaya gömülür).
 
 `runtime/orhunca_rt.c`: yazdırma, metin ve liste işlemleri ile çöp toplayıcı. Toplayıcı
 "tutucu" bir işaretle-süpür toplayıcıdır: yığıttaki ve yazmaçlardaki her sözcüğü olası bir
