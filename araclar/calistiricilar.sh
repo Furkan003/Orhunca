@@ -6,7 +6,8 @@
 # (src/baglayici.rs); kullanıcının bilgisayarında C derleyicisi gerekmez. Çalışma
 # zamanı değiştiğinde yeniden çalıştırın.
 #
-# Gerekenler: gcc (Linux) ve x86_64-w64-mingw32-gcc (Debian/Ubuntu: gcc-mingw-w64-x86-64).
+# Gerekenler: Zig (pip install ziglang; yoksa gcc) ve x86_64-w64-mingw32-gcc
+# (Debian/Ubuntu: gcc-mingw-w64-x86-64).
 set -eu
 cd "$(dirname "$0")/.."
 
@@ -29,6 +30,12 @@ trap 'rm -rf "$gecici"' EXIT
 mkdir -p runtime/calistirici
 BAYRAKLAR="-O2 -s -DORHUNCA_CALISTIRICI -I $gecici -Wall -Wno-unused-function"
 
+# Linux: eski glibc'ye (2.17) karşı derlenir; böylece derlenen programlar Pardus,
+# Debian, Ubuntu ve diğer dağıtımların eski sürümlerinde de çalışır. Zig'in C
+# derleyicisi bunu her bilgisayarda sağlar (pip install ziglang); yoksa gcc.
+if [ -z "${CC:-}" ] && python3 -m ziglang version >/dev/null 2>&1; then
+    CC="python3 -m ziglang cc -target x86_64-linux-gnu.2.17"
+fi
 ${CC:-gcc} $BAYRAKLAR -o runtime/calistirici/linux-x86_64 runtime/orhunca_rt.c -lm -ldl
 ${MINGW_CC:-x86_64-w64-mingw32-gcc} $BAYRAKLAR -static-libgcc -o runtime/calistirici/windows-x86_64.exe \
     runtime/orhunca_rt.c -lws2_32

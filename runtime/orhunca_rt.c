@@ -82,7 +82,9 @@
  * oluşan ve yakalanmayan hatalar sunucuyu durdurmaz: tarayıcıya 500 sayfası gider.
  * WebAssembly'de geri sarmayı JavaScript yapar (js_hata_yakala bir istisna fırlatır). */
 #if defined(__wasm__)
-#elif defined(__GNUC__)
+#elif defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
+/* x86'da derleyicinin kendi setjmp'ı (Windows'ta SEH'e takılmadan geri sarar);
+ * clang başka mimarilerde (ör. Apple işlemcileri) bunu desteklemez. */
 typedef void *Tuzak[5];
 #define TUZAK_KUR(t) __builtin_setjmp(t)
 #define TUZAGA_DON(t) __builtin_longjmp(t, 1)

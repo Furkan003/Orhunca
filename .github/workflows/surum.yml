@@ -86,8 +86,10 @@ jobs:
             cargo build --release
             cp target/release/orhunca.exe paket/
           else
-            cargo build --release
-            cp target/release/orhunca paket/
+            # glibc 2.17'ye karşı: eski Pardus/Ubuntu/Debian sürümlerinde de çalışır
+            pip install ziglang cargo-zigbuild
+            cargo zigbuild --release --target x86_64-unknown-linux-gnu.2.17
+            cp target/x86_64-unknown-linux-gnu/release/orhunca paket/
             strip paket/orhunca
           fi
       - name: Sına
