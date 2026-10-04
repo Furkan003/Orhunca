@@ -11,7 +11,7 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 | 2 | Değişkenler, `eğer`, döngüler, işlevler, ekrana yazma, listeler, metinler | ✅ |
 | 3 | Cranelift ile çalıştırılabilir dosya: Linux ✅, Windows `.exe` (çapraz derleme, mingw) ✅ | ✅ |
 | 4 | Dil sunucusu (LSP) + VS Code eklentisi | ⏳ |
-| 5 | Standart kütüphane, paket yöneticisi | ⏳ |
+| 5 | Standart kütüphane ✅, paket yöneticisi ⏳ | 🟡 |
 | 6 | Web sunucusu, `.ohchtml`, veritabanı/ORM | ⏳ |
 | 7 | Orhunca Stüdyo (Tauri + Monaco), "Öğren" sekmesi | ⏳ |
 | 8 | WebAssembly, Türkçe arayüz dili, self-hosting | ⏳ |
@@ -23,11 +23,22 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
   ekleriyle eşleşir, çağrıda sıra önemsiz.
 - **Otomatik bellek yönetimi**: çalışma zamanında tutucu işaretle-süpür çöp toplayıcı.
 
+## v0.3'te eklenenler (Aşama 5a – standart kütüphane)
+
+- ~50 yerleşik işlev: metin, liste, sözlük, dosya, matematik, zaman, sistem.
+- `sözlük<A, D>` tipi, `{"a": 1}` yazımı, `s[a] = d`.
+- `kullan "dosya.ohc"` ile birden fazla dosya; hatalar doğru dosyayı gösterir.
+- `sabit AD = değer`; hazır `pi`.
+- `çıkar` fiili, dosyaya yazan `yaz`, metin karşılaştırma (`<`), metinde harf gezme.
+- Tamsayı taşması denetimi; programa argüman geçirme (`--`).
+
 ## Henüz yapılmayanlar
 
 - **Çalışma zamanı C ile yazılı** (`runtime/orhunca_rt.c`). Bağlama zaten bir C araç zinciri
   istediğinden pratik bir seçim; self-hosting aşamasında Orhunca ile yeniden yazılabilir.
-- **Modeller/yapılar yok** (`model Ürün:`), modül/içe aktarma yok.
+- **Modeller/yapılar yok** (`model Ürün:`).
+- **Hata yakalama yok** (`dene / yakala`): üretilen kodun yığıtını güvenle geri sarmak için
+  çalışma zamanına destek gerekiyor.
 - **Ünlü uyumu denetlenmiyor**, yalnızca kabul ediliyor. Biçimlendirici (`orhunca biçimlendir`)
   yanlış ekleri düzeltmeli (`5'a` → `5'e`).
 - Fiil parametrelerinin tipi çağrılardan çıkarılmıyor; `sayı` dışındaki tipler yazılmalı.
@@ -35,7 +46,7 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 
 ## Sıradaki adımlar (öneri sırası)
 
-1. **Metin işlemleri** (alt metin, bölme, büyük/küçük harf — Türkçe `i/İ`, `ı/I` kurallarıyla).
+1. **Orhunca Stüdyo** (tasarım hazır): başlangıç ekranı, şablon sihirbazı, düzenleyici.
 2. **Modeller** (`model Ürün:` alanlarla) — web çatısının ön koşulu.
 3. **Biçimlendirici** — ünlü uyumu düzeltmesi, girinti.
 4. **Dil sunucusu (LSP)**: `orhunca denetle` zaten hata konumlarını veriyor; `tower-lsp` ile tanı,

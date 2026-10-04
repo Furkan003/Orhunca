@@ -39,6 +39,7 @@ Dosya verilmezse geçerli klasördeki `.ohcproj` dosyasının `giriş` dosyası 
 | `metin` | `"Merhaba"` (`\n`, `\t`, `\"`) |
 | `mantık` | `doğru`, `yanlış` |
 | `liste<T>` | `[3, 8, 1]`, `["a", "b"]`, `[]` |
+| `sözlük<A, D>` | `{"elma": 5, "armut": 3}`, `{}` (anahtarlar sayı ya da metin) |
 
 Tipler çıkarılır; bir değişkenin tipi sonradan değişemez. Sayılar gerektiğinde kendiliğinden
 ondalığa çevrilir (`2 * 1.5`, ondalık parametreye `3` vermek), tersi yapılmaz: ondalık
@@ -65,7 +66,9 @@ biriktirecek bir değişkeni `toplam = 0.0` diye başlatın.
 
 ```
 x'i ekrana yaz.          # "ekrana" isteğe bağlı: x'i yaz.
+metni "notlar.txt"'ye yaz.   # yönelme hâlinde bir dosya yolu verilirse dosyaya yazar
 5'i sayılara ekle.
+5'i sayılardan çıkar.    # ilk eşleşeni listeden siler
 sayıları sırala.         # metinler Türk alfabesine göre sıralanır (ç, ğ, ı, ö, ş, ü)
 ```
 
@@ -148,11 +151,42 @@ eğer 5'i karele 20'den büyükse:       # koşulda
 - Her parametre farklı bir hâl eki almalıdır (belirtme, yönelme, ayrılma, bulunma, vasıta).
 - Fiiller parantezle de çağrılabilir: `karele(4)`.
 
-### Yerleşik işlevler
+### Sözlükler
 
-`uzunluk(x)` (liste ya da metin, karakter sayısı) · `metin(x)` · `sayı(x)` (ondalığı keser) ·
-`ondalık(x)` (`"3,5"` gibi virgüllü metinleri de okur) · `yuvarla(x)` (2.5 → 3) ·
-`yuvarla(x, 2)` (2 basamağa) · `oku()` (klavyeden bir satır)
+```
+stok = {"elma": 12, "armut": 5}
+stok["kiraz"] = 30
+stok["elma"] = stok["elma"] - 2
+eğer içerir(stok, "armut") ise:
+    sil(stok, "armut")
+her meyve için stoktan:          # anahtarlar ekleme sırasıyla gezilir
+    meyve + ": " + stok[meyve]'yi yaz.
+```
+
+### Birden fazla dosya ve sabitler
+
+```
+kullan "araçlar/fiyat.ohc"       # yol, bu dosyanın klasörüne göredir
+sabit KDV_ORANI = 0.20           # her yerden (işlevlerden de) görülür
+```
+`kullan` ile eklenen dosyalarda yalnızca işlev, fiil ve sabit tanımları olabilir. `pi` hazır bir sabittir.
+
+### Standart kütüphane
+
+| Alan | İşlevler |
+|---|---|
+| Dönüşüm | `uzunluk` `metin` `sayı` `ondalık` `yuvarla(x)` `yuvarla(x, 2)` `sayı_mı` `ondalık_mı` |
+| Metin | `büyük_harf` `küçük_harf` (Türkçe i/İ, ı/I) `kırp` `parça(m, baş, uzunluk)` `böl` `birleştir` `içerir` `bul` `değiştir` `başlar` `biter` `tekrarla` `harfler` `satırlar` `ters` · `m[i]` · `<` `>` Türk alfabesine göre |
+| Liste | `sil(l, sıra)` `içerir` `bul` `parça` `ters` `kopya` `karıştır` `en_büyük` `en_küçük` `toplam` |
+| Sözlük | `s[a]` `içerir` `sil` `anahtarlar` `değerler` `uzunluk` |
+| Dosya | `dosya_oku` `dosyaya_yaz` `dosyaya_ekle` `dosya_var` `dosya_sil` |
+| Matematik | `karekök` `üs` `mutlak` `sinüs` `kosinüs` `tanjant` `logaritma(x)` `logaritma(x, taban)` `rastgele()` `rastgele(a, b)` |
+| Zaman ve sistem | `zaman()` `tarih()` `bekle(saniye)` `oku()` `argümanlar()` `ortam(ad)` `çık(kod)` |
+
+- Metin üzerinde `her harf için metinden:` harf harf, sözlük üzerinde anahtar anahtar gezer.
+- Programa argüman: `orhunca çalıştır dosya.ohc -- bir iki`
+- Tamsayı taşması çalışma hatası verir; çok büyük değerler için ondalık kullanın.
+- `ORHUNCA_TOHUM=42` rastgele sayıları tekrarlanabilir yapar.
 
 ### Bellek
 

@@ -19,7 +19,15 @@ fn ornekler_beklenen_ciktiyi_verir() {
         }
         let beklenen = std::fs::read_to_string(yol.with_extension("beklenen"))
             .unwrap_or_else(|_| panic!("{} için .beklenen dosyası yok", yol.display()));
-        let cikti = orhunca().arg("çalıştır").arg(&yol).output().unwrap();
+        // Örnekler dosya yazabilir; geçici bir klasörde çalıştırılır.
+        let calisma = std::env::temp_dir().join(format!("orhunca-ornek-{}", std::process::id()));
+        std::fs::create_dir_all(&calisma).unwrap();
+        let cikti = orhunca()
+            .arg("çalıştır")
+            .arg(&yol)
+            .current_dir(&calisma)
+            .output()
+            .unwrap();
         assert!(
             cikti.status.success(),
             "{}: {}",
@@ -176,4 +184,55 @@ fn fiil_hatalari_turkce() {
     let (ok, _, hata) = calistir("x = 1\nx = 2.5\n");
     assert!(!ok);
     assert!(hata.contains("x = 0.0"), "{hata}");
+}
+
+#[test]
+fn coklu_dosya_kullan() {
+    let klasor = Path::new(env!("CARGO_MANIFEST_DIR")).join("örnekler/çoklu_dosya");
+    let c = orhunca()
+        .arg("çalıştır")
+        .arg(klasor.join("ana.ohc"))
+        .output()
+        .unwrap();
+    assert!(c.status.success(), "{}", String::from_utf8_lossy(&c.stderr));
+    let beklenen = std::fs::read_to_string(klasor.join("ana.beklenen")).unwrap();
+    assert_eq!(String::from_utf8_lossy(&c.stdout), beklenen);
+}
+
+#[test]
+fn programa_arguman_gecirilir() {
+    let (ok, cikti, hata) = {
+        let klasor = std::env::temp_dir().join(format!("orhunca-arg-{}", std::process::id()));
+        std::fs::create_dir_all(&klasor).unwrap();
+        let dosya = klasor.join("arg.ohc");
+        std::fs::write(&dosya, "argümanlar()'ı yaz.\nçık(4)\n").unwrap();
+        let c = orhunca()
+            .arg("çalıştır")
+            .arg(&dosya)
+            .args(["--", "bir", "iki kelime"])
+            .output()
+            .unwrap();
+        (
+            c.status.code() == Some(4),
+            String::from_utf8_lossy(&c.stdout).to_string(),
+            String::from_utf8_lossy(&c.stderr).to_string(),
+        )
+    };
+    assert!(ok, "{hata}");
+    assert_eq!(cikti, "[\"bir\", \"iki kelime\"]\n");
+}
+
+#[test]
+fn standart_kutuphane_hatalari() {
+    let (ok, _, hata) = calistir("x = 4_000_000_000_000_000_000\n(x * 3)'ü yaz.\n");
+    assert!(!ok);
+    assert!(hata.contains("tamsayı taşması"), "{hata}");
+
+    let (ok, _, hata) = calistir("s = {\"a\": 1}\ns[\"b\"]'yi yaz.\n");
+    assert!(!ok);
+    assert!(hata.contains("\"b\" anahtarı yok"), "{hata}");
+
+    let (ok, _, hata) = calistir("böl(\"a\")'yı yaz.\n");
+    assert!(!ok);
+    assert!(hata.contains("kullanım: böl(metin, ayraç)"), "{hata}");
 }

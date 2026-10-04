@@ -6,6 +6,8 @@ use std::fmt;
 pub struct Konum {
     pub satir: usize,
     pub sutun: usize,
+    /// Derlemedeki dosyanın sırası (0: ana dosya).
+    pub dosya: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -30,7 +32,12 @@ impl Hata {
     }
 
     /// Hatayı dosya adı, satır ve işaretçiyle birlikte biçimlendirir.
-    pub fn goster(&self, dosya: &str, kaynak: &str) -> String {
+    /// `dosyalar`: derlemedeki (ad, kaynak) çiftleri; `konum.dosya` buraya bir sıradır.
+    pub fn goster(&self, dosyalar: &[(String, String)]) -> String {
+        let (dosya, kaynak) = dosyalar
+            .get(self.konum.dosya)
+            .map(|(a, k)| (a.as_str(), k.as_str()))
+            .unwrap_or(("?", ""));
         let mut s = format!(
             "hata: {}\n  --> {}:{}:{}\n",
             self.mesaj, dosya, self.konum.satir, self.konum.sutun

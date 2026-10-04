@@ -7,6 +7,7 @@ mod ekler;
 mod hata;
 mod sozcuk;
 mod uretici;
+mod yerlesik;
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
@@ -21,7 +22,7 @@ Orhunca — Türkçe tabanlı programlama dili
 
 Kullanım:
   orhunca derle [dosya.ohc] [-o çıktı] [--hedef linux|windows|<üçlü>]
-  orhunca çalıştır [dosya.ohc]
+  orhunca çalıştır [dosya.ohc] [-- programın argümanları]
   orhunca denetle [dosya.ohc]
   orhunca yeni <proje_adı>
   orhunca sürüm
@@ -65,15 +66,22 @@ struct Secenekler {
     dosya: PathBuf,
     cikti: Option<PathBuf>,
     hedef: Option<String>,
+    /// `--` sonrasındaki değerler: `çalıştır` bunları programa geçirir.
+    program_argumanlari: Vec<String>,
 }
 
 fn secenekleri_oku(args: &[String]) -> Result<Secenekler, String> {
     let mut dosya = None;
     let mut cikti = None;
     let mut hedef = None;
+    let mut program_argumanlari = Vec::new();
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
+            "--" => {
+                program_argumanlari = args[i + 1..].to_vec();
+                break;
+            }
             "-o" => {
                 i += 1;
                 cikti = Some(PathBuf::from(
@@ -98,6 +106,7 @@ fn secenekleri_oku(args: &[String]) -> Result<Secenekler, String> {
         None => proje_girisi()?,
     };
     Ok(Secenekler {
+        program_argumanlari,
         dosya,
         cikti,
         hedef,
@@ -123,13 +132,50 @@ fn proje_girisi() -> Result<PathBuf, String> {
 }
 
 /// Kaynağı okur, ayrıştırır ve denetler.
+/// Ana dosyayı ve `kullan` ile eklenen tüm dosyaları okur, ayrıştırır ve denetler.
 fn on_derle(dosya: &Path) -> Result<agac::Program, String> {
-    let kaynak = std::fs::read_to_string(dosya)
-        .map_err(|e| format!("'{}' okunamadı: {e}", dosya.display()))?;
-    let ad = dosya.display().to_string();
-    let goster = |h: hata::Hata| h.goster(&ad, &kaynak);
-    let sozcukler = sozcuk::sozcukle(&kaynak).map_err(goster)?;
-    let mut program = ayristirici::ayristir(sozcukler).map_err(goster)?;
+    let mut dosyalar: Vec<(String, String)> = Vec::new();
+    let mut yollar: Vec<PathBuf> = Vec::new();
+    let mut sozcukler = Vec::new();
+    let mut kuyruk = vec![(dosya.to_path_buf(), None::<hata::Konum>)];
+    while let Some((yol, nereden)) = kuyruk.pop() {
+        let tam = std::fs::canonicalize(&yol).unwrap_or_else(|_| yol.clone());
+        if yollar.contains(&tam) {
+            continue;
+        }
+        let kaynak = match std::fs::read_to_string(&yol) {
+            Ok(k) => k,
+            Err(e) => {
+                let neden = match e.kind() {
+                    std::io::ErrorKind::NotFound => "dosya bulunamadı".to_string(),
+                    std::io::ErrorKind::PermissionDenied => "okuma izni yok".to_string(),
+                    _ => e.to_string(),
+                };
+                let mesaj = format!("'{}' okunamadı: {neden}", yol.display());
+                return Err(match nereden {
+                    Some(k) => hata::Hata::yeni(k, mesaj).goster(&dosyalar),
+                    None => mesaj,
+                });
+            }
+        };
+        let sira = dosyalar.len();
+        dosyalar.push((yol.display().to_string(), kaynak));
+        yollar.push(tam);
+        let mut s = sozcuk::sozcukle(&dosyalar[sira].1).map_err(|mut h| {
+            h.konum.dosya = sira;
+            h.goster(&dosyalar)
+        })?;
+        for t in s.iter_mut() {
+            t.konum.dosya = sira;
+        }
+        let klasor = yol.parent().map(Path::to_path_buf).unwrap_or_default();
+        for (ek, k) in ayristirici::kullanilanlar(&s).into_iter().rev() {
+            kuyruk.push((klasor.join(ek), Some(k)));
+        }
+        sozcukler.push(s);
+    }
+    let goster = |h: hata::Hata| h.goster(&dosyalar);
+    let mut program = ayristirici::ayristir_cok(sozcukler).map_err(goster)?;
     denetci::denetle(&mut program).map_err(goster)?;
     Ok(program)
 }
@@ -193,6 +239,7 @@ fn derle(s: &Secenekler) -> Result<PathBuf, String> {
         .arg(&cikti)
         .arg(&nesne_yolu)
         .arg(&cz_yolu)
+        .arg("-lm")
         .status()
         .map_err(|e| format!("bağlayıcı '{baglayici}' çalıştırılamadı: {e}\nipucu: bir C derleyicisi kurun ya da ORHUNCA_CC ile belirtin"))?;
     let _ = std::fs::remove_dir_all(&gecici);
@@ -225,6 +272,7 @@ fn calistir_komutu(args: &[String]) -> Result<ExitCode, String> {
     }));
     let yol = derle(&s)?;
     let durum = Command::new(&yol)
+        .args(&s.program_argumanlari)
         .status()
         .map_err(|e| format!("program çalıştırılamadı: {e}"))?;
     let _ = std::fs::remove_dir_all(&gecici);

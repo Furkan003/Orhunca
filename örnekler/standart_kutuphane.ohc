@@ -1,0 +1,96 @@
+# Standart kütüphane turu
+sabit AYRAÇ = ", "
+
+# --- Metinler ---
+cümle = "  Orhun Yazıtları Türklerin ilk yazılı belgeleridir  "
+temiz = kırp(cümle)
+temiz'i yaz.
+büyük_harf("istanbul ılık")'u yaz.
+küçük_harf("İSTANBUL IŞIK")'ı yaz.
+kelimeler = böl(temiz, " ")
+uzunluk(kelimeler)'i yaz.
+birleştir(kelimeler, "-")'i yaz.
+parça(temiz, 0, 5)'i yaz.
+temiz[6]'yı yaz.
+bul(temiz, "Türk")'ü yaz.
+içerir(temiz, "yazılı")'yı yaz.
+değiştir("a-b-c", "-", "+")'yı yaz.
+başlar(temiz, "Orhun")'u yaz.
+biter("dosya.ohc", ".ohc")'yi yaz.
+tekrarla("ab", 3)'ü yaz.
+ters("kayak")'ı yaz.
+harfler("çağ")'ı yaz.
+sayı_mı("42")'yi yaz.
+ondalık_mı("3,14")'ü yaz.
+eğer "çiçek" < "dağ" ise:
+    "Türk alfabesi sırası doğru"'yu yaz.
+
+sesli_sayısı = 0
+her harf için temizden:
+    eğer içerir("aeıioöuüAEIİOÖUÜ", harf) ise:
+        sesli_sayısı += 1
+"Sesli harf: " + sesli_sayısı'nı yaz.
+
+# --- Listeler ---
+sayılar = [5, 3, 9, 1, 7]
+en_büyük(sayılar)'ı yaz.
+en_küçük(sayılar)'ı yaz.
+toplam(sayılar)'ı yaz.
+sil(sayılar, 0)'ı yaz.
+9'u sayılardan çıkar.
+sayıları yaz.
+ters(sayılar)'ı yaz.
+parça([1, 2, 3, 4, 5], 1, 3)'ü yaz.
+içerir(sayılar, 7)'yi yaz.
+bul(sayılar, 7)'yi yaz.
+k = kopya(sayılar)
+100'ü k'ye ekle.
+uzunluk(sayılar)'ı yaz.
+uzunluk(k)'yı yaz.
+
+# --- Sözlükler ---
+stok = {"elma": 12, "armut": 5}
+stok["kiraz"] = 30
+stok["elma"] = stok["elma"] - 2
+stok'u yaz.
+içerir(stok, "armut")'u yaz.
+sil(stok, "armut")
+anahtarlar(stok)'u yaz.
+değerler(stok)'i yaz.
+her meyve için stoktan:
+    meyve + ": " + stok[meyve]'yi yaz.
+sayaç = {}
+her kelime için böl("bir iki bir üç iki bir", "")'den:
+    eğer içerir(sayaç, kelime) ise:
+        sayaç[kelime] = sayaç[kelime] + 1
+    değilse:
+        sayaç[kelime] = 1
+sayaç'ı yaz.
+
+# --- Matematik ---
+karekök(16)'yı yaz.
+üs(2, 10)'u yaz.
+üs(2.0, -1)'i yaz.
+mutlak(-7)'yi yaz.
+yuvarla(sinüs(pi / 2), 3)'ü yaz.
+yuvarla(logaritma(1000, 10), 6)'yı yaz.
+en_büyük(3, 8.5)'i yaz.
+zar = rastgele(1, 6)
+eğer zar 1'den büyük veya eşitse ve zar 6'dan küçük veya eşitse:
+    "Zar geçerli"'yi yaz.
+
+# --- Dosyalar ---
+yol = "orhunca_deneme.txt"
+"birinci satır\n"'ı yola yaz.
+dosyaya_ekle(yol, "ikinci satır\n")
+satırlar(dosya_oku(yol))'ı yaz.
+dosya_var(yol)'u yaz.
+dosya_var("olmayan_dosya.txt")'yı yaz.
+
+# --- Zaman ---
+başlangıç = zaman()
+eğer zaman() - başlangıç 1.0'dan küçükse:
+    "Zaman ölçümü çalışıyor"'u yaz.
+uzunluk(tarih())'i yaz.
+dosya_sil(yol)'u yaz.
+dosya_var(yol)'u yaz.

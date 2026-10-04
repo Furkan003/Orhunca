@@ -1,0 +1,5 @@
+sabit KDV_ORANI = 0.20
+sabit MAĞAZA = "Orhun Kırtasiye"
+
+fiil (tutar: ondalık)'a kdv_ekle -> ondalık:
+    döndür yuvarla(tutar * (1 + KDV_ORANI), 2)

@@ -18,6 +18,8 @@ const AYRILMIS: &[&str] = &[
     "için",
     "kadar",
     "işlev",
+    "kullan",
+    "sabit",
     "fiil",
     "döndür",
     "dur",
@@ -33,12 +35,13 @@ const AYRILMIS: &[&str] = &[
     "yaz",
     "ekle",
     "sırala",
+    "çıkar",
     "ekran",
     "ekrana",
     "uzunluğu",
 ];
 
-const FIILLER: &[&str] = &["yaz", "ekle", "sırala"];
+const FIILLER: &[&str] = &["yaz", "ekle", "sırala", "çıkar"];
 
 /// Yerleşik işlevler: `uzunluk(x)`, `metin(x)`, `sayı(x)`, `ondalık(x)`, `yuvarla(x)`, `oku()`.
 pub const YERLESIK: &[&str] = &["uzunluk", "metin", "sayı", "ondalık", "yuvarla", "oku"];
@@ -98,16 +101,40 @@ pub struct Ayristirici {
     fiiller: HashSet<String>,
 }
 
+#[cfg(test)]
 pub fn ayristir(sozcukler: Vec<Sozcuk>) -> Sonuc<Program> {
-    let (sozluk, fiiller) = sozluk_kur(&sozcukler);
-    let mut a = Ayristirici {
-        sozcukler,
-        poz: 0,
-        sozluk,
-        yakalanan: None,
-        fiiller,
-    };
-    a.program()
+    ayristir_cok(vec![sozcukler])
+}
+
+/// İlk dosya ana programdır; diğerleri `kullan` ile eklenen kütüphanelerdir ve
+/// yalnızca işlev, fiil ve sabit tanımları içerebilir. İsim sözlüğü ve fiiller
+/// tüm dosyalarda ortaktır.
+pub fn ayristir_cok(dosyalar: Vec<Vec<Sozcuk>>) -> Sonuc<Program> {
+    let hepsi: Vec<Sozcuk> = dosyalar.iter().flatten().cloned().collect();
+    let (sozluk, fiiller) = sozluk_kur(&hepsi);
+    let mut program = Program::default();
+    for (i, sozcukler) in dosyalar.into_iter().enumerate() {
+        let mut a = Ayristirici {
+            sozcukler,
+            poz: 0,
+            sozluk: sozluk.clone(),
+            yakalanan: None,
+            fiiller: fiiller.clone(),
+        };
+        a.program(&mut program, i > 0)?;
+    }
+    Ok(program)
+}
+
+/// Bir dosyadaki `kullan "yol.ohc"` satırlarının yollarını verir.
+pub fn kullanilanlar(sozcukler: &[Sozcuk]) -> Vec<(String, Konum)> {
+    sozcukler
+        .windows(2)
+        .filter_map(|w| match (&w[0].tok, &w[1].tok) {
+            (Tok::Kelime(k), Tok::Metin(m)) if k == "kullan" => Some((m.clone(), w[1].konum)),
+            _ => None,
+        })
+        .collect()
 }
 
 /// Programdaki tüm tanımlı isimleri (atama hedefleri, döngü değişkenleri,
@@ -115,6 +142,7 @@ pub fn ayristir(sozcukler: Vec<Sozcuk>) -> Sonuc<Program> {
 /// fiillerinin adlarını da ayrıca döndürür.
 fn sozluk_kur(s: &[Sozcuk]) -> (Sozluk, HashSet<String>) {
     let mut sozluk = Sozluk::default();
+    sozluk.ekle("pi");
     let mut fiiller = HashSet::new();
     let kelime = |i: usize| match s.get(i).map(|s| &s.tok) {
         Some(Tok::Kelime(k)) if !ayrilmis_mi(k) => Some(k.as_str()),
@@ -125,6 +153,11 @@ fn sozluk_kur(s: &[Sozcuk]) -> (Sozluk, HashSet<String>) {
         if let Some(k) = kelime(i) {
             let sonraki = s.get(i + 1).map(|s| &s.tok);
             if matches!(sonraki, Some(Tok::Op("=" | "+=" | "-="))) || onceki_her {
+                sozluk.ekle(k);
+            }
+        }
+        if s[i].tok == Tok::Kelime("sabit".into()) {
+            if let Some(k) = kelime(i + 1) {
                 sozluk.ekle(k);
             }
         }
@@ -265,8 +298,7 @@ impl Ayristirici {
 
     // ---------- program ve bloklar ----------
 
-    fn program(&mut self) -> Sonuc<Program> {
-        let mut p = Program::default();
+    fn program(&mut self, p: &mut Program, kutuphane: bool) -> Sonuc<()> {
         while *self.bak() != Tok::Son {
             match self.bak() {
                 Tok::YeniSatir => {
@@ -275,10 +307,39 @@ impl Ayristirici {
                 Tok::Girinti => return Err(Hata::yeni(self.konum(), "beklenmeyen girinti")),
                 _ if self.kelime_mi("işlev") => p.islevler.push(self.islev()?),
                 _ if self.kelime_mi("fiil") => p.islevler.push(self.fiil_tanimi()?),
+                _ if self.kelime_mi("kullan") => {
+                    self.ilerle();
+                    if !matches!(self.bak(), Tok::Metin(_)) {
+                        return Err(self.beklenmeyen("dosya yolu (ör. kullan \"araçlar.ohc\")"));
+                    }
+                    self.ilerle();
+                    self.deyim_bitir()?;
+                }
+                _ if self.kelime_mi("sabit") => {
+                    self.ilerle();
+                    let konum = self.konum();
+                    let ad = self.isim_adi("sabit adı")?;
+                    self.bekle_op("=", "sabitin değeri")?;
+                    let deger = self.duz_ifade()?;
+                    self.deyim_bitir()?;
+                    if p.sabitler.iter().any(|(a, _)| *a == ad) {
+                        return Err(Hata::yeni(
+                            konum,
+                            format!("'{ad}' sabiti iki kez tanımlanmış"),
+                        ));
+                    }
+                    p.sabitler.push((ad, deger));
+                }
+                _ if kutuphane => {
+                    return Err(Hata::yeni(
+                        self.konum(),
+                        "kütüphane dosyalarında yalnızca işlev, fiil ve sabit tanımları olabilir",
+                    ))
+                }
                 _ => p.ana.push(self.deyim()?),
             }
         }
-        Ok(p)
+        Ok(())
     }
 
     fn blok(&mut self) -> Sonuc<Vec<Deyim>> {
@@ -491,9 +552,18 @@ impl Ayristirici {
                     Tip::Liste(Box::new(Tip::Sayi))
                 }
             }
+            "sözlük" => {
+                self.bekle_op("<", "sözlük tipi: sözlük<metin, sayı>")?;
+                let a = self.tip()?;
+                self.bekle_op(",", "sözlük tipinde anahtar ile değer arasında")?;
+                let d = self.tip()?;
+                self.bekle_op(">", "sözlük tipinin sonunda")?;
+                Tip::Sozluk(Box::new(a), Box::new(d))
+            }
             _ => {
-                return Err(Hata::yeni(konum, format!("bilinmeyen tip '{ad}'"))
-                    .ipucu("tipler: sayı, metin, mantık, liste<sayı>"))
+                return Err(Hata::yeni(konum, format!("bilinmeyen tip '{ad}'")).ipucu(
+                    "tipler: sayı, ondalık, metin, mantık, liste<sayı>, sözlük<metin, sayı>",
+                ))
             }
         })
     }
@@ -742,6 +812,15 @@ impl Ayristirici {
             }
             ogeler.push(self.ekli_ifade()?);
         }
+        if let (Tok::Ek(ek), Some((f, _))) = (self.bak(), &fiil) {
+            return Err(Hata::yeni(
+                self.konum(),
+                format!("fiilin sonucu doğrudan ek alamaz ('{ek})"),
+            )
+            .ipucu(format!(
+                "fiil cümlesini parantez içine alın: (... {f})'{ek}"
+            )));
+        }
         if self.op_mu(":") {
             return Err(Hata::yeni(self.konum(), "bu satır bir blok başlatamaz")
                 .ipucu("koşul için 'eğer', döngü için 'her' ya da '... olduğu sürece:' kullanın"));
@@ -792,7 +871,25 @@ impl Ayristirici {
                     )
                     .ipucu("x'i ekrana yaz.  \"Merhaba\"'yı yaz."));
                 };
-                Deyim::Yaz(deger)
+                // `metni "notlar.txt"'ye yaz.` → dosyaya yazar
+                match bul(&mut ogeler, Hal::Yonelme) {
+                    Some(yol) => Deyim::DosyayaYaz { deger, yol },
+                    None => Deyim::Yaz(deger),
+                }
+            }
+            "çıkar" => {
+                let oge = bul(&mut ogeler, Hal::Belirtme);
+                let liste = bul(&mut ogeler, Hal::Ayrilma);
+                match (oge, liste) {
+                    (Some(oge), Some(liste)) => Deyim::Cikar { oge, liste },
+                    _ => {
+                        return Err(Hata::yeni(
+                            fiil_konum,
+                            "'çıkar' bir öğe (-i) ve bir liste (-den) bekler",
+                        )
+                        .ipucu("5'i sayılardan çıkar."))
+                    }
+                }
             }
             "ekle" => {
                 let oge = bul(&mut ogeler, Hal::Belirtme);
@@ -1045,6 +1142,15 @@ impl Ayristirici {
                 if self.fiiller.contains(&k) {
                     let fk = self.konum();
                     self.ilerle();
+                    if let Tok::Ek(ek) = self.bak() {
+                        return Err(Hata::yeni(
+                            self.konum(),
+                            format!("fiilin sonucu doğrudan ek alamaz ('{ek})"),
+                        )
+                        .ipucu(format!(
+                            "fiil cümlesini parantez içine alın: (... {k})'{ek}"
+                        )));
+                    }
                     return Ok(Ifade::yeni(IfadeTuru::FiilCagri(k, arg), fk));
                 }
             }
@@ -1285,6 +1391,21 @@ impl Ayristirici {
                 }
                 self.ilerle();
                 Ok(Ifade::yeni(IfadeTuru::Liste(ogeler), konum))
+            }
+            Tok::Op("{") => {
+                self.ilerle();
+                let mut ciftler = Vec::new();
+                while !self.op_mu("}") {
+                    let a = self.duz_ifade()?;
+                    self.bekle_op(":", "anahtar ile değer arasında")?;
+                    let d = self.duz_ifade()?;
+                    ciftler.push((a, d));
+                    if !self.op_mu("}") {
+                        self.bekle_op(",", "sözlük öğeleri arasında")?;
+                    }
+                }
+                self.ilerle();
+                Ok(Ifade::yeni(IfadeTuru::Sozluk(ciftler), konum))
             }
             Tok::Kelime(k) => self.kelime(k, konum),
             t => Err(Hata::yeni(

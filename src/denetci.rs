@@ -28,6 +28,7 @@ pub struct Denetci {
     donus_belirtildi: bool,
     dongu: usize,
     islevde: bool,
+    sabitler: HashMap<String, Ifade>,
 }
 
 pub fn denetle(p: &mut Program) -> Sonuc<()> {
@@ -40,7 +41,26 @@ pub fn denetle(p: &mut Program) -> Sonuc<()> {
         donus_belirtildi: false,
         dongu: 0,
         islevde: false,
+        sabitler: HashMap::new(),
     };
+    for (ad, deger) in p.sabitler.iter_mut() {
+        d.ifade(deger)?;
+        if !matches!(
+            deger.tur,
+            IfadeTuru::Sayi(_) | IfadeTuru::Ondalik(_) | IfadeTuru::Metin(_) | IfadeTuru::Mantik(_)
+        ) {
+            return Err(Hata::yeni(
+                deger.konum,
+                "sabitin değeri bir sayı, ondalık, metin ya da mantık değeri olmalı",
+            ));
+        }
+        d.sabitler.insert(ad.clone(), deger.clone());
+    }
+    d.sabitler.entry("pi".into()).or_insert_with(|| Ifade {
+        tur: IfadeTuru::Ondalik(std::f64::consts::PI),
+        konum: Konum::default(),
+        tip: Tip::Ondalik,
+    });
     for f in &p.islevler {
         if d.imzalar.contains_key(&f.ad) {
             return Err(Hata::yeni(
@@ -165,10 +185,15 @@ impl Denetci {
 
     /// Bir liste ifadesinin öğe tipini bilinen bir tiple daraltır (`l = []` sonrası).
     fn listeyi_daralt(&mut self, liste: &Ifade, oge: &Tip) {
-        if let IfadeTuru::Isim(ad) = &liste.tur {
-            if let Some(Tip::Liste(ic)) = self.kapsam.get(ad).cloned() {
-                if let Some(t) = ic.birlestir(oge) {
-                    self.kapsam.insert(ad.clone(), Tip::Liste(Box::new(t)));
+        self.daralt(liste, &Tip::Liste(Box::new(oge.clone())));
+    }
+
+    /// `l = []` ya da `s = {}` sonrasında değişkenin tipini öğrenilen tiple daraltır.
+    fn daralt(&mut self, ifade: &Ifade, tip: &Tip) {
+        if let IfadeTuru::Isim(ad) = &ifade.tur {
+            if let Some(eski) = self.kapsam.get(ad).cloned() {
+                if let Some(t) = eski.birlestir(tip) {
+                    self.kapsam.insert(ad.clone(), t);
                 }
             }
         }
@@ -214,6 +239,12 @@ impl Denetci {
                     genislet(deger, &Tip::Ondalik);
                     t = deger.tip.clone();
                 }
+                if self.sabitler.contains_key(hedef.as_str()) {
+                    return Err(Hata::yeni(
+                        *konum,
+                        format!("'{hedef}' bir sabit, değeri değiştirilemez"),
+                    ));
+                }
                 if self.imzalar.contains_key(hedef.as_str()) {
                     return Err(Hata::yeni(
                         *konum,
@@ -226,18 +257,82 @@ impl Denetci {
                 liste,
                 indeks,
                 deger,
-            } => {
+            } => match self.ifade(liste)? {
+                Tip::Sozluk(a, d) => {
+                    let kt = self.ifade(indeks)?;
+                    if !a.kabul_eder(&kt) {
+                        return Err(Hata::yeni(
+                            indeks.konum,
+                            format!("anahtar {a} olmalı, {kt} bulundu"),
+                        ));
+                    }
+                    if !matches!(kt, Tip::Sayi | Tip::Metin) {
+                        return Err(Hata::yeni(
+                            indeks.konum,
+                            "sözlük anahtarları sayı ya da metin olmalı",
+                        ));
+                    }
+                    let t = self.ifade(deger)?;
+                    if !d.kabul_eder(&t) {
+                        return Err(Hata::yeni(
+                            deger.konum,
+                            format!("sözlüğün değerleri {d} tipinde; {t} konamaz"),
+                        ));
+                    }
+                    genislet(deger, &d);
+                    let yeni = Tip::Sozluk(Box::new(kt), Box::new(deger.tip.clone()));
+                    self.daralt(liste, &yeni);
+                    liste.tip = liste.tip.birlestir(&yeni).unwrap_or(yeni);
+                }
+                Tip::Metin => {
+                    return Err(Hata::yeni(
+                        liste.konum,
+                        "metinler değiştirilemez; yeni bir metin oluşturun",
+                    )
+                    .ipucu("değiştir(m, eski, yeni) ya da parça(...) kullanın"))
+                }
+                Tip::Liste(ic) => {
+                    self.sayi_bekle(indeks, "indeks")?;
+                    let t = self.ifade(deger)?;
+                    if !ic.kabul_eder(&t) {
+                        return Err(Hata::yeni(
+                            deger.konum,
+                            format!("liste<{ic}> içine {t} konamaz"),
+                        ));
+                    }
+                    genislet(deger, &ic);
+                    self.listeyi_daralt(liste, &deger.tip.clone());
+                }
+                t => {
+                    return Err(Hata::yeni(
+                        liste.konum,
+                        format!("liste ya da sözlük bekleniyordu, {t} bulundu"),
+                    ))
+                }
+            },
+            Deyim::Cikar { oge, liste } => {
+                let t = self.ifade(oge)?;
                 let ic = self.liste_tipi(liste)?;
-                self.sayi_bekle(indeks, "indeks")?;
-                let t = self.ifade(deger)?;
                 if !ic.kabul_eder(&t) {
                     return Err(Hata::yeni(
-                        deger.konum,
-                        format!("liste<{ic}> içine {t} konamaz"),
+                        oge.konum,
+                        format!("liste<{ic}> listesinde {t} aranamaz"),
                     ));
                 }
-                genislet(deger, &ic);
-                self.listeyi_daralt(liste, &deger.tip.clone());
+                genislet(oge, &ic);
+            }
+            Deyim::DosyayaYaz { deger, yol } => {
+                if self.ifade(deger)? == Tip::Bos {
+                    return Err(Hata::yeni(deger.konum, "bu işlev bir değer döndürmüyor"));
+                }
+                let t = self.ifade(yol)?;
+                if t != Tip::Metin {
+                    return Err(Hata::yeni(
+                        yol.konum,
+                        format!("dosya yolu metin olmalı, {t} bulundu"),
+                    )
+                    .ipucu("ekrana yazmak için: x'i ekrana yaz."));
+                }
             }
             Deyim::Yaz(i) => {
                 if self.ifade(i)? == Tip::Bos {
@@ -307,7 +402,16 @@ impl Denetci {
                 govde,
                 konum,
             } => {
-                let ic = self.liste_tipi(liste)?;
+                let ic = match self.ifade(liste)? {
+                    Tip::Liste(ic) | Tip::Sozluk(ic, _) => *ic,
+                    Tip::Metin => Tip::Metin,
+                    t => {
+                        return Err(Hata::yeni(
+                            liste.konum,
+                            format!("liste, metin ya da sözlük bekleniyordu, {t} bulundu"),
+                        ))
+                    }
+                };
                 let ic = if ic == Tip::Bilinmeyen { Tip::Sayi } else { ic };
                 self.ata(degisken, ic, *konum)?;
                 self.dongu += 1;
@@ -388,6 +492,12 @@ impl Denetci {
             IfadeTuru::Mantik(_) => Tip::Mantik,
             IfadeTuru::Isim(ad) => match self.kapsam.get(ad.as_str()) {
                 Some(t) => t.clone(),
+                None if self.sabitler.contains_key(ad.as_str()) => {
+                    let deger = self.sabitler[ad.as_str()].clone();
+                    e.tur = deger.tur;
+                    e.tip = deger.tip.clone();
+                    return Ok(deger.tip);
+                }
                 None => {
                     let mut h = Hata::yeni(konum, format!("'{ad}' tanımlanmadan kullanıldı"));
                     if self.islevde {
@@ -459,14 +569,69 @@ impl Denetci {
                 }
                 sonuc
             }
-            IfadeTuru::Indeks(l, i) => {
-                let ic = self.liste_tipi(l)?;
-                self.sayi_bekle(i, "indeks")?;
-                if ic == Tip::Bilinmeyen {
-                    Tip::Sayi
-                } else {
-                    ic
+            IfadeTuru::Indeks(l, i) => match self.ifade(l)? {
+                Tip::Liste(ic) => {
+                    self.sayi_bekle(i, "indeks")?;
+                    if *ic == Tip::Bilinmeyen {
+                        Tip::Sayi
+                    } else {
+                        *ic
+                    }
                 }
+                Tip::Metin => {
+                    self.sayi_bekle(i, "indeks")?;
+                    Tip::Metin
+                }
+                Tip::Sozluk(a, d) => {
+                    let kt = self.ifade(i)?;
+                    if !a.kabul_eder(&kt) {
+                        return Err(Hata::yeni(
+                            i.konum,
+                            format!("anahtar {a} olmalı, {kt} bulundu"),
+                        ));
+                    }
+                    if *d == Tip::Bilinmeyen {
+                        Tip::Sayi
+                    } else {
+                        *d
+                    }
+                }
+                t => {
+                    return Err(Hata::yeni(
+                        l.konum,
+                        format!("liste, metin ya da sözlük bekleniyordu, {t} bulundu"),
+                    ))
+                }
+            },
+            IfadeTuru::Sozluk(ciftler) => {
+                let (mut a, mut d) = (Tip::Bilinmeyen, Tip::Bilinmeyen);
+                for (k, v) in ciftler.iter_mut() {
+                    let kt = self.ifade(k)?;
+                    if !matches!(kt, Tip::Sayi | Tip::Metin) {
+                        return Err(Hata::yeni(
+                            k.konum,
+                            format!("sözlük anahtarları sayı ya da metin olmalı, {kt} bulundu"),
+                        ));
+                    }
+                    a = a.birlestir(&kt).ok_or_else(|| {
+                        Hata::yeni(k.konum, "sözlüğün tüm anahtarları aynı tipte olmalı")
+                    })?;
+                    let vt = self.ifade(v)?;
+                    if d.sayisal() && vt.sayisal() && d != vt {
+                        d = Tip::Ondalik;
+                        continue;
+                    }
+                    d = d.birlestir(&vt).ok_or_else(|| {
+                        Hata::yeni(
+                            v.konum,
+                            format!("sözlüğün tüm değerleri aynı tipte olmalı ({d} ve {vt})"),
+                        )
+                    })?;
+                }
+                for (_, v) in ciftler.iter_mut() {
+                    genislet(v, &d);
+                }
+                Tip::Sozluk(Box::new(a), Box::new(d))
             }
             IfadeTuru::Cagri(ad, arg) => {
                 let ad = ad.clone();
@@ -574,71 +739,106 @@ impl Denetci {
                 }
             });
         }
-        let tek = |beklenen: &str| -> Sonuc<()> {
-            if tipler.len() != 1 {
-                return Err(Hata::yeni(
-                    konum,
-                    format!("'{ad}' bir bağımsız değişken bekler ({beklenen})"),
-                ));
-            }
-            Ok(())
+        self.yerlesik(ad, arg, &tipler, konum)
+    }
+
+    fn yerlesik(&mut self, ad: &str, arg: &mut [Ifade], t: &[Tip], konum: Konum) -> Sonuc<Tip> {
+        use Tip::*;
+        let ic = |t: &Tip| match t {
+            Liste(i) | Sozluk(i, _) if **i != Bilinmeyen => (**i).clone(),
+            _ => Sayi,
         };
-        Ok(match ad {
-            "uzunluk" => {
-                tek("liste ya da metin")?;
-                match tipler[0] {
-                    Tip::Liste(_) | Tip::Metin => Tip::Sayi,
-                    ref t => {
-                        return Err(Hata::yeni(
-                            konum,
-                            format!("uzunluk liste ya da metin için hesaplanır, {t} bulundu"),
-                        ))
-                    }
+        let sonuc = match (ad, t) {
+            ("uzunluk", [Liste(_) | Metin | Sozluk(..)]) => Sayi,
+            ("metin", [x]) if *x != Bos => Metin,
+            ("sayı", [Metin | Sayi | Ondalik]) => Sayi,
+            ("ondalık", [Metin | Sayi | Ondalik]) => Ondalik,
+            ("yuvarla", [x]) if x.sayisal() => Sayi,
+            ("yuvarla", [x, Sayi]) if x.sayisal() => {
+                genislet(&mut arg[0], &Ondalik);
+                Ondalik
+            }
+            ("sayı_mı" | "ondalık_mı", [Metin]) => Mantik,
+            ("büyük_harf" | "küçük_harf" | "kırp", [Metin]) => Metin,
+            ("parça", [Metin | Liste(_), Sayi, Sayi]) => t[0].clone(),
+            ("böl", [Metin, Metin]) => Liste(Box::new(Metin)),
+            ("birleştir", [Liste(i), Metin]) if matches!(**i, Metin | Bilinmeyen) => Metin,
+            ("içerir", [Metin, Metin]) => Mantik,
+            ("bul", [Metin, Metin]) => Sayi,
+            ("içerir" | "bul", [Liste(i), x]) if i.kabul_eder(x) => {
+                genislet(&mut arg[1], i);
+                if ad == "bul" {
+                    Sayi
+                } else {
+                    Mantik
                 }
             }
-            "metin" => {
-                tek("sayı, ondalık, mantık ya da metin")?;
-                match tipler[0] {
-                    Tip::Sayi | Tip::Ondalik | Tip::Mantik | Tip::Metin => Tip::Metin,
-                    ref t => return Err(Hata::yeni(konum, format!("{t} metne dönüştürülemez"))),
+            ("içerir", [Sozluk(a, _), x]) if a.kabul_eder(x) => Mantik,
+            ("değiştir", [Metin, Metin, Metin]) => Metin,
+            ("başlar" | "biter", [Metin, Metin]) => Mantik,
+            ("tekrarla", [Metin, Sayi]) => Metin,
+            ("harfler" | "satırlar", [Metin]) => Liste(Box::new(Metin)),
+            ("sil", [Liste(_), Sayi]) => ic(&t[0]),
+            ("sil", [Sozluk(a, _), x]) if a.kabul_eder(x) => Bos,
+            ("ters", [Liste(_) | Metin]) => t[0].clone(),
+            ("kopya", [Liste(_)]) => t[0].clone(),
+            ("karıştır", [Liste(_)]) => Bos,
+            ("en_büyük" | "en_küçük", [Liste(i)]) if matches!(**i, Sayi | Ondalik | Metin) => {
+                (**i).clone()
+            }
+            ("en_büyük" | "en_küçük", [a, b]) if a.sayisal() && b.sayisal() => {
+                if a != b {
+                    genislet(&mut arg[0], &Ondalik);
+                    genislet(&mut arg[1], &Ondalik);
+                    Ondalik
+                } else {
+                    a.clone()
                 }
             }
-            "sayı" => {
-                tek("metin ya da ondalık")?;
-                match tipler[0] {
-                    Tip::Metin | Tip::Sayi | Tip::Ondalik => Tip::Sayi,
-                    ref t => return Err(Hata::yeni(konum, format!("{t} sayıya dönüştürülemez"))),
-                }
+            ("toplam", [Liste(i)]) if matches!(**i, Sayi | Ondalik | Bilinmeyen) => ic(&t[0]),
+            ("anahtarlar", [Sozluk(a, _)]) => Liste(a.clone()),
+            ("değerler", [Sozluk(_, d)]) => Liste(d.clone()),
+            ("dosya_oku", [Metin]) => Metin,
+            ("dosyaya_yaz" | "dosyaya_ekle", [Metin, Metin]) => Bos,
+            ("dosya_var" | "dosya_sil", [Metin]) => Mantik,
+            ("karekök" | "sinüs" | "kosinüs" | "tanjant" | "logaritma", [x]) if x.sayisal() => {
+                genislet(&mut arg[0], &Ondalik);
+                Ondalik
             }
-            "ondalık" => {
-                tek("metin ya da sayı")?;
-                match tipler[0] {
-                    Tip::Metin | Tip::Sayi | Tip::Ondalik => Tip::Ondalik,
-                    ref t => return Err(Hata::yeni(konum, format!("{t} ondalığa dönüştürülemez"))),
-                }
+            ("üs", [Sayi, Sayi]) => Sayi,
+            ("üs" | "logaritma", [a, b]) if a.sayisal() && b.sayisal() => {
+                genislet(&mut arg[0], &Ondalik);
+                genislet(&mut arg[1], &Ondalik);
+                Ondalik
             }
-            "yuvarla" => match tipler.as_slice() {
-                [t] if t.sayisal() => Tip::Sayi,
-                [t, Tip::Sayi] if t.sayisal() => {
-                    genislet(&mut arg[0], &Tip::Ondalik);
-                    Tip::Ondalik
-                }
-                _ => {
-                    return Err(Hata::yeni(
+            ("mutlak", [x]) if x.sayisal() => x.clone(),
+            ("rastgele", []) => Ondalik,
+            ("rastgele", [Sayi, Sayi]) => Sayi,
+            ("zaman", []) => Ondalik,
+            ("tarih" | "oku", []) => Metin,
+            ("bekle", [x]) if x.sayisal() => {
+                genislet(&mut arg[0], &Ondalik);
+                Bos
+            }
+            ("argümanlar", []) => Liste(Box::new(Metin)),
+            ("ortam", [Metin]) => Metin,
+            ("çık", [Sayi]) => Bos,
+            _ => {
+                let verilen: Vec<String> = t.iter().map(|t| t.to_string()).collect();
+                return Err(match crate::yerlesik::bul(ad) {
+                    Some(y) => Hata::yeni(
                         konum,
-                        "'yuvarla' bir sayı ya da (ondalık, basamak sayısı) bekler",
+                        format!(
+                            "'{ad}' bu bağımsız değişkenlerle kullanılamaz ({})",
+                            verilen.join(", ")
+                        ),
                     )
-                    .ipucu("yuvarla(3.7) → 4,  yuvarla(3.14159, 2) → 3.14"))
-                }
-            },
-            "oku" => {
-                if !tipler.is_empty() {
-                    return Err(Hata::yeni(konum, "'oku' bağımsız değişken almaz"));
-                }
-                Tip::Metin
+                    .ipucu(format!("kullanım: {}", y.kullanim)),
+                    None => Hata::yeni(konum, format!("tanımsız işlev '{ad}'")),
+                });
             }
-            _ => return Err(Hata::yeni(konum, format!("tanımsız işlev '{ad}'"))),
-        })
+        };
+        Ok(sonuc)
     }
 }
 
@@ -673,6 +873,7 @@ pub fn ikili_tip(op: IkiliOp, a: &Tip, b: &Tip) -> Option<Tip> {
         | (Topla, Sayi | Ondalik | Mantik, Metin) => Some(Metin),
         (TamBol | Mod, Sayi, Sayi) => Some(Sayi),
         (Kucuk | Buyuk | KucukEsit | BuyukEsit, _, _) if sayisal => Some(Mantik),
+        (Kucuk | Buyuk | KucukEsit | BuyukEsit, Metin, Metin) => Some(Mantik),
         (Esit | EsitDegil, _, _) if sayisal => Some(Mantik),
         (Esit | EsitDegil, Metin, Metin) | (Esit | EsitDegil, Mantik, Mantik) => Some(Mantik),
         (Ve | Veya, Mantik, Mantik) => Some(Mantik),

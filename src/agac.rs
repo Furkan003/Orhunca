@@ -11,6 +11,8 @@ pub enum Tip {
     Metin,
     Mantik,
     Liste(Box<Tip>),
+    /// Anahtarları sayı ya da metin olan eşleme: `{"elma": 5}`
+    Sozluk(Box<Tip>, Box<Tip>),
     /// Değer döndürmeyen işlev.
     Bos,
     /// Henüz bilinmiyor (ör. boş liste `[]`).
@@ -19,13 +21,23 @@ pub enum Tip {
 
 impl Tip {
     /// Çalışma zamanının yazdırma/sıralama için kullandığı tip kodu:
-    /// 0 sayı, 1 metin, 2 mantık, 3 ondalık, 4 + 8*öğe liste.
+    /// 0 sayı, 1 metin, 2 mantık, 3 ondalık, 4 + 8*öğe liste,
+    /// 5 + 8*(anahtar + 2*değer) sözlük (anahtar: 0 sayı, 1 metin).
     pub fn kod(&self) -> i64 {
         match self {
             Tip::Metin => 1,
             Tip::Mantik => 2,
             Tip::Ondalik => 3,
             Tip::Liste(t) => 4 + 8 * t.kod(),
+            Tip::Sozluk(a, d) => 5 + 8 * ((**a == Tip::Metin) as i64 + 2 * d.kod()),
+            _ => 0,
+        }
+    }
+
+    /// Liste öğesinin ya da sözlük anahtarının tip kodu.
+    pub fn ic_kod(&self) -> i64 {
+        match self {
+            Tip::Liste(t) | Tip::Sozluk(t, _) => t.kod(),
             _ => 0,
         }
     }
@@ -45,6 +57,10 @@ impl Tip {
         match (self, diger) {
             (Tip::Bilinmeyen, t) | (t, Tip::Bilinmeyen) => Some(t.clone()),
             (Tip::Liste(a), Tip::Liste(b)) => a.birlestir(b).map(|t| Tip::Liste(Box::new(t))),
+            (Tip::Sozluk(a, b), Tip::Sozluk(c, d)) => Some(Tip::Sozluk(
+                Box::new(a.birlestir(c)?),
+                Box::new(b.birlestir(d)?),
+            )),
             (a, b) if a == b => Some(a.clone()),
             _ => None,
         }
@@ -59,6 +75,7 @@ impl fmt::Display for Tip {
             Tip::Metin => write!(f, "metin"),
             Tip::Mantik => write!(f, "mantık"),
             Tip::Liste(t) => write!(f, "liste<{t}>"),
+            Tip::Sozluk(a, d) => write!(f, "sözlük<{a}, {d}>"),
             Tip::Bos => write!(f, "boş"),
             Tip::Bilinmeyen => write!(f, "?"),
         }
@@ -117,6 +134,7 @@ pub enum IfadeTuru {
     Mantik(bool),
     Isim(String),
     Liste(Vec<Ifade>),
+    Sozluk(Vec<(Ifade, Ifade)>),
     Ikili(IkiliOp, Box<Ifade>, Box<Ifade>),
     Tekli(TekliOp, Box<Ifade>),
     Cagri(String, Vec<Ifade>),
@@ -142,6 +160,16 @@ pub enum Deyim {
     Ekle {
         oge: Ifade,
         liste: Ifade,
+    },
+    /// `x'i listeden çıkar.`
+    Cikar {
+        oge: Ifade,
+        liste: Ifade,
+    },
+    /// `metni "dosya.txt"'ye yaz.`
+    DosyayaYaz {
+        deger: Ifade,
+        yol: Ifade,
     },
     Sirala(Ifade),
     Eger {
@@ -189,6 +217,8 @@ pub struct Islev {
 #[derive(Debug, Clone, Default)]
 pub struct Program {
     pub islevler: Vec<Islev>,
+    /// `sabit PI = 3.14159`: her yerden görülebilen değişmez değerler.
+    pub sabitler: Vec<(String, Ifade)>,
     pub ana: Vec<Deyim>,
     pub ana_yereller: Vec<(String, Tip)>,
 }

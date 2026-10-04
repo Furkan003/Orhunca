@@ -41,6 +41,61 @@ const CALISMA_ZAMANI: &[(&str, usize, bool)] = &[
     ("ohc_liste_al", 3, true),
     ("ohc_liste_koy", 4, false),
     ("ohc_liste_sirala", 2, false),
+    ("ohc_tasma", 1, false),
+    ("ohc_metin_kars", 2, true),
+    ("ohc_metin_harf", 3, true),
+    ("ohc_sozluk_yeni", 0, true),
+    ("ohc_sozluk_koy", 4, false),
+    ("ohc_sozluk_al", 4, true),
+    ("ohc_sozluk_icerir", 3, true),
+    ("ohc_sozluk_sil", 3, false),
+    ("ohc_sozluk_anahtarlar", 1, true),
+    ("ohc_sozluk_degerler", 1, true),
+    ("ohc_sozluk_uzunluk", 1, true),
+    ("ohc_harfler", 1, true),
+    ("ohc_liste_cikar", 3, true),
+    ("ohc_dosyaya_yaz", 4, false),
+    ("ohc_dosya_oku", 2, true),
+    ("ohc_dosya_var", 1, true),
+    ("ohc_dosya_sil", 1, true),
+    ("ohc_buyuk_harf", 1, true),
+    ("ohc_kucuk_harf", 1, true),
+    ("ohc_kirp", 1, true),
+    ("ohc_metin_parca", 3, true),
+    ("ohc_liste_parca", 3, true),
+    ("ohc_metin_bol", 2, true),
+    ("ohc_birlestir", 2, true),
+    ("ohc_metin_icerir", 2, true),
+    ("ohc_metin_bul", 2, true),
+    ("ohc_liste_bul", 3, true),
+    ("ohc_degistir", 3, true),
+    ("ohc_baslar", 2, true),
+    ("ohc_biter", 2, true),
+    ("ohc_tekrarla", 3, true),
+    ("ohc_satirlar", 1, true),
+    ("ohc_sayi_mi", 1, true),
+    ("ohc_ondalik_mi", 1, true),
+    ("ohc_liste_sil", 3, true),
+    ("ohc_liste_ters", 1, true),
+    ("ohc_metin_ters", 1, true),
+    ("ohc_karistir", 1, false),
+    ("ohc_liste_kopya", 1, true),
+    ("ohc_liste_en", 4, true),
+    ("ohc_en_iki", 4, true),
+    ("ohc_liste_toplam", 3, true),
+    ("ohc_matematik", 3, true),
+    ("ohc_logaritma_taban", 3, true),
+    ("ohc_us_tam", 3, true),
+    ("ohc_us", 2, true),
+    ("ohc_mutlak", 2, true),
+    ("ohc_rastgele", 0, true),
+    ("ohc_rastgele_aralik", 3, true),
+    ("ohc_zaman", 0, true),
+    ("ohc_tarih", 0, true),
+    ("ohc_bekle", 1, false),
+    ("ohc_argumanlar", 0, true),
+    ("ohc_ortam", 1, true),
+    ("ohc_cik", 1, false),
 ];
 
 pub fn isa_kur(triple: Triple) -> Result<OwnedTargetIsa, String> {
@@ -302,8 +357,27 @@ impl Uretici<'_, '_> {
                 let l = self.ifade(liste)?;
                 let i = self.ifade(indeks)?;
                 let v = self.ifade(deger)?;
-                let s = self.sabit(indeks.konum.satir as i64);
-                self.cz("ohc_liste_koy", &[l, i, v, s]);
+                if let Tip::Sozluk(..) = liste.tip {
+                    let kod = self.sabit(liste.tip.ic_kod());
+                    self.cz("ohc_sozluk_koy", &[l, i, v, kod]);
+                } else {
+                    let s = self.sabit(indeks.konum.satir as i64);
+                    self.cz("ohc_liste_koy", &[l, i, v, s]);
+                }
+            }
+            Deyim::Cikar { oge, liste } => {
+                let o = self.ifade(oge)?;
+                let l = self.ifade(liste)?;
+                let kod = self.sabit(liste.tip.ic_kod());
+                self.cz("ohc_liste_cikar", &[l, o, kod]);
+            }
+            Deyim::DosyayaYaz { deger, yol } => {
+                let v = self.ifade(deger)?;
+                let m = self.metne(v, &deger.tip);
+                let y = self.ifade(yol)?;
+                let kip = self.sabit(0);
+                let s = self.sabit(yol.konum.satir as i64);
+                self.cz("ohc_dosyaya_yaz", &[y, m, kip, s]);
             }
             Deyim::Yaz(i) => {
                 let v = self.ifade(i)?;
@@ -393,7 +467,13 @@ impl Uretici<'_, '_> {
                 ..
             } => {
                 let dv = self.degiskenler[degisken];
-                let l = self.ifade(liste)?;
+                let mut l = self.ifade(liste)?;
+                // Metinde harfler, sözlükte anahtarlar gezilir.
+                match liste.tip {
+                    Tip::Metin => l = self.cz("ohc_harfler", &[l]).unwrap(),
+                    Tip::Sozluk(..) => l = self.cz("ohc_sozluk_anahtarlar", &[l]).unwrap(),
+                    _ => {}
+                }
                 let lv = self.b.declare_var(I64);
                 self.b.def_var(lv, l);
                 let sayac = self.b.declare_var(I64);
@@ -507,6 +587,115 @@ impl Uretici<'_, '_> {
         self.bitler(r)
     }
 
+    /// Tamsayı taşmasında çalışma hatası verir.
+    fn tasma_denetle(&mut self, tasti: Value, satir: i64) {
+        let hata = self.b.create_block();
+        let devam = self.b.create_block();
+        self.b.set_cold_block(hata);
+        self.b.ins().brif(tasti, hata, &[], devam, &[]);
+        self.b.switch_to_block(hata);
+        let s = self.sabit(satir);
+        self.cz("ohc_tasma", &[s]);
+        self.b.ins().jump(devam, &[]);
+        self.b.switch_to_block(devam);
+    }
+
+    /// Standart kütüphane işlevleri: çoğu doğrudan çalışma zamanına çağrıdır.
+    fn yerlesik(
+        &mut self,
+        ad: &str,
+        arg: &[Ifade],
+        d: &[Value],
+        e: &Ifade,
+    ) -> Result<Option<Value>, String> {
+        let satir = self.sabit(e.konum.satir as i64);
+        let t0 = arg.first().map(|a| a.tip.clone()).unwrap_or(Tip::Bos);
+        let kod0 = self.sabit(t0.ic_kod());
+        let metin = t0 == Tip::Metin;
+        let v = match ad {
+            "büyük_harf" => self.cz("ohc_buyuk_harf", d),
+            "küçük_harf" => self.cz("ohc_kucuk_harf", d),
+            "kırp" => self.cz("ohc_kirp", d),
+            "parça" if metin => self.cz("ohc_metin_parca", d),
+            "parça" => self.cz("ohc_liste_parca", d),
+            "böl" => self.cz("ohc_metin_bol", d),
+            "birleştir" => self.cz("ohc_birlestir", d),
+            "içerir" if metin => self.cz("ohc_metin_icerir", d),
+            "içerir" if matches!(t0, Tip::Sozluk(..)) => {
+                self.cz("ohc_sozluk_icerir", &[d[0], d[1], kod0])
+            }
+            "içerir" => {
+                let i = self.cz("ohc_liste_bul", &[d[0], d[1], kod0]).unwrap();
+                let sifir = self.sabit(0);
+                Some(self.mantik(IntCC::SignedGreaterThanOrEqual, i, sifir))
+            }
+            "bul" if metin => self.cz("ohc_metin_bul", d),
+            "bul" => self.cz("ohc_liste_bul", &[d[0], d[1], kod0]),
+            "değiştir" => self.cz("ohc_degistir", d),
+            "başlar" => self.cz("ohc_baslar", d),
+            "biter" => self.cz("ohc_biter", d),
+            "tekrarla" => self.cz("ohc_tekrarla", &[d[0], d[1], satir]),
+            "harfler" => self.cz("ohc_harfler", d),
+            "satırlar" => self.cz("ohc_satirlar", d),
+            "sayı_mı" => self.cz("ohc_sayi_mi", d),
+            "ondalık_mı" => self.cz("ohc_ondalik_mi", d),
+            "sil" if matches!(t0, Tip::Sozluk(..)) => {
+                self.cz("ohc_sozluk_sil", &[d[0], d[1], kod0])
+            }
+            "sil" => self.cz("ohc_liste_sil", &[d[0], d[1], satir]),
+            "ters" if metin => self.cz("ohc_metin_ters", d),
+            "ters" => self.cz("ohc_liste_ters", d),
+            "karıştır" => self.cz("ohc_karistir", d),
+            "kopya" => self.cz("ohc_liste_kopya", d),
+            "en_büyük" | "en_küçük" => {
+                let yon = self.sabit(if ad == "en_büyük" { 1 } else { -1 });
+                if d.len() == 1 {
+                    self.cz("ohc_liste_en", &[d[0], kod0, yon, satir])
+                } else {
+                    let kod = self.sabit(t0.kod());
+                    self.cz("ohc_en_iki", &[d[0], d[1], kod, yon])
+                }
+            }
+            "toplam" => self.cz("ohc_liste_toplam", &[d[0], kod0, satir]),
+            "anahtarlar" => self.cz("ohc_sozluk_anahtarlar", d),
+            "değerler" => self.cz("ohc_sozluk_degerler", d),
+            "dosya_oku" => self.cz("ohc_dosya_oku", &[d[0], satir]),
+            "dosyaya_yaz" | "dosyaya_ekle" => {
+                let kip = self.sabit((ad == "dosyaya_ekle") as i64);
+                self.cz("ohc_dosyaya_yaz", &[d[0], d[1], kip, satir])
+            }
+            "dosya_var" => self.cz("ohc_dosya_var", d),
+            "dosya_sil" => self.cz("ohc_dosya_sil", d),
+            "karekök" | "sinüs" | "kosinüs" | "tanjant" | "logaritma" if d.len() == 1 => {
+                let islem = ["karekök", "sinüs", "kosinüs", "tanjant", "logaritma"]
+                    .iter()
+                    .position(|a| *a == ad)
+                    .unwrap() as i64;
+                let islem = self.sabit(islem);
+                self.cz("ohc_matematik", &[islem, d[0], satir])
+            }
+            "logaritma" => self.cz("ohc_logaritma_taban", &[d[0], d[1], satir]),
+            "üs" if e.tip == Tip::Sayi => self.cz("ohc_us_tam", &[d[0], d[1], satir]),
+            "üs" => self.cz("ohc_us", d),
+            "mutlak" if t0 == Tip::Ondalik => {
+                let f = self.f64(d[0]);
+                let r = self.b.ins().fabs(f);
+                Some(self.bitler(r))
+            }
+            "mutlak" => self.cz("ohc_mutlak", &[d[0], satir]),
+            "rastgele" if d.is_empty() => self.cz("ohc_rastgele", &[]),
+            "rastgele" => self.cz("ohc_rastgele_aralik", &[d[0], d[1], satir]),
+            "zaman" => self.cz("ohc_zaman", &[]),
+            "tarih" => self.cz("ohc_tarih", &[]),
+            "bekle" => self.cz("ohc_bekle", d),
+            "argümanlar" => self.cz("ohc_argumanlar", &[]),
+            "ortam" => self.cz("ohc_ortam", d),
+            "çık" => self.cz("ohc_cik", d),
+            _ => return Err(format!("bilinmeyen işlev '{ad}'")),
+        };
+        Ok(v)
+    }
+
     fn mantik(&mut self, cc: IntCC, a: Value, b: Value) -> Value {
         let c = self.b.ins().icmp(cc, a, b);
         self.b.ins().uextend(I64, c)
@@ -603,9 +792,35 @@ impl Uretici<'_, '_> {
                         IkiliOp::BuyukEsit => self.fmantik(FloatCC::GreaterThanOrEqual, a, b),
                         _ => return Err(format!("ondalık için desteklenmeyen işlem {op:?}")),
                     },
-                    IkiliOp::Topla => self.b.ins().iadd(a, b),
-                    IkiliOp::Cikar => self.b.ins().isub(a, b),
-                    IkiliOp::Carp => self.b.ins().imul(a, b),
+                    IkiliOp::Topla => {
+                        let (r, tasti) = self.b.ins().sadd_overflow(a, b);
+                        self.tasma_denetle(tasti, satir);
+                        r
+                    }
+                    IkiliOp::Cikar => {
+                        let (r, tasti) = self.b.ins().ssub_overflow(a, b);
+                        self.tasma_denetle(tasti, satir);
+                        r
+                    }
+                    IkiliOp::Carp => {
+                        let (r, tasti) = self.b.ins().smul_overflow(a, b);
+                        self.tasma_denetle(tasti, satir);
+                        r
+                    }
+                    _ if sol.tip == Tip::Metin
+                        && !matches!(op, IkiliOp::Esit | IkiliOp::EsitDegil) =>
+                    {
+                        // Türk alfabesine göre karşılaştırma
+                        let k = self.cz("ohc_metin_kars", &[a, b]).unwrap();
+                        let sifir = self.sabit(0);
+                        let cc = match op {
+                            IkiliOp::Kucuk => IntCC::SignedLessThan,
+                            IkiliOp::Buyuk => IntCC::SignedGreaterThan,
+                            IkiliOp::KucukEsit => IntCC::SignedLessThanOrEqual,
+                            _ => IntCC::SignedGreaterThanOrEqual,
+                        };
+                        self.mantik(cc, k, sifir)
+                    }
                     IkiliOp::Bol | IkiliOp::TamBol | IkiliOp::Mod => {
                         let s = self.sabit(satir);
                         let ad = if *op != IkiliOp::Mod {
@@ -636,7 +851,24 @@ impl Uretici<'_, '_> {
                 let lv = self.ifade(l)?;
                 let iv = self.ifade(i)?;
                 let s = self.sabit(e.konum.satir as i64);
-                self.cz("ohc_liste_al", &[lv, iv, s]).unwrap()
+                match l.tip {
+                    Tip::Metin => self.cz("ohc_metin_harf", &[lv, iv, s]).unwrap(),
+                    Tip::Sozluk(..) => {
+                        let kod = self.sabit(l.tip.ic_kod());
+                        self.cz("ohc_sozluk_al", &[lv, iv, kod, s]).unwrap()
+                    }
+                    _ => self.cz("ohc_liste_al", &[lv, iv, s]).unwrap(),
+                }
+            }
+            IfadeTuru::Sozluk(ciftler) => {
+                let s = self.cz("ohc_sozluk_yeni", &[]).unwrap();
+                let kod = self.sabit(e.tip.ic_kod());
+                for (a, d) in ciftler {
+                    let av = self.ifade(a)?;
+                    let dv = self.ifade(d)?;
+                    self.cz("ohc_sozluk_koy", &[s, av, dv, kod]);
+                }
+                s
             }
             IfadeTuru::Cagri(ad, arg) => {
                 let mut degerler = Vec::new();
@@ -654,6 +886,9 @@ impl Uretici<'_, '_> {
                     match ad.as_str() {
                         "uzunluk" if arg[0].tip == Tip::Metin => {
                             self.cz("ohc_metin_uzunluk", &degerler).unwrap()
+                        }
+                        "uzunluk" if matches!(arg[0].tip, Tip::Sozluk(..)) => {
+                            self.cz("ohc_sozluk_uzunluk", &degerler).unwrap()
                         }
                         "uzunluk" => self.cz("ohc_liste_uzunluk", &degerler).unwrap(),
                         "metin" => self.metne(degerler[0], &arg[0].tip),
@@ -681,7 +916,10 @@ impl Uretici<'_, '_> {
                             self.cz("ohc_metinden_sayi", &[degerler[0], s]).unwrap()
                         }
                         "oku" => self.cz("ohc_oku", &[]).unwrap(),
-                        _ => return Err(format!("bilinmeyen işlev '{ad}'")),
+                        _ => {
+                            let v = self.yerlesik(ad, arg, &degerler, e)?;
+                            return Ok(v.unwrap_or_else(|| self.sabit(0)));
+                        }
                     }
                 }
             }

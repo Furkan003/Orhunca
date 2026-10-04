@@ -28,9 +28,9 @@ pub struct Sozcuk {
     pub konum: Konum,
 }
 
-const OPLAR: [&str; 22] = [
+const OPLAR: [&str; 24] = [
     "->", "//", "==", "!=", "<=", ">=", "+=", "-=", "+", "-", "*", "/", "%", "=", "<", ">", "(",
-    ")", "[", "]", ",", ":",
+    ")", "[", "]", "{", "}", ",", ":",
 ];
 
 fn kesme_mi(c: char) -> bool {
@@ -70,6 +70,7 @@ pub fn sozcukle(kaynak: &str) -> Sonuc<Vec<Sozcuk>> {
             let konum = Konum {
                 satir: satir_no,
                 sutun: i + 1,
+                dosya: 0,
             };
             let ust = *girintiler.last().unwrap();
             if girinti > ust {
@@ -101,6 +102,7 @@ pub fn sozcukle(kaynak: &str) -> Sonuc<Vec<Sozcuk>> {
             let konum = Konum {
                 satir: satir_no,
                 sutun: i + 1,
+                dosya: 0,
             };
 
             if c == ' ' || c == '\t' {
@@ -185,6 +187,7 @@ pub fn sozcukle(kaynak: &str) -> Sonuc<Vec<Sozcuk>> {
                                         Konum {
                                             satir: satir_no,
                                             sutun: i,
+                                            dosya: 0,
                                         },
                                         format!("bilinmeyen kaçış dizisi '\\{e}'"),
                                     ))
@@ -230,8 +233,8 @@ pub fn sozcukle(kaynak: &str) -> Sonuc<Vec<Sozcuk>> {
                 .collect();
             if let Some(op) = OPLAR.iter().find(|op| kalan.starts_with(**op)) {
                 match *op {
-                    "(" | "[" => parantez += 1,
-                    ")" | "]" => parantez -= 1,
+                    "(" | "[" | "{" => parantez += 1,
+                    ")" | "]" | "}" => parantez -= 1,
                     _ => {}
                 }
                 cikti.push(Sozcuk {
@@ -239,7 +242,7 @@ pub fn sozcukle(kaynak: &str) -> Sonuc<Vec<Sozcuk>> {
                     konum,
                 });
                 i += op.chars().count();
-                if *op == ")" || *op == "]" {
+                if *op == ")" || *op == "]" || *op == "}" {
                     i = ek_oku(&karakterler, i, satir_no, &mut cikti)?;
                 }
                 continue;
@@ -259,6 +262,7 @@ pub fn sozcukle(kaynak: &str) -> Sonuc<Vec<Sozcuk>> {
             let konum = Konum {
                 satir: satir_no,
                 sutun: karakterler.len() + 1,
+                dosya: 0,
             };
             cikti.push(Sozcuk {
                 tok: Tok::YeniSatir,
@@ -271,6 +275,7 @@ pub fn sozcukle(kaynak: &str) -> Sonuc<Vec<Sozcuk>> {
     let konum = Konum {
         satir: son_satir,
         sutun: 1,
+        dosya: 0,
     };
     if parantez > 0 {
         return Err(Hata::yeni(konum, "kapatılmamış parantez"));
@@ -295,6 +300,7 @@ fn ek_oku(k: &[char], mut i: usize, satir: usize, cikti: &mut Vec<Sozcuk>) -> So
         let konum = Konum {
             satir,
             sutun: i + 1,
+            dosya: 0,
         };
         i += 1;
         let bas = i;
