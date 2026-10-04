@@ -483,7 +483,8 @@ gönder "/ürünler":                        # POST (koy: PUT, sil: DELETE)
     döndür yönlendir("/ürünler")
 ```
 
-- `istek`: `yöntem`, `yol`, `sorgu` (`istek.sorgu["q"]`), `form`, `parametreler`, `gövde`, `başlıklar`.
+- `istek`: `yöntem`, `yol`, `sorgu` (`istek.sorgu["q"]`), `form`, `parametreler`, `gövde`, `başlıklar`,
+  `çerezler`, `oturum`, `dosyalar`.
 - Yanıtlar: `yanıt(404, "...")`, `yanıt(200, metin, "text/plain")`, `yönlendir("/")`,
   `json_yanıtı(değer, 201)`; `y.başlıklar["X-Ad"] = "değer"` ile başlık eklenir.
 - `statik/` klasöründeki dosyalar olduğu gibi sunulur. Yol bulunamazsa Türkçe 404 sayfası verilir.
@@ -493,6 +494,34 @@ gönder "/ürünler":                        # POST (koy: PUT, sil: DELETE)
   `sun(8080)` ya da `ORHUNCA_KAPI` ile değişir). Yalnızca bu bilgisayardan erişilir;
   `ORHUNCA_ADRES=0.0.0.0` ağa açar.
 - Yardımcılar: `kaçır(metin)` (HTML'e güvenli), `para(12.5)` → "12,50", `url_kodla(metin)`.
+
+**Oturum ve çerezler.** `istek.oturum` her tarayıcıya ayrı, sunucuda saklanan bir
+`sözlük<metin, metin>`dir; yazılan değerler sonraki isteklerde gelir (oturum çerezi `HttpOnly`,
+`SameSite=Lax`; HTTPS'te `Secure`). Boşaltılınca oturum silinir. Gelen çerezler `istek.çerezler`de,
+gönderilecekler `y.çerezler["tema"] = "koyu"` ile (boş değer çerezi siler).
+
+```
+gönder "/giriş":
+    eğer istek.form["şifre"] == "gizli" ise:
+        istek.oturum["kullanıcı"] = istek.form["ad"]
+    döndür yönlendir("/")
+
+al "/çıkış":
+    istek.oturum = {}
+    döndür yönlendir("/")
+```
+
+**Dosya yükleme.** `<form enctype="multipart/form-data">` ile gönderilen dosyalar
+`veri/yüklemeler/` klasörüne kaydedilir; `istek.dosyalar["alan"]` bir `YüklenenDosya`dır
+(`ad`, `tür`, `yol`, `boyut`), metin alanları `istek.form`a girer. `dosya_taşı(d.yol, "statik/...")`
+ile kalıcı bir yere taşınabilir. Gövde sınırı 32 MB'tır (`ORHUNCA_EN_BUYUK_GOVDE`).
+
+**Eşzamanlılık.** Sunucu tek iş parçacığında bir olay döngüsüyle çalışır: bütün bağlantılar
+birlikte okunup yazılır, yavaş bir istemci ötekileri bekletmez, HTTP/1.1 bağlantıları açık kalır
+(parçalı gövdeler de desteklenir). Yollar sırayla çalışır; bu sayede kayıtlar ve bellek güvendedir.
+
+**HTTPS.** `ORHUNCA_SERTIFIKA=sertifika.pem ORHUNCA_ANAHTAR=anahtar.pem` verilirse sunucu HTTPS
+konuşur. Sistemdeki OpenSSL (1.1 ya da 3) çalışırken yüklenir; derlemede ek bir şey gerekmez.
 
 ### Görünümler (.ohchtml)
 

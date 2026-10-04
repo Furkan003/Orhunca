@@ -145,7 +145,7 @@ işlev temel_yerleşikler() -> liste<metin>:
 
 # Standart kütüphanenin tamamı (src/yerlesik.rs): model adı olamazlar.
 işlev standart_kütüphane() -> liste<metin>:
-    döndür ["uzunluk", "metin", "sayı", "ondalık", "yuvarla", "sayı_mı", "ondalık_mı", "büyük_harf", "küçük_harf", "kırp", "parça", "böl", "birleştir", "içerir", "bul", "değiştir", "başlar", "biter", "tekrarla", "harfler", "kodlar", "kodlardan", "kod", "karakter", "satırlar", "sil", "ters", "karıştır", "kopya", "en_büyük", "en_küçük", "toplam", "anahtarlar", "değerler", "dosya_oku", "dosyaya_yaz", "dosyaya_ekle", "dosya_var", "dosya_sil", "karekök", "üs", "mutlak", "sinüs", "kosinüs", "tanjant", "logaritma", "rastgele", "zaman", "tarih", "bekle", "oku", "argümanlar", "ortam", "çık", "boş_mu", "hata_ver", "json", "kaçır", "para", "url_kodla", "görünüm", "yanıt", "yönlendir", "json_yanıtı", "sun"]
+    döndür ["uzunluk", "metin", "sayı", "ondalık", "yuvarla", "sayı_mı", "ondalık_mı", "büyük_harf", "küçük_harf", "kırp", "parça", "böl", "birleştir", "içerir", "bul", "değiştir", "başlar", "biter", "tekrarla", "harfler", "kodlar", "kodlardan", "kod", "karakter", "satırlar", "sil", "ters", "karıştır", "kopya", "en_büyük", "en_küçük", "toplam", "anahtarlar", "değerler", "dosya_oku", "dosyaya_yaz", "dosyaya_ekle", "dosya_var", "dosya_sil", "dosya_taşı", "karekök", "üs", "mutlak", "sinüs", "kosinüs", "tanjant", "logaritma", "rastgele", "zaman", "tarih", "bekle", "oku", "argümanlar", "ortam", "çık", "boş_mu", "hata_ver", "json", "kaçır", "para", "url_kodla", "görünüm", "yanıt", "yönlendir", "json_yanıtı", "sun"]
 
 # Arayüz öğeleri ve olayları (src/arayuz.rs)
 işlev arayüz_öğeleri() -> liste<metin>:
@@ -156,7 +156,7 @@ işlev arayüz_olayları() -> liste<metin>:
 
 # Web çatısının yerleşik modelleri: her programa eklenir.
 işlev yerleşik_modeller() -> metin:
-    döndür "model İstek:\n    yöntem: metin\n    yol: metin\n    sorgu: sözlük<metin, metin>\n    form: sözlük<metin, metin>\n    parametreler: sözlük<metin, metin>\n    gövde: metin\n    başlıklar: sözlük<metin, metin>\n\nmodel Yanıt:\n    durum: sayı = 200\n    tür: metin = \"text/html; charset=utf-8\"\n    gövde: metin\n    konum: metin\n    başlıklar: sözlük<metin, metin>\n"
+    döndür "model İstek:\n    yöntem: metin\n    yol: metin\n    sorgu: sözlük<metin, metin>\n    form: sözlük<metin, metin>\n    parametreler: sözlük<metin, metin>\n    gövde: metin\n    başlıklar: sözlük<metin, metin>\n    çerezler: sözlük<metin, metin>\n    oturum: sözlük<metin, metin>\n    dosyalar: sözlük<metin, YüklenenDosya>\n\nmodel Yanıt:\n    durum: sayı = 200\n    tür: metin = \"text/html; charset=utf-8\"\n    gövde: metin\n    konum: metin\n    başlıklar: sözlük<metin, metin>\n    çerezler: sözlük<metin, metin>\n\nmodel YüklenenDosya:\n    ad: metin\n    tür: metin\n    yol: metin\n    boyut: sayı\n"
 
 # ---------------------------------------------------------------------------
 # Hâl ekleri ve ek çözümleme (src/ekler.rs)
@@ -902,7 +902,7 @@ işlev model_tanımı(a: Ayrıştırıcı) -> ModelTanımı:
     bekle_kelime(a, "model")
     ak = bak(a)
     ad = isim_adı(a, "model adı")
-    eğer ad == "İstek" veya ad == "Yanıt" ise:
+    eğer ad == "İstek" veya ad == "Yanıt" veya ad == "YüklenenDosya" ise:
         hata_s(a, ak, "'" + ad + "' yerleşik bir model; başka bir ad seçin", "-")
     eğer içerir(temel_yerleşikler(), ad) veya içerir(standart_kütüphane(), ad) ise:
         hata_s(a, ak, "'" + ad + "' yerleşik bir işlevin adı", "-")

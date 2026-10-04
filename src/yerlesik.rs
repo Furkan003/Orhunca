@@ -210,6 +210,11 @@ pub const YERLESIKLER: &[Yerlesik] = &[
         "dosya_sil(yol) → mantık",
         "Dosyayı siler; silindiyse doğru."
     ),
+    y!(
+        "dosya_taşı",
+        "dosya_taşı(eski, yeni) → mantık",
+        "Dosyayı taşır ya da adını değiştirir (ör. yüklenen dosyayı statik/ klasörüne)."
+    ),
     // Matematik
     y!("karekök", "karekök(x) → ondalık", "Karekök."),
     y!(

@@ -71,6 +71,9 @@ model İstek:
     parametreler: sözlük<metin, metin>
     gövde: metin
     başlıklar: sözlük<metin, metin>
+    çerezler: sözlük<metin, metin>
+    oturum: sözlük<metin, metin>
+    dosyalar: sözlük<metin, YüklenenDosya>
 
 model Yanıt:
     durum: sayı = 200
@@ -78,6 +81,13 @@ model Yanıt:
     gövde: metin
     konum: metin
     başlıklar: sözlük<metin, metin>
+    çerezler: sözlük<metin, metin>
+
+model YüklenenDosya:
+    ad: metin
+    tür: metin
+    yol: metin
+    boyut: sayı
 ";
 
 /// Görünüm işlevlerinde çıktı parçalarının toplandığı liste (kullanıcı bu adı yazamaz).
@@ -894,7 +904,9 @@ impl Ayristirici {
         self.bekle_kelime("model")?;
         let akonum = self.konum();
         let ad = self.isim_adi("model adı")?;
-        if akonum.dosya != YERLESIK_DOSYA && (ad == "İstek" || ad == "Yanıt") {
+        if akonum.dosya != YERLESIK_DOSYA
+            && ["İstek", "Yanıt", "YüklenenDosya"].contains(&ad.as_str())
+        {
             return Err(Hata::yeni(
                 akonum,
                 format!("'{ad}' yerleşik bir model; başka bir ad seçin"),

@@ -135,11 +135,22 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 - Yeni temel parçalar: `kodlar(m)` ve `kodlardan(l)` (karakter kodu listeleri; doğrusal zaman).
 - Büyük/küçük harf dönüşümü düzeltildi (Latin Genişletilmiş-A çiftleri) ve Yunan, Kiril eklendi.
 
+### 9g – Web sunucusu
+- Olay döngüsü (poll / WSAPoll): engelsiz soketler, aynı anda birçok bağlantı, açık kalan
+  (keep-alive) ve ardışık (pipelined) istekler, parçalı (chunked) gövde, zaman aşımları.
+- `istek.çerezler`, `istek.oturum` (sunucuda JSON olarak saklanan oturum; rastgele 128 bit kimlik,
+  HttpOnly/SameSite/Secure çerez), `y.çerezler`.
+- Dosya yükleme: multipart/form-data → `istek.dosyalar` (`YüklenenDosya`), güvenli dosya adları;
+  `dosya_taşı`.
+- HTTPS: OpenSSL çalışma anında yüklenir (dlopen / LoadLibrary), `ORHUNCA_SERTIFIKA`,
+  `ORHUNCA_ANAHTAR`. Testler: tests/web_sunucu.rs (keep-alive, yavaş istemci, oturum, yükleme, HTTPS).
+
 ## Henüz yapılmayanlar
 
 - Çalışma zamanının çekirdeği (bellek ve çöp toplayıcı, listeler, sözlükler, dosyalar, ağ, JSON,
   modeller) C ile yazılı (`runtime/orhunca_rt.c`); metin işlemleri Orhunca'dadır.
-- Web sunucusu tek iş parçacıklıdır; oturum/çerez, dosya yükleme ve HTTPS yok (geliştirme için).
+- Web sunucusu yolları tek iş parçacığında sırayla çalıştırır (bağlantılar olay döngüsünde
+  eşzamanlıdır); oturumlar sunucunun belleğindedir (yeniden başlatınca silinir).
 - Ünlü uyumu derleyicide hoşgörüyle kabul edilir; biçimlendirici ve dil sunucusu uyarır ve düzeltir.
   Metinlerde (yabancı kelimeler olabileceği için) yalnızca tampon harf ve ünsüz benzeşmesi denetlenir.
 - Listelerde indeks 0'dan başlar.

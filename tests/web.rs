@@ -153,7 +153,8 @@ struct Yanit {
 impl Sunucu {
     fn istek(&self, yontem: &str, yol: &str, govde: Option<(&str, &str)>) -> Yanit {
         let mut a = TcpStream::connect(("127.0.0.1", self.kapi)).unwrap();
-        let mut istek = format!("{yontem} {yol} HTTP/1.1\r\nHost: localhost\r\n");
+        let mut istek =
+            format!("{yontem} {yol} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n");
         if let Some((tur, g)) = govde {
             istek.push_str(&format!(
                 "Content-Type: {tur}\r\nContent-Length: {}\r\n\r\n{g}",

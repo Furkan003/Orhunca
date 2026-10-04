@@ -307,10 +307,11 @@ impl Denetci {
         }
         for a in m.alanlar.iter_mut() {
             if let Some(ic) = a.tip.ic_model() {
-                if self
-                    .modeller
-                    .get(ic)
-                    .is_some_and(|x| x.konum.dosya == YERLESIK_DOSYA)
+                if m.konum.dosya != YERLESIK_DOSYA
+                    && self
+                        .modeller
+                        .get(ic)
+                        .is_some_and(|x| x.konum.dosya == YERLESIK_DOSYA)
                 {
                     return Err(Hata::yeni(
                         a.konum,
@@ -1951,6 +1952,7 @@ impl Denetci {
             ("dosya_oku", [Metin]) => Metin,
             ("dosyaya_yaz" | "dosyaya_ekle", [Metin, Metin]) => Bos,
             ("dosya_var" | "dosya_sil", [Metin]) => Mantik,
+            ("dosya_taşı", [Metin, Metin]) => Mantik,
             ("karekök" | "sinüs" | "kosinüs" | "tanjant" | "logaritma", [x]) if x.sayisal() => {
                 genislet(&mut arg[0], &Ondalik);
                 Ondalik

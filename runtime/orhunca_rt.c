@@ -39,6 +39,9 @@
 #include <string.h>
 #include <time.h>
 #ifdef _WIN32
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600 /* WSAPoll */
+#endif
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
@@ -46,7 +49,10 @@
 #include <direct.h>
 #else
 #include <arpa/inet.h>
+#include <dlfcn.h>
+#include <fcntl.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <signal.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -2057,6 +2063,9 @@ static int dosya_tasi(const char *eski, const char *yeni) {
 #endif
 }
 
+/* Dosyayı taşır ya da adını değiştirir (hedef varsa üzerine yazılır). */
+int64_t ohc_dosya_tasi(int64_t eski, int64_t yeni) { return dosya_tasi(M(eski), M(yeni)); }
+
 static char *veri_dosyasi(ModelBilgisi *m) {
     Tampon t = {0};
     t_yaz(&t, veri_klasoru());
@@ -2758,8 +2767,32 @@ static const char ONIZLEME_BETIGI[] =
     "})()</script>";
 static int onizleme_acik = -1;
 
-static void yanit_gonder(Soket s, int64_t durum, const char *tur, const char *govde, size_t govde_n, const char *konum,
-                         int64_t basliklar, int bas_istegi) {
+/* ASCII büyük/küçük harf ayrımı yapmadan ilk n bayt eşit mi (0: eşit) */
+static int harf_duyarsiz_esit(const char *a, const char *b, size_t n) {
+    for (size_t i = 0; i < n; i++) {
+        char x = a[i], y = b[i];
+        if (x >= 'A' && x <= 'Z') x = (char)(x + 32);
+        if (y >= 'A' && y <= 'Z') y = (char)(y + 32);
+        if (x != y) return 1;
+        if (!x) return 0;
+    }
+    return 0;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Yanıtlar: her bağlantının gönderilecek baytları bir tampondadır.        */
+/* ---------------------------------------------------------------------- */
+
+/* Yanıtın ek başlıkları: Set-Cookie satırları ve bağlantının durumu. */
+typedef struct {
+    Tampon *cikti;
+    int acik_kalsin; /* keep-alive */
+    int bas_istegi;  /* HEAD: gövde gönderilmez */
+    Tampon cerezler; /* "Set-Cookie: ...\r\n" satırları */
+} Yanit;
+
+static void yanit_yaz(Yanit *y, int64_t durum, const char *tur, const char *govde, size_t govde_n, const char *konum,
+                      int64_t basliklar) {
     if (onizleme_acik < 0) onizleme_acik = getenv("ORHUNCA_ONIZLEME") != NULL;
     Tampon ek = {0};
     if (onizleme_acik && tur && !strncmp(tur, "text/html", 9)) {
@@ -2773,41 +2806,40 @@ static void yanit_gonder(Soket s, int64_t durum, const char *tur, const char *go
         govde = ek.v;
         govde_n = ek.n;
     }
-    Tampon t = {0};
+    Tampon *t = y->cikti;
     char k[256];
     snprintf(k, sizeof k, "HTTP/1.1 %" PRId64 " %s\r\n", durum, durum_metni(durum));
-    t_yaz(&t, k);
+    t_yaz(t, k);
     if (tur && *tur && durum != 204) {
-        t_yaz(&t, "Content-Type: ");
-        baslik_degeri(&t, tur);
-        t_yaz(&t, "\r\n");
+        t_yaz(t, "Content-Type: ");
+        baslik_degeri(t, tur);
+        t_yaz(t, "\r\n");
     }
     snprintf(k, sizeof k, "Content-Length: %zu\r\n", durum == 204 ? (size_t)0 : govde_n);
-    t_yaz(&t, k);
+    t_yaz(t, k);
     if (konum && *konum) {
         /* Türkçe karakterli adresler yüzde kodlanır. */
         Tampon u = {0};
         url_kodla(&u, konum, "-_.~/?#[]@!$&'()*+,;=:%");
-        t_yaz(&t, "Location: ");
-        baslik_degeri(&t, u.v ? u.v : "");
-        t_yaz(&t, "\r\n");
+        t_yaz(t, "Location: ");
+        baslik_degeri(t, u.v ? u.v : "");
+        t_yaz(t, "\r\n");
         free(u.v);
     }
     Sozluk *b = (Sozluk *)(intptr_t)basliklar;
     for (int64_t i = 0; b && i < b->uzunluk; i++) {
-        baslik_degeri(&t, M(b->anahtarlar[i]));
-        t_yaz(&t, ": ");
-        baslik_degeri(&t, M(b->degerler[i]));
-        t_yaz(&t, "\r\n");
+        baslik_degeri(t, M(b->anahtarlar[i]));
+        t_yaz(t, ": ");
+        baslik_degeri(t, M(b->degerler[i]));
+        t_yaz(t, "\r\n");
     }
-    t_yaz(&t, "Connection: close\r\n\r\n");
-    tumunu_gonder(s, t.v, t.n);
-    if (!bas_istegi && govde_n && durum != 204) tumunu_gonder(s, govde, govde_n);
-    free(t.v);
+    if (y->cerezler.n) t_ekle(t, y->cerezler.v, y->cerezler.n);
+    t_yaz(t, y->acik_kalsin ? "Connection: keep-alive\r\n\r\n" : "Connection: close\r\n\r\n");
+    if (!y->bas_istegi && govde_n && durum != 204) t_ekle(t, govde, govde_n);
     free(ek.v);
 }
 
-static void hata_sayfasi(Soket s, int64_t durum, const char *baslik, const char *ayrinti, int bas) {
+static void hata_sayfasi(Yanit *y, int64_t durum, const char *baslik, const char *ayrinti) {
     Tampon t = {0};
     t_yaz(&t, "<!DOCTYPE html><html lang=\"tr\"><head><meta charset=\"utf-8\">"
               "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>");
@@ -2824,7 +2856,7 @@ static void hata_sayfasi(Soket s, int64_t durum, const char *baslik, const char 
         t_yaz(&t, "</pre>");
     }
     t_yaz(&t, "<small>Orhunca web sunucusu</small></main></body></html>");
-    yanit_gonder(s, durum, "text/html; charset=utf-8", t.v, t.n, NULL, 0, bas);
+    yanit_yaz(y, durum, "text/html; charset=utf-8", t.v, t.n, NULL, 0);
     free(t.v);
 }
 
@@ -2866,8 +2898,9 @@ static int dosya_turu(const char *yol) {
 #endif
 }
 
+
 /* statik/ klasöründen dosya gönderir; dosya yoksa 0 döndürür. */
-static int statik_gonder(Soket s, const char *yol, int bas) {
+static int statik_gonder(Yanit *y, const char *yol) {
     if (strstr(yol, "/..") || strchr(yol, '\\') || strstr(yol, "//")) return 0;
     Tampon d = {0};
     t_yaz(&d, "statik");
@@ -2892,7 +2925,7 @@ static int statik_gonder(Soket s, const char *yol, int bas) {
     size_t n;
     while ((n = fread(b, 1, sizeof b, f)) > 0) t_ekle(&icerik, b, n);
     fclose(f);
-    yanit_gonder(s, 200, icerik_turu(d.v), icerik.v ? icerik.v : "", icerik.n, NULL, 0, bas);
+    yanit_yaz(y, 200, icerik_turu(d.v), icerik.v ? icerik.v : "", icerik.n, NULL, 0);
     free(icerik.v);
     free(d.v);
     return 1;
@@ -2914,47 +2947,318 @@ static SATIR_ICI_DEGIL int64_t yolu_calistir(int64_t (*islev)(int64_t), int64_t 
     return sonuc;
 }
 
+/* ---------------------------------------------------------------------- */
+/* Rastgele baytlar (oturum kimlikleri, yükleme adları)                    */
+/* ---------------------------------------------------------------------- */
 
-static void istegi_isle(Soket s, const char *istek_tanimi) {
-    double bas_zaman = ondalik(ohc_zaman());
-    Tampon b = {0};
-    char parca[16384];
-    const char *baslik_sonu = NULL;
-    while (!baslik_sonu) {
-        int k = recv(s, parca, sizeof parca, 0);
-        if (k <= 0) {
-            free(b.v);
-            return;
-        }
-        t_ekle(&b, parca, (size_t)k);
-        baslik_sonu = bul_n(b.v, b.n, "\r\n\r\n");
-        if (!baslik_sonu && b.n > 65536) {
-            hata_sayfasi(s, 431, "İstek başlıkları çok büyük", NULL, 0);
-            free(b.v);
-            return;
+static void rastgele_baytlar(unsigned char *b, size_t n) {
+    int tamam = 0;
+#ifdef _WIN32
+    typedef BOOLEAN(WINAPI * RtlGenRandomT)(PVOID, ULONG);
+    HMODULE m = LoadLibraryA("advapi32.dll");
+    RtlGenRandomT f = m ? (RtlGenRandomT)(void *)GetProcAddress(m, "SystemFunction036") : NULL;
+    if (f && f(b, (ULONG)n)) tamam = 1;
+#else
+    FILE *u = fopen("/dev/urandom", "rb");
+    if (u) {
+        tamam = fread(b, 1, n, u) == n;
+        fclose(u);
+    }
+#endif
+    if (!tamam)
+        for (size_t i = 0; i < n; i++) b[i] = (unsigned char)(rng() >> 56);
+}
+
+static void rastgele_onaltilik(char *s, size_t bayt) {
+    unsigned char b[64];
+    rastgele_baytlar(b, bayt);
+    for (size_t i = 0; i < bayt; i++) snprintf(s + 2 * i, 3, "%02x", b[i]);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Çerezler ve oturumlar                                                   */
+/* ---------------------------------------------------------------------- */
+
+#define OTURUM_CEREZI "orhunca_oturum"
+#define OTURUM_OMRU (7 * 24 * 3600.0) /* son kullanımdan sonra */
+/* sözlük<metin, metin> tip kodu */
+#define KOD_METIN_SOZLUGU (5 + 8 * (1 + 2 * KOD_METIN))
+
+/* Oturumlar sunucunun belleğinde JSON metni olarak durur (çöp toplayıcının
+ * dışında); her istekte `istek.oturum` sözlüğüne açılır, sonra geri yazılır. */
+typedef struct {
+    char kimlik[33];
+    char *json;
+    double son;
+} Oturum;
+
+static Oturum *oturumlar;
+static int64_t oturum_sayisi, oturum_kap;
+
+static Oturum *oturum_bul(const char *kimlik) {
+    if (strlen(kimlik) != 32) return NULL;
+    for (int64_t i = 0; i < oturum_sayisi; i++)
+        if (!strcmp(oturumlar[i].kimlik, kimlik)) return &oturumlar[i];
+    return NULL;
+}
+
+static void oturum_sil(Oturum *o) {
+    free(o->json);
+    *o = oturumlar[--oturum_sayisi];
+}
+
+static void eski_oturumlari_sil(double simdi) {
+    for (int64_t i = 0; i < oturum_sayisi;)
+        if (simdi - oturumlar[i].son > OTURUM_OMRU)
+            oturum_sil(&oturumlar[i]);
+        else
+            i++;
+}
+
+/* "a=1; b=iki" → sözlük (değerler yüzde kodlamasından çözülür) */
+static void cerezleri_coz(int64_t sozluk, const char *s) {
+    while (*s) {
+        while (*s == ' ' || *s == ';') s++;
+        const char *bas = s;
+        while (*s && *s != ';') s++;
+        const char *esit = memchr(bas, '=', (size_t)(s - bas));
+        if (esit && esit > bas) {
+            const char *ad_son = esit;
+            while (ad_son > bas && ad_son[-1] == ' ') ad_son--;
+            Tampon d = {0};
+            yuzde_coz(&d, esit + 1, (size_t)(s - esit - 1), 0);
+            int64_t am = metin_yap(bas, (size_t)(ad_son - bas));
+            int64_t dm = t_metin(&d);
+            ohc_sozluk_koy(sozluk, am, dm, KOD_METIN);
         }
     }
-    size_t govde_basi = (size_t)(baslik_sonu - b.v) + 4;
+}
+
+static void cerez_ekle(Tampon *t, const char *ad, const char *deger, int tls, int http_only) {
+    t_yaz(t, "Set-Cookie: ");
+    url_kodla(t, ad, "-_.~");
+    t_yaz(t, "=");
+    url_kodla(t, deger, "-_.~");
+    t_yaz(t, "; Path=/; SameSite=Lax");
+    if (!*deger) t_yaz(t, "; Max-Age=0");
+    if (http_only) t_yaz(t, "; HttpOnly");
+    if (tls) t_yaz(t, "; Secure");
+    t_yaz(t, "\r\n");
+}
+
+/* ---------------------------------------------------------------------- */
+/* Dosya yükleme (multipart/form-data)                                    */
+/* ---------------------------------------------------------------------- */
+
+static const char *bul_bellek(const char *s, size_t n, const char *aranan, size_t m) {
+    for (size_t i = 0; i + m <= n; i++)
+        if (s[i] == aranan[0] && !memcmp(s + i, aranan, m)) return s + i;
+    return NULL;
+}
+
+/* Başlık değerinden `ad="değer"` parametresi */
+static int baslik_parametresi(const char *b, size_t n, const char *ad, Tampon *deger) {
+    size_t an = strlen(ad);
+    for (size_t i = 0; i + an + 1 < n; i++) {
+        if ((i == 0 || b[i - 1] == ' ' || b[i - 1] == ';') && !memcmp(b + i, ad, an) && b[i + an] == '=') {
+            size_t j = i + an + 1;
+            if (j < n && b[j] == '"') {
+                j++;
+                size_t k = j;
+                while (k < n && b[k] != '"') k++;
+                t_ekle(deger, b + j, k - j);
+            } else {
+                size_t k = j;
+                while (k < n && b[k] != ';' && b[k] != ' ') k++;
+                t_ekle(deger, b + j, k - j);
+            }
+            t_ekle(deger, "", 0);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* Yüklenen dosyanın adından güvenli bir dosya adı: yalnızca son parça, denetim
+ * karakterleri ve yol ayraçları olmadan. */
+static void guvenli_ad(Tampon *t, const char *ad) {
+    const char *p = ad;
+    for (const char *q = ad; *q; q++)
+        if (*q == '/' || *q == '\\') p = q + 1;
+    size_t n = 0;
+    for (; *p && n < 100; p++) {
+        unsigned char c = (unsigned char)*p;
+        if (c < 32 || c == ':' || c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|') continue;
+        if (n == 0 && c == '.') continue;
+        t_ekle(t, p, 1);
+        n++;
+    }
+    if (!n) t_yaz(t, "dosya");
+}
+
+/* Gövdeyi parçalara ayırır: metin alanları `form`a, dosyalar yükleme klasörüne
+ * kaydedilip `dosyalar` sözlüğüne (YüklenenDosya) girer. */
+static void parcali_formu_coz(const char *govde, size_t n, const char *tur, int64_t form, int64_t dosyalar) {
+    Tampon sinir = {0};
+    if (!baslik_parametresi(tur, strlen(tur), "boundary", &sinir)) return;
+    Tampon ayrac = {0};
+    t_yaz(&ayrac, "--");
+    t_yaz(&ayrac, sinir.v);
+    free(sinir.v);
+    ModelBilgisi *dm = model_bilgisi_adla("YüklenenDosya");
+    const char *p = bul_bellek(govde, n, ayrac.v, ayrac.n);
+    while (p) {
+        p += ayrac.n;
+        if ((size_t)(govde + n - p) >= 2 && p[0] == '-' && p[1] == '-') break; /* son */
+        if ((size_t)(govde + n - p) >= 2 && p[0] == '\r' && p[1] == '\n') p += 2;
+        const char *baslik_sonu = bul_bellek(p, (size_t)(govde + n - p), "\r\n\r\n", 4);
+        if (!baslik_sonu) break;
+        const char *icerik = baslik_sonu + 4;
+        const char *sonraki = bul_bellek(icerik, (size_t)(govde + n - icerik), ayrac.v, ayrac.n);
+        if (!sonraki) break;
+        size_t icerik_n = (size_t)(sonraki - icerik);
+        if (icerik_n >= 2 && sonraki[-2] == '\r' && sonraki[-1] == '\n') icerik_n -= 2;
+        /* Parçanın başlıkları */
+        Tampon ad = {0}, dosya_adi = {0}, parca_turu = {0};
+        int dosya_mi = 0;
+        for (const char *s = p; s < baslik_sonu;) {
+            const char *e = bul_bellek(s, (size_t)(baslik_sonu - s), "\r\n", 2);
+            if (!e) e = baslik_sonu;
+            size_t sn = (size_t)(e - s);
+            if (sn > 20 && !harf_duyarsiz_esit(s, "content-disposition:", 20)) {
+                baslik_parametresi(s + 20, sn - 20, "name", &ad);
+                dosya_mi = baslik_parametresi(s + 20, sn - 20, "filename", &dosya_adi);
+            } else if (sn > 13 && !harf_duyarsiz_esit(s, "content-type:", 13)) {
+                const char *v = s + 13;
+                while (*v == ' ') v++;
+                t_ekle(&parca_turu, v, (size_t)(e - v));
+                t_ekle(&parca_turu, "", 0);
+            }
+            s = e + 2;
+        }
+        if (ad.v && !dosya_mi) {
+            int64_t am = metin_yap(ad.v, strlen(ad.v));
+            int64_t dm2 = metin_yap(icerik, icerik_n);
+            ohc_sozluk_koy(form, am, dm2, KOD_METIN);
+        } else if (ad.v && dosya_mi && dm && (icerik_n > 0 || (dosya_adi.v && *dosya_adi.v))) {
+            /* <veri>/yüklemeler/<rastgele>-<ad> */
+            Tampon yol = {0};
+            t_yaz(&yol, veri_klasoru());
+            klasor_olustur(yol.v);
+            t_yaz(&yol, "/yüklemeler");
+            klasor_olustur(yol.v);
+            char r[17];
+            rastgele_onaltilik(r, 8);
+            t_yaz(&yol, "/");
+            t_yaz(&yol, r);
+            t_yaz(&yol, "-");
+            guvenli_ad(&yol, dosya_adi.v ? dosya_adi.v : "");
+            FILE *f = dosya_ac(yol.v, "wb");
+            if (f) {
+                fwrite(icerik, 1, icerik_n, f);
+                fclose(f);
+                int64_t d = nesne_yeni(dm->tanim);
+                int64_t i;
+                if ((i = alan_sirasi(dm, "ad")) >= 0) ALAN(d, i) = metin_yap(dosya_adi.v ? dosya_adi.v : "", dosya_adi.v ? strlen(dosya_adi.v) : 0);
+                if ((i = alan_sirasi(dm, "tür")) >= 0)
+                    ALAN(d, i) = parca_turu.v ? metin_yap(parca_turu.v, strlen(parca_turu.v)) : D("application/octet-stream");
+                if ((i = alan_sirasi(dm, "yol")) >= 0) ALAN(d, i) = metin_yap(yol.v, yol.n);
+                if ((i = alan_sirasi(dm, "boyut")) >= 0) ALAN(d, i) = (int64_t)icerik_n;
+                ohc_sozluk_koy(dosyalar, metin_yap(ad.v, strlen(ad.v)), d, KOD_METIN);
+            }
+            free(yol.v);
+        }
+        free(ad.v);
+        free(dosya_adi.v);
+        free(parca_turu.v);
+        p = sonraki;
+    }
+    free(ayrac.v);
+}
+
+/* ---------------------------------------------------------------------- */
+/* İstek                                                                   */
+/* ---------------------------------------------------------------------- */
+
+static int64_t en_buyuk_govde = -1;
+
+/* Tamponda tam bir istek var mı? Varsa toplam bayt sayısı (başlıklar + gövde),
+ * eksikse 0, hatalıysa -1 (431: başlıklar, -2: 413 gövde çok büyük). Parçalı
+ * (chunked) gövde `cozulen`e açılır. */
+static int64_t istek_tamam_mi(const char *v, size_t n, Tampon *cozulen, size_t *govde_basi) {
+    const char *son = bul_n(v, n, "\r\n\r\n");
+    if (!son) return n > 65536 ? -1 : 0;
+    if (en_buyuk_govde < 0) {
+        const char *e = getenv("ORHUNCA_EN_BUYUK_GOVDE");
+        en_buyuk_govde = e && atoll(e) > 0 ? atoll(e) : 32 * 1024 * 1024;
+    }
+    size_t bas = (size_t)(son - v) + 4;
+    *govde_basi = bas;
+    int64_t uzunluk = 0;
+    int parcali = 0;
+    for (const char *p = v; p < son;) {
+        const char *e = bul_n(p, (size_t)(son - p) + 2, "\r\n");
+        if (!e) break;
+        if ((size_t)(e - p) > 15 && !harf_duyarsiz_esit(p, "content-length:", 15)) uzunluk = strtoll(p + 15, NULL, 10);
+        if ((size_t)(e - p) > 18 && !harf_duyarsiz_esit(p, "transfer-encoding:", 18) && bul_n(p, (size_t)(e - p), "chunked"))
+            parcali = 1;
+        p = e + 2;
+    }
+    if (uzunluk < 0 || uzunluk > en_buyuk_govde) return -2;
+    if (!parcali) return n >= bas + (size_t)uzunluk ? (int64_t)(bas + (size_t)uzunluk) : 0;
+    /* Parçalı gövde: <onaltılık boy>\r\n<veri>\r\n ... 0\r\n\r\n */
+    cozulen->n = 0;
+    size_t i = bas;
+    for (;;) {
+        const char *e = bul_n(v + i, n - i, "\r\n");
+        if (!e) return 0;
+        long long boy = strtoll(v + i, NULL, 16);
+        if (boy < 0 || (int64_t)cozulen->n + boy > en_buyuk_govde) return -2;
+        i = (size_t)(e - v) + 2;
+        if (boy == 0) {
+            const char *bitis = bul_n(v + i, n - i, "\r\n");
+            /* Sondaki başlıklar (trailer) yok sayılır. */
+            while (bitis && bitis != v + i) {
+                i = (size_t)(bitis - v) + 2;
+                bitis = bul_n(v + i, n - i, "\r\n");
+            }
+            if (!bitis) return 0;
+            return (int64_t)(i + 2);
+        }
+        if (n < i + (size_t)boy + 2) return 0;
+        t_ekle(cozulen, v + i, (size_t)boy);
+        i += (size_t)boy + 2;
+    }
+}
+
+/* Tam bir isteği işler, yanıtı `y->cikti`ya yazar. `v`/`n`: isteğin baytları. */
+static void istegi_isle(Yanit *y, char *v, size_t n, size_t govde_basi, const char *govde_v, size_t govde_n,
+                        const char *istek_tanimi, int tls) {
+    double bas_zaman = ondalik(ohc_zaman());
+    (void)n;
+    const char *baslik_sonu = v + govde_basi - 4;
     /* İstek satırı: YÖNTEM HEDEF SÜRÜM */
-    char *satir_sonu = strstr(b.v, "\r\n");
+    char *satir_sonu = strstr(v, "\r\n");
     *satir_sonu = 0;
     char yontem[16] = {0};
-    char *bosluk1 = strchr(b.v, ' ');
+    char *bosluk1 = strchr(v, ' ');
     char *bosluk2 = bosluk1 ? strchr(bosluk1 + 1, ' ') : NULL;
-    if (!bosluk1 || !bosluk2 || bosluk1 - b.v >= (long)sizeof yontem || bosluk1[1] != '/') {
-        hata_sayfasi(s, 400, "Geçersiz istek", NULL, 0);
-        free(b.v);
+    if (!bosluk1 || !bosluk2 || bosluk1 - v >= (long)sizeof yontem || bosluk1[1] != '/') {
+        y->acik_kalsin = 0;
+        hata_sayfasi(y, 400, "Geçersiz istek", NULL);
         return;
     }
-    memcpy(yontem, b.v, (size_t)(bosluk1 - b.v));
+    memcpy(yontem, v, (size_t)(bosluk1 - v));
     *bosluk2 = 0;
+    const char *surum = bosluk2 + 1;
     const char *hedef = bosluk1 + 1;
-    int bas_istegi = !strcmp(yontem, "HEAD");
+    y->bas_istegi = !strcmp(yontem, "HEAD");
+    /* HTTP/1.1'de bağlantı açık kalır (Connection: close değilse); 1.0'da kapanır. */
+    y->acik_kalsin = !strcmp(surum, "HTTP/1.1");
 
     /* Başlıklar */
     int64_t basliklar = ohc_sozluk_yeni();
-    int64_t uzunluk = 0;
-    int parcali = 0;
+    ((Sozluk *)(intptr_t)basliklar)->anahtar_kodu = KOD_METIN;
     char *p = satir_sonu + 2;
     while (p < baslik_sonu) {
         char *son = strstr(p, "\r\n");
@@ -2964,39 +3268,21 @@ static void istegi_isle(Soket s, const char *istek_tanimi) {
         if (iki) {
             for (char *c = p; c < iki; c++)
                 if (*c >= 'A' && *c <= 'Z') *c = (char)(*c + 32);
-            char *v = iki + 1;
-            while (*v == ' ' || *v == '\t') v++;
-            size_t vn = strlen(v);
-            while (vn && (v[vn - 1] == ' ' || v[vn - 1] == '\t')) vn--;
+            char *d = iki + 1;
+            while (*d == ' ' || *d == '\t') d++;
+            size_t dn = strlen(d);
+            while (dn && (d[dn - 1] == ' ' || d[dn - 1] == '\t')) dn--;
             int64_t am = metin_yap(p, (size_t)(iki - p));
-            int64_t dm = metin_yap(v, vn);
+            int64_t dm = metin_yap(d, dn);
             ohc_sozluk_koy(basliklar, am, dm, KOD_METIN);
-            if (!strcmp(M(am), "content-length")) uzunluk = strtoll(v, NULL, 10);
-            if (!strcmp(M(am), "transfer-encoding") && strstr(v, "chunked")) parcali = 1;
+            if (!strcmp(M(am), "connection")) {
+                if (strstr(M(dm), "close") || strstr(M(dm), "Close")) y->acik_kalsin = 0;
+                if (strstr(M(dm), "keep-alive") || strstr(M(dm), "Keep-Alive")) y->acik_kalsin = 1;
+            }
         }
         p = son + 2;
     }
-    if (parcali) {
-        hata_sayfasi(s, 501, "Parçalı (chunked) istek gövdesi desteklenmiyor", NULL, bas_istegi);
-        free(b.v);
-        return;
-    }
-    if (uzunluk < 0 || uzunluk > 16 * 1024 * 1024) {
-        hata_sayfasi(s, 413, "İstek gövdesi çok büyük", NULL, bas_istegi);
-        free(b.v);
-        return;
-    }
-    while (b.n < govde_basi + (size_t)uzunluk) {
-        int k = recv(s, parca, sizeof parca, 0);
-        if (k <= 0) {
-            free(b.v);
-            return;
-        }
-        t_ekle(&b, parca, (size_t)k);
-    }
-    int64_t govde = metin_yap(b.v + govde_basi, (size_t)uzunluk);
-    /* Gövde okunurken tampon yer değiştirmiş olabilir; hedefi yeniden bul. */
-    hedef = strchr(b.v, ' ') + 1;
+    int64_t govde = metin_yap(govde_v, govde_n);
 
     /* Yol ve sorgu */
     const char *soru = strchr(hedef, '?');
@@ -3013,7 +3299,7 @@ static void istegi_isle(Soket s, const char *istek_tanimi) {
     int64_t gorunen = t_metin(&gt);
 
     int64_t durum = 404;
-    if ((!strcmp(yontem, "GET") || bas_istegi) && statik_gonder(s, M(yol), bas_istegi)) {
+    if ((!strcmp(yontem, "GET") || y->bas_istegi) && statik_gonder(y, M(yol))) {
         durum = 200;
     } else {
         /* En çok sabit parçası olan eşleşen yol seçilir. */
@@ -3022,8 +3308,8 @@ static void istegi_isle(Soket s, const char *istek_tanimi) {
         for (int64_t i = 0; i < web_yolu_sayisi; i++) {
             int e = yol_eslesir(web_yollari[i].kalip, M(yol), 0);
             if (!e) continue;
-            const char *y = web_yollari[i].yontem;
-            if (strcmp(y, yontem) && !(bas_istegi && !strcmp(y, "GET"))) {
+            const char *wy = web_yollari[i].yontem;
+            if (strcmp(wy, yontem) && !(y->bas_istegi && !strcmp(wy, "GET"))) {
                 yontem_farkli = 1;
                 continue;
             }
@@ -3038,22 +3324,47 @@ static void istegi_isle(Soket s, const char *istek_tanimi) {
             t_yaz(&a, yontem);
             t_yaz(&a, " ");
             t_yaz(&a, M(yol));
-            hata_sayfasi(s, durum, yontem_farkli ? "Bu adres bu yöntemle kullanılamaz" : "Sayfa bulunamadı", a.v,
-                         bas_istegi);
+            hata_sayfasi(y, durum, yontem_farkli ? "Bu adres bu yöntemle kullanılamaz" : "Sayfa bulunamadı", a.v);
             free(a.v);
         } else {
             int64_t form = ohc_sozluk_yeni();
             ((Sozluk *)(intptr_t)form)->anahtar_kodu = KOD_METIN;
+            int64_t dosyalar = ohc_sozluk_yeni();
+            ((Sozluk *)(intptr_t)dosyalar)->anahtar_kodu = KOD_METIN;
             int64_t tur = ohc_sozluk_icerir(basliklar, D("content-type"), KOD_METIN)
                               ? ohc_sozluk_al(basliklar, D("content-type"), KOD_METIN, 0)
                               : D("");
             if (strstr(M(tur), "application/x-www-form-urlencoded"))
                 form_coz(form, M(govde), strlen(M(govde)));
-            else if (strstr(M(tur), "json"))
+            else if (strstr(M(tur), "multipart/form-data")) {
+                parcali_formu_coz(govde_v, govde_n, M(tur), form, dosyalar);
+                govde = D("");
+            } else if (strstr(M(tur), "json"))
                 json_formu(form, M(govde));
             int64_t parametreler = ohc_sozluk_yeni();
             ((Sozluk *)(intptr_t)parametreler)->anahtar_kodu = KOD_METIN;
             yol_eslesir(secilen->kalip, M(yol), parametreler);
+
+            /* Çerezler ve oturum */
+            int64_t cerezler = ohc_sozluk_yeni();
+            ((Sozluk *)(intptr_t)cerezler)->anahtar_kodu = KOD_METIN;
+            if (ohc_sozluk_icerir(basliklar, D("cookie"), KOD_METIN))
+                cerezleri_coz(cerezler, M(ohc_sozluk_al(basliklar, D("cookie"), KOD_METIN, 0)));
+            double simdi = ondalik(ohc_zaman());
+            eski_oturumlari_sil(simdi);
+            Oturum *o = ohc_sozluk_icerir(cerezler, D(OTURUM_CEREZI), KOD_METIN)
+                            ? oturum_bul(M(ohc_sozluk_al(cerezler, D(OTURUM_CEREZI), KOD_METIN, 0)))
+                            : NULL;
+            char kimlik[33] = {0};
+            if (o) memcpy(kimlik, o->kimlik, 33);
+            int64_t oturum;
+            if (o && o->json) {
+                Json j = {o->json, NULL, 0};
+                oturum = j_deger(&j, KOD_METIN_SOZLUGU, NULL);
+            } else {
+                oturum = ohc_sozluk_yeni();
+                ((Sozluk *)(intptr_t)oturum)->anahtar_kodu = KOD_METIN;
+            }
 
             int64_t istek = nesne_yeni(istek_tanimi);
             ModelBilgisi *im = model_bilgisi(istek_tanimi);
@@ -3069,44 +3380,65 @@ static void istegi_isle(Soket s, const char *istek_tanimi) {
             ISTEK_KOY("parametreler", parametreler);
             ISTEK_KOY("gövde", govde);
             ISTEK_KOY("başlıklar", basliklar);
+            ISTEK_KOY("çerezler", cerezler);
+            ISTEK_KOY("oturum", oturum);
+            ISTEK_KOY("dosyalar", dosyalar);
 #undef ISTEK_KOY
-            int64_t y = yolu_calistir(secilen->islev, istek);
+            int64_t sonuc = yolu_calistir(secilen->islev, istek);
+            if (son_istek_basarili) {
+                /* Oturum geri yazılır: boşaldıysa silinir; yeni ise çerezle verilir. */
+                int64_t i_ = alan_sirasi(im, "oturum");
+                int64_t son_oturum = i_ >= 0 ? ALAN(istek, i_) : 0;
+                int bos = !son_oturum || ohc_sozluk_uzunluk(son_oturum) == 0;
+                o = kimlik[0] ? oturum_bul(kimlik) : NULL;
+                if (bos) {
+                    if (o) {
+                        oturum_sil(o);
+                        cerez_ekle(&y->cerezler, OTURUM_CEREZI, "", tls, 1);
+                    }
+                } else {
+                    if (!o) {
+                        if (oturum_sayisi == oturum_kap) {
+                            oturum_kap = oturum_kap ? oturum_kap * 2 : 16;
+                            oturumlar = ham_buyut(oturumlar, sizeof(Oturum) * (size_t)oturum_kap);
+                        }
+                        o = &oturumlar[oturum_sayisi++];
+                        rastgele_onaltilik(o->kimlik, 16);
+                        o->json = NULL;
+                        cerez_ekle(&y->cerezler, OTURUM_CEREZI, o->kimlik, tls, 1);
+                    }
+                    Tampon jt = {0};
+                    json_yaz(&jt, son_oturum, KOD_METIN_SOZLUGU, 0);
+                    t_ekle(&jt, "", 0);
+                    free(o->json);
+                    o->json = jt.v;
+                    o->son = simdi;
+                }
+            }
             if (!son_istek_basarili) {
                 durum = 500;
-                hata_sayfasi(s, 500, "Sunucu hatası", son_hata, bas_istegi);
-            } else if (!y) {
+                hata_sayfasi(y, 500, "Sunucu hatası", son_hata);
+            } else if (!sonuc) {
                 durum = 204;
-                yanit_gonder(s, 204, NULL, "", 0, NULL, 0, bas_istegi);
+                yanit_yaz(y, 204, NULL, "", 0, NULL, 0);
             } else {
-                ModelBilgisi *ym = nesne_bilgisi(y);
+                ModelBilgisi *ym = nesne_bilgisi(sonuc);
                 int64_t i;
-                durum = (i = alan_sirasi(ym, "durum")) >= 0 ? ALAN(y, i) : 200;
-                const char *tur_y = (i = alan_sirasi(ym, "tür")) >= 0 ? M(ALAN(y, i)) : "text/html; charset=utf-8";
-                const char *g = (i = alan_sirasi(ym, "gövde")) >= 0 ? M(ALAN(y, i)) : "";
-                const char *konum = (i = alan_sirasi(ym, "konum")) >= 0 ? M(ALAN(y, i)) : "";
-                int64_t ek = (i = alan_sirasi(ym, "başlıklar")) >= 0 ? ALAN(y, i) : 0;
-                yanit_gonder(s, durum, tur_y, g, strlen(g), konum, ek, bas_istegi);
+                durum = (i = alan_sirasi(ym, "durum")) >= 0 ? ALAN(sonuc, i) : 200;
+                const char *tur_y = (i = alan_sirasi(ym, "tür")) >= 0 ? M(ALAN(sonuc, i)) : "text/html; charset=utf-8";
+                const char *g = (i = alan_sirasi(ym, "gövde")) >= 0 ? M(ALAN(sonuc, i)) : "";
+                const char *konum = (i = alan_sirasi(ym, "konum")) >= 0 ? M(ALAN(sonuc, i)) : "";
+                int64_t ek = (i = alan_sirasi(ym, "başlıklar")) >= 0 ? ALAN(sonuc, i) : 0;
+                Sozluk *c = (i = alan_sirasi(ym, "çerezler")) >= 0 ? (Sozluk *)(intptr_t)ALAN(sonuc, i) : NULL;
+                for (int64_t k = 0; c && k < c->uzunluk; k++)
+                    cerez_ekle(&y->cerezler, M(c->anahtarlar[k]), M(c->degerler[k]), tls, 0);
+                yanit_yaz(y, durum, tur_y, g, strlen(g), konum, ek);
             }
         }
     }
     double ms = (ondalik(ohc_zaman()) - bas_zaman) * 1000.0;
     printf("  %s %s → %" PRId64 " · %.0f ms\n", yontem, M(gorunen), durum, ms);
     fflush(stdout);
-    free(b.v);
-}
-
-static void zaman_asimi(Soket s, int saniye) {
-#ifdef _WIN32
-    DWORD ms = (DWORD)saniye * 1000;
-    setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (const char *)&ms, sizeof ms);
-    setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, (const char *)&ms, sizeof ms);
-#else
-    struct timeval tv;
-    tv.tv_sec = saniye;
-    tv.tv_usec = 0;
-    setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
-    setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv);
-#endif
 }
 
 static int surec_yasiyor(long kimlik) {
@@ -3123,7 +3455,235 @@ static int surec_yasiyor(long kimlik) {
 #endif
 }
 
-/* Sunucuyu başlatır ve istekleri sırayla işler (dönmez). */
+/* ---------------------------------------------------------------------- */
+/* HTTPS: OpenSSL (libssl 3 / 1.1) çalışma anında yüklenir; derlemede      */
+/* bağımlılık gerekmez. ORHUNCA_SERTIFIKA ve ORHUNCA_ANAHTAR verilirse     */
+/* sunucu HTTPS konuşur.                                                   */
+/* ---------------------------------------------------------------------- */
+
+typedef struct {
+    void *(*TLS_server_method)(void);
+    void *(*SSL_CTX_new)(void *);
+    int (*SSL_CTX_use_certificate_chain_file)(void *, const char *);
+    int (*SSL_CTX_use_PrivateKey_file)(void *, const char *, int);
+    long (*SSL_CTX_ctrl)(void *, int, long, void *);
+    void *(*SSL_new)(void *);
+    int (*SSL_set_fd)(void *, int);
+    int (*SSL_accept)(void *);
+    int (*SSL_read)(void *, void *, int);
+    int (*SSL_write)(void *, const void *, int);
+    int (*SSL_get_error)(const void *, int);
+    int (*SSL_shutdown)(void *);
+    void (*SSL_free)(void *);
+} TlsIslevleri;
+
+static TlsIslevleri tls;
+static void *tls_baglami; /* SSL_CTX */
+
+#define TLS_HATA_OKUMA_BEKLE 2
+#define TLS_HATA_YAZMA_BEKLE 3
+#define TLS_HATA_SIFIR 6
+
+#ifdef _WIN32
+#define KUTUPHANE_AC(ad) ((void *)LoadLibraryA(ad))
+#define KUTUPHANE_ISLEVI(k, ad) ((void *)GetProcAddress((HMODULE)(k), ad))
+#else
+#define KUTUPHANE_AC(ad) dlopen(ad, RTLD_NOW | RTLD_GLOBAL)
+#define KUTUPHANE_ISLEVI(k, ad) dlsym(k, ad)
+#endif
+
+static void tls_kur(const char *sertifika, const char *anahtar) {
+    static const char *adlar[] = {
+#ifdef _WIN32
+        "libssl-3-x64.dll", "libssl-3.dll", "libssl-1_1-x64.dll",
+#elif defined(__APPLE__)
+        "libssl.3.dylib", "/opt/homebrew/opt/openssl@3/lib/libssl.3.dylib", "/usr/local/opt/openssl@3/lib/libssl.3.dylib",
+        "libssl.dylib",
+#else
+        "libssl.so.3", "libssl.so.1.1", "libssl.so",
+#endif
+    };
+    void *k = NULL;
+    for (size_t i = 0; i < sizeof adlar / sizeof *adlar && !k; i++) k = KUTUPHANE_AC(adlar[i]);
+    if (!k) hata(0, "HTTPS için OpenSSL kütüphanesi (libssl) bulunamadı; kurun ya da ORHUNCA_SERTIFIKA'yı kaldırın");
+#define TLS_BAGLA(ad)                                                                                                  \
+    do {                                                                                                               \
+        *(void **)&tls.ad = KUTUPHANE_ISLEVI(k, #ad);                                                                  \
+        if (!tls.ad) hata(0, "OpenSSL kütüphanesinde " #ad " bulunamadı (OpenSSL 1.1 ya da 3 gerekir)");                 \
+    } while (0)
+    TLS_BAGLA(TLS_server_method);
+    TLS_BAGLA(SSL_CTX_new);
+    TLS_BAGLA(SSL_CTX_use_certificate_chain_file);
+    TLS_BAGLA(SSL_CTX_use_PrivateKey_file);
+    TLS_BAGLA(SSL_CTX_ctrl);
+    TLS_BAGLA(SSL_new);
+    TLS_BAGLA(SSL_set_fd);
+    TLS_BAGLA(SSL_accept);
+    TLS_BAGLA(SSL_read);
+    TLS_BAGLA(SSL_write);
+    TLS_BAGLA(SSL_get_error);
+    TLS_BAGLA(SSL_shutdown);
+    TLS_BAGLA(SSL_free);
+#undef TLS_BAGLA
+    tls_baglami = tls.SSL_CTX_new(tls.TLS_server_method());
+    if (!tls_baglami) hata(0, "TLS bağlamı oluşturulamadı");
+    if (tls.SSL_CTX_use_certificate_chain_file(tls_baglami, sertifika) != 1) {
+        char m[600];
+        snprintf(m, sizeof m, "sertifika okunamadı: %.500s (PEM biçiminde olmalı)", sertifika);
+        hata(0, m);
+    }
+    if (tls.SSL_CTX_use_PrivateKey_file(tls_baglami, anahtar, 1 /* PEM */) != 1) {
+        char m[600];
+        snprintf(m, sizeof m, "özel anahtar okunamadı ya da sertifikayla uyuşmuyor: %.500s", anahtar);
+        hata(0, m);
+    }
+    /* SSL_CTX_set_mode: kısmi yazma ve yer değiştiren yazma tamponu */
+    tls.SSL_CTX_ctrl(tls_baglami, 33, 1 | 2, NULL);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Bağlantılar ve olay döngüsü                                             */
+/* ---------------------------------------------------------------------- */
+
+/* Sunucu tek iş parçacığında çalışır ama bağlantıları beklemez: bütün
+ * bağlantılar bir olay döngüsünde (poll) birlikte okunur ve yazılır; yavaş bir
+ * istemci ötekileri bekletmez. Bir istek tamamen gelince programın yolu
+ * çalıştırılır (yollar sırayla çalışır; çöp toplayıcı ve kayıt dosyaları
+ * tek iş parçacığında güvendedir). HTTP/1.1 bağlantıları açık kalabilir. */
+typedef struct {
+    Soket s;
+    void *ssl;
+    int el_sikisma;   /* TLS el sıkışması sürüyor */
+    int tls_bekle;    /* TLS yazma yerine okuma (ya da tersi) bekliyor: POLLIN/POLLOUT */
+    Tampon gelen;
+    Tampon giden;
+    size_t gonderilen;
+    int kapanacak;    /* yanıt gidince kapanır */
+    double son_etkinlik;
+} Baglanti;
+
+#define BOSTA_KALMA_SURESI 30.0
+#define YARIM_ISTEK_SURESI 15.0
+
+static void engelsiz_yap(Soket s) {
+#ifdef _WIN32
+    u_long bir = 1;
+    ioctlsocket(s, FIONBIO, &bir);
+#else
+    fcntl(s, F_SETFL, fcntl(s, F_GETFL, 0) | O_NONBLOCK);
+#endif
+}
+
+static int beklemeli_hata(void) {
+#ifdef _WIN32
+    int e = WSAGetLastError();
+    return e == WSAEWOULDBLOCK || e == WSAEINTR;
+#else
+    return errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR;
+#endif
+}
+
+static void baglanti_kapat(Baglanti *b) {
+    if (b->ssl) {
+        tls.SSL_shutdown(b->ssl);
+        tls.SSL_free(b->ssl);
+    }
+    soket_kapat(b->s);
+    free(b->gelen.v);
+    free(b->giden.v);
+}
+
+/* Okuyabildiği kadar okur. 0: bağlantı bitti ya da hata. */
+static int baglanti_oku(Baglanti *b) {
+    char parca[16384];
+    for (;;) {
+        int k;
+        if (b->ssl) {
+            k = tls.SSL_read(b->ssl, parca, sizeof parca);
+            if (k <= 0) {
+                int e = tls.SSL_get_error(b->ssl, k);
+                if (e == TLS_HATA_OKUMA_BEKLE) return 1;
+                if (e == TLS_HATA_YAZMA_BEKLE) {
+                    b->tls_bekle = POLLOUT;
+                    return 1;
+                }
+                return 0;
+            }
+        } else {
+            k = (int)recv(b->s, parca, sizeof parca, 0);
+            if (k < 0) return beklemeli_hata();
+            if (k == 0) return 0;
+        }
+        t_ekle(&b->gelen, parca, (size_t)k);
+        if (b->gelen.n > (size_t)en_buyuk_govde + 70000) return 1;
+    }
+}
+
+/* Gönderebildiği kadar gönderir. 0: hata. */
+static int baglanti_yaz(Baglanti *b) {
+    while (b->gonderilen < b->giden.n) {
+        size_t kalan = b->giden.n - b->gonderilen;
+        int parca = kalan > 1048576 ? 1048576 : (int)kalan;
+        int k;
+        if (b->ssl) {
+            k = tls.SSL_write(b->ssl, b->giden.v + b->gonderilen, parca);
+            if (k <= 0) {
+                int e = tls.SSL_get_error(b->ssl, k);
+                if (e == TLS_HATA_YAZMA_BEKLE) return 1;
+                if (e == TLS_HATA_OKUMA_BEKLE) {
+                    b->tls_bekle = POLLIN;
+                    return 1;
+                }
+                return 0;
+            }
+        } else {
+            k = (int)send(b->s, b->giden.v + b->gonderilen, parca, 0);
+            if (k < 0) return beklemeli_hata();
+        }
+        b->gonderilen += (size_t)k;
+    }
+    b->giden.n = 0;
+    b->gonderilen = 0;
+    return 1;
+}
+
+/* Tamponda tam bir istek varsa işler ve yanıtı hazırlar. */
+static void istek_varsa_isle(Baglanti *b, const char *istek_tanimi) {
+    if (b->giden.n || b->kapanacak || !b->gelen.n) return;
+    Tampon cozulen = {0};
+    size_t govde_basi = 0;
+    int64_t boy = istek_tamam_mi(b->gelen.v, b->gelen.n, &cozulen, &govde_basi);
+    Yanit y = {&b->giden, 0, 0, {0}};
+    if (boy == 0) {
+        free(cozulen.v);
+        return;
+    }
+    if (boy < 0) {
+        b->kapanacak = 1;
+        if (boy == -1)
+            hata_sayfasi(&y, 431, "İstek başlıkları çok büyük", NULL);
+        else
+            hata_sayfasi(&y, 413, "İstek gövdesi çok büyük", "ORHUNCA_EN_BUYUK_GOVDE ile sınır (bayt) değiştirilebilir");
+        free(cozulen.v);
+        return;
+    }
+    /* İstek, tamponun başında NUL ile biten ayrı bir kopyada işlenir. */
+    char *v = ham_ayir((size_t)boy + 1);
+    memcpy(v, b->gelen.v, (size_t)boy);
+    v[boy] = 0;
+    int parcali = cozulen.v != NULL || bul_n(v, govde_basi, "chunked") != NULL;
+    const char *govde_v = parcali ? (cozulen.v ? cozulen.v : "") : v + govde_basi;
+    size_t govde_n = parcali ? cozulen.n : (size_t)boy - govde_basi;
+    istegi_isle(&y, v, (size_t)boy, govde_basi, govde_v, govde_n, istek_tanimi, b->ssl != NULL);
+    if (!y.acik_kalsin) b->kapanacak = 1;
+    free(y.cerezler.v);
+    free(v);
+    free(cozulen.v);
+    memmove(b->gelen.v, b->gelen.v + boy, b->gelen.n - (size_t)boy);
+    b->gelen.n -= (size_t)boy;
+}
+
+/* Sunucuyu başlatır ve istekleri karşılar (dönmez). */
 void ohc_sun(int64_t kapi, int64_t istek_tanimi) {
     /* ORHUNCA_KAPI programdaki kapıyı geçersiz kılar; 0 ise boş bir kapı seçilir. */
     const char *e = getenv("ORHUNCA_KAPI");
@@ -3133,6 +3693,14 @@ void ohc_sun(int64_t kapi, int64_t istek_tanimi) {
     if (otomatik) kapi = 0;
     const char *adres = getenv("ORHUNCA_ADRES");
     if (!adres || !*adres) adres = "127.0.0.1";
+    const char *sertifika = getenv("ORHUNCA_SERTIFIKA");
+    const char *anahtar = getenv("ORHUNCA_ANAHTAR");
+    int https = sertifika && *sertifika;
+    if (https) tls_kur(sertifika, anahtar && *anahtar ? anahtar : sertifika);
+    if (en_buyuk_govde < 0) {
+        const char *g = getenv("ORHUNCA_EN_BUYUK_GOVDE");
+        en_buyuk_govde = g && atoll(g) > 0 ? atoll(g) : 32 * 1024 * 1024;
+    }
 #ifdef _WIN32
     WSADATA w;
     if (WSAStartup(MAKEWORD(2, 2), &w)) hata(0, "Windows soket kütüphanesi başlatılamadı");
@@ -3150,7 +3718,7 @@ void ohc_sun(int64_t kapi, int64_t istek_tanimi) {
     a.sin_family = AF_INET;
     a.sin_port = htons((unsigned short)kapi);
     a.sin_addr.s_addr = inet_addr(adres);
-    if (bind(dinleyici, (struct sockaddr *)&a, sizeof a) != 0 || listen(dinleyici, 64) != 0) {
+    if (bind(dinleyici, (struct sockaddr *)&a, sizeof a) != 0 || listen(dinleyici, 128) != 0) {
         char m[200];
         snprintf(m, sizeof m,
                  "%" PRId64 " numaralı kapı açılamadı; başka bir sunucu kullanıyor olabilir (ORHUNCA_KAPI ile başka "
@@ -3163,27 +3731,126 @@ void ohc_sun(int64_t kapi, int64_t istek_tanimi) {
         getsockname(dinleyici, (struct sockaddr *)&a, &uz);
         kapi = ntohs(a.sin_port);
     }
-    printf("● Sunucu dinleniyor: http://localhost:%" PRId64 "\n", kapi);
+    engelsiz_yap(dinleyici);
+    printf("● Sunucu dinleniyor: %s://localhost:%" PRId64 "\n", https ? "https" : "http", kapi);
     fflush(stdout);
     /* Stüdyo'dan başlatıldıysa Stüdyo kapanınca sunucu da kapanır. */
     const char *ebeveyn = getenv("ORHUNCA_EBEVEYN");
     long ebeveyn_kimligi = ebeveyn ? atol(ebeveyn) : 0;
+
+    Baglanti *baglantilar = NULL;
+    size_t sayi = 0, kap = 0;
+    struct pollfd *pler = NULL;
+    size_t pkap = 0;
+    double son_denetim = 0;
     for (;;) {
-        if (ebeveyn_kimligi > 0) {
-            fd_set k;
-            FD_ZERO(&k);
-            FD_SET(dinleyici, &k);
-            struct timeval bekleme = {1, 0};
-            if (select((int)dinleyici + 1, &k, NULL, NULL, &bekleme) <= 0) {
-                if (!surec_yasiyor(ebeveyn_kimligi)) exit(0);
-                continue;
+        if (pkap < sayi + 1) {
+            pkap = (sayi + 1) * 2;
+            pler = ham_buyut(pler, sizeof *pler * pkap);
+        }
+        pler[0].fd = dinleyici;
+        pler[0].events = POLLIN;
+        pler[0].revents = 0;
+        for (size_t i = 0; i < sayi; i++) {
+            Baglanti *b = &baglantilar[i];
+            short olay;
+            if (b->tls_bekle)
+                olay = (short)b->tls_bekle;
+            else if (b->el_sikisma)
+                olay = POLLIN;
+            else
+                olay = b->giden.n ? POLLOUT : POLLIN;
+            pler[i + 1].fd = b->s;
+            pler[i + 1].events = olay;
+            pler[i + 1].revents = 0;
+        }
+#ifdef _WIN32
+        int hazir = WSAPoll(pler, (ULONG)(sayi + 1), 1000);
+#else
+        int hazir = poll(pler, (nfds_t)(sayi + 1), 1000);
+#endif
+        double simdi = ondalik(ohc_zaman());
+        if (simdi - son_denetim >= 1.0) {
+            son_denetim = simdi;
+            if (ebeveyn_kimligi > 0 && !surec_yasiyor(ebeveyn_kimligi)) exit(0);
+        }
+        if (hazir < 0) continue;
+        /* Bekleme sırasındaki bağlantılar (yeni kabul edilenlerin olayı yoktur) */
+        size_t onceki = sayi;
+        if (pler[0].revents & POLLIN) {
+            for (;;) {
+                Soket s = accept(dinleyici, NULL, NULL);
+                if (s == GECERSIZ_SOKET) break;
+                engelsiz_yap(s);
+                if (sayi == kap) {
+                    kap = kap ? kap * 2 : 16;
+                    baglantilar = ham_buyut(baglantilar, sizeof *baglantilar * kap);
+                }
+                Baglanti *b = &baglantilar[sayi++];
+                memset(b, 0, sizeof *b);
+                b->s = s;
+                b->son_etkinlik = simdi;
+                if (https) {
+                    b->ssl = tls.SSL_new(tls_baglami);
+                    tls.SSL_set_fd(b->ssl, (int)s);
+                    b->el_sikisma = 1;
+                }
             }
         }
-        Soket s = accept(dinleyici, NULL, NULL);
-        if (s == GECERSIZ_SOKET) continue;
-        zaman_asimi(s, 10);
-        istegi_isle(s, M(istek_tanimi));
-        soket_kapat(s);
+        for (size_t i = 0; i < sayi; i++) {
+            Baglanti *b = &baglantilar[i];
+            short r = i < onceki ? pler[i + 1].revents : 0;
+            int canli = 1;
+            if (r) {
+                b->son_etkinlik = simdi;
+                b->tls_bekle = 0;
+            }
+            if (r && b->el_sikisma) {
+                int k = tls.SSL_accept(b->ssl);
+                if (k == 1) {
+                    b->el_sikisma = 0;
+                } else {
+                    int e2 = tls.SSL_get_error(b->ssl, k);
+                    if (e2 == TLS_HATA_YAZMA_BEKLE)
+                        b->tls_bekle = POLLOUT;
+                    else if (e2 != TLS_HATA_OKUMA_BEKLE)
+                        canli = 0;
+                }
+                r = 0;
+            }
+            if (canli && (r & (POLLERR | POLLNVAL))) canli = 0;
+            if (canli && (r & (POLLIN | POLLHUP)) && !b->giden.n) {
+                /* Karşı taraf kapattıysa elde kalan tam istek yine yanıtlanır. */
+                int acik = baglanti_oku(b);
+                istek_varsa_isle(b, M(istek_tanimi));
+                if (!acik) {
+                    if (b->giden.n)
+                        b->kapanacak = 1;
+                    else
+                        canli = 0;
+                }
+            }
+            if (canli && b->giden.n) {
+                if (!baglanti_yaz(b))
+                    canli = 0;
+                else if (!b->giden.n) {
+                    if (b->kapanacak)
+                        canli = 0;
+                    else
+                        istek_varsa_isle(b, M(istek_tanimi)); /* ardışık (pipelined) istek */
+                }
+            }
+            double sinir = b->gelen.n ? YARIM_ISTEK_SURESI : BOSTA_KALMA_SURESI;
+            if (canli && simdi - b->son_etkinlik > sinir) canli = 0;
+            if (!canli) {
+                baglanti_kapat(b);
+                b->s = GECERSIZ_SOKET;
+            }
+        }
+        size_t j = 0;
+        for (size_t i = 0; i < sayi; i++)
+            if (baglantilar[i].s != GECERSIZ_SOKET) baglantilar[j++] = baglantilar[i];
+        sayi = j;
     }
 }
 #endif /* __wasm__ */

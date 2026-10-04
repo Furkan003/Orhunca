@@ -249,7 +249,7 @@ fn web_projesi_onizlemeyle_calisir() {
     );
     // Sayfa, Stüdyo'nun yenileme betiğiyle gelir.
     let mut a = TcpStream::connect(("127.0.0.1", kapi as u16)).unwrap();
-    a.write_all(b"GET /selam/2 HTTP/1.1\r\nHost: localhost\r\n\r\n")
+    a.write_all(b"GET /selam/2 HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
         .unwrap();
     let mut yanit = String::new();
     a.read_to_string(&mut yanit).unwrap();

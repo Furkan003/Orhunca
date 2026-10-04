@@ -289,6 +289,9 @@ pub fn derle(dosya: &Path, cikti: &Path, hedef: Option<&str>) -> Result<(), Derl
     if windows {
         // Web sunucusu için Windows soket kütüphanesi
         komut.arg("-lws2_32");
+    } else {
+        // HTTPS: OpenSSL çalışma anında yüklenir (dlopen; eski glibc'de libdl'de)
+        komut.arg("-ldl");
     }
     let sonuc = komut.output();
     let _ = std::fs::remove_dir_all(&gecici);

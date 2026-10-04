@@ -2002,6 +2002,7 @@ impl Uretici<'_> {
             }
             "dosya_var" => self.cagri("ohc_dosya_var", &d)?,
             "dosya_sil" => self.cagri("ohc_dosya_sil", &d)?,
+            "dosya_taşı" => self.cagri("ohc_dosya_tasi", &d)?,
             "karekök" | "sinüs" | "kosinüs" | "tanjant" | "logaritma" if d.len() == 1 => {
                 let islem = ["karekök", "sinüs", "kosinüs", "tanjant", "logaritma"]
                     .iter()

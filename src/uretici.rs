@@ -64,6 +64,7 @@ pub(crate) const CALISMA_ZAMANI: &[(&str, usize, bool)] = &[
     ("ohc_dosya_oku", 2, true),
     ("ohc_dosya_var", 1, true),
     ("ohc_dosya_sil", 1, true),
+    ("ohc_dosya_tasi", 2, true),
     ("ohc_metin_parca", 3, true),
     ("ohc_liste_parca", 3, true),
     ("ohc_birlestir", 2, true),
@@ -993,6 +994,7 @@ impl Uretici<'_, '_> {
             }
             "dosya_var" => self.cz("ohc_dosya_var", d),
             "dosya_sil" => self.cz("ohc_dosya_sil", d),
+            "dosya_taşı" => self.cz("ohc_dosya_tasi", d),
             "karekök" | "sinüs" | "kosinüs" | "tanjant" | "logaritma" if d.len() == 1 => {
                 let islem = ["karekök", "sinüs", "kosinüs", "tanjant", "logaritma"]
                     .iter()

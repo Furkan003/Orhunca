@@ -189,7 +189,7 @@ const ANAHTAR_KELIMELER: &[(&str, &str)] = &[
     ("al", "Web yolu (GET): `al \"/ürünler\":` — `istek` değişkeni kullanılabilir"),
     ("gönder", "Web yolu (POST): `gönder \"/ürünler\":` — form: `Ürün.formdan(istek)`"),
     ("koy", "Web yolu (PUT): `koy \"/ürünler/{kimlik: sayı}\":`"),
-    ("istek", "Gelen web isteği: istek.yöntem, istek.yol, istek.sorgu, istek.form, istek.gövde, istek.başlıklar"),
+    ("istek", "Gelen web isteği: istek.yöntem, istek.yol, istek.sorgu, istek.form, istek.gövde, istek.başlıklar, istek.çerezler, istek.oturum, istek.dosyalar"),
     ("durum", "Arayüz programının değişkeni: `durum sayaç = 0` — her yerden görülür; bir olaydan sonra arayüz yeniden çizilir"),
     ("arayüz", "Ekranda görünenler: `arayüz:` ve altında `başlık(...)`, `düğme(...)`, `satır:` gibi öğeler (tarayıcıda çalışır)"),
     ("bileşen", "Arayüzün yeniden kullanılan parçası: `bileşen Kart(başlık: metin):` — arayüzde `Kart(\"...\")` diye kullanılır"),
