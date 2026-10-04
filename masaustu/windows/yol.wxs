@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- MSI kurulumu: `orhunca` komutu için kurulum klasörü sistem PATH'ine eklenir. -->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="OrhuncaYolu" Guid="6E3C1F5A-8B7D-4C2E-9A41-0F3D2B7C9E15">
+        <Environment Id="OrhuncaPATH" Name="PATH" Value="[INSTALLDIR]" Permanent="no" Part="last" Action="set" System="yes" />
+        <RegistryValue Root="HKLM" Key="Software\Orhunca\Studyo" Name="PathEklendi" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+</Wix>

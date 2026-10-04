@@ -68,6 +68,8 @@ fn veri_klasoru(baslik: &str) -> PathBuf {
     let ad = format!("orhunca-{}", if ad.is_empty() { "uygulama".into() } else { ad });
     let kok = if cfg!(windows) {
         std::env::var_os("APPDATA").map(PathBuf::from)
+    } else if cfg!(target_os = "macos") {
+        std::env::var_os("HOME").map(|h| Path::new(&h).join("Library/Application Support"))
     } else {
         std::env::var_os("XDG_DATA_HOME")
             .map(PathBuf::from)

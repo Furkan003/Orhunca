@@ -23,6 +23,8 @@
   const ayarYaz = (a, v) => { try { localStorage.setItem('orhunca.' + a, JSON.stringify(v)); } catch { /* yok */ } };
 
   // Oturum anahtarı: sunucu tarayıcıyı ?anahtar=... ile açar.
+  // Açılışta açılacak proje ya da dosya (masaüstünde çift tıklanan .ohc): ?ac=<tam yol>
+  const ACILACAK = new URL(location.href).searchParams.get('ac');
   const ANAHTAR = (() => {
     const u = new URL(location.href);
     let a = u.searchParams.get('anahtar');
@@ -1884,7 +1886,16 @@
   // Başlat
   // =====================================================================
   ciz();
-  if (ANAHTAR) verileriYukle().then(() => { D.projeAdi = 'yeni_' + D.secili; ciz(); });
+  if (ANAHTAR) verileriYukle().then(async () => {
+    D.projeAdi = 'yeni_' + D.secili;
+    ciz();
+    if (ACILACAK) {
+      const r = await api('/api/proje/ac', { yol: ACILACAK }).catch(e => ({ hata: e.message }));
+      if (r.hata) { bildir(r.hata, true); return; }
+      await projeyiAc(r);
+      if (/\.(ohc|ohchtml)$/i.test(ACILACAK)) { await dosyaAc(goreliYol(ACILACAK)); }
+    }
+  });
 
   // Testler ve Tauri için küçük bir kapı
   window.orhuncaStudyo = { durum: D, eylem: EYLEM };

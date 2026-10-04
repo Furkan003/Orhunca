@@ -41,7 +41,22 @@ fn gom(klasor: &str, cikti: &str) {
     std::fs::write(cikti, kod).unwrap();
 }
 
+/// macOS pencere kabuğu yalnızca macOS'ta derlenebilir; sürüm hattı derleyip yolunu
+/// `ORHUNCA_KABUK_MACOS` ile verir. Yoksa boş dosya yazılır (macOS'a paketleme yok).
+fn macos_kabugu() {
+    println!("cargo:rerun-if-env-changed=ORHUNCA_KABUK_MACOS");
+    let hedef = Path::new(&std::env::var("OUT_DIR").unwrap()).join("kabuk_macos");
+    match std::env::var("ORHUNCA_KABUK_MACOS") {
+        Ok(yol) if !yol.is_empty() => {
+            println!("cargo:rerun-if-changed={yol}");
+            std::fs::copy(&yol, &hedef).expect("ORHUNCA_KABUK_MACOS okunamadı");
+        }
+        _ => std::fs::write(&hedef, b"").unwrap(),
+    }
+}
+
 fn main() {
+    macos_kabugu();
     gom("studio", "studio_dosyalari.rs");
     // Stüdyo'nun yeni proje şablonlarının dosyaları
     gom("src/studyo/sablon_dosyalari", "sablon_dosyalari.rs");

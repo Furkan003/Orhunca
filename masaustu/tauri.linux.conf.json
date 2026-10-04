@@ -4,11 +4,9 @@
   "bundle": {
     "linux": {
       "deb": {
-        "depends": ["gcc", "libc6-dev"],
         "desktopTemplate": "orhunca-studyo.desktop"
       },
       "rpm": {
-        "depends": ["gcc", "glibc-devel"],
         "desktopTemplate": "orhunca-studyo.desktop"
       }
     }

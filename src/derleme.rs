@@ -228,6 +228,7 @@ pub fn hedef_uclusu(hedef: Option<&str>) -> Result<Triple, String> {
     match hedef {
         None => Ok(Triple::host()),
         Some("linux") => Ok(Triple::from_str("x86_64-unknown-linux-gnu").unwrap()),
+        Some("macos") => Ok(Triple::from_str("aarch64-apple-darwin").unwrap()),
         Some("windows") => Ok(Triple::from_str("x86_64-pc-windows-gnu").unwrap()),
         Some(t) => Triple::from_str(t).map_err(|e| format!("geçersiz hedef '{t}': {e}")),
     }
@@ -412,6 +413,9 @@ pub fn derle_web(dosya: &Path, cikti: &Path) -> Result<(), DerlemeHatasi> {
 /// sayfasını bunların sonuna ekler; çıkan program sayfayı kendi penceresinde açar.
 const KABUK_LINUX: &[u8] = include_bytes!("../runtime/kabuk/linux-x86_64");
 const KABUK_WINDOWS: &[u8] = include_bytes!("../runtime/kabuk/windows-x86_64.exe");
+/// macOS kabuğu (evrensel: Apple işlemcili ve Intel) yalnızca sürüm derlemelerinde
+/// bulunur (build.rs, ORHUNCA_KABUK_MACOS); boşsa macOS'a paketlenemez.
+const KABUK_MACOS: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/kabuk_macos"));
 
 /// Kabuğun sonuna eklenen yük: "OHCKABUK" [u32 başlık uzunluğu] [başlık] [sayfa]
 /// "ORHUNCA!" [u64 yük uzunluğu].
@@ -433,12 +437,18 @@ pub fn kabuga_ekle(kabuk: &[u8], baslik: &str, sayfa: &[u8]) -> Vec<u8> {
 pub fn paketle(dosya: &Path, cikti: &Path, hedef: Option<&str>) -> Result<(), DerlemeHatasi> {
     let triple = hedef_uclusu(hedef)?;
     use target_lexicon::{Architecture, OperatingSystem};
+    let macos = matches!(
+        triple.operating_system,
+        OperatingSystem::Darwin(_) | OperatingSystem::MacOSX(_)
+    );
     let kabuk = match (triple.architecture, triple.operating_system) {
         (Architecture::X86_64, OperatingSystem::Linux) => KABUK_LINUX,
         (Architecture::X86_64, OperatingSystem::Windows) => KABUK_WINDOWS,
+        _ if macos && !KABUK_MACOS.is_empty() => KABUK_MACOS,
         _ => {
             return Err(DerlemeHatasi::duz(format!(
-                "'{triple}' için hazır pencere kabuğu yok (Linux ve Windows x86-64 destekleniyor)"
+                "'{triple}' için hazır pencere kabuğu yok (Linux ve Windows x86-64{} destekleniyor)",
+                if KABUK_MACOS.is_empty() { "" } else { ", macOS" }
             )))
         }
     };
@@ -448,12 +458,68 @@ pub fn paketle(dosya: &Path, cikti: &Path, hedef: Option<&str>) -> Result<(), De
         .map(|k| k.to_string_lossy().into_owned())
         .unwrap_or_else(|| "program".into());
     let sayfa = web_sayfasi(&baslik, &wasm, arayuz);
-    std::fs::write(cikti, kabuga_ekle(kabuk, &baslik, sayfa.as_bytes()))
+    let program = kabuga_ekle(kabuk, &baslik, sayfa.as_bytes());
+    if macos {
+        return macos_uygulamasi(cikti, &baslik, &program);
+    }
+    std::fs::write(cikti, program)
         .map_err(|e| format!("'{}' yazılamadı: {e}", cikti.display()))?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         let _ = std::fs::set_permissions(cikti, std::fs::Permissions::from_mode(0o755));
+    }
+    Ok(())
+}
+
+/// macOS: `<ad>.app` paketi (Finder'dan çift tıklayınca açılır).
+fn macos_uygulamasi(cikti: &Path, baslik: &str, program: &[u8]) -> Result<(), DerlemeHatasi> {
+    let paket = if cikti.extension().is_some_and(|u| u == "app") {
+        cikti.to_path_buf()
+    } else {
+        cikti.with_extension("app")
+    };
+    let icerik = paket.join("Contents");
+    let yaz = |yol: &Path, veri: &[u8]| -> Result<(), DerlemeHatasi> {
+        if let Some(k) = yol.parent() {
+            std::fs::create_dir_all(k).map_err(|e| format!("'{}': {e}", k.display()))?;
+        }
+        std::fs::write(yol, veri)
+            .map_err(|e| DerlemeHatasi::duz(format!("'{}' yazılamadı: {e}", yol.display())))
+    };
+    let kac = |m: &str| m.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
+    let kimlik: String = baslik
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect();
+    yaz(&icerik.join("MacOS").join("uygulama"), program)?;
+    yaz(
+        &icerik.join("Info.plist"),
+        format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleName</key><string>{ad}</string>
+<key>CFBundleDisplayName</key><string>{ad}</string>
+<key>CFBundleIdentifier</key><string>dev.orhunca.uygulama.{kimlik}</string>
+<key>CFBundleExecutable</key><string>uygulama</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleShortVersionString</key><string>1.0</string>
+<key>NSHighResolutionCapable</key><true/>
+<key>LSMinimumSystemVersion</key><string>10.15</string>
+</dict></plist>
+"#,
+            ad = kac(baslik)
+        )
+        .as_bytes(),
+    )?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(
+            icerik.join("MacOS").join("uygulama"),
+            std::fs::Permissions::from_mode(0o755),
+        );
     }
     Ok(())
 }

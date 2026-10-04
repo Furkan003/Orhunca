@@ -14,6 +14,7 @@ pub mod sablonlar;
 
 use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hasher};
+use std::path::{Path, PathBuf};
 use std::net::{TcpListener, TcpStream};
 use std::process::Command;
 
@@ -56,6 +57,7 @@ pub fn tarayicida_ac(adres: &str) {
 pub fn calistir(args: &[String]) -> Result<(), String> {
     let mut kapi = VARSAYILAN_KAPI;
     let mut ac = true;
+    let mut acilacak = None;
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
@@ -67,12 +69,14 @@ pub fn calistir(args: &[String]) -> Result<(), String> {
                     .ok_or("--kapı sonrasında bir sayı bekleniyordu")?;
             }
             "--tarayıcı-açma" | "--tarayici-acma" => ac = false,
-            a => return Err(format!("bilinmeyen seçenek '{a}'")),
+            a if a.starts_with('-') => return Err(format!("bilinmeyen seçenek '{a}'")),
+            a => acilacak = Some(PathBuf::from(a)),
         }
         i += 1;
     }
 
     let (dinleyici, adres, anahtar) = dinleyici_ac(kapi)?;
+    let adres = acilacak_adres(adres, acilacak.as_deref());
     bilgi(&format!("Orhunca Stüdyo çalışıyor: {adres}"));
     bilgi("Kapatmak için Ctrl+C.");
     if ac {
@@ -85,9 +89,31 @@ pub fn calistir(args: &[String]) -> Result<(), String> {
 /// Stüdyo sunucusunu arka planda başlatır ve arayüzün (anahtarlı) adresini
 /// döndürür. Masaüstü uygulaması bu adresi kendi penceresinde açar.
 pub fn arka_planda_baslat(kapi: u16) -> Result<String, String> {
+    arka_planda_ac(kapi, None)
+}
+
+/// `acilacak`: açılışta açılacak proje klasörü ya da dosya (ör. çift tıklanan .ohc).
+pub fn arka_planda_ac(kapi: u16, acilacak: Option<&Path>) -> Result<String, String> {
     let (dinleyici, adres, anahtar) = dinleyici_ac(kapi)?;
     std::thread::spawn(move || dinle(dinleyici, anahtar));
-    Ok(adres)
+    Ok(acilacak_adres(adres, acilacak))
+}
+
+/// Arayüz `ac` parametresindeki yolu açar (tam yola çevrilir).
+fn acilacak_adres(adres: String, acilacak: Option<&Path>) -> String {
+    let Some(yol) = acilacak else { return adres };
+    let tam = std::fs::canonicalize(yol).unwrap_or_else(|_| yol.to_path_buf());
+    let tam = tam.display().to_string();
+    let tam = tam.strip_prefix(r"\\?\").unwrap_or(&tam).to_string();
+    let mut kodlu = String::new();
+    for b in tam.bytes() {
+        if b.is_ascii_alphanumeric() || b"-_.~/".contains(&b) {
+            kodlu.push(b as char);
+        } else {
+            kodlu.push_str(&format!("%{b:02X}"));
+        }
+    }
+    format!("{adres}&ac={kodlu}")
 }
 
 /// Çalıştırılan programları (ör. web sunucularını) durdurur; uygulama kapanırken çağrılır.

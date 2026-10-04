@@ -1,6 +1,6 @@
 [package]
 name = "orhunca-studyo"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 description = "Orhunca Stüdyo: Türkçe programlama dili Orhunca için masaüstü geliştirme ortamı"
 repository = "https://github.com/furkan003/orhunca"

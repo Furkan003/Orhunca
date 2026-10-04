@@ -19,20 +19,26 @@ cargo tauri build                    # kurulum dosyaları: target/release/bundle
 
 | Sistem | Gerekenler | Çıktı |
 |---|---|---|
-| Linux | `libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev libxdo-dev` | `orhunca-studyo_0.5.0_amd64.deb`, `.AppImage`, `.rpm` |
+| Linux | `libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev libxdo-dev` | `orhunca-studyo_0.6.0_amd64.deb`, `.AppImage`, `.rpm` |
 | Windows | WebView2 (Windows 10/11'de hazır) | `.msi`, kurulum `.exe` |
 | macOS (deneysel) | Xcode komut satırı araçları | `.app`, `.dmg` |
 
-GitHub'da **Masaüstü** iş akışı (`.github/workflows/masaustu.yml`) üç sistem için kurulum
-dosyalarını üretir; sürüm etiketlerinde (`v0.5.0`) ve elle başlatıldığında çalışır.
+GitHub'da **Sürüm** iş akışı (`.github/workflows/surum.yml`) üç sistem için kurulum
+dosyalarını üretir ve `v*` etiketlerinde GitHub sürümü olarak yayımlar. Sürüm kurulumları
+`orhunca` komutunu da içerir (`tauri.surum.conf.json`, `externalBin`):
+
+- **Windows:** kurulum `.exe` (NSIS, Türkçe) ve `.msi`; `orhunca` komutu PATH'e eklenir
+  (`windows/kurulum.nsh`, `windows/yol.wxs`).
+- **Linux:** `.deb` (`/usr/bin/orhunca` da kurulur), `.AppImage`, `.rpm`.
+- **macOS:** `.dmg` (Apple işlemcili ve Intel).
+
+`.ohc` ve `.ohcproj` dosyaları Stüdyo ile ilişkilendirilir; çift tıklanan dosyanın projesi açılır.
 
 ## Kullanıcının bilgisayarında
 
-Orhunca programları derlenirken bir C bağlayıcısı kullanılır:
-
-- **Linux:** `gcc` (`.deb` paketi bağımlılık olarak kurar).
-- **Windows:** [MinGW-w64](https://www.mingw-w64.org/) (`gcc` PATH'te olmalı ya da `ORHUNCA_CC`
-  ile yolu verilmeli).
+C derleyicisi gerekmez (Linux ve Windows). macOS'ta konsol programlarını derlemek için Xcode
+komut satırı araçları gerekir (`xcode-select --install`); arayüz ve web programları
+gerektirmez.
 
 ## Nasıl çalışır
 

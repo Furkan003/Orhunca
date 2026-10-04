@@ -345,7 +345,8 @@ fn proje_bilgisi(kok: &Path) -> Value {
 fn proje_ac(yol: &str) -> Yanit {
     let mut kok = PathBuf::from(yol);
     if kok.is_file() {
-        kok = kok.parent().map(Path::to_path_buf).unwrap_or(kok);
+        // Dosyanın projesi (.ohcproj bulunan üst klasör), yoksa dosyanın klasörü
+        kok = derleme::proje_koku(&kok);
     }
     if !kok.is_dir() {
         return hata(format!("'{yol}' bulunamadı."));

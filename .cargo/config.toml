@@ -1,0 +1,4 @@
+# Windows (MSVC) derlemelerinde C çalışma zamanı exe'ye gömülür: okul bilgisayarlarında
+# Visual C++ yeniden dağıtılabilir paketi kurulu olmayabilir.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

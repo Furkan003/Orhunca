@@ -9,7 +9,12 @@
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 
 fn main() {
-    let adres = match orhunca::studyo::arka_planda_baslat(0) {
+    // Dosya ilişkilendirmesi: çift tıklanan .ohc dosyası ya da klasör ilk argümandır.
+    let acilacak = std::env::args_os()
+        .skip(1)
+        .map(std::path::PathBuf::from)
+        .find(|p| p.exists());
+    let adres = match orhunca::studyo::arka_planda_ac(0, acilacak.as_deref()) {
         Ok(a) => a,
         Err(e) => {
             eprintln!("Orhunca Stüdyo başlatılamadı: {e}");

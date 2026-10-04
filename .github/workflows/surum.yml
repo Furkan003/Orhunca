@@ -1,0 +1,250 @@
+name: Sürüm
+# Kurulum dosyaları ve indirme paketleri:
+#   Windows: Orhunca-Studyo-Windows-Kurulum.exe (NSIS), Orhunca-Studyo-Windows.msi,
+#            orhunca-windows-x86_64.zip
+#   Linux:   orhunca-studyo_amd64.deb, Orhunca-Studyo-Linux.AppImage, orhunca-studyo.x86_64.rpm,
+#            orhunca-linux-x86_64.tar.gz
+#   macOS:   Orhunca-Studyo-macOS.dmg (Apple işlemcili ve Intel), orhunca-macos.tar.gz
+#   VS Code: orhunca-vscode.vsix
+# Stüdyo kurulumları `orhunca` komutunu da içerir (Windows'ta PATH'e eklenir, Linux'ta
+# /usr/bin/orhunca). Dosya adları sürümden bağımsızdır: site
+# releases/latest/download/<ad> bağlantılarını kullanır.
+# `v*` etiketinde GitHub sürümü yayımlanır; dallarda (ilgili dosyalar değişince) yalnızca
+# derlenir ve sınanır.
+on:
+  push:
+    tags: ["v*"]
+    branches: ["**"]
+    paths:
+      - "masaustu/**"
+      - "studio/**"
+      - "src/studyo/**"
+      - "kurulum/**"
+      - ".github/workflows/surum.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  kabuk-macos:
+    # macOS pencere kabuğu (orhunca paketle --hedef macos): Apple işlemcili + Intel
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - name: Kabuğu derle (evrensel)
+        working-directory: masaustu/kabuk
+        run: |
+          cargo build --release --target aarch64-apple-darwin
+          cargo build --release --target x86_64-apple-darwin
+          lipo -create -output orhunca-kabuk-macos \
+            target/aarch64-apple-darwin/release/orhunca-kabuk \
+            target/x86_64-apple-darwin/release/orhunca-kabuk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kabuk-macos
+          path: masaustu/kabuk/orhunca-kabuk-macos
+
+  komut:
+    # `orhunca` komutu: her sistem için en uyumlu yapılandırmayla
+    needs: kabuk-macos
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            ad: linux-x86_64
+          - os: windows-latest
+            ad: windows-x86_64
+          - os: macos-latest
+            ad: macos
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.ad == 'macos' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - uses: actions/download-artifact@v4
+        if: matrix.ad == 'macos'
+        with:
+          name: kabuk-macos
+          path: kabuk
+      - name: Derle
+        shell: bash
+        run: |
+          mkdir -p paket
+          if [ "${{ matrix.ad }}" = macos ]; then
+            export ORHUNCA_KABUK_MACOS="$PWD/kabuk/orhunca-kabuk-macos"
+            cargo build --release --target aarch64-apple-darwin
+            cargo build --release --target x86_64-apple-darwin
+            lipo -create -output paket/orhunca \
+              target/aarch64-apple-darwin/release/orhunca target/x86_64-apple-darwin/release/orhunca
+          elif [ "${{ matrix.ad }}" = windows-x86_64 ]; then
+            cargo build --release
+            cp target/release/orhunca.exe paket/
+          else
+            cargo build --release
+            cp target/release/orhunca paket/
+            strip paket/orhunca
+          fi
+      - name: Sına
+        shell: bash
+        run: |
+          d=$(mktemp -d)
+          cp örnekler/asal.ohc "$d/"
+          (cd "$d" && "$GITHUB_WORKSPACE/paket/orhunca"* çalıştır asal.ohc)
+          "$GITHUB_WORKSPACE/paket/orhunca"* sürüm
+      - name: Paketle
+        shell: bash
+        run: |
+          cp README.md paket/BENİOKU.md
+          cd paket
+          if [ "${{ matrix.ad }}" = windows-x86_64 ]; then
+            7z a ../orhunca-${{ matrix.ad }}.zip ./*
+          else
+            tar -czf ../orhunca-${{ matrix.ad }}.tar.gz ./*
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: komut-${{ matrix.ad }}
+          path: |
+            orhunca-${{ matrix.ad }}.*
+            paket/orhunca*
+
+  studyo:
+    needs: komut
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            ad: linux-x86_64
+            uclu: x86_64-unknown-linux-gnu
+          - os: windows-latest
+            ad: windows-x86_64
+            uclu: x86_64-pc-windows-msvc
+          - os: macos-latest
+            ad: macos
+            uclu: universal-apple-darwin
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.ad == 'macos' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Linux bağımlılıkları
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev libxdo-dev patchelf
+      - uses: actions/download-artifact@v4
+        with:
+          name: komut-${{ matrix.ad }}
+          path: komut
+      - name: orhunca komutunu kuruluma ekle
+        shell: bash
+        run: |
+          mkdir -p masaustu/bin
+          if [ "${{ runner.os }}" = Windows ]; then
+            cp komut/paket/orhunca.exe "masaustu/bin/orhunca-${{ matrix.uclu }}.exe"
+          else
+            cp komut/paket/orhunca "masaustu/bin/orhunca-${{ matrix.uclu }}"
+            chmod +x "masaustu/bin/orhunca-${{ matrix.uclu }}"
+          fi
+      - name: Kurulum dosyalarını oluştur
+        working-directory: masaustu
+        shell: bash
+        run: |
+          hedef=""
+          [ "${{ matrix.ad }}" = macos ] && hedef="--target universal-apple-darwin"
+          npx --yes @tauri-apps/cli@^2 build --config tauri.surum.conf.json $hedef
+      - name: Dosyaları adlandır
+        shell: bash
+        run: |
+          mkdir -p cikti
+          k=masaustu/target
+          case "${{ matrix.ad }}" in
+            linux-x86_64)
+              cp $k/release/bundle/deb/*.deb cikti/orhunca-studyo_amd64.deb
+              cp $k/release/bundle/appimage/*.AppImage cikti/Orhunca-Studyo-Linux.AppImage
+              cp $k/release/bundle/rpm/*.rpm cikti/orhunca-studyo.x86_64.rpm
+              # .deb orhunca komutunu da kurar
+              dpkg -c cikti/orhunca-studyo_amd64.deb | grep -q "usr/bin/orhunca$"
+              ;;
+            windows-x86_64)
+              cp $k/release/bundle/nsis/*.exe cikti/Orhunca-Studyo-Windows-Kurulum.exe
+              cp $k/release/bundle/msi/*.msi cikti/Orhunca-Studyo-Windows.msi
+              ;;
+            macos)
+              cp $k/universal-apple-darwin/release/bundle/dmg/*.dmg cikti/Orhunca-Studyo-macOS.dmg
+              ;;
+          esac
+          ls -la cikti
+      - name: Kurulumu sına (Windows, sessiz kurulum)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath cikti/Orhunca-Studyo-Windows-Kurulum.exe -ArgumentList '/S' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "kurulum başarısız: $($p.ExitCode)" }
+          $yol = [Environment]::GetEnvironmentVariable('Path', 'User')
+          Write-Host "PATH: $yol"
+          $orhunca = Get-ChildItem -Recurse -Filter orhunca.exe -Path "$env:LOCALAPPDATA\Orhunca Stüdyo", "$env:ProgramFiles\Orhunca Stüdyo" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $orhunca) { throw "orhunca.exe kurulmamış" }
+          & $orhunca.FullName sürüm
+          if (-not ($yol.Split(';') -contains $orhunca.DirectoryName)) { throw "orhunca PATH'e eklenmemiş" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: studyo-${{ matrix.ad }}
+          path: cikti/*
+
+  vscode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: VS Code eklentisi
+        working-directory: editors/vscode
+        run: |
+          npm ci
+          npx --yes @vscode/vsce package -o ../../orhunca-vscode.vsix
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vscode
+          path: orhunca-vscode.vsix
+
+  yayinla:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [komut, studyo, vscode]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: parcalar
+      - name: Dosyaları topla
+        run: |
+          mkdir -p yayin
+          find parcalar -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.deb' -o -name '*.rpm' \
+            -o -name '*.AppImage' -o -name '*.msi' -o -name '*Kurulum.exe' -o -name '*.dmg' -o -name '*.vsix' \) \
+            -exec cp {} yayin/ \;
+          cp kurulum/kur.sh kurulum/kur.ps1 yayin/
+          (cd yayin && sha256sum * > SHA256SUMS.txt)
+          ls -la yayin
+      - name: Sürüm notları
+        run: |
+          surum="${GITHUB_REF_NAME}"
+          dosya="docs/surumler/${surum}.md"
+          if [ -f "$dosya" ]; then cp "$dosya" notlar.md; else echo "Orhunca $surum" > notlar.md; fi
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: Orhunca ${{ github.ref_name }}
+          body_path: notlar.md
+          files: yayin/*
