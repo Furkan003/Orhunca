@@ -145,7 +145,7 @@ işlev temel_yerleşikler() -> liste<metin>:
 
 # Standart kütüphanenin tamamı (src/yerlesik.rs): model adı olamazlar.
 işlev standart_kütüphane() -> liste<metin>:
-    döndür ["uzunluk", "metin", "sayı", "ondalık", "yuvarla", "sayı_mı", "ondalık_mı", "büyük_harf", "küçük_harf", "kırp", "parça", "böl", "birleştir", "içerir", "bul", "değiştir", "başlar", "biter", "tekrarla", "harfler", "kod", "karakter", "satırlar", "sil", "ters", "karıştır", "kopya", "en_büyük", "en_küçük", "toplam", "anahtarlar", "değerler", "dosya_oku", "dosyaya_yaz", "dosyaya_ekle", "dosya_var", "dosya_sil", "karekök", "üs", "mutlak", "sinüs", "kosinüs", "tanjant", "logaritma", "rastgele", "zaman", "tarih", "bekle", "oku", "argümanlar", "ortam", "çık", "boş_mu", "hata_ver", "json", "kaçır", "para", "url_kodla", "görünüm", "yanıt", "yönlendir", "json_yanıtı", "sun"]
+    döndür ["uzunluk", "metin", "sayı", "ondalık", "yuvarla", "sayı_mı", "ondalık_mı", "büyük_harf", "küçük_harf", "kırp", "parça", "böl", "birleştir", "içerir", "bul", "değiştir", "başlar", "biter", "tekrarla", "harfler", "kodlar", "kodlardan", "kod", "karakter", "satırlar", "sil", "ters", "karıştır", "kopya", "en_büyük", "en_küçük", "toplam", "anahtarlar", "değerler", "dosya_oku", "dosyaya_yaz", "dosyaya_ekle", "dosya_var", "dosya_sil", "karekök", "üs", "mutlak", "sinüs", "kosinüs", "tanjant", "logaritma", "rastgele", "zaman", "tarih", "bekle", "oku", "argümanlar", "ortam", "çık", "boş_mu", "hata_ver", "json", "kaçır", "para", "url_kodla", "görünüm", "yanıt", "yönlendir", "json_yanıtı", "sun"]
 
 # Arayüz öğeleri ve olayları (src/arayuz.rs)
 işlev arayüz_öğeleri() -> liste<metin>:

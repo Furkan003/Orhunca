@@ -5,6 +5,7 @@
 //! liste (işaretçi). Metin ve liste işlemleri çalışma zamanı kütüphanesine çağrıdır.
 
 use crate::agac::*;
+use crate::on_kutuphane::{HATA_SATIRDA, YERLESIK_ON_EK};
 use cranelift_codegen::ir::condcodes::{FloatCC, IntCC};
 use cranelift_codegen::ir::{
     types, AbiParam, Function, InstBuilder, MemFlagsData, StackSlotData, StackSlotKind,
@@ -55,32 +56,22 @@ pub(crate) const CALISMA_ZAMANI: &[(&str, usize, bool)] = &[
     ("ohc_sozluk_uzunluk", 1, true),
     ("ohc_harfler", 1, true),
     ("ohc_kod", 1, true),
+    ("ohc_kodlar", 1, true),
+    ("ohc_kodlardan", 2, true),
     ("ohc_karakter", 2, true),
     ("ohc_liste_cikar", 3, true),
     ("ohc_dosyaya_yaz", 4, false),
     ("ohc_dosya_oku", 2, true),
     ("ohc_dosya_var", 1, true),
     ("ohc_dosya_sil", 1, true),
-    ("ohc_buyuk_harf", 1, true),
-    ("ohc_kucuk_harf", 1, true),
-    ("ohc_kirp", 1, true),
     ("ohc_metin_parca", 3, true),
     ("ohc_liste_parca", 3, true),
-    ("ohc_metin_bol", 2, true),
     ("ohc_birlestir", 2, true),
-    ("ohc_metin_icerir", 2, true),
-    ("ohc_metin_bul", 2, true),
     ("ohc_liste_bul", 3, true),
-    ("ohc_degistir", 3, true),
-    ("ohc_baslar", 2, true),
-    ("ohc_biter", 2, true),
-    ("ohc_tekrarla", 3, true),
-    ("ohc_satirlar", 1, true),
     ("ohc_sayi_mi", 1, true),
     ("ohc_ondalik_mi", 1, true),
     ("ohc_liste_sil", 3, true),
     ("ohc_liste_ters", 1, true),
-    ("ohc_metin_ters", 1, true),
     ("ohc_karistir", 1, false),
     ("ohc_liste_kopya", 1, true),
     ("ohc_liste_en", 4, true),
@@ -102,9 +93,7 @@ pub(crate) const CALISMA_ZAMANI: &[(&str, usize, bool)] = &[
     ("ohc_alan_al", 3, true),
     ("ohc_alan_koy", 4, false),
     ("ohc_json", 2, true),
-    ("ohc_kacir", 1, true),
     ("ohc_para", 1, true),
-    ("ohc_url_kodla", 1, true),
     ("ohc_model_hepsi", 2, true),
     ("ohc_model_yukle", 3, true),
     ("ohc_model_var", 3, true),
@@ -959,14 +948,9 @@ impl Uretici<'_, '_> {
         let kod0 = self.sabit(t0.ic_kod());
         let metin = t0 == Tip::Metin;
         let v = match ad {
-            "büyük_harf" => self.cz("ohc_buyuk_harf", d),
-            "küçük_harf" => self.cz("ohc_kucuk_harf", d),
-            "kırp" => self.cz("ohc_kirp", d),
             "parça" if metin => self.cz("ohc_metin_parca", d),
             "parça" => self.cz("ohc_liste_parca", d),
-            "böl" => self.cz("ohc_metin_bol", d),
             "birleştir" => self.cz("ohc_birlestir", d),
-            "içerir" if metin => self.cz("ohc_metin_icerir", d),
             "içerir" if matches!(t0, Tip::Sozluk(..)) => {
                 self.cz("ohc_sozluk_icerir", &[d[0], d[1], kod0])
             }
@@ -975,23 +959,18 @@ impl Uretici<'_, '_> {
                 let sifir = self.sabit(0);
                 Some(self.mantik(IntCC::SignedGreaterThanOrEqual, i, sifir))
             }
-            "bul" if metin => self.cz("ohc_metin_bul", d),
             "bul" => self.cz("ohc_liste_bul", &[d[0], d[1], kod0]),
-            "değiştir" => self.cz("ohc_degistir", d),
-            "başlar" => self.cz("ohc_baslar", d),
-            "biter" => self.cz("ohc_biter", d),
-            "tekrarla" => self.cz("ohc_tekrarla", &[d[0], d[1], satir]),
             "harfler" => self.cz("ohc_harfler", d),
             "kod" => self.cz("ohc_kod", d),
+            "kodlar" => self.cz("ohc_kodlar", d),
+            "kodlardan" => self.cz("ohc_kodlardan", &[d[0], satir]),
             "karakter" => self.cz("ohc_karakter", &[d[0], satir]),
-            "satırlar" => self.cz("ohc_satirlar", d),
             "sayı_mı" => self.cz("ohc_sayi_mi", d),
             "ondalık_mı" => self.cz("ohc_ondalik_mi", d),
             "sil" if matches!(t0, Tip::Sozluk(..)) => {
                 self.cz("ohc_sozluk_sil", &[d[0], d[1], kod0])
             }
             "sil" => self.cz("ohc_liste_sil", &[d[0], d[1], satir]),
-            "ters" if metin => self.cz("ohc_metin_ters", d),
             "ters" => self.cz("ohc_liste_ters", d),
             "karıştır" => self.cz("ohc_karistir", d),
             "kopya" => self.cz("ohc_liste_kopya", d),
@@ -1041,12 +1020,7 @@ impl Uretici<'_, '_> {
                 let kod = self.sabit(t0.kod());
                 self.cz("ohc_json", &[d[0], kod])
             }
-            "kaçır" => {
-                let m = self.metne(d[0], &t0);
-                self.cz("ohc_kacir", &[m])
-            }
             "para" => self.cz("ohc_para", d),
-            "url_kodla" => self.cz("ohc_url_kodla", d),
             "sun" => {
                 let kapi = match d.first() {
                     Some(k) => *k,
@@ -1058,6 +1032,7 @@ impl Uretici<'_, '_> {
             "ortam" => self.cz("ohc_ortam", d),
             "çık" => self.cz("ohc_cik", d),
             "hata_ver" => self.cz("ohc_hata_ver", &[d[0], satir]),
+            HATA_SATIRDA => self.cz("ohc_hata_ver", &[d[0], d[1]]),
             "boş_mu" => {
                 let sifir = self.sabit(0);
                 Some(self.mantik(IntCC::Equal, d[0], sifir))
@@ -1362,7 +1337,12 @@ impl Uretici<'_, '_> {
                 for a in arg {
                     degerler.push(self.ifade(a)?);
                 }
-                if let Some((id, doner)) = self.ortak.islevler.get(ad).copied() {
+                // Ön kütüphanenin yerleşik çağrısı: programın aynı adlı işlevi değil
+                let (ad, kullanici) = match ad.strip_prefix(YERLESIK_ON_EK) {
+                    Some(y) => (y, None),
+                    None => (ad.as_str(), self.ortak.islevler.get(ad).copied()),
+                };
+                if let Some((id, doner)) = kullanici {
                     let v = self.cagir(id, &degerler);
                     if doner {
                         v.unwrap()
@@ -1370,7 +1350,7 @@ impl Uretici<'_, '_> {
                         self.sabit(0)
                     }
                 } else {
-                    match ad.as_str() {
+                    match ad {
                         "uzunluk" if arg[0].tip == Tip::Metin => {
                             self.cz("ohc_metin_uzunluk", &degerler).unwrap()
                         }

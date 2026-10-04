@@ -1,0 +1,103 @@
+""
+  kırp: ""
+  büyük: "" küçük: ""
+  ters: ""
+  böl: []
+  kaçır: ""
+  url: 
+" "
+  kırp: ""
+  büyük: " " küçük: " "
+  ters: " "
+  böl: []
+  kaçır: " "
+  url: %20
+"  merhaba  "
+  kırp: "merhaba"
+  büyük: "  MERHABA  " küçük: "  merhaba  "
+  ters: "  abahrem  "
+  böl: ["merhaba"]
+  kaçır: "  merhaba  "
+  url: %20%20merhaba%20%20
+"\ta b\r\n"
+  kırp: "a b"
+  büyük: "\tA B\r\n" küçük: "\ta b\r\n"
+  ters: "\n\rb a\t"
+  böl: ["a","b"]
+  kaçır: "\ta b\r\n"
+  url: %09a%20b%0D%0A
+"\u000b\u000cx\u000b"
+  kırp: "x"
+  büyük: "\u000b\u000cX\u000b" küçük: "\u000b\u000cx\u000b"
+  ters: "\u000bx\u000c\u000b"
+  böl: ["x"]
+  kaçır: "\u000b\u000cx\u000b"
+  url: %0B%0Cx%0B
+"İstanbul'da ılık bir gün"
+  kırp: "İstanbul'da ılık bir gün"
+  büyük: "İSTANBUL'DA ILIK BİR GÜN" küçük: "istanbul'da ılık bir gün"
+  ters: "nüg rib kılı ad'lubnatsİ"
+  böl: ["İstanbul'da","ılık","bir","gün"]
+  kaçır: "İstanbul&#39;da ılık bir gün"
+  url: %C4%B0stanbul%27da%20%C4%B1l%C4%B1k%20bir%20g%C3%BCn
+"ağaç ÇİĞDEM öğün Şule"
+  kırp: "ağaç ÇİĞDEM öğün Şule"
+  büyük: "AĞAÇ ÇİĞDEM ÖĞÜN ŞULE" küçük: "ağaç çiğdem öğün şule"
+  ters: "eluŞ nüğö MEDĞİÇ çağa"
+  böl: ["ağaç","ÇİĞDEM","öğün","Şule"]
+  kaçır: "ağaç ÇİĞDEM öğün Şule"
+  url: a%C4%9Fa%C3%A7%20%C3%87%C4%B0%C4%9EDEM%20%C3%B6%C4%9F%C3%BCn%20%C5%9Eule
+"😀 emoji 😀"
+  kırp: "😀 emoji 😀"
+  büyük: "😀 EMOJİ 😀" küçük: "😀 emoji 😀"
+  ters: "😀 ijome 😀"
+  böl: ["😀","emoji","😀"]
+  kaçır: "😀 emoji 😀"
+  url: %F0%9F%98%80%20emoji%20%F0%9F%98%80
+"a&b<c>d\"e'f"
+  kırp: "a&b<c>d\"e'f"
+  büyük: "A&B<C>D\"E'F" küçük: "a&b<c>d\"e'f"
+  ters: "f'e\"d>c<b&a"
+  böl: ["a&b<c>d\"e'f"]
+  kaçır: "a&amp;b&lt;c&gt;d&quot;e&#39;f"
+  url: a%26b%3Cc%3Ed%22e%27f
+"çok   boşluklu    metin"
+  kırp: "çok   boşluklu    metin"
+  büyük: "ÇOK   BOŞLUKLU    METİN" küçük: "çok   boşluklu    metin"
+  ters: "nitem    ulkulşob   koç"
+  böl: ["çok","boşluklu","metin"]
+  kaçır: "çok   boşluklu    metin"
+  url: %C3%A7ok%20%20%20bo%C5%9Fluklu%20%20%20%20metin
+ĀĀĂĂĄĄĆĆČČĎĎĐĐĒĒĞĞIIİİŁŁŃŃŇŇŐŐŒŒŘŘŚŚŞŞŠŠŤŤŰŰŹŹŻŻŽŽßŸÀÀÞÞ×÷
+āāăăąąććččďďđđēēğğııiiłłńńňňőőœœřřśśşşššťťűűźźżżžžßÿààþþ×÷
+"" "": başlar=doğru biter=doğru bul=0 içerir=doğru böl=[]
+"abc" "": başlar=doğru biter=doğru bul=0 içerir=doğru böl=["abc"]
+"" "a": başlar=yanlış biter=yanlış bul=-1 içerir=yanlış böl=[""]
+"abc" "a": başlar=doğru biter=yanlış bul=0 içerir=doğru böl=["","bc"]
+"abc" "c": başlar=yanlış biter=doğru bul=2 içerir=doğru böl=["ab",""]
+"abc" "abc": başlar=doğru biter=doğru bul=0 içerir=doğru böl=["",""]
+"abc" "abcd": başlar=yanlış biter=yanlış bul=-1 içerir=yanlış böl=["abc"]
+"aaaa" "aa": başlar=doğru biter=doğru bul=0 içerir=doğru böl=["","",""]
+"ağaçlık ağaç" "ağaç": başlar=doğru biter=doğru bul=0 içerir=doğru böl=["","lık ",""]
+"x,y,,z," ",": başlar=yanlış biter=doğru bul=1 içerir=doğru böl=["x","y","","z",""]
+"a--b--c" "--": başlar=yanlış biter=yanlış bul=1 içerir=doğru böl=["a","b","c"]
+"😀a😀b" "😀": başlar=doğru biter=yanlış bul=0 içerir=doğru böl=["","a","b"]
+"çiçek" "ek": başlar=yanlış biter=doğru bul=3 içerir=doğru böl=["çiç",""]
+"merhaba dünya" "dünya": başlar=yanlış biter=doğru bul=8 içerir=doğru böl=["merhaba ",""]
+bb
+abc
+çınar çınar
+:):)
+abc
+"ababab"
+""
+""
+["a","b","","c"]
+[]
+["tek"]
+["son"]
+42
+[1, 2]
+tekrar sayısı negatif olamaz
+ΑΒΓ ΩΣ ΕΛΛάΔΑ ПРИВЕТ ЁЖ
+αβγ ωσ привет ёж

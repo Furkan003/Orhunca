@@ -9,6 +9,7 @@ use crate::arayuz::{self, BagTuru, Beklenen};
 use crate::ayristirici::YERLESIK_DOSYA;
 use crate::ekler::Hal;
 use crate::hata::{Hata, Konum, Sonuc};
+use crate::on_kutuphane::{self, HATA_SATIRDA, ON_EK, YERLESIK_ON_EK};
 use std::collections::{HashMap, HashSet};
 
 /// Olay bloklarında kullanıcının değiştirdiği değer (bağlı öğelerde) bu ada gelir.
@@ -58,6 +59,8 @@ pub struct Denetci {
 }
 
 pub fn denetle(p: &mut Program) -> Sonuc<()> {
+    // Standart kütüphanenin Orhunca ile yazılmış parçası: yalnızca kullanılanlar kalır.
+    p.islevler.extend(on_kutuphane::islevler());
     let mut d = Denetci {
         imzalar: HashMap::new(),
         varsayilan: HashMap::new(),
@@ -184,12 +187,16 @@ pub fn denetle(p: &mut Program) -> Sonuc<()> {
     d.donus = None;
     d.blok(&mut p.ana)?;
     p.ana_yereller = d.yereller();
-    for ad in &islev_sirasi {
+    for ad in islev_sirasi
+        .iter()
+        .filter(|a| !on_kutuphane::on_kutuphane_mi(a))
+    {
         d.islevi_denetle(ad)?;
     }
+    // Ön kütüphanenin çağrılmayan işlevleri atılır.
     p.islevler = islev_sirasi
         .iter()
-        .map(|ad| d.biten.remove(ad).expect("denetlenmiş işlev"))
+        .filter_map(|ad| d.biten.remove(ad))
         .collect();
     Ok(())
 }
@@ -1605,10 +1612,7 @@ impl Denetci {
                 }
                 Tip::Sozluk(Box::new(a), Box::new(d))
             }
-            IfadeTuru::Cagri(ad, arg) => {
-                let ad = ad.clone();
-                self.cagri(&ad, arg, konum)?
-            }
+            IfadeTuru::Cagri(ad, arg) => self.cagri(ad, arg, konum)?,
             IfadeTuru::FiilCagri(ad, arg) => {
                 let ad = ad.clone();
                 let sirali = self.fiil_eslestir(&ad, std::mem::take(arg), konum)?;
@@ -1723,11 +1727,32 @@ impl Denetci {
         Ok(sirali)
     }
 
-    fn cagri(&mut self, ad: &str, arg: &mut [Ifade], konum: Konum) -> Sonuc<Tip> {
+    /// Çağrıyı denetler. Ön kütüphanedeki karşılığı olan yerleşik çağrının adı
+    /// (ve gerekirse bağımsız değişkenleri) o işleve göre değiştirilir.
+    fn cagri(&mut self, ad_: &mut String, arg: &mut Vec<Ifade>, konum: Konum) -> Sonuc<Tip> {
         let mut tipler = Vec::new();
         for a in arg.iter_mut() {
             tipler.push(self.ifade(a)?);
         }
+        // Ön kütüphanenin içinden yerleşik çağrı: programın tanımları gölgelemez.
+        // (Önek kalır: kod üretici de programın tanımına değil yerleşiğe bağlar.)
+        if let Some(y) = ad_.strip_prefix(YERLESIK_ON_EK) {
+            let mut y = y.to_string();
+            let t = self.yerlesik(&y, arg, &tipler, konum)?;
+            if on_kutuphane::esle(&y, &tipler).is_some() {
+                self.on_kutuphaneye_bagla(&mut y, arg, &tipler, konum)?;
+                *ad_ = y;
+            }
+            return Ok(t);
+        }
+        if ad_ == HATA_SATIRDA {
+            return match tipler.as_slice() {
+                [Tip::Metin, Tip::Sayi] => Ok(Tip::Bos),
+                _ => Err(Hata::yeni(konum, "hata_ver_satırda(mesaj, satır)")),
+            };
+        }
+        let ad = ad_.clone();
+        let ad = ad.as_str();
         if ad == ARAYUZ_ISLEVI {
             return Err(Hata::yeni(
                 konum,
@@ -1825,7 +1850,42 @@ impl Denetci {
         if let Some(g) = ad.strip_prefix("görünüm:") {
             return Err(self.gorunum_yok(g, konum));
         }
-        self.yerlesik(ad, arg, &tipler, konum)
+        let t = self.yerlesik(ad, arg, &tipler, konum)?;
+        self.on_kutuphaneye_bagla(ad_, arg, &tipler, konum)?;
+        Ok(t)
+    }
+
+    /// Yerleşik çağrının ön kütüphanede (Orhunca ile yazılmış) karşılığı varsa
+    /// çağrıyı oraya yönlendirir ve o işlevi denetler.
+    fn on_kutuphaneye_bagla(
+        &mut self,
+        ad: &mut String,
+        arg: &mut Vec<Ifade>,
+        tipler: &[Tip],
+        konum: Konum,
+    ) -> Sonuc<()> {
+        let Some((islev, satir)) = on_kutuphane::esle(ad, tipler) else {
+            return Ok(());
+        };
+        // kaçır(x): metin olmayan değer önce metne çevrilir.
+        if ad == "kaçır" && tipler[0] != Tip::Metin {
+            let x = arg.remove(0);
+            let k = x.konum;
+            arg.push(Ifade {
+                tur: IfadeTuru::Cagri("metin".into(), vec![x]),
+                konum: k,
+                tip: Tip::Metin,
+            });
+        }
+        if satir {
+            arg.push(Ifade {
+                tur: IfadeTuru::Sayi(konum.satir as i64),
+                konum,
+                tip: Tip::Sayi,
+            });
+        }
+        *ad = format!("{ON_EK}{islev}");
+        self.islevi_denetle(ad)
     }
 
     fn yerlesik(&mut self, ad: &str, arg: &mut [Ifade], t: &[Tip], konum: Konum) -> Sonuc<Tip> {
@@ -1864,6 +1924,8 @@ impl Denetci {
             ("başlar" | "biter", [Metin, Metin]) => Mantik,
             ("tekrarla", [Metin, Sayi]) => Metin,
             ("harfler" | "satırlar", [Metin]) => Liste(Box::new(Metin)),
+            ("kodlar", [Metin]) => Liste(Box::new(Sayi)),
+            ("kodlardan", [Liste(i)]) if matches!(**i, Sayi | Bilinmeyen) => Metin,
             ("kod", [Metin]) => Sayi,
             ("karakter", [Sayi]) => Metin,
             ("sil", [Liste(_), Sayi]) => ic(&t[0]),

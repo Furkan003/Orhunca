@@ -313,3 +313,22 @@ fn ic_ice_modeller_kaydedilip_okunur() {
     assert!(veri.contains("\"adres\": {\"şehir\": \"Van\"}"), "{veri}");
     let _ = std::fs::remove_dir_all(&klasor);
 }
+
+#[test]
+fn on_kutuphane_programin_tanimlarindan_etkilenmez() {
+    // Programın `harfler` ve `kırp` tanımları ön kütüphanenin içini bozmaz;
+    // programın `kırp`ı kendi çağrılarında yerleşiğin yerine geçer.
+    let (ok, cikti, hata) = calistir(
+        "işlev harfler(m: metin) -> liste<metin>:\n    döndür [\"x\"]\n\
+         işlev kırp(m: metin) -> metin:\n    döndür \"kendi\"\n\
+         kırp(\"  a  \")'yı yaz.\nböl(\" a  b \", \"\")'yi yaz.\nbüyük_harf(\"çiğ\")'i yaz.\n",
+    );
+    assert!(ok, "{hata}");
+    assert_eq!(cikti, "kendi\n[\"a\", \"b\"]\nÇİĞ\n");
+    let (ok, _, hata) = calistir("tekrarla(\"a\", -2)'yi yaz.\n");
+    assert!(!ok);
+    assert!(
+        hata.contains("satır 1") && hata.contains("tekrar sayısı negatif olamaz"),
+        "{hata}"
+    );
+}

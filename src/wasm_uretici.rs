@@ -17,6 +17,7 @@ use crate::agac::*;
 use crate::arayuz::{self, Beklenen};
 use crate::denetci::OLAY_DEGERI;
 use crate::hata::Konum;
+use crate::on_kutuphane::{HATA_SATIRDA, YERLESIK_ON_EK};
 use crate::uretici::{
     CALISMA_ZAMANI, DENE_DONDUR, DENE_DUR, DENE_SONA_ERDI, DENE_SURDUR, ILK_ALAN,
 };
@@ -1866,7 +1867,12 @@ impl Uretici<'_> {
 
     fn cagri_ifadesi(&mut self, e: &Ifade, ad: &str, arg: &[Ifade]) -> Result<(), String> {
         let satir = e.konum.satir as i64;
-        if let Some((sira, doner)) = self.o.islevler.get(ad).copied() {
+        // Ön kütüphanenin yerleşik çağrısı: programın aynı adlı işlevi değil
+        let (ad, kullanici) = match ad.strip_prefix(YERLESIK_ON_EK) {
+            Some(y) => (y, None),
+            None => (ad, self.o.islevler.get(ad).copied()),
+        };
+        if let Some((sira, doner)) = kullanici {
             let a: Vec<Arg> = arg.iter().map(Arg::I).collect();
             self.argumanlar(&a)?;
             self.e(K::Call(sira));
@@ -1928,14 +1934,9 @@ impl Uretici<'_> {
         let sozluk = matches!(t0, Tip::Sozluk(..));
         let mut d: Vec<Arg> = arg.iter().map(Arg::I).collect();
         match ad {
-            "büyük_harf" => self.cagri("ohc_buyuk_harf", &d)?,
-            "küçük_harf" => self.cagri("ohc_kucuk_harf", &d)?,
-            "kırp" => self.cagri("ohc_kirp", &d)?,
             "parça" if metin => self.cagri("ohc_metin_parca", &d)?,
             "parça" => self.cagri("ohc_liste_parca", &d)?,
-            "böl" => self.cagri("ohc_metin_bol", &d)?,
             "birleştir" => self.cagri("ohc_birlestir", &d)?,
-            "içerir" if metin => self.cagri("ohc_metin_icerir", &d)?,
             "içerir" if sozluk => {
                 d.push(kod0);
                 self.cagri("ohc_sozluk_icerir", &d)?
@@ -1946,25 +1947,21 @@ impl Uretici<'_> {
                 self.sabit(0);
                 self.mantik(K::I64GeS);
             }
-            "bul" if metin => self.cagri("ohc_metin_bul", &d)?,
             "bul" => {
                 d.push(kod0);
                 self.cagri("ohc_liste_bul", &d)?
             }
-            "değiştir" => self.cagri("ohc_degistir", &d)?,
-            "başlar" => self.cagri("ohc_baslar", &d)?,
-            "biter" => self.cagri("ohc_biter", &d)?,
-            "tekrarla" => {
-                d.push(satir);
-                self.cagri("ohc_tekrarla", &d)?
-            }
             "harfler" => self.cagri("ohc_harfler", &d)?,
             "kod" => self.cagri("ohc_kod", &d)?,
+            "kodlar" => self.cagri("ohc_kodlar", &d)?,
+            "kodlardan" => {
+                d.push(satir);
+                self.cagri("ohc_kodlardan", &d)?
+            }
             "karakter" => {
                 d.push(satir);
                 self.cagri("ohc_karakter", &d)?
             }
-            "satırlar" => self.cagri("ohc_satirlar", &d)?,
             "sayı_mı" => self.cagri("ohc_sayi_mi", &d)?,
             "ondalık_mı" => self.cagri("ohc_ondalik_mi", &d)?,
             "sil" if sozluk => {
@@ -1975,7 +1972,6 @@ impl Uretici<'_> {
                 d.push(satir);
                 self.cagri("ohc_liste_sil", &d)?
             }
-            "ters" if metin => self.cagri("ohc_metin_ters", &d)?,
             "ters" => self.cagri("ohc_liste_ters", &d)?,
             "karıştır" => self.cagri("ohc_karistir", &d)?,
             "kopya" => self.cagri("ohc_liste_kopya", &d)?,
@@ -2047,9 +2043,7 @@ impl Uretici<'_> {
                 d.push(Arg::S(t0.kod()));
                 self.cagri("ohc_json", &d)?
             }
-            "kaçır" => self.cagri("ohc_kacir", &[Arg::Metne(&arg[0])])?,
             "para" => self.cagri("ohc_para", &d)?,
-            "url_kodla" => self.cagri("ohc_url_kodla", &d)?,
             "sun" => {
                 return Err(
                     "sun() WebAssembly hedefinde kullanılamaz: tarayıcıda web sunucusu çalışmaz"
@@ -2062,6 +2056,7 @@ impl Uretici<'_> {
                 self.ifade(&arg[0])?;
                 self.mantik(K::I64Eqz);
             }
+            HATA_SATIRDA => self.cagri("ohc_hata_ver", &d)?,
             "hata_ver" => {
                 d.push(satir);
                 self.cagri("ohc_hata_ver", &d)?

@@ -122,6 +122,16 @@ pub const YERLESIKLER: &[Yerlesik] = &[
         "Metnin karakterleri."
     ),
     y!(
+        "kodlar",
+        "kodlar(metin) → liste<sayı>",
+        "Karakterlerin Unicode kodları: kodlar(\"aç\") = [97, 231]."
+    ),
+    y!(
+        "kodlardan",
+        "kodlardan(liste<sayı>) → metin",
+        "Unicode kodlarından metin: kodlardan([97, 231]) = \"aç\"."
+    ),
+    y!(
         "kod",
         "kod(metin) → sayı",
         "İlk karakterin Unicode kodu: kod(\"A\") = 65, kod(\"ç\") = 231 (boş metinde 0)."

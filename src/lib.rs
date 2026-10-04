@@ -13,6 +13,7 @@ pub mod dil_sunucusu;
 pub mod dokum;
 pub mod ekler;
 pub mod hata;
+pub mod on_kutuphane;
 pub mod paket;
 pub mod sablon;
 pub mod sozcuk;

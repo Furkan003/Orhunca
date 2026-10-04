@@ -1,0 +1,259 @@
+# Orhunca'nın standart kütüphanesinin Orhunca ile yazılmış parçası: metin işlemleri.
+#
+# Çalışma zamanının (runtime/orhunca_rt.c) çekirdeği C'dedir: bellek ve çöp toplayıcı,
+# listeler, sözlükler, dosyalar, ağ ve temel metin parçaları (kodlar, kodlardan, parça,
+# birleştir, uzunluk). Bu dosyadaki işlevler o parçaların üzerine kuruludur: metinler
+# karakter kodu listelerine (sayılar; ayrı nesne değil) çevrilerek doğrusal zamanda işlenir. Derleyici her programa bu dosyadan yalnızca kullanılan
+# işlevleri ekler; programın kendi tanımları bu adları gölgeleyebilir.
+#
+# Buradaki çağrılar derlenirken programın tanımlarına değil, doğrudan yerleşik
+# işlevlere ve bu dosyanın işlevlerine bağlanır (src/on_kutuphane.rs).
+
+işlev boşluk_kodu_mu(k: sayı) -> mantık:
+    döndür k == 32 veya (k >= 9 ve k <= 13)
+
+işlev kırp(m: metin) -> metin:
+    k = kodlar(m)
+    baş = 0
+    son = uzunluk(k)
+    baş < son ve boşluk_kodu_mu(k[baş]) olduğu sürece:
+        baş += 1
+    son > baş ve boşluk_kodu_mu(k[son - 1]) olduğu sürece:
+        son -= 1
+    eğer baş == 0 ve son == uzunluk(k) ise:
+        döndür m
+    döndür kodlardan(parça(k, baş, son - baş))
+
+işlev başlar(m: metin, ön: metin) -> mantık:
+    n = uzunluk(ön)
+    döndür n <= uzunluk(m) ve parça(m, 0, n) == ön
+
+işlev biter(m: metin, son: metin) -> mantık:
+    n = uzunluk(son)
+    u = uzunluk(m)
+    döndür n <= u ve parça(m, u - n, n) == son
+
+# `a` kod dizisinin `k` içinde `baş` sırasından sonraki ilk geçtiği yer; yoksa -1.
+işlev ara(k: liste<sayı>, a: liste<sayı>, baş: sayı) -> sayı:
+    n = uzunluk(a)
+    eğer n == 0 ise:
+        eğer baş <= uzunluk(k) ise:
+            döndür baş
+        döndür -1
+    ilk = a[0]
+    her i için baş'tan uzunluk(k) - n'ye kadar:
+        eğer k[i] == ilk ise:
+            j = 1
+            j < n ve k[i + j] == a[j] olduğu sürece:
+                j += 1
+            eğer j == n ise:
+                döndür i
+    döndür -1
+
+işlev metin_bul(m: metin, a: metin) -> sayı:
+    döndür ara(kodlar(m), kodlar(a), 0)
+
+işlev metin_içerir(m: metin, a: metin) -> mantık:
+    döndür metin_bul(m, a) >= 0
+
+# `k` kod dizisini `a` ayracından böler.
+işlev kodları_böl(k: liste<sayı>, a: liste<sayı>) -> liste<metin>:
+    sonuç: liste<metin> = []
+    baş = 0
+    doğru olduğu sürece:
+        i = ara(k, a, baş)
+        eğer i < 0 ise:
+            kodlardan(parça(k, baş, uzunluk(k) - baş))'ı sonuç'a ekle.
+            döndür sonuç
+        kodlardan(parça(k, baş, i - baş))'ı sonuç'a ekle.
+        baş = i + uzunluk(a)
+    döndür sonuç
+
+# Boşluklardan böler, boş parçaları atlar: böl("a  b", "") = ["a", "b"]
+işlev boşluklardan_böl(m: metin) -> liste<metin>:
+    k = kodlar(m)
+    sonuç: liste<metin> = []
+    i = 0
+    n = uzunluk(k)
+    i < n olduğu sürece:
+        i < n ve boşluk_kodu_mu(k[i]) olduğu sürece:
+            i += 1
+        eğer i >= n ise:
+            dur
+        baş = i
+        i < n ve değil boşluk_kodu_mu(k[i]) olduğu sürece:
+            i += 1
+        kodlardan(parça(k, baş, i - baş))'ı sonuç'a ekle.
+    döndür sonuç
+
+işlev böl(m: metin, ayraç: metin) -> liste<metin>:
+    eğer ayraç == "" ise:
+        döndür boşluklardan_böl(m)
+    döndür kodları_böl(kodlar(m), kodlar(ayraç))
+
+# Satırlara böler; satır sonlarındaki "\r" atılır, sondaki boş satır sayılmaz.
+işlev satırlar(m: metin) -> liste<metin>:
+    sonuç: liste<metin> = []
+    k = kodlar(m)
+    n = uzunluk(k)
+    baş = 0
+    baş < n olduğu sürece:
+        i = baş
+        i < n ve k[i] != 10 olduğu sürece:
+            i += 1
+        son = i
+        eğer son > baş ve k[son - 1] == 13 ise:
+            son -= 1
+        kodlardan(parça(k, baş, son - baş))'ı sonuç'a ekle.
+        baş = i + 1
+    döndür sonuç
+
+işlev değiştir(m: metin, eski: metin, yeni: metin) -> metin:
+    eğer eski == "" ise:
+        döndür m
+    döndür birleştir(kodları_böl(kodlar(m), kodlar(eski)), yeni)
+
+işlev tekrarla(m: metin, kaç: sayı, satır: sayı) -> metin:
+    eğer kaç < 0 ise:
+        hata_ver_satırda("tekrar sayısı negatif olamaz", satır)
+    eğer uzunluk(m) > 0 ve kaç > 1073741824 // uzunluk(m) ise:
+        hata_ver_satırda("tekrarlanan metin çok büyük", satır)
+    kopyalar: liste<metin> = []
+    her i için 1'den kaç'a kadar:
+        m'yi kopyalar'a ekle.
+    döndür birleştir(kopyalar, "")
+
+işlev metin_ters(m: metin) -> metin:
+    döndür kodlardan(ters(kodlar(m)))
+
+# Türkçe büyük/küçük harf: i ↔ İ, ı ↔ I; Latin, Yunan ve Kiril harfleri.
+işlev büyük_kod(c: sayı) -> sayı:
+    eğer c == 105 ise:
+        döndür 304
+    eğer c == 305 ise:
+        döndür 73
+    eğer c >= 97 ve c <= 122 ise:
+        döndür c - 32
+    eğer c >= 224 ve c <= 254 ve c != 247 ise:
+        döndür c - 32
+    eğer c == 255 ise:
+        döndür 376
+    # Latin Genişletilmiş-A: çiftler (büyük, küçük); 0x139-0x148 ve 0x179-0x17E'de kaymış
+    eğer (c >= 256 ve c <= 311) veya (c >= 330 ve c <= 375) ise:
+        eğer c % 2 == 1 ise:
+            döndür c - 1
+        döndür c
+    eğer (c >= 313 ve c <= 328) veya (c >= 377 ve c <= 382) ise:
+        eğer c % 2 == 0 ise:
+            döndür c - 1
+        döndür c
+    # Yunan (son sigma dahil) ve Kiril
+    eğer c == 962 ise:
+        döndür 931
+    eğer c >= 945 ve c <= 969 ise:
+        döndür c - 32
+    eğer c >= 1072 ve c <= 1103 ise:
+        döndür c - 32
+    eğer c >= 1104 ve c <= 1119 ise:
+        döndür c - 80
+    döndür c
+
+işlev küçük_kod(c: sayı) -> sayı:
+    eğer c == 73 ise:
+        döndür 305
+    eğer c == 304 ise:
+        döndür 105
+    eğer c >= 65 ve c <= 90 ise:
+        döndür c + 32
+    eğer c >= 192 ve c <= 222 ve c != 215 ise:
+        döndür c + 32
+    eğer c == 376 ise:
+        döndür 255
+    eğer (c >= 256 ve c <= 311) veya (c >= 330 ve c <= 375) ise:
+        eğer c % 2 == 0 ise:
+            döndür c + 1
+        döndür c
+    eğer (c >= 313 ve c <= 328) veya (c >= 377 ve c <= 382) ise:
+        eğer c % 2 == 1 ise:
+            döndür c + 1
+        döndür c
+    eğer c >= 913 ve c <= 937 ve c != 930 ise:
+        döndür c + 32
+    eğer c >= 1040 ve c <= 1071 ise:
+        döndür c + 32
+    eğer c >= 1024 ve c <= 1039 ise:
+        döndür c + 80
+    döndür c
+
+işlev büyük_harf(m: metin) -> metin:
+    k = kodlar(m)
+    her i için 0'dan uzunluk(k) - 1'e kadar:
+        k[i] = büyük_kod(k[i])
+    döndür kodlardan(k)
+
+işlev küçük_harf(m: metin) -> metin:
+    k = kodlar(m)
+    her i için 0'dan uzunluk(k) - 1'e kadar:
+        k[i] = küçük_kod(k[i])
+    döndür kodlardan(k)
+
+# HTML'de özel anlamı olan karakterleri kaçırır: & < > " '
+işlev kaçır(m: metin) -> metin:
+    k = kodlar(m)
+    parçalar: liste<metin> = []
+    baş = 0
+    her i için 0'dan uzunluk(k) - 1'e kadar:
+        c = k[i]
+        yerine = ""
+        eğer c == 38 ise:
+            yerine = "&amp;"
+        değilse eğer c == 60 ise:
+            yerine = "&lt;"
+        değilse eğer c == 62 ise:
+            yerine = "&gt;"
+        değilse eğer c == 34 ise:
+            yerine = "&quot;"
+        değilse eğer c == 39 ise:
+            yerine = "&#39;"
+        değilse:
+            sürdür
+        kodlardan(parça(k, baş, i - baş))'ı parçalar'a ekle.
+        yerine'yi parçalar'a ekle.
+        baş = i + 1
+    eğer baş == 0 ise:
+        döndür m
+    kodlardan(parça(k, baş, uzunluk(k) - baş))'ı parçalar'a ekle.
+    döndür birleştir(parçalar, "")
+
+# Onaltılık rakamın kodu (0-9, A-F)
+işlev onaltılık_kodu(n: sayı) -> sayı:
+    eğer n < 10 ise:
+        döndür 48 + n
+    döndür 55 + n
+
+işlev bayt_ekle(sonuç: liste<sayı>, b: sayı):
+    37'yi sonuç'a ekle.
+    onaltılık_kodu(b // 16)'yı sonuç'a ekle.
+    onaltılık_kodu(b % 16)'yı sonuç'a ekle.
+
+# URL'de güvenli olmayan karakterleri %XX biçimine çevirir (UTF-8 baytları).
+işlev url_kodla(m: metin) -> metin:
+    sonuç: liste<sayı> = []
+    her c için kodlar(m)'dan:
+        eğer (c >= 97 ve c <= 122) veya (c >= 65 ve c <= 90) veya (c >= 48 ve c <= 57) veya c == 45 veya c == 95 veya c == 46 veya c == 126 ise:
+            c'yi sonuç'a ekle.
+        değilse eğer c < 128 ise:
+            bayt_ekle(sonuç, c)
+        değilse eğer c < 2048 ise:
+            bayt_ekle(sonuç, 192 + c // 64)
+            bayt_ekle(sonuç, 128 + c % 64)
+        değilse eğer c < 65536 ise:
+            bayt_ekle(sonuç, 224 + c // 4096)
+            bayt_ekle(sonuç, 128 + (c // 64) % 64)
+            bayt_ekle(sonuç, 128 + c % 64)
+        değilse:
+            bayt_ekle(sonuç, 240 + c // 262144)
+            bayt_ekle(sonuç, 128 + (c // 4096) % 64)
+            bayt_ekle(sonuç, 128 + (c // 64) % 64)
+            bayt_ekle(sonuç, 128 + c % 64)
+    döndür kodlardan(sonuç)

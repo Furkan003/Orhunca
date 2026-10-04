@@ -378,6 +378,103 @@ pub fn gecen_adlar(govde: &[Deyim]) -> Vec<String> {
     adlar
 }
 
+/// Gövdedeki her ifadeyi (alt ifadeler dahil, içten dışa) gezer.
+pub fn ifadeleri_gez(govde: &mut [Deyim], f: &mut dyn FnMut(&mut Ifade)) {
+    fn ifade(e: &mut Ifade, f: &mut dyn FnMut(&mut Ifade)) {
+        match &mut e.tur {
+            IfadeTuru::Liste(l) | IfadeTuru::Cagri(_, l) => l.iter_mut().for_each(|x| ifade(x, f)),
+            IfadeTuru::Sozluk(c) => c.iter_mut().for_each(|(a, d)| {
+                ifade(a, f);
+                ifade(d, f)
+            }),
+            IfadeTuru::Ikili(_, a, b) | IfadeTuru::Indeks(a, b) => {
+                ifade(a, f);
+                ifade(b, f)
+            }
+            IfadeTuru::Tekli(_, a) | IfadeTuru::Alan(a, ..) => ifade(a, f),
+            IfadeTuru::FiilCagri(_, l) => l.iter_mut().for_each(|(_, x)| ifade(x, f)),
+            IfadeTuru::Kurucu(_, l) => l.iter_mut().for_each(|(_, x)| ifade(x, f)),
+            IfadeTuru::Metod(a, _, l) => {
+                ifade(a, f);
+                l.iter_mut().for_each(|x| ifade(x, f))
+            }
+            _ => {}
+        }
+        f(e);
+    }
+    for d in govde {
+        match d {
+            Deyim::Atama { deger, .. }
+            | Deyim::Yaz(deger)
+            | Deyim::Sirala(deger)
+            | Deyim::IfadeDeyimi(deger) => ifade(deger, f),
+            Deyim::IndeksAtama {
+                liste,
+                indeks,
+                deger,
+            } => {
+                ifade(liste, f);
+                ifade(indeks, f);
+                ifade(deger, f)
+            }
+            Deyim::AlanAtama { nesne, deger, .. } => {
+                ifade(nesne, f);
+                ifade(deger, f)
+            }
+            Deyim::Ekle { oge, liste } | Deyim::Cikar { oge, liste } => {
+                ifade(oge, f);
+                ifade(liste, f)
+            }
+            Deyim::DosyayaYaz { deger, yol } => {
+                ifade(deger, f);
+                ifade(yol, f)
+            }
+            Deyim::Eger {
+                kosul,
+                govde,
+                degilse,
+            } => {
+                ifade(kosul, f);
+                ifadeleri_gez(govde, f);
+                ifadeleri_gez(degilse, f)
+            }
+            Deyim::Surece { kosul, govde } => {
+                ifade(kosul, f);
+                ifadeleri_gez(govde, f)
+            }
+            Deyim::HerAralik {
+                bas, son, govde, ..
+            } => {
+                ifade(bas, f);
+                ifade(son, f);
+                ifadeleri_gez(govde, f)
+            }
+            Deyim::HerListe { liste, govde, .. } => {
+                ifade(liste, f);
+                ifadeleri_gez(govde, f)
+            }
+            Deyim::Dondur(e, _) => {
+                if let Some(e) = e {
+                    ifade(e, f)
+                }
+            }
+            Deyim::Dur(_) | Deyim::Surdur(_) => {}
+            Deyim::Oge(o) => {
+                o.argumanlar.iter_mut().for_each(|x| ifade(x, f));
+                o.secenekler.iter_mut().for_each(|(_, x)| ifade(x, f));
+                ifadeleri_gez(&mut o.cocuklar, f);
+                if let Some(olay) = &mut o.olay {
+                    ifadeleri_gez(&mut olay.govde, f);
+                }
+            }
+            Deyim::Dene { govde, yakala, .. } => {
+                ifadeleri_gez(govde, f);
+                ifadeleri_gez(yakala, f)
+            }
+        }
+    }
+}
+
 /// Gövdede (iç içe bloklar dahil) bir `dene:` bloğu var mı?
 pub fn dene_var(govde: &[Deyim]) -> bool {
     govde.iter().any(|d| match d {

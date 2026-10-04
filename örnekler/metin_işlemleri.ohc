@@ -1,0 +1,49 @@
+# Metin işlemleri: kırp, başlar, biter, böl, satırlar, bul, içerir, değiştir,
+# tekrarla, ters, büyük_harf, küçük_harf, kaçır, url_kodla.
+# Bu işlevler Orhunca ile yazılmıştır (runtime/ön_kütüphane.ohc).
+sekme = karakter(9)
+dikey = karakter(11)
+sayfa = karakter(12)
+satır_başı = karakter(13)
+
+metinler = ["", " ", "  merhaba  ", sekme + "a b" + satır_başı + "\n", dikey + sayfa + "x" + dikey, "İstanbul'da ılık bir gün", "ağaç ÇİĞDEM öğün Şule", "😀 emoji 😀", "a&b<c>d\"e'f", "çok   boşluklu    metin"]
+her m için metinler'den:
+    json(m)'u yaz.
+    ("  kırp: " + json(kırp(m)))'u yaz.
+    ("  büyük: " + json(büyük_harf(m)) + " küçük: " + json(küçük_harf(m)))'ı yaz.
+    ("  ters: " + json(ters(m)))'i yaz.
+    ("  böl: " + json(böl(m, "")))'ü yaz.
+    ("  kaçır: " + json(kaçır(m)))'ı yaz.
+    ("  url: " + url_kodla(m))'yi yaz.
+
+harf_dizisi = "āĀăĂąĄćĆčČďĎđĐēĒğĞıIiİłŁńŃňŇőŐœŒřŘśŚşŞšŠťŤűŰźŹżŻžŽßÿàÀþÞ×÷"
+büyük_harf(harf_dizisi)'ni yaz.
+küçük_harf(harf_dizisi)'ni yaz.
+
+işlev iki(m: metin, a: metin) -> metin:
+    döndür json(m) + " " + json(a) + ": başlar=" + başlar(m, a) + " biter=" + biter(m, a) + " bul=" + bul(m, a) + " içerir=" + içerir(m, a) + " böl=" + json(böl(m, a))
+
+çiftler = [["", ""], ["abc", ""], ["", "a"], ["abc", "a"], ["abc", "c"], ["abc", "abc"], ["abc", "abcd"], ["aaaa", "aa"], ["ağaçlık ağaç", "ağaç"], ["x,y,,z,", ","], ["a--b--c", "--"], ["😀a😀b", "😀"], ["çiçek", "ek"], ["merhaba dünya", "dünya"]]
+her ç için çiftler'den:
+    iki(ç[0], ç[1])'yi yaz.
+
+değiştir("aaaa", "aa", "b")'yi yaz.
+değiştir("abc", "", "x")'i yaz.
+değiştir("ağaç ağaç", "ağaç", "çınar")'ı yaz.
+değiştir("😀😀", "😀", ":)")'u yaz.
+değiştir("abc", "d", "x")'i yaz.
+json(tekrarla("ab", 3))'ü yaz.
+json(tekrarla("ç", 0))'ı yaz.
+json(tekrarla("", 5))'i yaz.
+json(satırlar("a\nb" + satır_başı + "\n\nc"))'yi yaz.
+json(satırlar(""))'yi yaz.
+json(satırlar("tek"))'i yaz.
+json(satırlar("son\n"))'u yaz.
+kaçır(42)'yi yaz.
+kaçır([1, 2])'yi yaz.
+dene:
+    tekrarla("x", -1)'i yaz.
+yakala h:
+    h'yi yaz.
+büyük_harf("αβγ ως Ελλάδα привет Ёж")'yı yaz.
+küçük_harf("ΑΒΓ ΩΣ ПРИВЕТ ЁЖ")'yı yaz.

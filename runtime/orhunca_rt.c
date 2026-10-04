@@ -831,7 +831,8 @@ static void u8_yaz(Tampon *t, uint32_t c) {
     t_ekle(t, b, n);
 }
 
-/* Türkçe büyük/küçük harf: i ↔ İ, ı ↔ I; diğer Latin harfleri olağan biçimde. */
+/* Büyük harf (alan adlarının ilk harfi için): i → İ. Programların büyük_harf /
+ * küçük_harf işlevleri runtime/ön_kütüphane.ohc'dedir. */
 static uint32_t buyuk(uint32_t c) {
     if (c == 'i') return 0x130;
     if (c == 0x131) return 'I';
@@ -841,77 +842,11 @@ static uint32_t buyuk(uint32_t c) {
     return c;
 }
 
-static uint32_t kucuk(uint32_t c) {
-    if (c == 'I') return 0x131;
-    if (c == 0x130) return 'i';
-    if (c >= 'A' && c <= 'Z') return c + 32;
-    if (c >= 0xC0 && c <= 0xDE && c != 0xD7) return c + 32;
-    if (c >= 0x100 && c <= 0x17F && c != 0x130 && !(c & 1)) return c + 1;
-    return c;
-}
-
-static int64_t harf_donustur(int64_t m, uint32_t (*f)(uint32_t)) {
-    Tampon t = {0};
-    const char *p = M(m);
-    while (*p) u8_yaz(&t, f(u8_oku(&p)));
-    return t_metin(&t);
-}
-
-int64_t ohc_buyuk_harf(int64_t m) { return harf_donustur(m, buyuk); }
-int64_t ohc_kucuk_harf(int64_t m) { return harf_donustur(m, kucuk); }
 
 static int bosluk(char c) { return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\v' || c == '\f'; }
 
-int64_t ohc_kirp(int64_t m) {
-    const char *s = M(m);
-    while (*s && bosluk(*s)) s++;
-    size_t n = strlen(s);
-    while (n && bosluk(s[n - 1])) n--;
-    return metin_yap(s, n);
-}
-
 int64_t ohc_liste_yeni(void);
 void ohc_liste_ekle(int64_t lp, int64_t d);
-
-int64_t ohc_metin_bol(int64_t m, int64_t ayrac) {
-    int64_t l = ohc_liste_yeni();
-    const char *s = M(m), *a = M(ayrac);
-    size_t an = strlen(a);
-    if (an == 0) { /* boşluklardan böl, boş parçaları atla */
-        while (*s) {
-            while (*s && bosluk(*s)) s++;
-            if (!*s) break;
-            const char *bas = s;
-            while (*s && !bosluk(*s)) s++;
-            ohc_liste_ekle(l, metin_yap(bas, (size_t)(s - bas)));
-        }
-        return l;
-    }
-    for (;;) {
-        const char *q = strstr(s, a);
-        if (!q) {
-            ohc_liste_ekle(l, metin_yap(s, strlen(s)));
-            break;
-        }
-        ohc_liste_ekle(l, metin_yap(s, (size_t)(q - s)));
-        s = q + an;
-    }
-    return l;
-}
-
-int64_t ohc_satirlar(int64_t m) {
-    int64_t l = ohc_liste_yeni();
-    const char *s = M(m);
-    while (*s) {
-        const char *q = strchr(s, '\n');
-        size_t n = q ? (size_t)(q - s) : strlen(s);
-        size_t k = (n && s[n - 1] == '\r') ? n - 1 : n;
-        ohc_liste_ekle(l, metin_yap(s, k));
-        if (!q) break;
-        s = q + 1;
-    }
-    return l;
-}
 
 /* İlk karakterin Unicode kodu: kod("A") = 65, kod("ç") = 231; boş metinde 0. */
 int64_t ohc_kod(int64_t m) {
@@ -928,6 +863,31 @@ int64_t ohc_karakter(int64_t n, int64_t satir) {
     }
     Tampon t = {0};
     u8_yaz(&t, (uint32_t)n);
+    return t_metin(&t);
+}
+
+/* Metnin karakter kodları: kodlar("aç") = [97, 231]. */
+int64_t ohc_kodlar(int64_t m) {
+    int64_t l = ohc_liste_yeni();
+    const char *s = M(m);
+    while (*s) ohc_liste_ekle(l, (int64_t)u8_oku(&s));
+    return l;
+}
+
+/* Karakter kodlarından metin: kodlardan([97, 231]) = "aç". */
+int64_t ohc_kodlardan(int64_t lp, int64_t satir) {
+    Liste *l = (Liste *)(intptr_t)lp;
+    Tampon t = {0};
+    for (int64_t i = 0; i < l->uzunluk; i++) {
+        int64_t n = l->ogeler[i];
+        if (n <= 0 || n > 0x10FFFF || (n >= 0xD800 && n <= 0xDFFF)) {
+            free(t.v);
+            char m[96];
+            snprintf(m, sizeof m, "%" PRId64 " geçerli bir karakter kodu değil", n);
+            hata(satir, m);
+        }
+        u8_yaz(&t, (uint32_t)n);
+    }
     return t_metin(&t);
 }
 
@@ -952,68 +912,7 @@ int64_t ohc_birlestir(int64_t lp, int64_t ayrac) {
     return t_metin(&t);
 }
 
-int64_t ohc_metin_icerir(int64_t m, int64_t a) { return strstr(M(m), M(a)) != NULL; }
 
-int64_t ohc_metin_bul(int64_t m, int64_t a) {
-    const char *q = strstr(M(m), M(a));
-    if (!q) return -1;
-    int64_t n = 0;
-    for (const char *p = M(m); p < q; p++)
-        if ((*p & 0xC0) != 0x80) n++;
-    return n;
-}
-
-int64_t ohc_degistir(int64_t m, int64_t eski, int64_t yeni) {
-    const char *s = M(m), *e = M(eski), *y = M(yeni);
-    size_t en = strlen(e);
-    if (!en) return m;
-    Tampon t = {0};
-    for (;;) {
-        const char *q = strstr(s, e);
-        if (!q) {
-            t_yaz(&t, s);
-            break;
-        }
-        t_ekle(&t, s, (size_t)(q - s));
-        t_yaz(&t, y);
-        s = q + en;
-    }
-    return t_metin(&t);
-}
-
-int64_t ohc_baslar(int64_t m, int64_t on) { return strncmp(M(m), M(on), strlen(M(on))) == 0; }
-
-int64_t ohc_biter(int64_t m, int64_t son) {
-    size_t n = strlen(M(m)), k = strlen(M(son));
-    return k <= n && strcmp(M(m) + n - k, M(son)) == 0;
-}
-
-int64_t ohc_tekrarla(int64_t m, int64_t kac, int64_t satir) {
-    if (kac < 0) hata(satir, "tekrar sayısı negatif olamaz");
-    size_t n = strlen(M(m));
-    if (n && (uint64_t)kac > (uint64_t)(1u << 30) / n) hata(satir, "tekrarlanan metin çok büyük");
-    char *s = metin_ayir(n * (size_t)kac + 1);
-    for (int64_t i = 0; i < kac; i++) memcpy(s + n * (size_t)i, M(m), n);
-    s[n * (size_t)kac] = 0;
-    return D(s);
-}
-
-int64_t ohc_metin_ters(int64_t m) {
-    const char *s = M(m);
-    size_t n = strlen(s);
-    char *r = metin_ayir(n + 1);
-    size_t yaz = n;
-    while (*s) {
-        int b = u8_boy((unsigned char)*s);
-        size_t k = 0;
-        while (k < (size_t)b && s[k]) k++;
-        yaz -= k;
-        memcpy(r + yaz, s, k);
-        s += k;
-    }
-    r[n] = 0;
-    return D(r);
-}
 
 static void cevirme_hatasi(int64_t a, int64_t satir, const char *ne) {
     char mesaj[256];
@@ -2589,26 +2488,6 @@ void ohc_model_doldur(int64_t n, int64_t istek) {
 /* Metin yardımcıları: HTML kaçırma, para biçimi, URL kodlama              */
 /* ---------------------------------------------------------------------- */
 
-static void html_yaz(Tampon *t, const char *s) {
-    for (; *s; s++) {
-        switch (*s) {
-        case '&': t_yaz(t, "&amp;"); break;
-        case '<': t_yaz(t, "&lt;"); break;
-        case '>': t_yaz(t, "&gt;"); break;
-        case '"': t_yaz(t, "&quot;"); break;
-        case '\'': t_yaz(t, "&#39;"); break;
-        default: t_ekle(t, s, 1);
-        }
-    }
-}
-
-int64_t ohc_kacir(int64_t m) {
-    if (!strpbrk(M(m), "&<>\"'")) return m;
-    Tampon t = {0};
-    html_yaz(&t, M(m));
-    return t_metin(&t);
-}
-
 /* 1234.5 → "1.234,50" */
 int64_t ohc_para(int64_t d) {
     double x = ondalik(d);
@@ -2633,6 +2512,22 @@ int64_t ohc_para(int64_t d) {
     return t_metin(&t);
 }
 
+#ifndef __wasm__
+/* HTML ve URL kaçırma (sunucunun hata sayfaları ve yönlendirmeleri için; programların
+ * kaçır / url_kodla işlevleri runtime/ön_kütüphane.ohc'dedir). */
+static void html_yaz(Tampon *t, const char *s) {
+    for (; *s; s++) {
+        switch (*s) {
+        case '&': t_yaz(t, "&amp;"); break;
+        case '<': t_yaz(t, "&lt;"); break;
+        case '>': t_yaz(t, "&gt;"); break;
+        case '"': t_yaz(t, "&quot;"); break;
+        case '\'': t_yaz(t, "&#39;"); break;
+        default: t_ekle(t, s, 1);
+        }
+    }
+}
+
 static void url_kodla(Tampon *t, const char *s, const char *serbest) {
     static const char *hex = "0123456789ABCDEF";
     for (const unsigned char *p = (const unsigned char *)s; *p; p++) {
@@ -2646,13 +2541,6 @@ static void url_kodla(Tampon *t, const char *s, const char *serbest) {
     }
 }
 
-int64_t ohc_url_kodla(int64_t m) {
-    Tampon t = {0};
-    url_kodla(&t, M(m), "-_.~");
-    return t_metin(&t);
-}
-
-#ifndef __wasm__
 /* ====================================================================== */
 /* Web sunucusu                                                            */
 /* ====================================================================== */

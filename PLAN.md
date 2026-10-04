@@ -127,10 +127,18 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
   çözümleme, cümleler, koşullar, tanımlar, arayüz). `src/dokum.rs` ağaç dökümüyle karşılaştırılır:
   bütün örnekler, şablonlar ve ~80 hatalı girdi; yerel ve WebAssembly.
 
+### 9f – Çalışma zamanının bir kısmı Orhunca'da
+- `runtime/ön_kütüphane.ohc`: metin işlemleri (kırp, başlar, biter, böl, satırlar, bul, içerir,
+  değiştir, tekrarla, ters, büyük/küçük harf, kaçır, url_kodla) C'den taşındı. Ayrı ayrıştırılır
+  (isimleri programa karışmaz), `‹öz›` önekiyle eklenir; yalnızca çağrılanlar derlenir. İçindeki
+  yerleşik çağrıları programın tanımları gölgelemez.
+- Yeni temel parçalar: `kodlar(m)` ve `kodlardan(l)` (karakter kodu listeleri; doğrusal zaman).
+- Büyük/küçük harf dönüşümü düzeltildi (Latin Genişletilmiş-A çiftleri) ve Yunan, Kiril eklendi.
+
 ## Henüz yapılmayanlar
 
-- **Çalışma zamanı C ile yazılı** (`runtime/orhunca_rt.c`). Bağlama zaten bir C araç zinciri
-  istediğinden pratik bir seçim; self-hosting aşamasında Orhunca ile yeniden yazılabilir.
+- Çalışma zamanının çekirdeği (bellek ve çöp toplayıcı, listeler, sözlükler, dosyalar, ağ, JSON,
+  modeller) C ile yazılı (`runtime/orhunca_rt.c`); metin işlemleri Orhunca'dadır.
 - Web sunucusu tek iş parçacıklıdır; oturum/çerez, dosya yükleme ve HTTPS yok (geliştirme için).
 - Ünlü uyumu derleyicide hoşgörüyle kabul edilir; biçimlendirici ve dil sunucusu uyarır ve düzeltir.
   Metinlerde (yabancı kelimeler olabileceği için) yalnızca tampon harf ve ünsüz benzeşmesi denetlenir.

@@ -137,7 +137,12 @@ Derleyicinin parçaları Orhunca'ya taşınıyor:
   cümleleri, Türkçe koşullar, modeller, seçenekler, web yolları ve arayüz öğeleri. Derleyicinin
   ayrıştırıcısıyla aynı söz dizimi ağacını ve aynı hata mesajlarını üretir.
 
-`tests/oz.rs` ikisini bütün örneklerde, şablonlarda ve onlarca hatalı girdide derleyiciyle
+- [runtime/ön_kütüphane.ohc](runtime/ön_kütüphane.ohc): standart kütüphanenin metin işlemleri
+  (`kırp`, `böl`, `satırlar`, `bul`, `değiştir`, `tekrarla`, `ters`, `büyük_harf`, `küçük_harf`,
+  `kaçır`, `url_kodla`...) C çalışma zamanından Orhunca'ya taşındı. Derleyici her programa yalnızca
+  kullanılan işlevleri ekler; C'de bellek, listeler ve `kodlar` / `kodlardan` gibi temel parçalar kalır.
+
+`tests/oz.rs` sözcük çözümleyiciyi ve ayrıştırıcıyı bütün örneklerde, şablonlarda ve onlarca hatalı girdide derleyiciyle
 karşılaştırır (yerel ve WebAssembly derlemesiyle). Ayrıntılar: [öz/BENİOKU.md](öz/BENİOKU.md).
 
 ```sh
@@ -364,7 +369,7 @@ sabit KDV_ORANI = 0.20           # her yerden (işlevlerden de) görülür
 | Alan | İşlevler |
 |---|---|
 | Dönüşüm | `uzunluk` `metin` `sayı` `ondalık` `yuvarla(x)` `yuvarla(x, 2)` `sayı_mı` `ondalık_mı` |
-| Metin | `büyük_harf` `küçük_harf` (Türkçe i/İ, ı/I) `kırp` `parça(m, baş, uzunluk)` `böl` `birleştir` `içerir` `bul` `değiştir` `başlar` `biter` `tekrarla` `harfler` `satırlar` `ters` `kod` `karakter` · `m[i]` · `<` `>` Türk alfabesine göre |
+| Metin | `büyük_harf` `küçük_harf` (Türkçe i/İ, ı/I) `kırp` `parça(m, baş, uzunluk)` `böl` `birleştir` `içerir` `bul` `değiştir` `başlar` `biter` `tekrarla` `harfler` `satırlar` `ters` `kod` `karakter` `kodlar` `kodlardan` · `m[i]` · `<` `>` Türk alfabesine göre |
 | Liste | `sil(l, sıra)` `içerir` `bul` `parça` `ters` `kopya` `karıştır` `en_büyük` `en_küçük` `toplam` |
 | Sözlük | `s[a]` `içerir` `sil` `anahtarlar` `değerler` `uzunluk` |
 | Dosya | `dosya_oku` `dosyaya_yaz` `dosyaya_ekle` `dosya_var` `dosya_sil` |
