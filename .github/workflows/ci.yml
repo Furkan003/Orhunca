@@ -81,6 +81,9 @@ jobs:
           ORHUNCA_KABUK_SINAMA=1 timeout 120 ./sayac.exe > pencere.txt
           cat pencere.txt
           grep -q "Şu anki değer: 0" pencere.txt
+      - name: Hata ayıklayıcı (çalışma zamanı, Windows soketleri)
+        shell: bash
+        run: python araclar/ayiklama_sinamasi.py target/debug/orhunca.exe "$RUNNER_TEMP/ayiklama"
   kabuk:
     # Hazır pencere kabuklarını (orhunca paketle) kaynaktan derler, gerçek bir
     # pencerede açıp sayfanın yüklendiğini sınar ve çıktıları yükler.
