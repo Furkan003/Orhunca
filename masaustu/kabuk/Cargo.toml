@@ -1,0 +1,22 @@
+[package]
+name = "orhunca-kabuk"
+version = "0.5.0"
+edition = "2021"
+description = "Orhunca arayüz programlarını kendi penceresinde açan hazır kabuk (orhunca paketle)"
+publish = false
+
+# Ana çalışma alanının parçası değildir: yalnızca hazır kabukları üretmek için
+# derlenir (araclar/kabuklar.sh). Derleyici bu kabukları runtime/kabuk/ altından gömer.
+[workspace]
+
+[dependencies]
+tao = "0.37"
+wry = "0.57"
+serde_json = "1"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
+panic = "abort"

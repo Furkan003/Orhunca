@@ -72,6 +72,54 @@ jobs:
             fi
           done
           exit $hata
+  kabuk:
+    # Hazır pencere kabuklarını (orhunca paketle) kaynaktan derler, gerçek bir
+    # pencerede açıp sayfanın yüklendiğini sınar ve çıktıları yükler.
+    # Linux kabuğu geniş uyumluluk için eski glibc'li sistemde derlenir.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            kabuk: masaustu/kabuk/target/release/orhunca-kabuk
+            ad: linux-x86_64
+          - os: windows-latest
+            kabuk: masaustu/kabuk/target/release/orhunca-kabuk.exe
+            ad: windows-x86_64.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Linux bağımlılıkları
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev xvfb
+      - name: Kabuğu derle
+        working-directory: masaustu/kabuk
+        run: cargo test --release && cargo build --release
+      - name: Gerçek pencerede sına
+        shell: bash
+        run: |
+          python3 - "${{ matrix.kabuk }}" <<'PY'
+          import struct, sys
+          sayfa = b"<html><body><h1>Merhaba kabuk</h1><script>document.body.append(' depo:' + typeof window.orhuncaKabukDepo)</script></body></html>"
+          baslik = "Sınama".encode()
+          yuk = b"OHCKABUK" + struct.pack("<I", len(baslik)) + baslik + sayfa
+          veri = open(sys.argv[1], "rb").read() + yuk + b"ORHUNCA!" + struct.pack("<Q", len(yuk))
+          open("sinama" + (".exe" if sys.argv[1].endswith(".exe") else ""), "wb").write(veri)
+          PY
+          if [ "$RUNNER_OS" = Linux ]; then
+            chmod +x sinama
+            ORHUNCA_KABUK_SINAMA=1 timeout 120 xvfb-run -a ./sinama > cikti.txt
+          else
+            ORHUNCA_KABUK_SINAMA=1 timeout 120 ./sinama.exe > cikti.txt
+          fi
+          cat cikti.txt
+          grep -q "Merhaba kabuk" cikti.txt
+          grep -q "depo:object" cikti.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kabuk-${{ matrix.ad }}
+          path: ${{ matrix.kabuk }}
   vscode:
     runs-on: ubuntu-latest
     steps:
