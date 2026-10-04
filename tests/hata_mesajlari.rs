@@ -41,3 +41,25 @@ fn oneriler() {
         assert!(c.contains(beklenen), "{kaynak:?}\n→ {c}");
     }
 }
+
+/// Aşırı derin ya da uzun girdi derleyiciyi çökertmez; anlaşılır hata verir ve uzun
+/// satır kısaltılarak gösterilir.
+#[test]
+fn derinlik_sinirlari() {
+    let derin = format!("x = {}1{}\n", "(".repeat(5000), ")".repeat(5000));
+    let c = denetle(&derin);
+    assert!(c.contains("çok fazla iç içe parantez"), "{c}");
+    assert!(c.len() < 1000, "{}", c.len());
+
+    let uzun = format!("x = 1{}\n", " + 1".repeat(100_000));
+    let c = denetle(&uzun);
+    assert!(c.contains("ifade çok uzun"), "{c}");
+
+    let mut bloklar = String::new();
+    for i in 0..500 {
+        bloklar.push_str(&format!("{}eğer doğru ise:\n", "    ".repeat(i)));
+    }
+    bloklar.push_str(&format!("{}dur\n", "    ".repeat(500)));
+    let c = denetle(&bloklar);
+    assert!(c.contains("çok fazla iç içe blok"), "{c}");
+}

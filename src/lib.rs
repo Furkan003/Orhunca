@@ -27,3 +27,7 @@ pub mod yerlesik;
 
 /// Derleyicinin sürümü (Cargo.toml).
 pub const SURUM: &str = env!("CARGO_PKG_VERSION");
+
+/// Derleyiciyi çalıştıran iş parçacıklarının yığın boyutu. Ayrıştırıcı ve denetçi
+/// özyinelemelidir; ayristirici'deki derinlik sınırları bu boyutla güvenlidir.
+pub const YIGIN: usize = 256 * 1024 * 1024;

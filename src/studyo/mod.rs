@@ -138,7 +138,10 @@ fn dinle(dinleyici: TcpListener, anahtar: String) {
     for baglanti in dinleyici.incoming() {
         let Ok(akis) = baglanti else { continue };
         let anahtar = anahtar.clone();
-        std::thread::spawn(move || isle(akis, &anahtar, kapi));
+        // İstekler derleyiciyi bu iş parçacığında çalıştırır: geniş yığın.
+        let _ = std::thread::Builder::new()
+            .stack_size(crate::YIGIN)
+            .spawn(move || isle(akis, &anahtar, kapi));
     }
 }
 

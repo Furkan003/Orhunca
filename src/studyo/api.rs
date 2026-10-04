@@ -26,6 +26,14 @@ fn koke_izin_ver(yol: &Path) {
 
 /// Yol açık projelerden birinin içinde mi? Henüz var olmayan dosyalar için üst klasöre bakılır.
 fn izinli_mi(yol: &Path) -> bool {
+    // `..` reddedilir: var olmayan bir klasörden sonra gelen `..` aşağıdaki denetimi
+    // aşabilir (Windows yolu sözcüksel olarak çözer: izinli/yok/../../başka).
+    if yol
+        .components()
+        .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        return false;
+    }
     let mut aday = yol.to_path_buf();
     let tam = loop {
         if let Ok(t) = std::fs::canonicalize(&aday) {

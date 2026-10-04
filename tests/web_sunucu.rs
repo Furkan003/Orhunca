@@ -367,3 +367,55 @@ fn https() {
     assert_eq!(cikti.matches("ziyaret 1").count(), 2, "{cikti}");
     assert!(cikti.contains("HttpOnly; Secure"), "{cikti}");
 }
+
+/// Saldırı girdileri: statik klasörün dışına çıkma, gizli dosyalar, Windows aygıt
+/// adları, aşırı büyük parçalı gövde uzunluğu, bozuk istek satırı.
+#[test]
+fn kotu_niyetli_istekler() {
+    let s = baslat("saldiri", &[], |k| {
+        std::fs::create_dir_all(k.join("statik/alt")).unwrap();
+        std::fs::write(k.join("statik/alt/a.txt"), "açık").unwrap();
+        std::fs::write(k.join("statik/.env"), "GİZLİ").unwrap();
+        std::fs::write(k.join("gizli.txt"), "GİZLİ").unwrap();
+    });
+    assert_eq!(al(s.kapi, "/alt/a.txt", None).metin(), "açık");
+    for yol in [
+        "/../gizli.txt",
+        "/alt/../../gizli.txt",
+        "/%2e%2e/gizli.txt",
+        "/alt/%2E%2E/%2e%2e/gizli.txt",
+        "/..%2fgizli.txt",
+        "/alt%2f..%2f..%2fgizli.txt",
+        "/.env",
+        "/%2eenv",
+        "/alt/..%5c..%5cgizli.txt",
+        "/con",
+        "/NUL.txt",
+        "/alt/com1",
+        "/C:/Windows/win.ini",
+    ] {
+        let y = al(s.kapi, yol, None);
+        assert!(
+            y.durum == 404 && !y.metin().contains("GİZLİ"),
+            "{yol}: {}",
+            y.durum
+        );
+    }
+
+    // Parçalı gövdede devasa uzunluk: taşma yok, 413
+    let y = istek(
+        s.kapi,
+        "POST /yankı HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n7fffffffffffffff\r\nabc\r\n",
+    );
+    assert_eq!(y.durum, 413);
+    let y = istek(
+        s.kapi,
+        "POST /yankı HTTP/1.1\r\nHost: x\r\nContent-Length: -5\r\n\r\n",
+    );
+    assert_eq!(y.durum, 413);
+    // Bozuk istek satırı
+    let y = istek(s.kapi, "BOZUK\r\n\r\n");
+    assert_eq!(y.durum, 400);
+    // Sunucu hâlâ çalışıyor
+    assert_eq!(al(s.kapi, "/alt/a.txt", None).metin(), "açık");
+}

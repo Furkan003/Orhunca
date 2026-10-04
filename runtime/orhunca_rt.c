@@ -3143,9 +3143,31 @@ static int dosya_turu(const char *yol) {
 }
 
 
+/* Yolun bir parçası gönderilemez mi: "." ile başlayan (.., .env, .git) ya da
+ * Windows aygıt adı (con, nul, com1 ...; uzantılı da: con.txt). */
+static int yasak_parca(const char *p, size_t n) {
+    if (n == 0 || p[0] == '.') return 1;
+    static const char *aygitlar[] = {"con", "prn", "aux", "nul", "com", "lpt", "conin$", "conout$"};
+    size_t ad = 0;
+    while (ad < n && p[ad] != '.') ad++;
+    for (size_t k = 0; k < sizeof aygitlar / sizeof *aygitlar; k++) {
+        size_t an = strlen(aygitlar[k]);
+        if (ad < an || harf_duyarsiz_esit(p, aygitlar[k], an)) continue;
+        if (ad == an && k != 4 && k != 5) return 1;
+        if ((k == 4 || k == 5) && ad == an + 1 && p[an] >= '0' && p[an] <= '9') return 1;
+    }
+    return 0;
+}
+
 /* statik/ klasöründen dosya gönderir; dosya yoksa 0 döndürür. */
 static int statik_gonder(Yanit *y, const char *yol) {
-    if (strstr(yol, "/..") || strchr(yol, '\\') || strstr(yol, "//")) return 0;
+    if (strchr(yol, '\\') || strchr(yol, ':')) return 0;
+    for (const char *p = yol + 1; *p;) {
+        const char *e = strchr(p, '/');
+        size_t n = e ? (size_t)(e - p) : strlen(p);
+        if (yasak_parca(p, n)) return 0;
+        p += n + (e ? 1 : 0);
+    }
     Tampon d = {0};
     t_yaz(&d, "statik");
     t_yaz(&d, yol);
@@ -3225,6 +3247,7 @@ static void rastgele_onaltilik(char *s, size_t bayt) {
 
 #define OTURUM_CEREZI "orhunca_oturum"
 #define OTURUM_OMRU (7 * 24 * 3600.0) /* son kullanımdan sonra */
+#define EN_COK_OTURUM 100000
 /* sözlük<metin, metin> tip kodu */
 #define KOD_METIN_SOZLUGU (5 + 8 * (1 + 2 * KOD_METIN))
 
@@ -3456,8 +3479,10 @@ static int64_t istek_tamam_mi(const char *v, size_t n, Tampon *cozulen, size_t *
     for (;;) {
         const char *e = bul_n(v + i, n - i, "\r\n");
         if (!e) return 0;
-        long long boy = strtoll(v + i, NULL, 16);
-        if (boy < 0 || (int64_t)cozulen->n + boy > en_buyuk_govde) return -2;
+        char *boy_sonu;
+        long long boy = strtoll(v + i, &boy_sonu, 16);
+        if (boy_sonu == v + i) return -1;
+        if (boy < 0 || boy > en_buyuk_govde - (int64_t)cozulen->n) return -2;
         i = (size_t)(e - v) + 2;
         if (boy == 0) {
             const char *bitis = bul_n(v + i, n - i, "\r\n");
@@ -3642,6 +3667,13 @@ static void istegi_isle(Yanit *y, char *v, size_t n, size_t govde_basi, const ch
                     }
                 } else {
                     if (!o) {
+                        /* Bellek sınırı: en eski oturum yer açar. */
+                        if (oturum_sayisi >= EN_COK_OTURUM) {
+                            int64_t eski = 0;
+                            for (int64_t k = 1; k < oturum_sayisi; k++)
+                                if (oturumlar[k].son < oturumlar[eski].son) eski = k;
+                            oturum_sil(&oturumlar[eski]);
+                        }
                         if (oturum_sayisi == oturum_kap) {
                             oturum_kap = oturum_kap ? oturum_kap * 2 : 16;
                             oturumlar = ham_buyut(oturumlar, sizeof(Oturum) * (size_t)oturum_kap);
@@ -3804,10 +3836,14 @@ typedef struct {
     size_t gonderilen;
     int kapanacak;    /* yanıt gidince kapanır */
     double son_etkinlik;
+    double istek_basi; /* bekleyen isteğin ilk baytı geldiğinde */
 } Baglanti;
 
 #define BOSTA_KALMA_SURESI 30.0
 #define YARIM_ISTEK_SURESI 15.0
+/* Başlıklar bu sürede tamamlanmalı (her bayt zamanlayıcıyı sıfırlasa da) */
+#define BASLIK_SURESI 30.0
+#define EN_COK_BAGLANTI 1000
 
 static void engelsiz_yap(Soket s) {
 #ifdef _WIN32
@@ -4025,6 +4061,11 @@ void ohc_sun(int64_t kapi, int64_t istek_tanimi) {
             for (;;) {
                 Soket s = accept(dinleyici, NULL, NULL);
                 if (s == GECERSIZ_SOKET) break;
+                if (sayi >= EN_COK_BAGLANTI) {
+                    /* Çok fazla açık bağlantı: yenisi hemen kapatılır. */
+                    soket_kapat(s);
+                    continue;
+                }
                 engelsiz_yap(s);
                 if (sayi == kap) {
                     kap = kap ? kap * 2 : 16;
@@ -4033,7 +4074,7 @@ void ohc_sun(int64_t kapi, int64_t istek_tanimi) {
                 Baglanti *b = &baglantilar[sayi++];
                 memset(b, 0, sizeof *b);
                 b->s = s;
-                b->son_etkinlik = simdi;
+                b->son_etkinlik = b->istek_basi = simdi;
                 if (https) {
                     b->ssl = tls.SSL_new(tls_baglami);
                     tls.SSL_set_fd(b->ssl, (int)s);
@@ -4086,6 +4127,10 @@ void ohc_sun(int64_t kapi, int64_t istek_tanimi) {
             }
             double sinir = b->gelen.n ? YARIM_ISTEK_SURESI : BOSTA_KALMA_SURESI;
             if (canli && simdi - b->son_etkinlik > sinir) canli = 0;
+            if (!b->gelen.n) b->istek_basi = simdi;
+            if (canli && b->gelen.n && simdi - b->istek_basi > BASLIK_SURESI &&
+                !bul_n(b->gelen.v, b->gelen.n, "\r\n\r\n"))
+                canli = 0;
             if (!canli) {
                 baglanti_kapat(b);
                 b->s = GECERSIZ_SOKET;

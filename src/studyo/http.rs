@@ -77,10 +77,16 @@ pub fn yuzde_coz(s: &str) -> String {
     String::from_utf8_lossy(&cikti).into_owned()
 }
 
+const EN_BUYUK_BASLIK: u64 = 64 * 1024;
+
 pub fn oku(akis: &mut TcpStream) -> Option<Istek> {
+    // Yarım bırakılan bağlantı iş parçacığını sonsuza dek tutmasın.
+    let _ = akis.set_read_timeout(Some(std::time::Duration::from_secs(30)));
     let mut okuyucu = BufReader::new(akis.try_clone().ok()?);
+    // İstek satırı ve başlıklar en çok 64 KB
+    let mut sinirli = (&mut okuyucu).take(EN_BUYUK_BASLIK);
     let mut ilk = String::new();
-    okuyucu.read_line(&mut ilk).ok()?;
+    sinirli.read_line(&mut ilk).ok()?;
     let mut parcalar = ilk.split_whitespace();
     let yontem = parcalar.next()?.to_string();
     let hedef = parcalar.next()?.to_string();
@@ -88,8 +94,8 @@ pub fn oku(akis: &mut TcpStream) -> Option<Istek> {
     let mut basliklar = HashMap::new();
     loop {
         let mut satir = String::new();
-        if okuyucu.read_line(&mut satir).ok()? == 0 {
-            break;
+        if sinirli.read_line(&mut satir).ok()? == 0 {
+            return None;
         }
         let satir = satir.trim_end();
         if satir.is_empty() {
@@ -139,7 +145,8 @@ pub fn yaz(akis: &mut TcpStream, y: &Yanit) {
     let baslik = format!(
         "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\n\
          Cache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\n\
-         Referrer-Policy: no-referrer\r\nConnection: close\r\n\r\n",
+         Referrer-Policy: no-referrer\r\nX-Frame-Options: SAMEORIGIN\r\n\
+         Connection: close\r\n\r\n",
         y.durum,
         durum_metni,
         y.tur,

@@ -185,6 +185,7 @@ pub fn ayristir_cok(mut dosyalar: Vec<Vec<Sozcuk>>, sablonlar: Vec<Sablon>) -> S
     for s in &sablonlar {
         hepsi.extend(s.tum_sozcukler());
     }
+    derinlik_denetle(&hepsi)?;
     let mut t = sozluk_kur(&hepsi);
     if !sablonlar.is_empty() {
         for ad in ["model", "içerik", "başlık"] {
@@ -206,6 +207,66 @@ pub fn ayristir_cok(mut dosyalar: Vec<Vec<Sozcuk>>, sablonlar: Vec<Sablon>) -> S
         program.islevler.push(sablon_islevi(&t, s)?);
     }
     Ok(program)
+}
+
+/// İç içe parantez/köşeli parantez derinliği, blok derinliği ve tek deyimdeki işleç
+/// sayısı için üst sınırlar: ayrıştırıcı, denetçi ve kod üreticiler özyinelemelidir;
+/// aşırı derin girdi yığını taşırıp derleyiciyi (ve onu barındıran Stüdyo'yu) düşürmesin.
+pub const EN_COK_PARANTEZ: usize = 128;
+pub const EN_COK_BLOK: usize = 64;
+pub const EN_COK_ISLEC: usize = 1000;
+
+fn derinlik_denetle(sozcukler: &[Sozcuk]) -> Sonuc<()> {
+    let mut parantez = 0usize;
+    let mut blok = 0usize;
+    let mut islec = 0usize;
+    for s in sozcukler {
+        match &s.tok {
+            Tok::Op("(" | "[" | "{") => {
+                parantez += 1;
+                if parantez > EN_COK_PARANTEZ {
+                    return Err(Hata::yeni(
+                        s.konum,
+                        format!("çok fazla iç içe parantez (en çok {EN_COK_PARANTEZ})"),
+                    )
+                    .ipucu("ifadeyi ara değişkenlere bölün"));
+                }
+            }
+            Tok::Op(")" | "]" | "}") => parantez = parantez.saturating_sub(1),
+            Tok::Op("+" | "-" | "*" | "/" | "//" | "%" | "==" | "!=" | "<" | ">" | "<=" | ">=") => {
+                islec += 1
+            }
+            Tok::Kelime(k) if k == "ve" || k == "veya" || k == "değil" => islec += 1,
+            Tok::Girinti => {
+                blok += 1;
+                islec = 0;
+                if blok > EN_COK_BLOK {
+                    return Err(Hata::yeni(
+                        s.konum,
+                        format!("çok fazla iç içe blok (en çok {EN_COK_BLOK})"),
+                    )
+                    .ipucu("iç kısımları ayrı işlevlere taşıyın"));
+                }
+            }
+            Tok::Cikinti => {
+                blok = blok.saturating_sub(1);
+                islec = 0;
+            }
+            Tok::YeniSatir | Tok::Son => {
+                islec = 0;
+                parantez = 0;
+            }
+            _ => {}
+        }
+        if islec > EN_COK_ISLEC {
+            return Err(Hata::yeni(
+                s.konum,
+                format!("ifade çok uzun (bir deyimde en çok {EN_COK_ISLEC} işlem)"),
+            )
+            .ipucu("ifadeyi birkaç satıra ve ara değişkenlere bölün"));
+        }
+    }
+    Ok(())
 }
 
 /// Bir dosyadaki `kullan "yol.ohc"` satırlarının yollarını verir.

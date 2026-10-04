@@ -102,6 +102,57 @@ fn guvenlik() {
     // Açılmamış bir yerdeki dosya okunamaz.
     let (durum, _) = s.istek("GET", "/api/dosya?yol=%2Fetc%2Fpasswd", None, true);
     assert_eq!(durum, 403);
+    // Başka bir sitenin adıyla (DNS yeniden bağlama) gelen istek reddedilir.
+    let mut a = TcpStream::connect(("127.0.0.1", s.kapi)).unwrap();
+    a.write_all(b"GET / HTTP/1.1\r\nHost: kotu.example:80\r\n\r\n")
+        .unwrap();
+    let mut y = String::new();
+    a.read_to_string(&mut y).unwrap();
+    assert!(y.starts_with("HTTP/1.1 403"), "{y}");
+
+    // Açık projeden `..` ile dışarı çıkılamaz (var olmayan ara klasörle de).
+    let konum = s.ev.join("Projeler");
+    let r = s.api(
+        "/api/proje/olustur",
+        serde_json::json!({ "sablon": "konsol", "ad": "p", "konum": konum, "git": false, "ornek": false }),
+    );
+    assert!(r["hata"].is_null(), "{r}");
+    for yol in [
+        konum
+            .join("p")
+            .join("yok")
+            .join("..")
+            .join("..")
+            .join("kacis.txt"),
+        konum.join("p").join("..").join("kacis.txt"),
+    ] {
+        let (durum, _) = s.istek(
+            "POST",
+            "/api/dosya",
+            Some(&serde_json::json!({ "yol": yol, "icerik": "x" }).to_string()),
+            true,
+        );
+        assert_eq!(durum, 403, "{}", yol.display());
+    }
+    assert!(!konum.join("kacis.txt").exists());
+    let (durum, _) = s.istek(
+        "POST",
+        "/api/dosya",
+        Some(
+            &serde_json::json!({ "yol": konum.join("p").join("yeni.ohc"), "icerik": "x" })
+                .to_string(),
+        ),
+        true,
+    );
+    assert_eq!(durum, 200);
+
+    // Bitmeyen başlık satırı bellek tüketmez: 64 KB'tan sonra bağlantı kapanır.
+    let mut a = TcpStream::connect(("127.0.0.1", s.kapi)).unwrap();
+    let _ = a.write_all(&vec![b'a'; 200 * 1024]);
+    let mut y = Vec::new();
+    let _ = a.read_to_end(&mut y);
+    assert!(y.is_empty());
+    assert_eq!(s.istek("GET", "/api/durum", None, true).0, 200);
 }
 
 #[test]

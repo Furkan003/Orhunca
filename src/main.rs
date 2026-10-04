@@ -28,6 +28,16 @@ dönüştürür (Windows: WebView2, Linux: WebKitGTK).
 dosyalar). 'çalıştır --hedef web' programı Node.js ile çalıştırır.";
 
 fn main() -> ExitCode {
+    // Derleyici geniş yığınlı bir iş parçacığında çalışır (bkz. orhunca::YIGIN).
+    std::thread::Builder::new()
+        .stack_size(orhunca::YIGIN)
+        .spawn(ana)
+        .expect("iş parçacığı başlatılamadı")
+        .join()
+        .unwrap_or(ExitCode::FAILURE)
+}
+
+fn ana() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let Some(komut) = args.first() else {
         println!("{YARDIM}");

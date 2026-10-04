@@ -59,7 +59,24 @@ impl Hata {
         if let Some(satir) = kaynak.lines().nth(self.konum.satir.saturating_sub(1)) {
             let no = self.konum.satir.to_string();
             let bosluk = " ".repeat(no.len());
-            let isaret = " ".repeat(self.konum.sutun.saturating_sub(1));
+            // Çok uzun satırlar sütunun çevresinden kısaltılarak gösterilir.
+            const GENISLIK: usize = 120;
+            let sutun = self.konum.sutun.saturating_sub(1);
+            let (satir, sutun) = if satir.chars().count() > GENISLIK {
+                let bas = sutun.saturating_sub(GENISLIK / 2);
+                let mut parca: String = satir.chars().skip(bas).take(GENISLIK).collect();
+                if satir.chars().count() > bas + GENISLIK {
+                    parca.push('…');
+                }
+                if bas > 0 {
+                    (format!("…{parca}"), sutun - bas + 1)
+                } else {
+                    (parca, sutun)
+                }
+            } else {
+                (satir.to_string(), sutun)
+            };
+            let isaret = " ".repeat(sutun);
             s.push_str(&format!(
                 "{bosluk} |\n{no} | {satir}\n{bosluk} | {isaret}^\n"
             ));
