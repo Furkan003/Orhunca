@@ -62,6 +62,7 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
         ("GET", "/api/projeler") => projeler(),
         ("GET", "/api/sablonlar") => sablon_listesi(),
         ("GET", "/api/yerlesikler") => yerlesikler(),
+        ("GET", "/api/ekler") => ek_onerileri(istek.sorgu("ifade")),
         ("GET", "/api/klasor") => klasor(istek.sorgu("yol")),
         ("GET", "/api/dosya") => dosya_oku(istek.sorgu("yol")),
         ("GET", "/api/agac") => agac(istek.sorgu("kok")),
@@ -200,6 +201,25 @@ fn yerlesikler() -> Yanit {
         .map(|y| json!({ "ad": y.ad, "kullanim": y.kullanim, "aciklama": y.aciklama }))
         .collect();
     Yanit::json(&json!({ "yerlesikler": liste }))
+}
+
+/// Düzenleyicide `'` yazılınca: ifadenin her hâldeki doğru eki (ünlü uyumuyla).
+fn ek_onerileri(ifade: &str) -> Yanit {
+    use crate::ekler::Hal;
+    let liste: Vec<Value> = [
+        (Hal::Belirtme, "belirtme · nesne", "'yi yaz, 'yi sırala"),
+        (Hal::Yonelme, "yönelme · hedef", "listeye ekle, 5'e kadar"),
+        (Hal::Ayrilma, "ayrılma · kaynak", "1'den, listeden"),
+        (Hal::Bulunma, "bulunma · yer", "listede"),
+        (Hal::Vasita, "vasıta · araç", "x'le"),
+        (Hal::Ilgi, "ilgi · sahiplik", "listenin"),
+    ]
+    .iter()
+    .map(|(hal, ad, ornek)| {
+        json!({ "ek": crate::bicimlendirici::ek_oner(ifade, *hal), "hal": ad, "ornek": ornek })
+    })
+    .collect();
+    Yanit::json(&json!({ "ekler": liste }))
 }
 
 /// Klasör seçici: verilen klasördeki alt klasörleri listeler.
@@ -704,6 +724,7 @@ fn calistir(g: &Value) -> Yanit {
                 dinleyici,
                 dosyalar,
                 kesmeler: kesme_noktalari(g),
+                ilkte_dur: g["ilkte_dur"].as_bool().unwrap_or(false),
             }),
             Err(e) => return hata(format!("hata ayıklayıcı başlatılamadı: {e}")),
         }

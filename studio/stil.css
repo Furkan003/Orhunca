@@ -554,3 +554,73 @@ h1, h2 { margin: 0; }
 .acilis-no { color: #4a525e; }
 .acilis-kod-imlec { color: oklch(0.79 0.12 188); }
 .acilis-cikti { padding: 0 30px 26px 76px; font-family: 'JetBrains Mono', monospace; font-size: 30px; color: #8b94a3; height: 56px; }
+
+/* Açık tema (Ayarlar → Tema). Sınıfta projektörde okunaklı; koyu temanın renk
+ * değişkenlerini değiştirir, sabit renkleri burada karşılar. */
+:root[data-tema="acik"] {
+  --arka: #e9e8e3;
+  --pencere: #ffffff;
+  --pencere-kenar: #d6d5cf;
+  --koyu: #f4f3ef;
+  --koyu2: #f0efea;
+  --cizgi: #dfded8;
+  --yazi: #1b1f25;
+  --yazi-parlak: #0f1216;
+  --yazi2: #2c323b;
+  --ikincil: #4a525e;
+  --soluk: #5b6470;
+  --soluk2: #66707c;
+  --soluk3: #727b88;
+  --soluk4: #8a929d;
+  --cok-soluk: #a7adb6;
+  --kart: #ffffff;
+  --kart-kenar: #dcdbd5;
+  --girdi: #efeee9;
+  --girdi-kenar: #d3d2cb;
+  --hover: #e8e7e1;
+  --dugme: #f2f1ec;
+  --dugme-kenar: #d3d2cb;
+  --dugme-hover: #e6e5df;
+  --vurgu: oklch(0.55 0.11 192);
+  --vurgu-acik: oklch(0.50 0.11 192);
+  --vurgu-koyu: #f7f6f2;
+  --vurgu-07: oklch(0.55 0.11 192 / 0.07);
+  --vurgu-10: oklch(0.55 0.11 192 / 0.1);
+  --vurgu-12: oklch(0.55 0.11 192 / 0.12);
+  --vurgu-17: oklch(0.55 0.11 192 / 0.17);
+  --vurgu-30: oklch(0.55 0.11 192 / 0.3);
+  --vurgu-35: oklch(0.55 0.11 192 / 0.35);
+  --vurgu-45: oklch(0.55 0.11 192 / 0.45);
+  --hata: oklch(0.55 0.18 25);
+  --hata-kenar: oklch(0.6 0.16 25);
+  --basari: oklch(0.52 0.13 145);
+  --sari: oklch(0.55 0.12 70);
+  --mor: oklch(0.50 0.14 330);
+  --mavi: oklch(0.50 0.14 255);
+  color-scheme: light;
+}
+:root[data-tema="acik"] ::-webkit-scrollbar-thumb { background: #c9c8c1; }
+:root[data-tema="acik"] .acilir-menu, :root[data-tema="acik"] .baloncuk, :root[data-tema="acik"] .bildirim { background: #ffffff; border-color: #d6d5cf; box-shadow: 0 16px 40px rgba(20, 25, 35, 0.16); }
+:root[data-tema="acik"] .acilir-ayrac { background: #e2e1db; }
+:root[data-tema="acik"] .avatar, :root[data-tema="acik"] .etiket { background: #ecebe6; border-color: #d9d8d2; }
+:root[data-tema="acik"] .sablon:hover { border-color: #b9b8b1; }
+:root[data-tema="acik"] .sablon-simge { color: #4a525e; }
+:root[data-tema="acik"] .agac-oge.etkin { background: #dfeeed; }
+:root[data-tema="acik"] .vurgu-katman, :root[data-tema="acik"] .terminal .tl { color: #1b1f25; }
+:root[data-tema="acik"] .bos-duzenleyici .gokturk { color: #d9d8d2; }
+:root[data-tema="acik"] .c { color: #8a929d; }
+:root[data-tema="acik"] .e { color: oklch(0.55 0.11 192 / 0.75); }
+:root[data-tema="acik"] .olusturuluyor, :root[data-tema="acik"] .modal { border-color: #d6d5cf; box-shadow: 0 30px 80px rgba(20, 25, 35, 0.22); }
+:root[data-tema="acik"] .ortu { background: rgba(60, 64, 70, 0.35); }
+:root[data-tema="acik"] .kod-alani::selection { background: oklch(0.55 0.11 192 / 0.22); }
+.tema-secim { display: flex; gap: 2px; padding: 3px; border-radius: 8px; background: var(--girdi); border: 1px solid var(--girdi-kenar); }
+.tema-secim span { padding: 4px 10px; border-radius: 6px; font-size: 12.5px; color: var(--soluk); cursor: pointer; }
+.tema-secim span.secili { background: var(--pencere); color: var(--yazi); box-shadow: 0 0 0 1px var(--pencere-kenar); }
+.tamamla { position: absolute; z-index: 30; min-width: 220px; max-width: 420px; padding: 4px; background: var(--kart); border: 1px solid var(--pencere-kenar); border-radius: 8px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35); font-family: var(--sans); }
+.tamamla-oge { display: flex; align-items: baseline; gap: 14px; padding: 4px 8px; border-radius: 5px; cursor: pointer; font-size: 12.5px; }
+.tamamla-oge.secili { background: var(--vurgu-17); }
+.tamamla-ad { font-family: var(--mono); color: var(--yazi); }
+.tamamla-ayrinti { margin-left: auto; color: var(--soluk3); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px; }
+.ay-yavas { white-space: nowrap; display: flex; align-items: center; gap: 8px; margin: 2px 0 4px; padding: 6px 8px; border-radius: 8px; background: var(--vurgu-10); color: var(--yazi2); font-size: 12.5px; }
+.ay-yavas .simge { font-size: 20px; cursor: pointer; color: var(--vurgu); }
+.ay-yavas select { margin-left: auto; background: var(--girdi); border: 1px solid var(--girdi-kenar); border-radius: 6px; color: var(--yazi); font-size: 12px; padding: 2px 4px; }

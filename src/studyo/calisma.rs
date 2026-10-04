@@ -184,11 +184,18 @@ pub struct AyiklamaBaslangici {
     pub dinleyici: TcpListener,
     pub dosyalar: Vec<String>,
     pub kesmeler: Vec<(String, usize)>,
+    /// İlk deyimde durulur (adım adım gösterim); yoksa ilk kesme noktasına kadar çalışır.
+    pub ilkte_dur: bool,
 }
 
 /// Program bağlanınca kesme noktalarını gönderir ve olayları okur. İlk deyimde
 /// program kendiliğinden durur; orada kesme noktası yoksa devam ettirilir.
-fn ayiklayiciyi_baslat(a: Arc<Ayiklayici>, dinleyici: TcpListener, kesmeler: Vec<(String, usize)>) {
+fn ayiklayiciyi_baslat(
+    a: Arc<Ayiklayici>,
+    dinleyici: TcpListener,
+    kesmeler: Vec<(String, usize)>,
+    ilkte_dur: bool,
+) {
     std::thread::spawn(move || {
         let _ = dinleyici.set_nonblocking(true);
         let baslangic = Instant::now();
@@ -231,6 +238,8 @@ fn ayiklayiciyi_baslat(a: Arc<Ayiklayici>, dinleyici: TcpListener, kesmeler: Vec
                 });
                 if kesmede {
                     a.durum.lock().unwrap().neden = "kesme".into();
+                } else if ilkte_dur {
+                    a.durum.lock().unwrap().neden = "adim".into();
                 } else {
                     a.durum.lock().unwrap().durdu = false;
                     let _ = a.gonder("devam");
@@ -291,7 +300,7 @@ pub fn baslat(
         }),
     });
     if let (Some(a), Some(b)) = (&c.ayiklayici, ayiklama) {
-        ayiklayiciyi_baslat(a.clone(), b.dinleyici, b.kesmeler);
+        ayiklayiciyi_baslat(a.clone(), b.dinleyici, b.kesmeler, b.ilkte_dur);
     }
     let mut okuyucular = Some([
         akisi_oku(stdout, c.clone(), "cikti"),

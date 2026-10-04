@@ -75,8 +75,18 @@
     menu: null, modal: null, bildirim: null,
     yaziBoyutu: ayarOku('yaziBoyutu', 13),
     yazarkenDenetle: ayarOku('yazarkenDenetle', true),
+    yavasHiz: ayarOku('yavasHiz', 700),
     acilis: ayarOku('acilis', true),
+    // 'koyu', 'acik' ya da 'sistem' (işletim sisteminin ayarı)
+    tema: ayarOku('tema', 'koyu'),
   };
+
+  function temaUygula() {
+    const acik = D.tema === 'acik' || (D.tema === 'sistem' && matchMedia('(prefers-color-scheme: light)').matches);
+    document.documentElement.dataset.tema = acik ? 'acik' : 'koyu';
+  }
+  temaUygula();
+  matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', temaUygula);
 
   const ayrac = () => D.bilgi.ayrac || '/';
   const tamYol = goreli => D.proje.yol.replace(/[\\/]+$/, '') + ayrac() + goreli.split('/').join(ayrac());
@@ -254,7 +264,7 @@
     { ad: 'Düzen', ogeler: [['Geri al', 'Ctrl+Z', 'geriAl'], ['Yinele', 'Ctrl+Y', 'yinele'], '-', ['Kes', 'Ctrl+X', 'kes'], ['Kopyala', 'Ctrl+C', 'kopyala'], ['Yapıştır', 'Ctrl+V', 'yapistir'], '-', ['Satırı yorum yap', 'Ctrl+/', 'yorumYap'], ['Biçimlendir', 'Ctrl+⇧+F', 'bicimlendir']] },
     { ad: 'Seçim', ogeler: [['Tümünü seç', 'Ctrl+A', 'tumunuSec'], ['Satırı seç', 'Ctrl+L', 'satiriSec'], ['Satırı çoğalt', 'Ctrl+⇧+D', 'satiriCogalt']] },
     { ad: 'Görünüm', ogeler: [['Gezgin', '', 'panelGezgin'], ['Ara', '', 'panelAra'], ['Yapı', '', 'panelYapi'], ['Çalıştır', '', 'panelCalistir'], '-', ['Alt paneli göster/gizle', 'Ctrl+J', 'altPanelAcKapa'], '-', ['Yazıyı büyüt', 'Ctrl+=', 'yaziBuyut'], ['Yazıyı küçült', 'Ctrl+-', 'yaziKucult']] },
-    { ad: 'Çalıştır', ogeler: [['Çalıştır', 'F5', 'calistir'], ['Hata ayıkla', 'F6', 'ayikla'], ['Durdur', '⇧+F5', 'durdur'], ['Denetle', 'F7', 'denetleKomut'], '-', ['Kesme noktası ekle/kaldır', 'F9', 'kesmeImlec'], ['Devam', 'F5', 'ayDevam'], ['Üstünden adım', 'F10', 'ayUstunden'], ['İçine adım', 'F11', 'ayAdim'], ['Dışına adım', '⇧+F11', 'ayCik'], '-', ['Canlı önizlemeyi göster/gizle', '', 'onizlemeAcKapa'], ['Önizlemeyi tarayıcıda aç', '', 'onizlemeTarayici'], '-', ['Linux için derle', '', 'derleLinux'], ['Windows için derle', '', 'derleWindows'], ['Web için derle (WebAssembly)', '', 'derleWeb'], '-', ['Masaüstü uygulaması (Linux)', '', 'paketleLinux'], ['Masaüstü uygulaması (Windows)', '', 'paketleWindows']] },
+    { ad: 'Çalıştır', ogeler: [['Çalıştır', 'F5', 'calistir'], ['Hata ayıkla', 'F6', 'ayikla'], ['Adım adım göster', '', 'yavasCalistir'], ['Durdur', '⇧+F5', 'durdur'], ['Denetle', 'F7', 'denetleKomut'], '-', ['Kesme noktası ekle/kaldır', 'F9', 'kesmeImlec'], ['Devam', 'F5', 'ayDevam'], ['Üstünden adım', 'F10', 'ayUstunden'], ['İçine adım', 'F11', 'ayAdim'], ['Dışına adım', '⇧+F11', 'ayCik'], '-', ['Canlı önizlemeyi göster/gizle', '', 'onizlemeAcKapa'], ['Önizlemeyi tarayıcıda aç', '', 'onizlemeTarayici'], '-', ['Linux için derle', '', 'derleLinux'], ['Windows için derle', '', 'derleWindows'], ['Web için derle (WebAssembly)', '', 'derleWeb'], '-', ['Masaüstü uygulaması (Linux)', '', 'paketleLinux'], ['Masaüstü uygulaması (Windows)', '', 'paketleWindows']] },
     { ad: 'Terminal', ogeler: [['Terminali temizle', '', 'terminalTemizle'], ['Sorunları göster', '', 'altSorunlar'], ['Çıktıyı göster', '', 'altCikti']] },
     { ad: 'Yardım', ogeler: [["Orhunca'yı öğren", '', 'ogrenAc'], ['Klavye kısayolları', '', 'kisayollarModal'], ['Sürüm notları', '', 'guncellemeModal'], '-', ['Hakkında', '', 'hakkindaModal']] },
   ];
@@ -526,6 +536,8 @@
         <div class="secenek" style="cursor:default"><div class="esnek"><div class="secenek-ad">Düzenleyici yazı boyutu</div><div class="secenek-alt">Kod ve satır numaraları</div></div>
           <div class="kare-dugme simge" style="width:32px;height:32px;font-size:18px" data-e="yaziKucult">remove</div><span class="mono" style="width:32px;text-align:center">${D.yaziBoyutu}</span><div class="kare-dugme simge" style="width:32px;height:32px;font-size:18px" data-e="yaziBuyut">add</div></div>
         <div class="secenek" data-e="yazarkenDenetleDegistir"><div class="esnek"><div class="secenek-ad">Yazarken denetle</div><div class="secenek-alt">Hatalar siz yazarken altı çizili gösterilir.</div></div><div class="anahtar ${D.yazarkenDenetle ? 'acik' : ''}"><div></div></div></div>
+        <div class="secenek" style="cursor:default"><div class="esnek"><div class="secenek-ad">Tema</div><div class="secenek-alt">Sınıfta projektör için açık tema önerilir.</div></div>
+          <div class="tema-secim">${[['koyu', 'Koyu'], ['acik', 'Açık'], ['sistem', 'Sistem']].map(([t, ad]) => `<span class="${D.tema === t ? 'secili' : ''}" data-e="temaSec" data-a="${t}">${ad}</span>`).join('')}</div></div>
         <div class="secenek" data-e="acilisDegistir"><div class="esnek"><div class="secenek-ad">Açılış animasyonu</div><div class="secenek-alt">Stüdyo açılırken Orhunca logosu canlandırılır.</div></div><div class="anahtar ${D.acilis ? 'acik' : ''}"><div></div></div></div>`,
         `<div class="dugme birincil" data-e="modalKapat">Tamam</div>`);
     }
@@ -708,7 +720,7 @@
       const giris = girisDosyasi();
       kap.innerHTML = baslik('ÇALIŞTIR') + `<div class="panel-ic">
         <div class="panel-not">Giriş dosyası<br><span class="mono" style="color:var(--yazi2)">${kac(giris || '—')}</span></div>
-        ${D.calisma ? `<div class="panel-dugme" data-e="durdur">${S('stop')}Durdur</div>` : `<div class="panel-dugme birincil" data-e="calistir">${S('play_arrow')}Çalıştır (F5)</div><div class="panel-dugme" data-e="ayikla">${S('bug_report')}Hata ayıkla (F6)</div>`}
+        ${D.calisma ? `<div class="panel-dugme" data-e="durdur">${S('stop')}Durdur</div>` : `<div class="panel-dugme birincil" data-e="calistir">${S('play_arrow')}Çalıştır (F5)</div><div class="panel-dugme" data-e="ayikla">${S('bug_report')}Hata ayıkla (F6)</div><div class="panel-dugme" data-e="yavasCalistir">${S('slow_motion_video')}Adım adım göster</div>`}
         ${D.calisma?.ayikla ? ayiklamaPaneli() : ''}
         <div class="alan" style="gap:6px"><label style="font-size:12px">Program argümanları</label><input id="argumanlar" data-g="argumanlar" class="metin-girdi" placeholder="ör. bir iki" value="${kac(D.argumanlar)}" spellcheck="false"></div>
         <div class="panel-dugme" data-e="denetleKomut">${S('task_alt')}Denetle (F7)</div>
@@ -745,7 +757,10 @@
   function ayiklamaPaneli() {
     const ay = D.calisma.ay, durdu = !!ay?.durdu;
     const dugme = (e, simge, ad, kisayol) => `<span class="simge ${durdu ? '' : 'pasif'}" title="${ad} (${kisayol})" data-e="${e}">${simge}</span>`;
-    const arac = `<div class="ay-arac">${durdu ? dugme('ayDevam', 'play_arrow', 'Devam', 'F5') : `<span class="simge" title="Duraklat" data-e="ayDuraklat">pause</span>`}
+    const c = D.calisma;
+    const yavasArac = c.yavas ? `<div class="ay-yavas"><span class="simge" title="${c.yavasAcik ? 'Duraklat' : 'Sürdür'}" data-e="yavasDegistir">${c.yavasAcik ? 'pause' : 'play_arrow'}</span>
+      <span>Adım adım</span><select data-g="yavasHiz" title="Hız">${[[1500, 'Çok yavaş'], [700, 'Yavaş'], [300, 'Orta'], [100, 'Hızlı']].map(([v, a]) => `<option value="${v}" ${+D.yavasHiz === v ? 'selected' : ''}>${a}</option>`).join('')}</select></div>` : '';
+    const arac = yavasArac + `<div class="ay-arac">${durdu ? dugme('ayDevam', 'play_arrow', 'Devam', 'F5') : `<span class="simge" title="Duraklat" data-e="ayDuraklat">pause</span>`}
       ${dugme('ayUstunden', 'redo', 'Üstünden adım', 'F10')}${dugme('ayAdim', 'arrow_downward', 'İçine adım', 'F11')}${dugme('ayCik', 'arrow_upward', 'Dışına adım', '⇧+F11')}
       <span class="simge" title="Durdur (⇧+F5)" data-e="durdur">stop</span>
       <span class="ay-durum">${!ay?.bagli && !durdu ? 'başlatılıyor…' : durdu ? ({ kesme: 'kesme noktası', hata: 'çalışma hatası', duraklat: 'duraklatıldı' }[ay.neden] || 'durdu') : 'çalışıyor'}</span></div>`;
@@ -994,7 +1009,10 @@
       if (onceKirli !== (s.icerik !== s.kayitli)) cizSekmeler();
       if (D.yanPanel === 'yapi') cizYanPanel();
       denetlemeyiPlanla();
+      tamamlamayiGuncelle(ta);
     });
+    ta.addEventListener('blur', () => setTimeout(() => tamamlamaKapat(), 150));
+    ta.addEventListener('click', () => tamamlamaKapat());
     ['keyup', 'click', 'select', 'focus'].forEach(o => ta.addEventListener(o, imleciGuncelle));
     $('#kodKap').addEventListener('scroll', () => { const s = etkinSekme(), k = $('#kodKap'); if (s && k) s.kaydirma = { x: k.scrollLeft, y: k.scrollTop }; });
     ta.addEventListener('mousemove', e => {
@@ -1016,6 +1034,15 @@
     ta.addEventListener('mouseleave', () => baloncukGoster(null));
     ta.addEventListener('keydown', e => {
       const v = ta.value, bas = ta.selectionStart, son = ta.selectionEnd;
+      if (TAMAMLA && ['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].includes(e.key)) {
+        e.preventDefault();
+        if (e.key === 'Escape') tamamlamaKapat();
+        else if (e.key === 'ArrowDown') { TAMAMLA.secili = (TAMAMLA.secili + 1) % TAMAMLA.liste.length; tamamlamaCiz(); }
+        else if (e.key === 'ArrowUp') { TAMAMLA.secili = (TAMAMLA.secili + TAMAMLA.liste.length - 1) % TAMAMLA.liste.length; tamamlamaCiz(); }
+        else tamamlamaUygula(ta, TAMAMLA.secili);
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === ' ') { e.preventDefault(); tamamlamayiGuncelle(ta, true); return; }
       if (e.key === 'Tab') {
         e.preventDefault();
         if (e.shiftKey) satirlariDonustur(ta, sat => sat.map(l => l.replace(/^( {1,4}|\t)/, '')));
@@ -1046,6 +1073,77 @@
         ta.setSelectionRange(sb, Math.min(v.length, ss + 1));
       }
     });
+  }
+
+  // ---- Otomatik tamamlama: isimler (anahtar kelimeler, yerleşikler, dosyadaki
+  // isimler) ve kesme işaretinden sonra ünlü uyumuna uygun ekler.
+  let TAMAMLA = null, tamamlamaSayaci = 0;
+  const KELIME_RE = new RegExp(`[${HARF}_][${HARF}0-9_]*`, 'gu');
+  function tamamlamaKapat() { TAMAMLA = null; $('#tamamla')?.remove(); }
+  async function tamamlamayiGuncelle(ta, zorla = false) {
+    const v = ta.value, k = ta.selectionStart;
+    if (k !== ta.selectionEnd || dilBul(etkinSekme()?.yol || '') !== 'ohc') { tamamlamaKapat(); return; }
+    const satirBas = v.lastIndexOf('\n', k - 1) + 1;
+    const once = v.slice(satirBas, k);
+    // Metin ve yorum içinde önerilmez
+    const tirnak = (once.replace(/\\./g, '').match(/"/g) || []).length;
+    if (tirnak % 2 === 1 || /#/.test(once.replace(/"(?:[^"\\]|\\.)*"/g, '""'))) { tamamlamaKapat(); return; }
+    const sayac = ++tamamlamaSayaci;
+    // 1) Ek: `x'` → x'in doğru ekleri
+    const ek = /((?:"(?:[^"\\]|\\.)*")|[\p{L}\p{N}_]+|\))['’]([\p{L}]*)$/u.exec(once);
+    if (ek) {
+      let ifade = ek[1];
+      if (ifade === ')') {
+        // parantezin açılışını bul
+        let d = 0, i = once.length - ek[0].length;
+        for (; i >= 0; i--) { if (once[i] === ')') d++; else if (once[i] === '(' && --d === 0) break; }
+        ifade = once.slice(Math.max(0, i), once.length - ek[0].length + 1);
+      }
+      const r = await api('/api/ekler?' + sorgu({ ifade })).catch(() => null);
+      if (!r || sayac !== tamamlamaSayaci) return;
+      const yazilan = ek[2];
+      const liste = r.ekler.filter(x => x.ek.startsWith(yazilan) && x.ek !== yazilan).map(x => ({ ad: x.ek, yazilan, ayrinti: x.hal, tur: 'ek' }));
+      tamamlamaAc(ta, liste, k - yazilan.length);
+      return;
+    }
+    // 2) İsim: en az 2 harf (Ctrl+Boşluk ile 0 harf)
+    const kelime = /[\p{L}_][\p{L}\p{N}_]*$/u.exec(once);
+    const onek = kelime ? kelime[0] : '';
+    if (!zorla && onek.length < 2) { tamamlamaKapat(); return; }
+    const adlar = new Map();
+    for (const a of ANAHTAR_KELIMELER) adlar.set(a, 'anahtar kelime');
+    for (const y of D.yerlesikler) adlar.set(y.ad, y.kullanim);
+    for (const m of v.matchAll(KELIME_RE)) if (!adlar.has(m[0]) && m[0].length > 1) adlar.set(m[0], 'isim');
+    const liste = [...adlar].filter(([a]) => a.startsWith(onek) && a !== onek)
+      .sort((a, b) => (a[1] === 'isim' ? 0 : 1) - (b[1] === 'isim' ? 0 : 1) || a[0].length - b[0].length || a[0].localeCompare(b[0], 'tr'))
+      .slice(0, 8).map(([ad, ayrinti]) => ({ ad, yazilan: onek, ayrinti, tur: 'isim' }));
+    tamamlamaAc(ta, liste, k - onek.length);
+  }
+  function tamamlamaAc(ta, liste, bas) {
+    if (!liste.length) { tamamlamaKapat(); return; }
+    TAMAMLA = { liste, secili: 0, bas };
+    tamamlamaCiz();
+  }
+  function tamamlamaCiz() {
+    const ta = $('#kodAlani');
+    if (!TAMAMLA || !ta) return;
+    let kutu = $('#tamamla');
+    if (!kutu) { kutu = document.createElement('div'); kutu.id = 'tamamla'; kutu.className = 'tamamla'; $('#kodIc').appendChild(kutu); }
+    const once = ta.value.slice(0, TAMAMLA.bas);
+    const satir = once.split('\n').length, sutun = TAMAMLA.bas - once.lastIndexOf('\n') - 1;
+    kutu.style.top = (4 + satir * 21) + 'px';
+    kutu.style.left = (56 + sutun * karakterGenisligi) + 'px';
+    kutu.innerHTML = TAMAMLA.liste.map((x, i) => `<div class="tamamla-oge ${i === TAMAMLA.secili ? 'secili' : ''}" data-i="${i}"><span class="tamamla-ad">${x.tur === 'ek' ? "'" : ''}${kac(x.ad)}</span><span class="tamamla-ayrinti">${kac(x.ayrinti)}</span></div>`).join('');
+    kutu.querySelectorAll('.tamamla-oge').forEach(o => o.addEventListener('mousedown', e => { e.preventDefault(); tamamlamaUygula(ta, +o.dataset.i); }));
+  }
+  function tamamlamaUygula(ta, i) {
+    const x = TAMAMLA?.liste[i];
+    if (!x) return;
+    const k = ta.selectionStart;
+    ta.setSelectionRange(k - x.yazilan.length, k);
+    tamamlamaKapat();
+    metinEkle(ta, x.ad);
+    tamamlamaKapat();
   }
 
   /** Satırdaki `sira` konumundaki kelime */
@@ -1337,7 +1435,11 @@
     if (D.terminal.length > 3000) D.terminal.splice(0, D.terminal.length - 3000);
   }
 
-  async function calistir(ayikla = false) {
+  /** Adım adım gösterim: program her satırda kısa bir süre durarak çalışır;
+   *  satır vurgulanır, değişkenler güncellenir (öğretmek için). */
+  function yavasCalistir() { calistir(true, { yavas: true }); }
+
+  async function calistir(ayikla = false, { yavas = false } = {}) {
     if (!D.proje) return;
     if (D.calisma) await durdur();
     await tumunuKaydet();
@@ -1348,7 +1450,7 @@
     terminaleEkle(istem(), 'mut');
     guncelle('alt');
     const argumanlar = D.argumanlar.match(/"[^"]*"|\S+/g)?.map(a => a.replace(/^"|"$/g, '')) || [];
-    const r = await api('/api/calistir', { dosya: tamYol(giris), klasor: D.proje.yol, argumanlar, ayikla, kesmeler: ayikla ? kesmeListesi() : [] }).catch(e => ({ hata: e.message }));
+    const r = await api('/api/calistir', { dosya: tamYol(giris), klasor: D.proje.yol, argumanlar, ayikla, ilkte_dur: yavas, kesmeler: ayikla ? kesmeListesi() : [] }).catch(e => ({ hata: e.message }));
     if (r.derleme_hatasi) {
       terminaleEkle('✗ Derleme başarısız', 'err');
       terminaleEkle(r.derleme_hatasi, 'err');
@@ -1370,12 +1472,15 @@
       return;
     }
     terminaleEkle(`✓ Derleme tamamlandı · ${sureBicim(r.derleme_ms)}`, 'ok');
-    if (ayikla) {
+    if (yavas) {
+      terminaleEkle('● Adım adım gösterim: her satır vurgulanır, değişkenler yan panelde', 'bilgi');
+      D.yanPanel = 'calistir';
+    } else if (ayikla) {
       const n = kesmeListesi().length;
       terminaleEkle(`● Hata ayıklama · ${n ? n + ' kesme noktası' : 'kesme noktası yok (satır numarasına tıklayarak ekleyin)'}`, 'bilgi');
       D.yanPanel = 'calistir';
     }
-    D.calisma = { kimlik: r.kimlik, konum: 0, ayikla, ay: null };
+    D.calisma = { kimlik: r.kimlik, konum: 0, ayikla, ay: null, yavas, yavasAcik: yavas };
     if (D.proje.web) D.onizleme = { ...(D.onizleme || { surum: 0 }), kapi: r.kapi, durum: 'bekliyor' };
     guncelle('alt', 'isaretler', 'durum', 'yan', 'onizleme');
     $('#terminalGirdi')?.focus();
@@ -1400,6 +1505,14 @@
           const neden = { kesme: 'Kesme noktasında durdu', adim: 'Durdu', duraklat: 'Duraklatıldı', hata: 'Çalışma hatasında durdu' }[r.ayiklama.neden] || 'Durdu';
           if (r.ayiklama.neden !== 'adim') terminaleEkle(`● ${neden}: ${goreliYol(yer?.dosya || '')}:${yer?.satir ?? '?'}`, r.ayiklama.neden === 'hata' ? 'err' : 'bilgi');
           if (D.ekran === 'duzenleyici') { if (D.yanPanel !== 'calistir') D.yanPanel = 'calistir'; await durulanYereGit(); guncelle('etkinlik', 'alt'); }
+          // Adım adım gösterim: kesme noktası ve hata dışında kendiliğinden ilerler.
+          const c = D.calisma;
+          if (c?.yavas && c.yavasAcik && r.ayiklama.neden !== 'hata') {
+            const surum = r.ayiklama.surum;
+            setTimeout(() => {
+              if (D.calisma === c && c.yavasAcik && c.ay?.durdu && c.ay.surum === surum) ayiklamaKomutu('adim');
+            }, D.yavasHiz);
+          }
         } else if (degisti && D.ekran === 'duzenleyici') guncelle('yan', 'isaretler');
       }
       if (r.bitti) {
@@ -1600,6 +1713,7 @@
     },
     yaziBuyut() { D.yaziBoyutu = Math.min(20, D.yaziBoyutu + 1); ayarYaz('yaziBoyutu', D.yaziBoyutu); yaziDegisti(); },
     yaziKucult() { D.yaziBoyutu = Math.max(11, D.yaziBoyutu - 1); ayarYaz('yaziBoyutu', D.yaziBoyutu); yaziDegisti(); },
+    temaSec(t) { D.tema = t; ayarYaz('tema', t); temaUygula(); katmanlariCiz(); },
     acilisDegistir() { D.acilis = !D.acilis; ayarYaz('acilis', D.acilis); katmanlariCiz(); },
     yazarkenDenetleDegistir() { D.yazarkenDenetle = !D.yazarkenDenetle; ayarYaz('yazarkenDenetle', D.yazarkenDenetle); katmanlariCiz(); },
 
@@ -1663,6 +1777,14 @@
     derleWindows() { derle('windows'); },
     derleWeb() { derle('web'); },
     ayikla() { calistir(true); },
+    yavasCalistir() { yavasCalistir(); },
+    yavasDegistir() {
+      const c = D.calisma;
+      if (!c?.yavas) return;
+      c.yavasAcik = !c.yavasAcik;
+      if (c.yavasAcik && c.ay?.durdu) ayiklamaKomutu('adim');
+      cizYanPanel();
+    },
     kesmeImlec() { kesmeDegistir(D.imlec.satir); },
     ayDevam() { ayiklamaKomutu('devam'); },
     ayAdim() { ayiklamaKomutu('adim'); },
@@ -1791,6 +1913,7 @@
   }
 
   const GIRDI = {
+    yavasHiz(v) { D.yavasHiz = +v; ayarYaz('yavasHiz', D.yavasHiz); },
     q(v) { D.q = v; ciz(); },
     tq(v) { D.tq = v; ciz(); },
     projeAdi(v) { D.projeAdi = v; D.adDokunuldu = true; ciz(); },
@@ -1832,6 +1955,24 @@
     if (!D.menu) return;
     const el = e.target.closest('.menu-baslik');
     if (el && el.dataset.a !== D.menu) { D.menu = el.dataset.a; guncelle('baslik'); }
+  });
+  // Erişilebilirlik: tıklanabilir (data-e) öğeler klavyeyle odaklanır ve Enter/Boşluk
+  // ile çalışır; yalnızca simgeden oluşanlar ekran okuyucuya başlığıyla tanıtılır.
+  function erisilebilirYap(kok) {
+    kok.querySelectorAll?.('[data-e]:not([tabindex])').forEach(el => {
+      if (el.matches('button, a, input, select, textarea')) return;
+      el.setAttribute('tabindex', '0');
+      el.setAttribute('role', 'button');
+      if (!el.getAttribute('aria-label') && el.title && el.classList.contains('simge')) el.setAttribute('aria-label', el.title);
+    });
+  }
+  new MutationObserver(l => l.forEach(m => m.addedNodes.forEach(n => n.nodeType === 1 && erisilebilirYap(n.parentElement || n))))
+    .observe(document.body, { childList: true, subtree: true });
+  document.addEventListener('keydown', e => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.getAttribute?.('role') === 'button' && e.target.dataset.e) {
+      e.preventDefault();
+      e.target.click();
+    }
   });
   document.addEventListener('input', e => {
     const g = e.target.dataset?.g;

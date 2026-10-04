@@ -100,7 +100,11 @@ impl Oturum {
         // Tek başına ifade: değeri yazdırılır; olmazsa olduğu gibi denenir.
         if ifade_mi(girdi) {
             let g = girdi.trim();
-            let sarili = if g.contains(' ') { format!("({g})") } else { g.to_string() };
+            let sarili = if g.contains(' ') {
+                format!("({g})")
+            } else {
+                g.to_string()
+            };
             let ek = bicimlendirici::ek_oner(&sarili, Hal::Belirtme);
             if let Sonuc::Tamam { cikti, hata } =
                 self.calistir(&self.kod(&format!("{sarili}'{ek} yaz.")))
@@ -125,12 +129,19 @@ impl Oturum {
     /// önceki satırlar sayılmaz).
     fn hata_satirlari(&self, h: &str) -> String {
         let fark: usize = self.kalici.iter().map(|k| k.lines().count()).sum();
-        let yol = self.klasor.join("etkileşim.ohc").to_string_lossy().into_owned();
+        let yol = self
+            .klasor
+            .join("etkileşim.ohc")
+            .to_string_lossy()
+            .into_owned();
         h.lines()
             .map(|l| {
                 if let Some(k) = l.strip_prefix(&format!("  --> {yol}:")) {
                     let (n, kalan) = k.split_once(':').unwrap_or((k, ""));
-                    let n = n.parse::<usize>().map(|n| n.saturating_sub(fark)).unwrap_or(0);
+                    let n = n
+                        .parse::<usize>()
+                        .map(|n| n.saturating_sub(fark))
+                        .unwrap_or(0);
                     return format!("  --> girdi:{n}:{kalan}");
                 }
                 let rakam = l.chars().take_while(char::is_ascii_digit).count();
@@ -146,7 +157,9 @@ impl Oturum {
     }
 
     fn yeni_cikti(&self, cikti: &str, hata: &str) -> String {
-        let yeni = cikti.strip_prefix(self.onceki_cikti.as_str()).unwrap_or(cikti);
+        let yeni = cikti
+            .strip_prefix(self.onceki_cikti.as_str())
+            .unwrap_or(cikti);
         format!("{yeni}{hata}")
     }
 }
@@ -158,7 +171,10 @@ pub fn calistir() -> Result<(), String> {
         kalici: Vec::new(),
         onceki_cikti: String::new(),
     };
-    println!("Orhunca {} etkileşim — yardım için :yardım, çıkmak için :çık", crate::SURUM);
+    println!(
+        "Orhunca {} etkileşim — yardım için :yardım, çıkmak için :çık",
+        crate::SURUM
+    );
     let stdin = std::io::stdin();
     let mut satirlar = stdin.lock().lines();
     let mut tampon = String::new();
