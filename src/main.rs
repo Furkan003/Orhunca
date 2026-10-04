@@ -16,7 +16,7 @@ Kullanım:
   orhunca biçimlendir [dosya.ohc ...] [--denetle]
   orhunca dil-sunucusu        (düzenleyiciler için LSP, stdin/stdout)
   orhunca yeni <proje_adı> [--şablon konsol|web_sitesi|tam_yigin|web_api|...]
-  orhunca paket ekle <git-adresi>[#etiket] | yükle | güncelle | kaldır <ad> | listele
+  orhunca paket ara [kelime] | ekle <ad | git-adresi>[#etiket] | yükle | güncelle | kaldır <ad> | listele
   orhunca stüdyo [--kapı 7313] [--tarayıcı-açma]
   orhunca sürüm
 

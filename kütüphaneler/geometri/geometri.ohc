@@ -1,0 +1,40 @@
+# geometri: alan, çevre ve hacim hesapları.
+#   kullan "geometri"
+#   daire_alanı(3)'ü yaz.
+
+sabit PI = 3.141592653589793
+
+işlev daire_alanı(r) -> ondalık:
+    döndür PI * r * r
+
+işlev daire_çevresi(r) -> ondalık:
+    döndür 2 * PI * r
+
+işlev dikdörtgen_alanı(a, b) -> ondalık:
+    döndür a * b
+
+işlev dikdörtgen_çevresi(a, b) -> ondalık:
+    döndür 2 * (a + b)
+
+işlev üçgen_alanı(taban, yükseklik) -> ondalık:
+    döndür taban * yükseklik / 2
+
+# Üç kenarı bilinen üçgenin alanı (Heron formülü)
+işlev üçgen_alanı_kenarlardan(a, b, c) -> ondalık:
+    eğer a + b <= c veya a + c <= b veya b + c <= a ise:
+        hata_ver("bu kenarlarla üçgen olmaz")
+    u = (a + b + c) / 2
+    döndür karekök(u * (u - a) * (u - b) * (u - c))
+
+# Dik üçgende hipotenüs (Pisagor)
+işlev hipotenüs(a, b) -> ondalık:
+    döndür karekök(a * a + b * b)
+
+işlev küre_hacmi(r) -> ondalık:
+    döndür 4 * PI * r * r * r / 3
+
+işlev küp_hacmi(a) -> ondalık:
+    döndür a * a * a
+
+işlev silindir_hacmi(r, h) -> ondalık:
+    döndür PI * r * r * h

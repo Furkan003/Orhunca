@@ -1,0 +1,15 @@
+{
+  "sürüm": 1,
+  "paketler": [
+    {
+      "ad": "istatistik",
+      "açıklama": "Ortalama, ortanca, tepe değer, standart sapma ve sıklık tablosu",
+      "kaynak": "github:Furkan003/Orhunca#:kütüphaneler/istatistik"
+    },
+    {
+      "ad": "geometri",
+      "açıklama": "Daire, üçgen, dikdörtgen, küre ve silindirin alan, çevre ve hacim hesapları",
+      "kaynak": "github:Furkan003/Orhunca#:kütüphaneler/geometri"
+    }
+  ]
+}

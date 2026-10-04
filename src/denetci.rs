@@ -187,11 +187,45 @@ pub fn denetle(p: &mut Program) -> Sonuc<()> {
     d.donus = None;
     d.blok(&mut p.ana)?;
     p.ana_yereller = d.yereller();
+    // Başka dosyalardan (paketlerden) gelen, hiç çağrılmamış ve parametre tipi
+    // çıkarılamamış işlevler en sona bırakılır: önce diğer işlevlerden gelen
+    // çağrılarla tipleri öğrenilir; yine de denetlenemezlerse programa alınmazlar
+    // (ör. istatistik paketinin ondalık listesi bekleyen kullanılmayan işlevi).
+    let tipsiz = |d: &Denetci, ad: &str| {
+        d.bekleyen.get(ad).is_some_and(|f| {
+            f.konum.dosya != 0 && d.imzalar[ad].parametreler.contains(&Tip::Bilinmeyen)
+        })
+    };
+    let mut ertelenen = Vec::new();
     for ad in islev_sirasi
         .iter()
         .filter(|a| !on_kutuphane::on_kutuphane_mi(a))
     {
-        d.islevi_denetle(ad)?;
+        if tipsiz(&d, ad) {
+            ertelenen.push(ad);
+        } else {
+            d.islevi_denetle(ad)?;
+        }
+    }
+    for ad in ertelenen {
+        if !tipsiz(&d, ad) {
+            continue;
+        }
+        let onceki = (
+            d.bekleyen.clone(),
+            d.imzalar.clone(),
+            d.varsayilan.clone(),
+            d.biten.keys().cloned().collect::<HashSet<_>>(),
+        );
+        if d.islevi_denetle(ad).is_err() {
+            // Bu denemede denetlenen her şey geri alınır; işlev (ve bağlı olduğu
+            // işlevler) başka bir işlevden çağrılırsa o çağrının tipleriyle yeniden denenir.
+            let (bekleyen, imzalar, varsayilan, biten) = onceki;
+            d.bekleyen = bekleyen;
+            d.imzalar = imzalar;
+            d.varsayilan = varsayilan;
+            d.biten.retain(|a, _| biten.contains(a));
+        }
     }
     // Ön kütüphanenin çağrılmayan işlevleri atılır.
     p.islevler = islev_sirasi

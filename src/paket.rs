@@ -12,6 +12,10 @@
 //!
 //! Kodda `kullan "matematik"` paketin giriş dosyasını, `kullan "matematik/geometri.ohc"`
 //! paketteki belirli bir dosyayı alır.
+//!
+//! Kaynak bir deponun alt klasörü de olabilir: `adres#etiket:klasör/yolu` (etiket boş
+//! bırakılırsa varsayılan dal). Paket dizini (`kütüphaneler/dizin.json`) paketleri adla
+//! bulur: `orhunca paket ara`, `orhunca paket ekle istatistik`.
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
@@ -145,17 +149,71 @@ impl AyarDosyasi {
     }
 }
 
-/// Paket kaynağı: `adres#etiket`. `github:kişi/depo` kısaltması kabul edilir.
+/// Paket kaynağı: `adres#etiket` ya da `adres#etiket:alt/klasör`. `github:kişi/depo`
+/// kısaltması kabul edilir. Git dal ve etiket adlarında `:` bulunamaz.
 fn kaynagi_ayir(kaynak: &str) -> (String, Option<String>) {
-    let (adres, etiket) = match kaynak.rsplit_once('#') {
-        Some((a, e)) if !e.is_empty() => (a, Some(e.to_string())),
+    let (adres, etiket, _) = kaynak_parcalari(kaynak);
+    (adres, etiket)
+}
+
+fn kaynak_parcalari(kaynak: &str) -> (String, Option<String>, Option<String>) {
+    let (adres, ek) = match kaynak.rsplit_once('#') {
+        Some((a, e)) if !e.is_empty() => (a, Some(e)),
         _ => (kaynak, None),
+    };
+    let (etiket, alt) = match ek.map(|e| e.split_once(':').unwrap_or((e, ""))) {
+        Some((e, a)) => (
+            Some(e.to_string()).filter(|e| !e.is_empty()),
+            Some(a.trim_matches('/').to_string()).filter(|a| !a.is_empty()),
+        ),
+        None => (None, None),
     };
     let adres = match adres.strip_prefix("github:") {
         Some(yol) => format!("https://github.com/{}.git", yol.trim_end_matches(".git")),
         None => adres.to_string(),
     };
-    (adres, etiket)
+    (adres, etiket, alt)
+}
+
+/// Etiket git'e seçenek olarak geçmesin; alt klasör deponun dışına çıkmasın.
+fn kaynagi_denetle(etiket: Option<&str>, alt: Option<&str>) -> Result<(), String> {
+    if let Some(e) = etiket {
+        if e.starts_with('-') || e.chars().any(|c| c.is_control() || c == ' ') {
+            return Err(format!("geçersiz etiket '{e}'"));
+        }
+    }
+    if let Some(a) = alt {
+        let yol = Path::new(a);
+        if yol.is_absolute()
+            || a.contains('\\')
+            || yol
+                .components()
+                .any(|c| !matches!(c, std::path::Component::Normal(_)))
+        {
+            return Err(format!("geçersiz alt klasör '{a}'"));
+        }
+    }
+    Ok(())
+}
+
+const ISLEME_DOSYASI: &str = ".orhunca-isleme";
+
+fn klasoru_kopyala(kaynak: &Path, hedef: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(hedef)?;
+    for g in std::fs::read_dir(kaynak)? {
+        let g = g?;
+        let tur = g.file_type()?;
+        if tur.is_symlink() || g.file_name() == ".git" {
+            continue;
+        }
+        let h = hedef.join(g.file_name());
+        if tur.is_dir() {
+            klasoru_kopyala(&g.path(), &h)?;
+        } else {
+            std::fs::copy(g.path(), h)?;
+        }
+    }
+    Ok(())
 }
 
 fn git(args: &[&str], klasor: Option<&Path>) -> Result<String, String> {
@@ -180,12 +238,34 @@ fn getir(
     hedef: &Path,
     gunluk: &mut Vec<String>,
 ) -> Result<String, String> {
-    let (adres, etiket) = kaynagi_ayir(kaynak);
+    let (adres, etiket, alt) = kaynak_parcalari(kaynak);
+    kaynagi_denetle(etiket.as_deref(), alt.as_deref())?;
+    if adres.starts_with('-') {
+        return Err(format!("geçersiz paket adresi '{adres}'"));
+    }
     // Zaten istenen işlemede kuruluysa dokunulmaz.
-    if let (Some(i), true) = (isleme, hedef.join(".git").exists()) {
-        if git(&["rev-parse", "HEAD"], Some(hedef)).ok().as_deref() == Some(i) {
+    if let Some(i) = isleme {
+        let kurulu = if alt.is_some() {
+            std::fs::read_to_string(hedef.join(ISLEME_DOSYASI))
+                .ok()
+                .map(|m| m.trim().to_string())
+        } else if hedef.join(".git").exists() {
+            git(&["rev-parse", "HEAD"], Some(hedef)).ok()
+        } else {
+            None
+        };
+        if kurulu.as_deref() == Some(i) {
             return Ok(i.to_string());
         }
+    }
+    if let Some(alt) = &alt {
+        return alt_klasoru_getir(
+            &adres,
+            isleme.map(str::to_string).or(etiket),
+            alt,
+            hedef,
+            gunluk,
+        );
     }
     if hedef.exists() {
         std::fs::remove_dir_all(hedef)
@@ -204,6 +284,149 @@ fn getir(
             .map_err(|e| format!("'{adres}' içinde '{r}' bulunamadı: {e}"))?;
     }
     git(&["rev-parse", "HEAD"], Some(hedef))
+}
+
+/// Deponun bir alt klasöründeki paketi getirir: depo geçici olarak (yalnızca gereken
+/// dosyalar indirilerek) alınır, klasör `hedef`e kopyalanır.
+fn alt_klasoru_getir(
+    adres: &str,
+    istenen: Option<String>,
+    alt: &str,
+    hedef: &Path,
+    gunluk: &mut Vec<String>,
+) -> Result<String, String> {
+    let gecici = crate::derleme::gecici_klasor("paket-depo")?;
+    let depo = gecici.join("d");
+    let depo_m = depo.to_string_lossy().into_owned();
+    gunluk.push(format!("indiriliyor: {adres} ({alt})"));
+    let sonuc = (|| {
+        if git(
+            &[
+                "clone",
+                "--quiet",
+                "--filter=blob:none",
+                "--no-checkout",
+                "--",
+                adres,
+                &depo_m,
+            ],
+            None,
+        )
+        .is_err()
+        {
+            let _ = std::fs::remove_dir_all(&depo);
+            git(
+                &["clone", "--quiet", "--no-checkout", "--", adres, &depo_m],
+                None,
+            )
+            .map_err(|e| format!("'{adres}' indirilemedi: {e}"))?;
+        }
+        let _ = git(
+            &["sparse-checkout", "set", "--no-cone", &format!("/{alt}/")],
+            Some(&depo),
+        );
+        let r = istenen.as_deref().unwrap_or("HEAD");
+        git(&["checkout", "--quiet", r], Some(&depo))
+            .map_err(|e| format!("'{adres}' içinde '{r}' bulunamadı: {e}"))?;
+        let isleme = git(&["rev-parse", "HEAD"], Some(&depo))?;
+        let kaynak = depo.join(alt);
+        if !kaynak.is_dir() {
+            return Err(format!("'{adres}' deposunda '{alt}' klasörü yok"));
+        }
+        if hedef.exists() {
+            std::fs::remove_dir_all(hedef)
+                .map_err(|e| format!("'{}' silinemedi: {e}", hedef.display()))?;
+        }
+        klasoru_kopyala(&kaynak, hedef).map_err(|e| format!("paket kopyalanamadı: {e}"))?;
+        std::fs::write(hedef.join(ISLEME_DOSYASI), &isleme).map_err(|e| e.to_string())?;
+        Ok(isleme)
+    })();
+    let _ = std::fs::remove_dir_all(&gecici);
+    sonuc
+}
+
+/// Paket dizinindeki bir paket
+pub struct DizinPaketi {
+    pub ad: String,
+    pub aciklama: String,
+    pub kaynak: String,
+}
+
+/// Varsayılan paket dizini; `ORHUNCA_PAKET_DIZINI` ile başka bir adres ya da dosya verilebilir.
+pub const DIZIN_ADRESI: &str =
+    "https://raw.githubusercontent.com/Furkan003/Orhunca/HEAD/k%C3%BCt%C3%BCphaneler/dizin.json";
+
+pub fn dizin() -> Result<Vec<DizinPaketi>, String> {
+    let yer = std::env::var("ORHUNCA_PAKET_DIZINI").unwrap_or_else(|_| DIZIN_ADRESI.into());
+    let metin = if yer.starts_with("https://") || yer.starts_with("http://") {
+        let c = Command::new("curl")
+            .args([
+                "-sSfL",
+                "--max-time",
+                "20",
+                "--proto",
+                "=https,http",
+                "--",
+                &yer,
+            ])
+            .output()
+            .map_err(|_| "paket dizini indirilemedi: curl bulunamadı".to_string())?;
+        if !c.status.success() {
+            return Err(format!(
+                "paket dizini indirilemedi ({yer}): {}",
+                String::from_utf8_lossy(&c.stderr).trim()
+            ));
+        }
+        String::from_utf8_lossy(&c.stdout).into_owned()
+    } else {
+        std::fs::read_to_string(&yer).map_err(|e| format!("paket dizini okunamadı ({yer}): {e}"))?
+    };
+    let j: serde_json::Value =
+        serde_json::from_str(&metin).map_err(|e| format!("paket dizini bozuk: {e}"))?;
+    let alan = |p: &serde_json::Value, a: &str| p[a].as_str().unwrap_or("").to_string();
+    Ok(j["paketler"]
+        .as_array()
+        .map(|l| {
+            l.iter()
+                .map(|p| DizinPaketi {
+                    ad: alan(p, "ad"),
+                    aciklama: alan(p, "açıklama"),
+                    kaynak: alan(p, "kaynak"),
+                })
+                .filter(|p| gecerli_paket_adi(&p.ad) && !p.kaynak.is_empty())
+                .collect()
+        })
+        .unwrap_or_default())
+}
+
+/// Ada ya da açıklamaya göre arar (Türkçe harfler sadeleştirilerek).
+pub fn ara(kelime: &str) -> Result<Vec<DizinPaketi>, String> {
+    let sade = |m: &str| crate::oneriler::sadelestir(m);
+    let k = sade(kelime);
+    Ok(dizin()?
+        .into_iter()
+        .filter(|p| k.is_empty() || sade(&p.ad).contains(&k) || sade(&p.aciklama).contains(&k))
+        .collect())
+}
+
+/// Adres değil de yalnızca bir ad verildiyse (ör. `istatistik`) paket dizininde bulunur.
+fn dizinden_coz(kok: &Path, kaynak: &str) -> Result<Option<(String, String)>, String> {
+    if !gecerli_paket_adi(kaynak) || kok.join(kaynak).exists() {
+        return Ok(None);
+    }
+    let paketler = dizin()?;
+    match paketler.iter().find(|p| p.ad == kaynak) {
+        Some(p) => Ok(Some((p.ad.clone(), p.kaynak.clone()))),
+        None => {
+            let adlar = paketler.iter().map(|p| p.ad.as_str());
+            let mut h = format!("'{kaynak}' paket dizininde yok");
+            if let Some(b) = crate::oneriler::benzer(kaynak, adlar) {
+                h.push_str(&format!("; bunu mu demek istediniz: {b}?"));
+            }
+            h.push_str("\npaketleri görmek için: orhunca paket ara");
+            Err(h)
+        }
+    }
 }
 
 pub struct Proje {
@@ -372,6 +595,11 @@ fn gecerli_paket_adi(ad: &str) -> bool {
 /// Paketi bağımlılıklara ekler ve kurar. Ad verilmezse paketin kendi adı kullanılır.
 pub fn ekle(kok: &Path, kaynak: &str, ad: Option<&str>) -> Result<Vec<String>, String> {
     let mut proje = Proje::ac(kok)?;
+    let dizinden = dizinden_coz(kok, kaynak)?;
+    let (kaynak, ad) = match &dizinden {
+        Some((a, k)) => (k.as_str(), Some(ad.unwrap_or(a))),
+        None => (kaynak, ad),
+    };
     let ad = match ad {
         Some(a) => a.to_string(),
         None => {
@@ -393,10 +621,21 @@ pub fn ekle(kok: &Path, kaynak: &str, ad: Option<&str>) -> Result<Vec<String>, S
             "'{ad}' geçerli bir paket adı değil; --ad ile harf, rakam, _ ve - içeren bir ad verin"
         ));
     }
+    let (_, etiket, alt) = kaynak_parcalari(kaynak);
+    kaynagi_denetle(etiket.as_deref(), alt.as_deref())?;
+    let onceki = proje.ayarlar.clone();
     proje.ayarlar.yaz(BOLUM, &ad, kaynak);
     proje.kaydet()?;
     let mut gunluk = vec![format!("eklendi: {ad} = \"{kaynak}\"")];
-    gunluk.extend(yukle(kok, false)?);
+    match yukle(kok, false) {
+        Ok(g) => gunluk.extend(g),
+        Err(h) => {
+            // Kurulamayan paket proje dosyasında bırakılmaz.
+            proje.ayarlar = onceki;
+            let _ = proje.kaydet();
+            return Err(h);
+        }
+    }
     gunluk.push(format!("Kullanmak için: kullan \"{ad}\""));
     Ok(gunluk)
 }
@@ -484,12 +723,25 @@ pub fn komut(args: &[String]) -> Result<(), String> {
         Some("ekle") => {
             let kaynak = args
                 .get(1)
-                .ok_or("paket adresi bekleniyordu: orhunca paket ekle <git-adresi>[#etiket]")?;
+                .ok_or("paket adı ya da adresi bekleniyordu: orhunca paket ekle <ad | git-adresi>[#etiket]")?;
             let ad = args
                 .iter()
                 .position(|a| a == "--ad")
                 .and_then(|i| args.get(i + 1));
             yazdir(ekle(&kok, kaynak, ad.map(String::as_str))?);
+        }
+        Some("ara") | Some("dizin") => {
+            let kelime = args.get(1).map(String::as_str).unwrap_or("");
+            let bulunan = ara(kelime)?;
+            if bulunan.is_empty() {
+                println!("'{kelime}' ile eşleşen paket yok.");
+            }
+            for p in &bulunan {
+                println!("{:<16} {}", p.ad, p.aciklama);
+            }
+            if !bulunan.is_empty() {
+                println!("\nEklemek için: orhunca paket ekle <ad>");
+            }
         }
         Some("yükle") | Some("yukle") | Some("kur") => yazdir(yukle(&kok, false)?),
         Some("güncelle") | Some("guncelle") => yazdir(yukle(&kok, true)?),
@@ -518,8 +770,8 @@ pub fn komut(args: &[String]) -> Result<(), String> {
         }
         Some(k) => {
             return Err(format!(
-                "bilinmeyen paket komutu '{k}'\nkomutlar: ekle, yükle, güncelle, kaldır, listele"
-            ))
+            "bilinmeyen paket komutu '{k}'\nkomutlar: ara, ekle, yükle, güncelle, kaldır, listele"
+        ))
         }
     }
     Ok(())

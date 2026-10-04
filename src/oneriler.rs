@@ -66,7 +66,7 @@ pub fn yabanci(ad: &str) -> Option<&'static str> {
 }
 
 /// Türkçe harfler ASCII'ye indirgenir (yanlış klavye düzeni: "eger" → "eğer").
-fn sadelestir(s: &str) -> String {
+pub fn sadelestir(s: &str) -> String {
     s.chars()
         .map(|c| match c {
             'ç' | 'Ç' => 'c',

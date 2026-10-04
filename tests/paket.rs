@@ -122,3 +122,138 @@ fn paket_ekle_kullan_kaldir() {
 
     let _ = std::fs::remove_dir_all(&kok);
 }
+
+#[test]
+fn paket_dizininden_alt_klasor() {
+    let kok = std::env::temp_dir().join(format!("orhunca-dizin-test-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&kok);
+    std::fs::create_dir_all(&kok).unwrap();
+    let depo_yolu = kok.join("resmi");
+    std::fs::create_dir_all(depo_yolu.join("kütüphaneler/istatistik")).unwrap();
+    std::fs::write(depo_yolu.join("BENİOKU.md"), "depo\n").unwrap();
+    let depo = depo(
+        &kok,
+        "resmi",
+        &[
+            (
+                "kütüphaneler/istatistik/istatistik.ohcproj",
+                "ad = \"istatistik\"\ngiriş = \"istatistik.ohc\"\n",
+            ),
+            (
+                "kütüphaneler/istatistik/istatistik.ohc",
+                "işlev ortalama(l) -> ondalık:\n    döndür toplam(l) / uzunluk(l)\n",
+            ),
+        ],
+    );
+    let dizin = kok.join("dizin.json");
+    std::fs::write(
+        &dizin,
+        format!(
+            r#"{{"paketler": [{{"ad": "istatistik", "açıklama": "Ortalama ve sapma", "kaynak": "{}#:kütüphaneler/istatistik"}}]}}"#,
+            depo.display()
+        ),
+    )
+    .unwrap();
+    let calistir = |klasor: &Path, args: &[&str]| {
+        let c = Command::new(env!("CARGO_BIN_EXE_orhunca"))
+            .args(args)
+            .current_dir(klasor)
+            .env("ORHUNCA_PAKET_DIZINI", &dizin)
+            .output()
+            .unwrap();
+        let mut m = String::from_utf8_lossy(&c.stdout).into_owned();
+        m.push_str(&String::from_utf8_lossy(&c.stderr));
+        (c.status.success(), m)
+    };
+
+    let (ok, m) = calistir(&kok, &["paket", "ara", "ortalam"]);
+    assert!(
+        ok && m.contains("istatistik") && m.contains("Ortalama ve sapma"),
+        "{m}"
+    );
+
+    let (ok, m) = orhunca(&kok, &["yeni", "proje"]);
+    assert!(ok, "{m}");
+    let proje = kok.join("proje");
+    std::fs::write(
+        proje.join("ana.ohc"),
+        "kullan \"istatistik\"\nortalama([1, 2, 6])'yı yaz.\n",
+    )
+    .unwrap();
+
+    let (ok, m) = calistir(&proje, &["paket", "ekle", "istatstik"]);
+    assert!(
+        !ok && m.contains("bunu mu demek istediniz: istatistik"),
+        "{m}"
+    );
+
+    let (ok, m) = calistir(&proje, &["paket", "ekle", "istatistik"]);
+    assert!(ok, "{m}");
+    let paket = proje.join("paketler/istatistik");
+    assert!(paket.join("istatistik.ohc").exists());
+    assert!(!paket.join("BENİOKU.md").exists() && !paket.join(".git").exists());
+    let (ok, m) = calistir(&proje, &["çalıştır"]);
+    assert!(ok && m == "3.0\n", "{m}");
+
+    // Kilitteki işlemeyle yeniden kurulur; zaten kuruluysa dokunulmaz.
+    std::fs::remove_dir_all(proje.join("paketler")).unwrap();
+    let (ok, m) = calistir(&proje, &["paket", "yükle"]);
+    assert!(ok && m.contains("indiriliyor"), "{m}");
+    let (ok, m) = calistir(&proje, &["paket", "yükle"]);
+    assert!(ok && !m.contains("indiriliyor"), "{m}");
+
+    // Deponun dışına çıkan alt klasör ve seçenek gibi görünen etiket reddedilir.
+    for kotu in ["#:../x", "#--upload-pack=x:a"] {
+        let (ok, m) = calistir(
+            &proje,
+            &[
+                "paket",
+                "ekle",
+                &format!("{}{kotu}", depo.display()),
+                "--ad",
+                "kotu",
+            ],
+        );
+        assert!(!ok && m.contains("geçersiz"), "{kotu}: {m}");
+    }
+    let (ok, m) = calistir(
+        &proje,
+        &["paket", "ekle", "/yok/böyle/bir/depo", "--ad", "yok"],
+    );
+    assert!(!ok, "{m}");
+    let ayar = std::fs::read_to_string(proje.join("proje.ohcproj")).unwrap();
+    assert!(!ayar.contains("kotu") && !ayar.contains("yok"), "{ayar}");
+    let (ok, m) = calistir(&proje, &["çalıştır"]);
+    assert!(ok && m == "3.0\n", "{m}");
+    let _ = std::fs::remove_dir_all(&kok);
+}
+
+/// kütüphaneler/dizin.json'daki her resmi paket depoda var, derleniyor ve adı doğru.
+#[test]
+fn resmi_paketler_derlenir() {
+    let kok = Path::new(env!("CARGO_MANIFEST_DIR")).join("kütüphaneler");
+    let dizin: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(kok.join("dizin.json")).unwrap()).unwrap();
+    let gecici = std::env::temp_dir().join(format!("orhunca-resmi-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&gecici);
+    for p in dizin["paketler"].as_array().unwrap() {
+        let ad = p["ad"].as_str().unwrap();
+        let kaynak = p["kaynak"].as_str().unwrap();
+        assert!(
+            kaynak.ends_with(&format!(":kütüphaneler/{ad}")),
+            "{ad}: {kaynak}"
+        );
+        assert!(!p["açıklama"].as_str().unwrap().is_empty());
+        let hedef = gecici.join("paketler").join(ad);
+        std::fs::create_dir_all(&hedef).unwrap();
+        for g in std::fs::read_dir(kok.join(ad)).unwrap() {
+            let g = g.unwrap();
+            std::fs::copy(g.path(), hedef.join(g.file_name())).unwrap();
+        }
+        let dosya = gecici.join(format!("{ad}.ohc"));
+        std::fs::write(&dosya, format!("kullan \"{ad}\"\n\"tamam\"'ı yaz.\n")).unwrap();
+        let (ok, m) = orhunca(&gecici, &["çalıştır", dosya.to_str().unwrap()]);
+        assert!(ok && m == "tamam\n", "{ad}: {m}");
+    }
+    let _ = std::fs::remove_dir_all(&gecici);
+}

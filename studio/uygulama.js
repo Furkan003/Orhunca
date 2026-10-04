@@ -71,7 +71,7 @@
     // Web projelerinde canlı önizleme: { kapi, adres, yol, durum: bekliyor|acik|hata|durdu, surum }
     onizleme: null, onizlemeAcik: true,
     yanPanel: 'gezgin', araMetin: '', araSonuc: [],
-    paketler: [], paketKaynagi: '', paketMesgul: false,
+    paketler: [], paketKaynagi: '', paketMesgul: false, paketDizini: null, paketDizinHatasi: '',
     menu: null, modal: null, bildirim: null,
     yaziBoyutu: ayarOku('yaziBoyutu', 13),
     yazarkenDenetle: ayarOku('yazarkenDenetle', true),
@@ -741,9 +741,15 @@
       </div>`;
     } else {
       const liste = D.paketler.map(p => `<div class="paket-oge" title="${kac(p.kaynak)}">${S('deployed_code')}<div class="esnek"><div class="paket-ad">${kac(p.ad)}</div><div class="paket-kaynak">${kac(p.kaynak)}</div><div class="paket-kaynak">${p.kurulu ? (p.isleme || '').slice(0, 10) : '<span style="color:var(--sari)">kurulu değil</span>'}</div></div><span class="simge sil" title="Kaldır" data-e="paketKaldir" data-a="${kac(p.ad)}">delete</span></div>`).join('');
+      const kurulu = new Set(D.paketler.map(p => p.ad));
+      const dizin = D.paketDizini == null
+        ? (D.paketDizinHatasi ? `<div class="panel-not" style="font-size:12px">Paket dizinine ulaşılamadı: ${kac(D.paketDizinHatasi)}</div>` : '<div class="panel-not">Paket dizini yükleniyor…</div>')
+        : D.paketDizini.filter(p => !kurulu.has(p.ad)).map(p => `<div class="paket-oge" title="${kac(p.kaynak)}">${S('deployed_code')}<div class="esnek"><div class="paket-ad">${kac(p.ad)}</div><div class="paket-kaynak" style="white-space:normal">${kac(p.aciklama)}</div></div><span class="simge" title="Ekle" data-e="paketDizindenEkle" data-a="${kac(p.ad)}">add</span></div>`).join('') || '<div class="panel-not">Dizindeki bütün paketler ekli.</div>';
       kap.innerHTML = baslik('PAKETLER', D.paketMesgul ? '<div class="donen kucuk"></div>' : `<span class="simge" title="Yenile" data-e="paketleriYenile">refresh</span>`) + `<div class="panel-ic">
         ${liste || '<div class="panel-not">Bu projenin paketi yok. Bir Git deposundan Orhunca kütüphanesi ekleyin; kodda <span class="mono">kullan "paket_adı"</span> ile kullanılır.</div>'}
-        <div class="alan" style="gap:6px"><label style="font-size:12px">Git adresi</label><input id="paketKaynagi" data-g="paketKaynagi" class="metin-girdi" placeholder="github:kişi/depo#v1.0" value="${kac(D.paketKaynagi)}" spellcheck="false"></div>
+        <div class="panel-not" style="font-size:11px;letter-spacing:.06em;margin-top:8px">PAKET DİZİNİ</div>
+        ${dizin}
+        <div class="alan" style="gap:6px"><label style="font-size:12px">Paket adı ya da Git adresi</label><input id="paketKaynagi" data-g="paketKaynagi" class="metin-girdi" placeholder="istatistik ya da github:kişi/depo#v1.0" value="${kac(D.paketKaynagi)}" spellcheck="false"></div>
         <div class="panel-dugme birincil ${D.paketMesgul ? 'pasif' : ''}" data-e="paketEkle">${S('add')}Paket ekle</div>
         <div class="panel-dugme ${D.paketMesgul ? 'pasif' : ''}" data-e="paketYukle">${S('cloud_download')}Tümünü yükle</div>
         <div class="panel-dugme ${D.paketMesgul ? 'pasif' : ''}" data-e="paketGuncelle">${S('refresh')}Güncelle</div>
@@ -1794,6 +1800,7 @@
     paketEkle() { if (D.paketKaynagi.trim()) paketIslemi('/api/paket/ekle', { kaynak: D.paketKaynagi.trim() }, `Paket ekleniyor: ${D.paketKaynagi.trim()}`); },
     paketYukle() { paketIslemi('/api/paket/yukle', { guncelle: false }, 'Paketler yükleniyor…'); },
     paketGuncelle() { paketIslemi('/api/paket/yukle', { guncelle: true }, 'Paketler güncelleniyor…'); },
+    paketDizindenEkle(ad) { paketIslemi('/api/paket/ekle', { kaynak: ad }, `Paket ekleniyor: ${ad}`); },
     paketKaldir(ad) { if (confirm(`“${ad}” paketi kaldırılsın mı?`)) paketIslemi('/api/paket/kaldir', { ad }, `Paket kaldırılıyor: ${ad}`); },
     panelGezgin() { EYLEM.yanPanelSec('gezgin'); }, panelAra() { EYLEM.yanPanelSec('ara'); },
     panelYapi() { EYLEM.yanPanelSec('yapi'); }, panelCalistir() { EYLEM.yanPanelSec('calistir'); },
@@ -1942,6 +1949,15 @@
   };
 
   async function paketleriYukle() {
+    if (D.paketDizini == null && !D.paketDizinYukleniyor) {
+      D.paketDizinYukleniyor = true;
+      api('/api/paket/dizin').then(r => {
+        if (r.hata) D.paketDizinHatasi = r.hata; else D.paketDizini = r.paketler || [];
+      }).catch(e => { D.paketDizinHatasi = e.message; }).finally(() => {
+        D.paketDizinYukleniyor = false;
+        if (D.yanPanel === 'eklentiler') cizYanPanel();
+      });
+    }
     if (!D.proje) return;
     const r = await api('/api/paket/liste?' + sorgu({ kok: D.proje.yol })).catch(e => ({ hata: e.message }));
     D.paketler = r.paketler || [];

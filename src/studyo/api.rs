@@ -100,6 +100,12 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
         }
         ("POST", "/api/derle") => derle(metin(&g, "dosya"), metin(&g, "hedef")),
         ("GET", "/api/paket/liste") => paket_listesi(istek.sorgu("kok")),
+        ("GET", "/api/paket/dizin") => match crate::paket::dizin() {
+            Ok(l) => Yanit::json(&json!({ "paketler": l.into_iter().map(|p| json!({
+                "ad": p.ad, "aciklama": p.aciklama, "kaynak": p.kaynak,
+            })).collect::<Vec<_>>() })),
+            Err(e) => hata(e),
+        },
         ("POST", "/api/paket/ekle") => paket_islemi(metin(&g, "kok"), |k| {
             crate::paket::ekle(k, metin(&g, "kaynak").trim(), None)
         }),

@@ -1,0 +1,61 @@
+# istatistik: sayı listeleri için temel istatistik işlevleri.
+#   kullan "istatistik"
+#   ortalama([70, 85, 90])'ı yaz.
+
+işlev ortalama(l) -> ondalık:
+    eğer uzunluk(l) == 0 ise:
+        hata_ver("boş listenin ortalaması alınamaz")
+    döndür toplam(l) / uzunluk(l)
+
+# Sıralanmış listenin ortasındaki değer (çift sayıda öğede ortadaki ikisinin ortalaması)
+işlev ortanca(l) -> ondalık:
+    eğer uzunluk(l) == 0 ise:
+        hata_ver("boş listenin ortancası alınamaz")
+    s = kopya(l)
+    s'yi sırala.
+    n = uzunluk(s)
+    eğer n % 2 == 1 ise:
+        döndür s[n // 2]
+    döndür (s[n // 2 - 1] + s[n // 2]) / 2
+
+# En sık geçen değer (eşitlikte en küçüğü)
+işlev tepe_değer(l) -> ondalık:
+    eğer uzunluk(l) == 0 ise:
+        hata_ver("boş listenin tepe değeri yok")
+    s = kopya(l)
+    s'yi sırala.
+    en_iyi = s[0]
+    en_çok = 0
+    i = 0
+    i < uzunluk(s) olduğu sürece:
+        j = i
+        j < uzunluk(s) ve s[j] == s[i] olduğu sürece:
+            j += 1
+        eğer j - i > en_çok ise:
+            en_çok = j - i
+            en_iyi = s[i]
+        i = j
+    döndür en_iyi
+
+işlev varyans(l) -> ondalık:
+    o = ortalama(l)
+    t = 0.0
+    her x için l'den:
+        t += (x - o) * (x - o)
+    döndür t / uzunluk(l)
+
+işlev standart_sapma(l) -> ondalık:
+    döndür karekök(varyans(l))
+
+işlev açıklık(l) -> ondalık:
+    döndür en_büyük(l) - en_küçük(l)
+
+# Her değerin kaç kez geçtiği: {"elma": 2, "armut": 1}
+işlev sıklık(l: liste<metin>) -> sözlük<metin, sayı>:
+    s: sözlük<metin, sayı> = {}
+    her x için l'den:
+        eğer içerir(s, x) ise:
+            s[x] += 1
+        değilse:
+            s[x] = 1
+    döndür s
