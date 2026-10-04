@@ -73,6 +73,9 @@ değiştiyse sayfa yenilenir). Stüdyo kapanınca başlattığı sunucular da ka
 |---|---|
 | ![Başlangıç](docs/ekran/baslangic.png) | ![Yeni proje](docs/ekran/yeni-proje.png) |
 
+**Masaüstü uygulaması:** [masaustu/](masaustu) Stüdyo'yu tarayıcısız, kendi penceresinde açan Tauri
+uygulamasıdır (`cd masaustu && cargo run --release`; kurulum dosyaları için `cargo tauri build`).
+
 Sunucu yalnızca `127.0.0.1` üzerinden erişilebilir ve her oturumda rastgele bir anahtar üretir;
 başka web sitelerinin dosyalarınıza ya da derleyiciye erişmesi engellenir. Tasarım kaynağı:
 [docs/tasarim/](docs/tasarim/).

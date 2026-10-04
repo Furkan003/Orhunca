@@ -1,0 +1,11 @@
+[Desktop Entry]
+Categories={{categories}}
+Comment=Türkçe programlama dili Orhunca için geliştirme ortamı
+Exec={{exec}}
+Icon={{icon}}
+Name=Orhunca Stüdyo
+GenericName=Geliştirme ortamı
+Keywords=orhunca;programlama;türkçe;derleyici;
+Terminal=false
+Type=Application
+StartupWMClass=orhunca-studyo

@@ -1,24 +1,8 @@
 //! `orhunca` komut aracı: derle, çalıştır, denetle, yeni.
 
-mod agac;
-mod ayristirici;
-mod bicimlendirici;
-mod denetci;
-mod derleme;
-mod dil_sunucusu;
-mod ekler;
-mod hata;
-mod paket;
-mod sablon;
-mod sozcuk;
-mod studyo;
-mod uretici;
-mod yerlesik;
-
+use orhunca::{bicimlendirici, derleme, dil_sunucusu, paket, studyo, SURUM};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
-
-const SURUM: &str = env!("CARGO_PKG_VERSION");
 
 const YARDIM: &str = "\
 Orhunca — Türkçe tabanlı programlama dili

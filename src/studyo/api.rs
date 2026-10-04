@@ -80,6 +80,15 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
         }
         ("POST", "/api/denetle") => denetle(metin(&g, "dosya"), &g["acik"]),
         ("POST", "/api/calistir") => calistir(&g),
+        ("POST", "/api/tarayicida_ac") => {
+            // Yalnızca bu bilgisayardaki sunucuların adresleri (canlı önizleme) açılır.
+            let adres = metin(&g, "adres");
+            if !adres.starts_with("http://localhost:") && !adres.starts_with("http://127.0.0.1:") {
+                return Yanit::hata(403, "yalnızca yerel adresler açılabilir");
+            }
+            super::tarayicida_ac(adres);
+            Yanit::json(&json!({ "tamam": true }))
+        }
         ("POST", "/api/girdi") => girdi(&g),
         ("POST", "/api/durdur") => {
             calisma::durdur(g["kimlik"].as_u64().unwrap_or(0));

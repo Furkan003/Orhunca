@@ -260,11 +260,13 @@
   // =====================================================================
   function cizBaslik() {
     const duz = D.ekran === 'duzenleyici' && D.proje;
-    return `<div class="baslik-cubugu">
-      <div class="logo"><div class="logo-kutu gokturk">${GOKTURK}</div><span class="logo-ad">Orhunca</span></div>
+    // Masaüstü uygulamasında (Tauri) başlık çubuğunun boş yerleri pencereyi taşır.
+    const tasi = TAURI ? ' data-tauri-drag-region' : '';
+    return `<div class="baslik-cubugu"${tasi}>
+      <div class="logo"${tasi}><div class="logo-kutu gokturk"${tasi}>${GOKTURK}</div><span class="logo-ad"${tasi}>Orhunca</span></div>
       ${duz ? `<div class="menuler">${MENULER.map(m => `<span class="menu-baslik ${D.menu === m.ad ? 'acik' : ''}" data-e="menuAc" data-a="${m.ad}">${m.ad}${D.menu === m.ad ? cizAcilir(m) : ''}</span>`).join('')}</div>
-      <div class="pencere-adi">${kac(D.proje.ad)} — Orhunca</div>` : ''}
-      <div style="flex:1"></div>
+      <div class="pencere-adi"${tasi}>${kac(D.proje.ad)} — Orhunca</div>` : ''}
+      <div style="flex:1;align-self:stretch"${tasi}></div>
       ${TAURI ? `<div class="pencere-dugmeleri"><span class="simge" data-e="pencereKucult">remove</span><span class="simge" style="font-size:16px" data-e="pencereBuyut">crop_square</span><span class="simge kapat" data-e="pencereKapat">close</span></div>` : ''}
     </div>`;
   }
@@ -309,12 +311,12 @@
       </div>
       <div class="hizli">
         <h2>Hızlı işlemler</h2>
-        <div class="islem vurgulu" data-e="git" data-a="yeni">${S('add')}<div class="esnek"><div class="islem-ust"><span class="islem-ad">Yeni proje oluştur</span><span class="islem-tus">Ctrl+⇧+N</span></div><div class="islem-alt">Konsol, kütüphane veya oyun şablonu seçin</div></div></div>
+        <div class="islem vurgulu" data-e="git" data-a="yeni">${S('add')}<div class="esnek"><div class="islem-ust"><span class="islem-ad">Yeni proje oluştur</span><span class="islem-tus">Ctrl+⇧+N</span></div><div class="islem-alt">Konsol, web sitesi, API ya da kütüphane şablonu seçin</div></div></div>
         <div class="islem" data-e="klasorModal" data-a="ac">${S('folder_open')}<div class="esnek"><div class="islem-ad">Var olan projeyi aç</div><div class="islem-alt">Bir klasör veya .ohcproj dosyası seçin</div></div></div>
         <div class="islem" data-e="klonlaModal">${S('cloud_download')}<div class="esnek"><div class="islem-ad">Depodan klonla</div><div class="islem-alt">Git deposundan proje indirin</div></div></div>
         <div class="islem" data-e="git" data-a="ogren">${S('school')}<div class="esnek"><div class="islem-ad">Orhunca'yı öğren</div><div class="islem-alt">Türkçe anahtar kelimeler rehberi</div></div></div>
         <div style="flex:1"></div>
-        <div class="guncelleme" data-e="guncellemeModal">${S('new_releases')}<div class="esnek"><div class="guncelleme-ad">Ekim 2026 güncellemesi</div><div class="guncelleme-alt">Standart kütüphane, sözlükler ve çoklu dosya desteği.</div></div>${S('chevron_right')}</div>
+        <div class="guncelleme" data-e="guncellemeModal">${S('new_releases')}<div class="esnek"><div class="guncelleme-ad">Ekim 2026 güncellemesi</div><div class="guncelleme-alt">Modeller, web sunucusu, .ohchtml görünümleri ve canlı önizleme.</div></div>${S('chevron_right')}</div>
       </div>
     </div>`;
   }
@@ -1030,11 +1032,18 @@
   }
 
   /** Önizlemedeki sayfayı bulunduğu adreste yeniler; sayfa Orhunca betiğini taşıyorsa ileti, yoksa adres yeniden yüklenir. */
+  let yenilemeSirasi = 0;
   function onizlemeyiYenile() {
-    const c = $('#onizlemeCerceve');
-    if (!D.onizleme?.adres) return;
-    if (c && D.onizleme.betik) c.contentWindow.postMessage('orhunca:yenile', '*');
-    else { D.onizleme.surum = (D.onizleme.surum || 0) + 1; cizOnizleme(); }
+    const c = $('#onizlemeCerceve'), o = D.onizleme;
+    if (!o?.adres) return;
+    const sert = () => { o.surum = (o.surum || 0) + 1; cizOnizleme(); };
+    if (!c || !o.betik) { sert(); return; }
+    // Sayfa (Orhunca betiğini taşıyorsa) kendini yeniler ve adresini bildirir; bildirmezse
+    // (ör. JSON yanıtı açıksa) çerçeve son bilinen adresle yeniden yüklenir.
+    const sira = ++yenilemeSirasi;
+    o.yanitBekleniyor = sira;
+    c.contentWindow.postMessage('orhunca:yenile', '*');
+    setTimeout(() => { if (D.onizleme === o && o.yanitBekleniyor === sira) sert(); }, 1500);
   }
 
   function sunucuHazir(adres) {
@@ -1073,6 +1082,7 @@
     if (!c || e.source !== c.contentWindow || e.data?.orhunca !== 'adres' || !D.onizleme) return;
     D.onizleme.yol = String(e.data.adres || '/');
     D.onizleme.betik = true;
+    D.onizleme.yanitBekleniyor = null;
     const a = $('#onizlemeAdres .adres');
     if (a) a.textContent = D.onizleme.adres.replace(/^https?:\/\//, '') + (D.onizleme.yol !== '/' ? D.onizleme.yol : '');
   });
@@ -1486,8 +1496,10 @@
     onizlemeYenile() { onizlemeyiYenile(); },
     onizlemeTarayici() {
       const a = onizlemeAdresi();
-      if (a) window.open(a, '_blank', 'noopener');
-      else bildir('Önce projeyi çalıştırın (F5).');
+      if (!a) { bildir('Önce projeyi çalıştırın (F5).'); return; }
+      // Masaüstü uygulamasında sistem tarayıcısı Stüdyo sunucusu üzerinden açılır.
+      if (TAURI) api('/api/tarayicida_ac', { adres: a }).catch(e => bildir(e.message, true));
+      else window.open(a, '_blank', 'noopener');
     },
     onizlemeAcKapa() {
       if (!D.proje?.web) { bildir('Canlı önizleme web projelerinde kullanılır.'); return; }

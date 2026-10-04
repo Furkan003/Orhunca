@@ -13,7 +13,7 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 | 4 | Biçimlendirici ✅, dil sunucusu (LSP) ✅, VS Code eklentisi ✅ | ✅ |
 | 5 | Standart kütüphane ✅, paket yöneticisi ✅ (Git tabanlı, kilit dosyalı) | ✅ |
 | 6 | Modeller ✅, JSON veri deposu ✅, web sunucusu ✅, `.ohchtml` görünümleri ✅, Stüdyo web şablonları ve canlı önizleme ✅ | ✅ |
-| 7 | Orhunca Stüdyo: arayüz ✅ (tarayıcıda, `orhunca stüdyo`), Tauri masaüstü paketi ⏳ | 🟡 |
+| 7 | Orhunca Stüdyo: arayüz ✅ (tarayıcıda, `orhunca stüdyo`), Tauri masaüstü uygulaması ✅ (`masaustu/`) | ✅ |
 | 8 | WebAssembly, Türkçe arayüz dili, self-hosting | ⏳ |
 
 ## v0.2'de eklenenler
@@ -39,7 +39,9 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 - Düzenleyici bağımlılıksız: sözdizimi renklendirme, otomatik girinti, yorum satırı, hata çizgileri.
   Monaco gerekirse ileride takılabilir; arayüz aynı API'yi kullanır.
 - Web/sunucu şablonları "Aşama 6'da geliyor" olarak gösterilir; canlı önizleme paneli web desteğiyle gelecek.
-- Tauri: aynı `studio/` arayüzü pencereye sarılacak; pencere düğmeleri (`__TAURI__`) hazır.
+- Tauri: aynı `studio/` arayüzü `masaustu/` uygulamasında çerçevesiz bir pencerede açılır; pencere
+  düğmeleri ve başlık çubuğundan sürükleme `__TAURI__` ile çalışır. Kurulum dosyaları (deb, AppImage,
+  rpm, msi, exe, dmg) `.github/workflows/masaustu.yml` ile üretilir.
 
 ## v0.4'te eklenenler (Aşama 6 – web)
 
@@ -70,8 +72,8 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 
 ## Sıradaki adımlar (öneri sırası)
 
-1. **Tauri masaüstü paketi** (Aşama 7'nin kalanı): Stüdyo'yu pencereli uygulama olarak paketlemek.
-2. **Aşama 8**: WebAssembly çıktısı, Türkçe arayüz dili, self-hosting.
+1. **Aşama 8**: WebAssembly çıktısı, Türkçe arayüz dili, self-hosting.
+2. Windows'ta bağlayıcı gereksinimini kaldırmak (MinGW yerine hazır bağlayıcı ve çalışma zamanı).
 
 ## Çalışma şekli
 

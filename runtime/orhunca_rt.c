@@ -2572,7 +2572,7 @@ static void yanit_gonder(Soket s, int64_t durum, const char *tur, const char *go
                          int64_t basliklar, int bas_istegi) {
     if (onizleme_acik < 0) onizleme_acik = getenv("ORHUNCA_ONIZLEME") != NULL;
     Tampon ek = {0};
-    if (onizleme_acik && tur && !strncmp(tur, "text/html", 9) && durum < 300) {
+    if (onizleme_acik && tur && !strncmp(tur, "text/html", 9)) {
         /* Betik </body>'den önce eklenir (yoksa sona). */
         const char *son = NULL;
         for (const char *p = govde; (p = bul_n(p, govde_n - (size_t)(p - govde), "</body>")); p++) son = p;

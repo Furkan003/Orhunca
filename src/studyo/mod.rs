@@ -33,7 +33,14 @@ fn rastgele_anahtar() -> String {
         .collect()
 }
 
-fn tarayicida_ac(adres: &str) {
+/// Bilgi satırı yazar; çıktı kapatılmışsa (ör. boru okunmuyorsa) sessizce geçer.
+fn bilgi(metin: &str) {
+    use std::io::Write;
+    let mut cikti = std::io::stdout();
+    let _ = writeln!(cikti, "{metin}").and_then(|_| cikti.flush());
+}
+
+pub(crate) fn tarayicida_ac(adres: &str) {
     let sonuc = if cfg!(windows) {
         Command::new("cmd").args(["/C", "start", "", adres]).spawn()
     } else if cfg!(target_os = "macos") {
@@ -42,7 +49,7 @@ fn tarayicida_ac(adres: &str) {
         Command::new("xdg-open").arg(adres).spawn()
     };
     if sonuc.is_err() {
-        println!("Tarayıcı açılamadı; adresi kendiniz açın.");
+        bilgi("Tarayıcı açılamadı; adresi kendiniz açın.");
     }
 }
 
@@ -65,25 +72,48 @@ pub fn calistir(args: &[String]) -> Result<(), String> {
         i += 1;
     }
 
+    let (dinleyici, adres, anahtar) = dinleyici_ac(kapi)?;
+    bilgi(&format!("Orhunca Stüdyo çalışıyor: {adres}"));
+    bilgi("Kapatmak için Ctrl+C.");
+    if ac {
+        tarayicida_ac(&adres);
+    }
+    dinle(dinleyici, anahtar);
+    Ok(())
+}
+
+/// Stüdyo sunucusunu arka planda başlatır ve arayüzün (anahtarlı) adresini
+/// döndürür. Masaüstü uygulaması bu adresi kendi penceresinde açar.
+pub fn arka_planda_baslat(kapi: u16) -> Result<String, String> {
+    let (dinleyici, adres, anahtar) = dinleyici_ac(kapi)?;
+    std::thread::spawn(move || dinle(dinleyici, anahtar));
+    Ok(adres)
+}
+
+/// Çalıştırılan programları (ör. web sunucularını) durdurur; uygulama kapanırken çağrılır.
+pub fn kapat() {
+    calisma::hepsini_durdur();
+}
+
+fn dinleyici_ac(kapi: u16) -> Result<(TcpListener, String, String), String> {
     let dinleyici = TcpListener::bind(("127.0.0.1", kapi))
         .or_else(|_| TcpListener::bind(("127.0.0.1", 0)))
         .map_err(|e| format!("sunucu başlatılamadı: {e}"))?;
     let kapi = dinleyici.local_addr().map_err(|e| e.to_string())?.port();
     let anahtar = rastgele_anahtar();
     let adres = format!("http://127.0.0.1:{kapi}/?anahtar={anahtar}");
+    Ok((dinleyici, adres, anahtar))
+}
 
-    println!("Orhunca Stüdyo çalışıyor: {adres}");
-    println!("Kapatmak için Ctrl+C.");
-    if ac {
-        tarayicida_ac(&adres);
-    }
-
+fn dinle(dinleyici: TcpListener, anahtar: String) {
+    let Ok(kapi) = dinleyici.local_addr().map(|a| a.port()) else {
+        return;
+    };
     for baglanti in dinleyici.incoming() {
         let Ok(akis) = baglanti else { continue };
         let anahtar = anahtar.clone();
         std::thread::spawn(move || isle(akis, &anahtar, kapi));
     }
-    Ok(())
 }
 
 fn isle(mut akis: TcpStream, anahtar: &str, kapi: u16) {
@@ -107,7 +137,7 @@ fn isle(mut akis: TcpStream, anahtar: &str, kapi: u16) {
                 &http::Yanit::json(&serde_json::json!({ "tamam": true })),
             );
             calisma::hepsini_durdur();
-            println!("Stüdyo kapatıldı.");
+            bilgi("Stüdyo kapatıldı.");
             std::process::exit(0);
         } else {
             api::yonlendir(&istek)

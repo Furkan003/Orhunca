@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "studyo",
+  "description": "Stüdyo arayüzü (yerel sunucudan yüklenir) pencereyi küçültebilir, büyütebilir, kapatabilir ve sürükleyebilir.",
+  "windows": ["ana"],
+  "remote": {
+    "urls": ["http://127.0.0.1:*/*"]
+  },
+  "permissions": [
+    "core:default",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close",
+    "core:window:allow-start-dragging"
+  ]
+}
