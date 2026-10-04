@@ -6,8 +6,10 @@
 use crate::agac::*;
 use crate::ekler::{hal_bul, Cozum, Hal, Sozluk};
 use crate::hata::{Hata, Konum, Sonuc};
-use crate::sozcuk::{Sozcuk, Tok};
+use crate::sablon::{Parca, Sablon};
+use crate::sozcuk::{sozcukle, Sozcuk, Tok};
 use std::collections::HashSet;
+use std::rc::Rc;
 
 /// İsim olarak kullanılamayan kelimeler.
 const AYRILMIS: &[&str] = &[
@@ -42,6 +44,44 @@ const AYRILMIS: &[&str] = &[
 ];
 
 const FIILLER: &[&str] = &["yaz", "ekle", "sırala", "çıkar"];
+
+/// Model nesneleri için fiiller: `ürün'ü kaydet.`, `ürün'ü sil.` Ayrılmış değildir;
+/// yalnızca cümlenin sonunda fiil sayılırlar (`sil(liste, 0)` bir işlev çağrısıdır).
+const MODEL_FIILLERI: &[&str] = &["kaydet", "sil"];
+
+/// Web yolu tanımlayan kelimeler ve HTTP yöntemleri: `al "/ürünler":`
+const ROTA_YONTEMLERI: &[(&str, &str)] = &[
+    ("al", "GET"),
+    ("gönder", "POST"),
+    ("koy", "PUT"),
+    ("sil", "DELETE"),
+];
+
+/// Yerleşik modellerin tanımlandığı sanal dosyanın sırası.
+pub const YERLESIK_DOSYA: usize = usize::MAX;
+
+/// Web çatısının yerleşik modelleri; her programa eklenir. Çalışma zamanı
+/// alanları adlarıyla bulur.
+const YERLESIK_MODELLER: &str = "\
+model İstek:
+    yöntem: metin
+    yol: metin
+    sorgu: sözlük<metin, metin>
+    form: sözlük<metin, metin>
+    parametreler: sözlük<metin, metin>
+    gövde: metin
+    başlıklar: sözlük<metin, metin>
+
+model Yanıt:
+    durum: sayı = 200
+    tür: metin = \"text/html; charset=utf-8\"
+    gövde: metin
+    konum: metin
+    başlıklar: sözlük<metin, metin>
+";
+
+/// Görünüm işlevlerinde çıktı parçalarının toplandığı liste (kullanıcı bu adı yazamaz).
+const CIKTI: &str = "@çıktı";
 
 /// Yerleşik işlevler: `uzunluk(x)`, `metin(x)`, `sayı(x)`, `ondalık(x)`, `yuvarla(x)`, `oku()`.
 pub const YERLESIK: &[&str] = &["uzunluk", "metin", "sayı", "ondalık", "yuvarla", "oku"];
@@ -90,38 +130,60 @@ enum KosulTuru {
     Surece,
 }
 
+/// Tüm dosyalarda ortak tanımlar.
+#[derive(Default)]
+struct Tanimlar {
+    /// Tanımlı isimler (değişkenler, parametreler, işlevler): ek çözümlemesi için.
+    sozluk: Sozluk,
+    /// Kullanıcının `fiil` ile tanımladığı fiiller.
+    fiiller: HashSet<String>,
+    /// `model` ile tanımlanan (ve yerleşik) modellerin adları.
+    modeller: HashSet<String>,
+    /// Tüm modellerin alan adları: `ürün.fiyatı` gibi ekli yazımı çözmek için.
+    alanlar: Sozluk,
+}
+
 pub struct Ayristirici {
     sozcukler: Vec<Sozcuk>,
     poz: usize,
-    sozluk: Sozluk,
+    t: Rc<Tanimlar>,
     /// İfade içinde yakalanan hâl eki: eki taşıyan öğe ifadeyi bitirir ve ek
     /// tüm ifadeye ait sayılır (`a + b'yi yaz` → `(a + b)'yi yaz`).
     yakalanan: Option<(Hal, Konum)>,
-    /// Kullanıcının `fiil` ile tanımladığı fiiller.
-    fiiller: HashSet<String>,
 }
 
 #[cfg(test)]
 pub fn ayristir(sozcukler: Vec<Sozcuk>) -> Sonuc<Program> {
-    ayristir_cok(vec![sozcukler])
+    ayristir_cok(vec![sozcukler], Vec::new())
 }
 
 /// İlk dosya ana programdır; diğerleri `kullan` ile eklenen kütüphanelerdir ve
-/// yalnızca işlev, fiil ve sabit tanımları içerebilir. İsim sözlüğü ve fiiller
-/// tüm dosyalarda ortaktır.
-pub fn ayristir_cok(dosyalar: Vec<Vec<Sozcuk>>) -> Sonuc<Program> {
-    let hepsi: Vec<Sozcuk> = dosyalar.iter().flatten().cloned().collect();
-    let (sozluk, fiiller) = sozluk_kur(&hepsi);
+/// yalnızca tanım (işlev, fiil, sabit, model, web yolu) içerebilir. İsim sözlüğü
+/// ve fiiller tüm dosyalarda ortaktır. Görünümler (`.ohchtml`) işlevlere çevrilir.
+pub fn ayristir_cok(mut dosyalar: Vec<Vec<Sozcuk>>, sablonlar: Vec<Sablon>) -> Sonuc<Program> {
+    let mut yerlesik = sozcukle(YERLESIK_MODELLER).expect("yerleşik modeller");
+    for s in yerlesik.iter_mut() {
+        s.konum.dosya = YERLESIK_DOSYA;
+    }
+    dosyalar.push(yerlesik);
+    let mut hepsi: Vec<Sozcuk> = dosyalar.iter().flatten().cloned().collect();
+    for s in &sablonlar {
+        hepsi.extend(s.tum_sozcukler());
+    }
+    let mut t = sozluk_kur(&hepsi);
+    if !sablonlar.is_empty() {
+        for ad in ["model", "içerik", "başlık"] {
+            t.sozluk.ekle(ad);
+        }
+    }
+    let t = Rc::new(t);
     let mut program = Program::default();
     for (i, sozcukler) in dosyalar.into_iter().enumerate() {
-        let mut a = Ayristirici {
-            sozcukler,
-            poz: 0,
-            sozluk: sozluk.clone(),
-            yakalanan: None,
-            fiiller: fiiller.clone(),
-        };
+        let mut a = Ayristirici::yeni(&t, sozcukler);
         a.program(&mut program, i > 0)?;
+    }
+    for s in sablonlar {
+        program.islevler.push(sablon_islevi(&t, s)?);
     }
     Ok(program)
 }
@@ -139,20 +201,74 @@ pub fn kullanilanlar(sozcukler: &[Sozcuk]) -> Vec<(String, Konum)> {
 
 /// Programdaki tüm tanımlı isimleri (atama hedefleri, döngü değişkenleri,
 /// işlevler ve parametreleri) toplayarak ek çözümleme sözlüğünü kurar. Kullanıcı
-/// fiillerinin adlarını da ayrıca döndürür.
-fn sozluk_kur(s: &[Sozcuk]) -> (Sozluk, HashSet<String>) {
-    let mut sozluk = Sozluk::default();
+/// fiillerini, modelleri ve model alanlarını da toplar.
+fn sozluk_kur(s: &[Sozcuk]) -> Tanimlar {
+    let mut t = Tanimlar::default();
+    let sozluk = &mut t.sozluk;
     sozluk.ekle("pi");
-    let mut fiiller = HashSet::new();
+    t.alanlar.ekle("kimlik");
+    let fiiller = &mut t.fiiller;
     let kelime = |i: usize| match s.get(i).map(|s| &s.tok) {
         Some(Tok::Kelime(k)) if !ayrilmis_mi(k) => Some(k.as_str()),
         _ => None,
     };
+    let satir_basi = |i: usize| {
+        i == 0
+            || matches!(
+                s[i - 1].tok,
+                Tok::YeniSatir | Tok::Girinti | Tok::Cikinti | Tok::Son
+            )
+    };
+    // Model bloğunun içinde miyiz (girinti derinliği)?
+    let mut model_derinligi = 0usize;
     for i in 0..s.len() {
+        match s[i].tok {
+            Tok::Girinti if model_derinligi > 0 => model_derinligi += 1,
+            // Model bloğunun bittiği çıkıntı
+            Tok::Cikinti if model_derinligi == 2 => model_derinligi = 0,
+            Tok::Cikinti if model_derinligi > 2 => model_derinligi -= 1,
+            Tok::Son => model_derinligi = 0,
+            _ => {}
+        }
+        if satir_basi(i) && s[i].tok == Tok::Kelime("model".into()) {
+            if let (Some(ad), Some(Tok::Op(":"))) = (kelime(i + 1), s.get(i + 2).map(|s| &s.tok)) {
+                t.modeller.insert(ad.to_string());
+                model_derinligi = 1;
+                continue;
+            }
+        }
+        if model_derinligi == 2 && satir_basi(i) {
+            if let (Some(alan), Some(Tok::Op(":"))) = (kelime(i), s.get(i + 1).map(|s| &s.tok)) {
+                t.alanlar.ekle(alan);
+            }
+            continue;
+        }
+        if model_derinligi > 1 {
+            continue;
+        }
+        // Web yolu: `al "/ürünler/{kimlik: sayı}":` → istek ve kimlik tanımlıdır.
+        if satir_basi(i) {
+            if let (Tok::Kelime(k), Some(Tok::Metin(kalip)), Some(Tok::Op(":"))) = (
+                &s[i].tok,
+                s.get(i + 1).map(|s| &s.tok),
+                s.get(i + 2).map(|s| &s.tok),
+            ) {
+                if ROTA_YONTEMLERI.iter().any(|(y, _)| y == k) {
+                    sozluk.ekle("istek");
+                    if let Ok((_, parametreler)) = rota_kalibi(kalip, s[i + 1].konum) {
+                        for (p, _) in parametreler {
+                            sozluk.ekle(&p);
+                        }
+                    }
+                }
+            }
+        }
         let onceki_her = i > 0 && s[i - 1].tok == Tok::Kelime("her".into());
         if let Some(k) = kelime(i) {
             let sonraki = s.get(i + 1).map(|s| &s.tok);
-            if matches!(sonraki, Some(Tok::Op("=" | "+=" | "-="))) || onceki_her {
+            // `stok: sayı = 0` (alan varsayılanı) bir atama değildir.
+            let tip_sonrasi = i > 0 && s[i - 1].tok == Tok::Op(":");
+            if (matches!(sonraki, Some(Tok::Op("=" | "+=" | "-="))) && !tip_sonrasi) || onceki_her {
                 sozluk.ekle(k);
             }
         }
@@ -218,10 +334,80 @@ fn sozluk_kur(s: &[Sozcuk]) -> (Sozluk, HashSet<String>) {
             }
         }
     }
-    (sozluk, fiiller)
+    t
+}
+
+/// `"/ürünler/{kimlik: sayı}"` → (`/ürünler/{kimlik:sayı}`, [(kimlik, sayı)])
+fn rota_kalibi(kalip: &str, konum: Konum) -> Sonuc<(String, Vec<(String, Tip)>)> {
+    if !kalip.starts_with('/') {
+        return Err(Hata::yeni(konum, "web yolu '/' ile başlamalı").ipucu("al \"/ürünler\":"));
+    }
+    let mut parametreler: Vec<(String, Tip)> = Vec::new();
+    let mut parcalar = Vec::new();
+    for parca in kalip.split('/').skip(1) {
+        if let Some(ic) = parca.strip_prefix('{').and_then(|p| p.strip_suffix('}')) {
+            let (ad, tip) = match ic.split_once(':') {
+                Some((a, t)) => (a.trim(), t.trim()),
+                None => (ic.trim(), "metin"),
+            };
+            let gecerli = ad
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_alphabetic() || c == '_')
+                && ad.chars().all(|c| c.is_alphanumeric() || c == '_');
+            if !gecerli || ad == "istek" {
+                return Err(Hata::yeni(
+                    konum,
+                    format!("'{ad}' geçerli bir yol parametresi adı değil"),
+                ));
+            }
+            let tip = match tip {
+                "metin" => Tip::Metin,
+                "sayı" => Tip::Sayi,
+                t => {
+                    return Err(Hata::yeni(
+                        konum,
+                        format!("yol parametresinin tipi metin ya da sayı olmalı, '{t}' bulundu"),
+                    ))
+                }
+            };
+            if parametreler.iter().any(|(p, _)| p == ad) {
+                return Err(Hata::yeni(
+                    konum,
+                    format!("'{ad}' parametresi yolda iki kez geçiyor"),
+                ));
+            }
+            parcalar.push(if tip == Tip::Sayi {
+                format!("{{{ad}:sayı}}")
+            } else {
+                format!("{{{ad}}}")
+            });
+            parametreler.push((ad.to_string(), tip));
+        } else if parca.contains(['{', '}']) {
+            return Err(
+                Hata::yeni(konum, "yol parametresi yolun bütün bir parçası olmalı")
+                    .ipucu("al \"/ürünler/{kimlik: sayı}\":"),
+            );
+        } else {
+            parcalar.push(parca.to_string());
+        }
+    }
+    while parcalar.len() > 1 && parcalar.last().is_some_and(|p| p.is_empty()) {
+        parcalar.pop();
+    }
+    Ok((format!("/{}", parcalar.join("/")), parametreler))
 }
 
 impl Ayristirici {
+    fn yeni(t: &Rc<Tanimlar>, sozcukler: Vec<Sozcuk>) -> Self {
+        Ayristirici {
+            sozcukler,
+            poz: 0,
+            t: Rc::clone(t),
+            yakalanan: None,
+        }
+    }
+
     // ---------- yardımcılar ----------
 
     fn bak(&self) -> &Tok {
@@ -307,6 +493,17 @@ impl Ayristirici {
                 Tok::Girinti => return Err(Hata::yeni(self.konum(), "beklenmeyen girinti")),
                 _ if self.kelime_mi("işlev") => p.islevler.push(self.islev()?),
                 _ if self.kelime_mi("fiil") => p.islevler.push(self.fiil_tanimi()?),
+                _ if self.model_basi_mi() => {
+                    let m = self.model_tanimi()?;
+                    if p.modeller.iter().any(|x| x.ad == m.ad) {
+                        return Err(Hata::yeni(
+                            m.konum,
+                            format!("'{}' modeli iki kez tanımlanmış", m.ad),
+                        ));
+                    }
+                    p.modeller.push(m);
+                }
+                _ if self.rota_basi_mi() => p.islevler.push(self.rota()?),
                 _ if self.kelime_mi("kullan") => {
                     self.ilerle();
                     if !matches!(self.bak(), Tok::Metin(_)) {
@@ -333,7 +530,7 @@ impl Ayristirici {
                 _ if kutuphane => {
                     return Err(Hata::yeni(
                         self.konum(),
-                        "kütüphane dosyalarında yalnızca işlev, fiil ve sabit tanımları olabilir",
+                        "kütüphane dosyalarında yalnızca tanımlar (işlev, fiil, sabit, model, web yolu) olabilir",
                     ))
                 }
                 _ => p.ana.push(self.deyim()?),
@@ -357,10 +554,14 @@ impl Ayristirici {
         self.ilerle();
         let mut govde = Vec::new();
         while !matches!(self.bak(), Tok::Cikinti | Tok::Son) {
-            if self.kelime_mi("işlev") || self.kelime_mi("fiil") {
+            if self.kelime_mi("işlev")
+                || self.kelime_mi("fiil")
+                || self.model_basi_mi()
+                || self.rota_basi_mi()
+            {
                 return Err(Hata::yeni(
                     self.konum(),
-                    "işlevler ve fiiller yalnızca en dış düzeyde tanımlanabilir",
+                    "işlevler, fiiller, modeller ve web yolları yalnızca en dış düzeyde tanımlanabilir",
                 ));
             }
             govde.push(self.deyim()?);
@@ -369,6 +570,221 @@ impl Ayristirici {
             self.ilerle();
         }
         Ok(govde)
+    }
+
+    /// `model Ürün:` satırı mı? (`model` ayrılmış değildir; değişken adı olabilir.)
+    fn model_basi_mi(&self) -> bool {
+        self.kelime_mi("model")
+            && matches!(self.bak_n(1), Tok::Kelime(_))
+            && *self.bak_n(2) == Tok::Op(":")
+    }
+
+    /// `al "/ürünler":` satırı mı?
+    fn rota_basi_mi(&self) -> bool {
+        matches!(self.bak(), Tok::Kelime(k) if ROTA_YONTEMLERI.iter().any(|(y, _)| y == k))
+            && matches!(self.bak_n(1), Tok::Metin(_))
+            && *self.bak_n(2) == Tok::Op(":")
+    }
+
+    /// ```text
+    /// model Ürün:
+    ///     ad: metin, zorunlu, en_fazla 100
+    ///     fiyat: ondalık, en_az 0
+    ///     stok: sayı = 0
+    /// ```
+    fn model_tanimi(&mut self) -> Sonuc<Model> {
+        let konum = self.konum();
+        self.bekle_kelime("model")?;
+        let akonum = self.konum();
+        let ad = self.isim_adi("model adı")?;
+        if akonum.dosya != YERLESIK_DOSYA && (ad == "İstek" || ad == "Yanıt") {
+            return Err(Hata::yeni(
+                akonum,
+                format!("'{ad}' yerleşik bir model; başka bir ad seçin"),
+            ));
+        }
+        if YERLESIK.contains(&ad.as_str()) || crate::yerlesik::bul(&ad).is_some() {
+            return Err(Hata::yeni(
+                akonum,
+                format!("'{ad}' yerleşik bir işlevin adı"),
+            ));
+        }
+        if ["sayı", "ondalık", "metin", "mantık", "liste", "sözlük"].contains(&ad.as_str()) {
+            return Err(Hata::yeni(akonum, format!("'{ad}' bir tip adı")));
+        }
+        self.bekle_op(":", "model adından sonra")?;
+        if *self.bak() != Tok::YeniSatir {
+            return Err(self.beklenmeyen("':' sonrasında yeni satır"));
+        }
+        self.ilerle();
+        if *self.bak() != Tok::Girinti {
+            return Err(Hata::yeni(
+                self.konum(),
+                "model boş olamaz; içeriden başlayan alan satırları bekleniyordu",
+            )
+            .ipucu("model Ürün:\n    ad: metin"));
+        }
+        self.ilerle();
+        let mut alanlar: Vec<AlanTanimi> = Vec::new();
+        while !matches!(self.bak(), Tok::Cikinti | Tok::Son) {
+            let fk = self.konum();
+            let alan = self.isim_adi("alan adı")?;
+            if alanlar.iter().any(|a| a.ad == alan) {
+                return Err(Hata::yeni(
+                    fk,
+                    format!("'{alan}' alanı iki kez tanımlanmış"),
+                ));
+            }
+            self.bekle_op(":", "alan adından sonra tipi (ör. ad: metin)")?;
+            let tip = self.tip()?;
+            let varsayilan = if self.op_mu("=") {
+                self.ilerle();
+                Some(self.duz_ifade()?)
+            } else {
+                None
+            };
+            let mut a = AlanTanimi {
+                ad: alan,
+                tip,
+                varsayilan,
+                zorunlu: false,
+                en_az: None,
+                en_fazla: None,
+                konum: fk,
+            };
+            while self.op_mu(",") {
+                self.ilerle();
+                let nk = self.konum();
+                let nitelik = match self.bak() {
+                    Tok::Kelime(k) => k.clone(),
+                    _ => String::new(),
+                };
+                match nitelik.as_str() {
+                    "zorunlu" => {
+                        self.ilerle();
+                        a.zorunlu = true;
+                    }
+                    "birincil" if a.ad == "kimlik" => {
+                        self.ilerle();
+                    }
+                    "birincil" => {
+                        return Err(Hata::yeni(
+                            nk,
+                            "'birincil' yalnızca kimlik alanında kullanılır",
+                        ))
+                    }
+                    "en_az" | "en_fazla" => {
+                        self.ilerle();
+                        let eksi = self.op_mu("-");
+                        if eksi {
+                            self.ilerle();
+                        }
+                        let n = match self.bak() {
+                            Tok::Sayi(n) => *n as f64,
+                            Tok::Ondalik(n) => *n,
+                            _ => {
+                                return Err(self.beklenmeyen(&format!("'{nitelik}' için bir sayı")))
+                            }
+                        };
+                        self.ilerle();
+                        let n = if eksi { -n } else { n };
+                        if nitelik == "en_az" {
+                            a.en_az = Some(n);
+                        } else {
+                            a.en_fazla = Some(n);
+                        }
+                    }
+                    _ => {
+                        return Err(Hata::yeni(nk, "bilinmeyen alan niteliği")
+                            .ipucu("nitelikler: zorunlu, en_az 1, en_fazla 100"))
+                    }
+                }
+            }
+            self.deyim_bitir()?;
+            alanlar.push(a);
+        }
+        if *self.bak() == Tok::Cikinti {
+            self.ilerle();
+        }
+        // Her modelin ilk alanı kimliktir; yazılmamışsa eklenir.
+        match alanlar.iter().position(|a| a.ad == "kimlik") {
+            Some(i) => {
+                let k = alanlar.remove(i);
+                if k.tip != Tip::Sayi || k.varsayilan.is_some() {
+                    return Err(Hata::yeni(
+                        k.konum,
+                        "kimlik alanı varsayılan değeri olmayan bir sayı olmalı",
+                    ));
+                }
+                alanlar.insert(0, k);
+            }
+            None => alanlar.insert(
+                0,
+                AlanTanimi {
+                    ad: "kimlik".into(),
+                    tip: Tip::Sayi,
+                    varsayilan: None,
+                    zorunlu: false,
+                    en_az: None,
+                    en_fazla: None,
+                    konum,
+                },
+            ),
+        }
+        Ok(Model {
+            ad,
+            alanlar,
+            konum: akonum,
+        })
+    }
+
+    /// `al "/ürünler/{kimlik: sayı}":` — gövde, `istek` parametresi alan ve `Yanıt`
+    /// döndüren bir işleve çevrilir. Yol parametreleri yerel değişken olur.
+    fn rota(&mut self) -> Sonuc<Islev> {
+        let konum = self.konum();
+        let Tok::Kelime(y) = self.ilerle().tok else {
+            unreachable!()
+        };
+        let yontem = ROTA_YONTEMLERI.iter().find(|(t, _)| *t == y).unwrap().1;
+        let kkonum = self.konum();
+        let Tok::Metin(kalip) = self.ilerle().tok else {
+            unreachable!()
+        };
+        let (kalip, parametreler) = rota_kalibi(&kalip, kkonum)?;
+        let govde = self.blok()?;
+        let mut tum = Vec::new();
+        for (ad, tip) in parametreler {
+            // ad = istek.parametreler["ad"]   (sayı ise sayı(...))
+            let e = |tur| Ifade::yeni(tur, kkonum);
+            let istek = e(IfadeTuru::Isim("istek".into()));
+            let p = e(IfadeTuru::Alan(Box::new(istek), "parametreler".into(), 0));
+            let mut deger = e(IfadeTuru::Indeks(
+                Box::new(p),
+                Box::new(e(IfadeTuru::Metin(ad.clone()))),
+            ));
+            if tip == Tip::Sayi {
+                deger = e(IfadeTuru::Cagri("sayı".into(), vec![deger]));
+            }
+            tum.push(Deyim::Atama {
+                hedef: ad,
+                deger,
+                konum: kkonum,
+            });
+        }
+        tum.extend(govde);
+        Ok(Islev {
+            ad: format!("{yontem} {kalip}"),
+            parametreler: vec![("istek".into(), Tip::Model("İstek".into()))],
+            haller: Vec::new(),
+            donus: Some(Tip::Model("Yanıt".into())),
+            govde: tum,
+            konum,
+            yereller: Vec::new(),
+            rota: Some(Rota {
+                yontem: yontem.into(),
+                kalip,
+            }),
+        })
     }
 
     fn islev(&mut self) -> Sonuc<Islev> {
@@ -412,6 +828,7 @@ impl Ayristirici {
             govde,
             konum,
             yereller: Vec::new(),
+            rota: None,
         })
     }
 
@@ -470,7 +887,7 @@ impl Ayristirici {
         }
         let akonum = self.konum();
         let ad = match self.bak().clone() {
-            Tok::Kelime(k) if self.fiiller.contains(&k) => {
+            Tok::Kelime(k) if self.t.fiiller.contains(&k) => {
                 self.ilerle();
                 k
             }
@@ -509,6 +926,7 @@ impl Ayristirici {
             govde,
             konum,
             yereller: Vec::new(),
+            rota: None,
         })
     }
 
@@ -560,9 +978,10 @@ impl Ayristirici {
                 self.bekle_op(">", "sözlük tipinin sonunda")?;
                 Tip::Sozluk(Box::new(a), Box::new(d))
             }
+            _ if self.t.modeller.contains(&ad) => Tip::Model(ad),
             _ => {
                 return Err(Hata::yeni(konum, format!("bilinmeyen tip '{ad}'")).ipucu(
-                    "tipler: sayı, ondalık, metin, mantık, liste<sayı>, sözlük<metin, sayı>",
+                    "tipler: sayı, ondalık, metin, mantık, liste<sayı>, sözlük<metin, sayı> ya da bir model adı",
                 ))
             }
         })
@@ -681,7 +1100,74 @@ impl Ayristirici {
                     deger,
                 }))
             }
+            Tok::Uye => self.uye_atamasi(konum),
             _ => Ok(None),
+        }
+    }
+
+    /// `ürün.fiyat = 12.5`, `ürün.stok += 1`, `ürün.etiketler[0] = "yeni"`
+    fn uye_atamasi(&mut self, konum: Konum) -> Sonuc<Option<Deyim>> {
+        let mut i = self.poz;
+        let mut derinlik = 0;
+        let mut op = None;
+        while !matches!(self.sozcukler[i].tok, Tok::YeniSatir | Tok::Son) {
+            match self.sozcukler[i].tok {
+                Tok::Op("[") | Tok::Op("(") => derinlik += 1,
+                Tok::Op("]") | Tok::Op(")") => derinlik -= 1,
+                Tok::Op(o) if derinlik == 0 && matches!(o, "=" | "+=" | "-=") => {
+                    op = Some(o);
+                    break;
+                }
+                _ => {}
+            }
+            i += 1;
+        }
+        let Some(op) = op else {
+            return Ok(None);
+        };
+        self.yakalanan = None;
+        let hedef = self.sonek()?;
+        if let Some((_, k)) = self.yakalanan.take() {
+            return Err(Hata::yeni(k, "atamanın sol tarafı ek almaz"));
+        }
+        if !self.op_mu(op) {
+            return Err(self.beklenmeyen(&format!("'{op}'")));
+        }
+        self.ilerle();
+        let mut deger = self.duz_ifade()?;
+        self.deyim_bitir()?;
+        match hedef.tur {
+            IfadeTuru::Alan(nesne, alan, _) => {
+                if op != "=" {
+                    let ikili = if op == "+=" {
+                        IkiliOp::Topla
+                    } else {
+                        IkiliOp::Cikar
+                    };
+                    let sol =
+                        Ifade::yeni(IfadeTuru::Alan(nesne.clone(), alan.clone(), 0), hedef.konum);
+                    deger = Ifade::yeni(
+                        IfadeTuru::Ikili(ikili, Box::new(sol), Box::new(deger)),
+                        konum,
+                    );
+                }
+                Ok(Some(Deyim::AlanAtama {
+                    nesne: *nesne,
+                    alan,
+                    sira: 0,
+                    deger,
+                    konum,
+                }))
+            }
+            IfadeTuru::Indeks(liste, indeks) if op == "=" => Ok(Some(Deyim::IndeksAtama {
+                liste: *liste,
+                indeks: *indeks,
+                deger,
+            })),
+            _ => Err(Hata::yeni(
+                konum,
+                "atamanın sol tarafı bir değişken, liste öğesi ya da model alanı olmalı",
+            )),
         }
     }
 
@@ -769,8 +1255,13 @@ impl Ayristirici {
         let mut fiil: Option<(String, Konum)> = None;
         loop {
             if let Tok::Kelime(k) = self.bak() {
-                let kullanici = self.fiiller.contains(k) && *self.bak_n(1) != Tok::Op("(");
-                if FIILLER.contains(&k.as_str()) || kullanici {
+                let kullanici = self.t.fiiller.contains(k) && *self.bak_n(1) != Tok::Op("(");
+                let model_fiili = MODEL_FIILLERI.contains(&k.as_str())
+                    && matches!(
+                        self.bak_n(1),
+                        Tok::YeniSatir | Tok::Son | Tok::Cikinti | Tok::Op(".")
+                    );
+                if FIILLER.contains(&k.as_str()) || kullanici || model_fiili {
                     fiil = Some((k.clone(), self.konum()));
                     self.ilerle();
                     break;
@@ -796,10 +1287,11 @@ impl Ayristirici {
                     self.bak_n(1),
                     Tok::YeniSatir | Tok::Son | Tok::Cikinti | Tok::Op(".")
                 );
-                if sonda && !ayrilmis_mi(k) && self.sozluk.cozumle(k) == Cozum::Bilinmiyor {
+                if sonda && !ayrilmis_mi(k) && self.t.sozluk.cozumle(k) == Cozum::Bilinmiyor {
                     let mut fiiller: Vec<&str> = FIILLER.to_vec();
+                    fiiller.extend(MODEL_FIILLERI);
                     let mut kullanici: Vec<&str> =
-                        self.fiiller.iter().map(|s| s.as_str()).collect();
+                        self.t.fiiller.iter().map(|s| s.as_str()).collect();
                     kullanici.sort();
                     fiiller.extend(kullanici);
                     return Err(
@@ -845,7 +1337,7 @@ impl Ayristirici {
                 .ipucu("ör. x'i ekrana yaz.  5'i sayılara ekle.  sayıları sırala."));
         };
 
-        if self.fiiller.contains(&fiil) {
+        if self.t.fiiller.contains(&fiil) {
             let mut arg = Vec::new();
             for (ifade, hal, k) in ogeler {
                 let Some(hal) = hal else {
@@ -904,6 +1396,19 @@ impl Ayristirici {
                         .ipucu("5'i sayılara ekle."))
                     }
                 }
+            }
+            "kaydet" | "sil" => {
+                let Some(nesne) = bul(&mut ogeler, Hal::Belirtme) else {
+                    return Err(Hata::yeni(
+                        fiil_konum,
+                        format!("'{fiil}' bir model nesnesini belirtme hâlinde (-i) bekler"),
+                    )
+                    .ipucu(format!("ürün'ü {fiil}.")));
+                };
+                Deyim::IfadeDeyimi(Ifade::yeni(
+                    IfadeTuru::Metod(Box::new(nesne), fiil.clone(), Vec::new()),
+                    fiil_konum,
+                ))
             }
             "sırala" => {
                 let Some(liste) = bul(&mut ogeler, Hal::Belirtme) else {
@@ -997,7 +1502,7 @@ impl Ayristirici {
         self.sozcukler[self.poz..]
             .iter()
             .take_while(|s| !matches!(s.tok, Tok::YeniSatir | Tok::Son))
-            .any(|s| matches!(&s.tok, Tok::Kelime(k) if self.fiiller.contains(k)))
+            .any(|s| matches!(&s.tok, Tok::Kelime(k) if self.t.fiiller.contains(k)))
     }
 
     fn kosul_parcasi(&mut self, tur: KosulTuru) -> Sonuc<Ifade> {
@@ -1139,7 +1644,7 @@ impl Ayristirici {
         let mut arg = vec![(hal, ilk)];
         loop {
             if let Tok::Kelime(k) = self.bak().clone() {
-                if self.fiiller.contains(&k) {
+                if self.t.fiiller.contains(&k) {
                     let fk = self.konum();
                     self.ilerle();
                     if let Tok::Ek(ek) = self.bak() {
@@ -1165,7 +1670,7 @@ impl Ayristirici {
                     konum,
                     format!("burada ek beklenmiyordu ({} bulundu)", hal.adi()),
                 );
-                if !self.fiiller.is_empty() || arg.len() > 1 {
+                if !self.t.fiiller.is_empty() || arg.len() > 1 {
                     h = h.ipucu("bir fiil çağırıyorsanız cümle fiille bitmeli: y = 5'i karele");
                 }
                 return Err(h);
@@ -1305,15 +1810,21 @@ impl Ayristirici {
         self.sonek()
     }
 
-    /// Temel öğe + indeks + hâl eki.
+    /// Temel öğe + indeks + üye erişimi + hâl eki.
     fn sonek(&mut self) -> Sonuc<Ifade> {
         let mut ifade = self.temel()?;
-        while self.yakalanan.is_none() && self.op_mu("[") {
-            let k = self.konum();
-            self.ilerle();
-            let i = self.duz_ifade()?;
-            self.bekle_op("]", "indeksin sonunda")?;
-            ifade = Ifade::yeni(IfadeTuru::Indeks(Box::new(ifade), Box::new(i)), k);
+        while self.yakalanan.is_none() {
+            if self.op_mu("[") {
+                let k = self.konum();
+                self.ilerle();
+                let i = self.duz_ifade()?;
+                self.bekle_op("]", "indeksin sonunda")?;
+                ifade = Ifade::yeni(IfadeTuru::Indeks(Box::new(ifade), Box::new(i)), k);
+            } else if *self.bak() == Tok::Uye {
+                ifade = self.uye(ifade)?;
+            } else {
+                break;
+            }
         }
         if let Tok::Ek(ek) = self.bak().clone() {
             let k = self.konum();
@@ -1357,6 +1868,84 @@ impl Ayristirici {
             }
         }
         Ok(ifade)
+    }
+
+    /// `nesne.alan`, `nesne.yöntem(...)`; alan adı ek almış olabilir: `ürün.fiyatı`
+    fn uye(&mut self, nesne: Ifade) -> Sonuc<Ifade> {
+        self.ilerle(); // .
+        let konum = self.konum();
+        let Tok::Kelime(ad) = self.bak().clone() else {
+            return Err(self.beklenmeyen("noktadan sonra alan ya da yöntem adı"));
+        };
+        self.ilerle();
+        if self.op_mu("(") {
+            self.ilerle();
+            let mut arg = Vec::new();
+            while !self.op_mu(")") {
+                arg.push(self.duz_ifade()?);
+                if !self.op_mu(")") {
+                    self.bekle_op(",", "bağımsız değişkenler arasında")?;
+                }
+            }
+            self.ilerle();
+            return Ok(Ifade::yeni(
+                IfadeTuru::Metod(Box::new(nesne), ad, arg),
+                konum,
+            ));
+        }
+        let alan = if matches!(self.bak(), Tok::Ek(_)) {
+            self.t.alanlar.asil_isim(&ad).unwrap_or(&ad).to_string()
+        } else {
+            match self.t.alanlar.cozumle(&ad) {
+                Cozum::Isim(a) => a,
+                Cozum::EkliIsim(a, hal) => {
+                    self.yakalanan = Some((hal, konum));
+                    a
+                }
+                Cozum::Belirsiz(adaylar) => {
+                    return Err(Hata::yeni(
+                        konum,
+                        format!("'{ad}' belirsiz: {}", adaylar.join(" ya da ")),
+                    )
+                    .ipucu("eki kesme işaretiyle ayırın: ürün.ad'ı"))
+                }
+                Cozum::Bilinmiyor => ad,
+            }
+        };
+        Ok(Ifade::yeni(
+            IfadeTuru::Alan(Box::new(nesne), alan, 0),
+            konum,
+        ))
+    }
+
+    /// `Ürün(ad: "Kalem", fiyat: 12.5)`
+    fn kurucu(&mut self, model: String, konum: Konum) -> Sonuc<Ifade> {
+        self.ilerle(); // (
+        let mut arg: Vec<(String, Ifade)> = Vec::new();
+        while !self.op_mu(")") {
+            let ak = self.konum();
+            let alan = match (self.bak().clone(), self.bak_n(1)) {
+                (Tok::Kelime(a), Tok::Op(":")) => a,
+                _ => {
+                    return Err(
+                        Hata::yeni(ak, "model kurucusunda değerler alan adıyla verilir")
+                            .ipucu(format!("{model}(ad: \"Kalem\", fiyat: 12.5)")),
+                    )
+                }
+            };
+            self.ilerle();
+            self.ilerle();
+            let d = self.duz_ifade()?;
+            if arg.iter().any(|(a, _)| *a == alan) {
+                return Err(Hata::yeni(ak, format!("'{alan}' alanı iki kez verilmiş")));
+            }
+            arg.push((alan, d));
+            if !self.op_mu(")") {
+                self.bekle_op(",", "alanlar arasında")?;
+            }
+        }
+        self.ilerle();
+        Ok(Ifade::yeni(IfadeTuru::Kurucu(model, arg), konum))
     }
 
     fn temel(&mut self) -> Sonuc<Ifade> {
@@ -1435,6 +2024,21 @@ impl Ayristirici {
         }
         self.ilerle();
 
+        // Model: kurucu `Ürün(...)` ya da yöntem alıcısı `Ürün.hepsi()`
+        if self.t.modeller.contains(&k) {
+            if self.op_mu("(") {
+                return self.kurucu(k, konum);
+            }
+            if *self.bak() == Tok::Uye {
+                return Ok(Ifade::yeni(IfadeTuru::ModelAdi(k), konum));
+            }
+            return Err(
+                Hata::yeni(konum, format!("'{k}' bir model adı")).ipucu(format!(
+                    "yeni bir nesne için: {k}(alan: değer)  ya da kayıtlar için: {k}.hepsi()"
+                )),
+            );
+        }
+
         // İşlev çağrısı
         if self.op_mu("(") {
             self.ilerle();
@@ -1450,13 +2054,14 @@ impl Ayristirici {
         }
 
         // Bağımsız değişkensiz kullanıcı fiili: `y = zar_at`
-        if self.fiiller.contains(&k) {
+        if self.t.fiiller.contains(&k) {
             return Ok(Ifade::yeni(IfadeTuru::FiilCagri(k, Vec::new()), konum));
         }
 
         // Kesme işaretiyle yazılmış ek: kök tanımlı bir isim olmalı.
         if matches!(self.bak(), Tok::Ek(_)) {
             let isim = self
+                .t
                 .sozluk
                 .asil_isim(&k)
                 .map(str::to_string)
@@ -1464,7 +2069,7 @@ impl Ayristirici {
             return Ok(Ifade::yeni(IfadeTuru::Isim(isim), konum));
         }
 
-        match self.sozluk.cozumle(&k) {
+        match self.t.sozluk.cozumle(&k) {
             Cozum::Isim(isim) => Ok(Ifade::yeni(IfadeTuru::Isim(isim), konum)),
             Cozum::EkliIsim(isim, hal) => {
                 self.yakalanan = Some((hal, konum));
@@ -1480,6 +2085,198 @@ impl Ayristirici {
     }
 }
 
+// ---------- görünümler (.ohchtml) ----------
+
+impl Ayristirici {
+    /// Görünümdeki bir kod parçasının sonu.
+    fn parca_sonu(&mut self) -> Sonuc<()> {
+        if *self.bak() == Tok::YeniSatir {
+            self.ilerle();
+        }
+        if *self.bak() != Tok::Son {
+            return Err(self.beklenmeyen("kod parçasının sonu"));
+        }
+        Ok(())
+    }
+
+    /// `@her ürün için model'den {` ya da `@her i için 1'den 5'e kadar {` başlığı.
+    fn sablon_her(&mut self, konum: Konum, govde: Vec<Deyim>) -> Sonuc<Deyim> {
+        let degisken = self.isim_adi("döngü değişkeni")?;
+        self.bekle_kelime("için")?;
+        let (kaynak, hal, hal_konum) = self.ekli_ifade()?;
+        if hal != Some(Hal::Ayrilma) {
+            return Err(
+                Hata::yeni(hal_konum, "döngünün kaynağı ayrılma hâlinde (-den) olmalı")
+                    .ipucu("@her ürün için ürünler'den {"),
+            );
+        }
+        if matches!(self.bak(), Tok::YeniSatir | Tok::Son) {
+            self.parca_sonu()?;
+            return Ok(Deyim::HerListe {
+                degisken,
+                liste: kaynak,
+                govde,
+                konum,
+            });
+        }
+        let (son, hal, hal_konum) = self.ekli_ifade()?;
+        if hal != Some(Hal::Yonelme) {
+            return Err(
+                Hata::yeni(hal_konum, "aralığın sonu yönelme hâlinde (-e) olmalı")
+                    .ipucu("@her i için 1'den 5'e kadar {"),
+            );
+        }
+        self.bekle_kelime("kadar")?;
+        self.parca_sonu()?;
+        Ok(Deyim::HerAralik {
+            degisken,
+            bas: kaynak,
+            son,
+            govde,
+            konum,
+        })
+    }
+}
+
+fn isim(ad: &str, konum: Konum) -> Ifade {
+    Ifade::yeni(IfadeTuru::Isim(ad.into()), konum)
+}
+
+/// Görünüm çıktısına bir parça ekleyen deyim.
+fn cikti_ekle(oge: Ifade) -> Deyim {
+    let k = oge.konum;
+    Deyim::Ekle {
+        oge,
+        liste: isim(CIKTI, k),
+    }
+}
+
+fn parcalari_indir(
+    t: &Rc<Tanimlar>,
+    parcalar: Vec<Parca>,
+    govde: &mut Vec<Deyim>,
+    konum: Konum,
+) -> Sonuc<()> {
+    for p in parcalar {
+        match p {
+            Parca::Metin(m) => govde.push(cikti_ekle(Ifade::yeni(IfadeTuru::Metin(m), konum))),
+            Parca::Cikti { sozcukler, ham } => {
+                let mut a = Ayristirici::yeni(t, sozcukler);
+                let e = a.duz_ifade()?;
+                a.parca_sonu()?;
+                // Başka bir görünümün çıktısı zaten HTML'dir.
+                let gorunum = matches!(&e.tur, IfadeTuru::Cagri(ad, _) if ad == "görünüm");
+                let k = e.konum;
+                let ad = if ham || gorunum { "metin" } else { "kaçır" };
+                govde.push(cikti_ekle(Ifade::yeni(
+                    IfadeTuru::Cagri(ad.into(), vec![e]),
+                    k,
+                )));
+            }
+            Parca::Eger {
+                kosul,
+                govde: g,
+                degilse,
+            } => {
+                let mut a = Ayristirici::yeni(t, kosul);
+                let kosul = a.kosul(KosulTuru::Eger)?;
+                a.bekle_op(":", "koşulun sonunda")?;
+                a.parca_sonu()?;
+                let mut evet = Vec::new();
+                parcalari_indir(t, g, &mut evet, konum)?;
+                let mut hayir = Vec::new();
+                parcalari_indir(t, degilse, &mut hayir, konum)?;
+                govde.push(Deyim::Eger {
+                    kosul,
+                    govde: evet,
+                    degilse: hayir,
+                });
+            }
+            Parca::Her {
+                baslik,
+                govde: g,
+                konum: hk,
+            } => {
+                let mut ic = Vec::new();
+                parcalari_indir(t, g, &mut ic, konum)?;
+                let mut a = Ayristirici::yeni(t, baslik);
+                govde.push(a.sablon_her(hk, ic)?);
+            }
+            Parca::Icerik => govde.push(cikti_ekle(isim("içerik", konum))),
+        }
+    }
+    Ok(())
+}
+
+/// Bir görünümü metin döndüren `görünüm:<ad>` işlevine çevirir.
+fn sablon_islevi(t: &Rc<Tanimlar>, s: Sablon) -> Sonuc<Islev> {
+    let konum = s.konum;
+    let mut parametreler = Vec::new();
+    if let Some(sozcukler) = s.model {
+        let mut a = Ayristirici::yeni(t, sozcukler);
+        let tip = a.tip()?;
+        a.parca_sonu()?;
+        parametreler.push(("model".to_string(), tip));
+    }
+    if s.icerik_var {
+        parametreler.push(("içerik".to_string(), Tip::Metin));
+        parametreler.push(("başlık".to_string(), Tip::Metin));
+    }
+    let mut govde = vec![Deyim::Atama {
+        hedef: CIKTI.into(),
+        deger: Ifade::yeni(IfadeTuru::Liste(Vec::new()), konum),
+        konum,
+    }];
+    parcalari_indir(t, s.parcalar, &mut govde, konum)?;
+    let sonuc = Ifade::yeni(
+        IfadeTuru::Cagri(
+            "birleştir".into(),
+            vec![
+                isim(CIKTI, konum),
+                Ifade::yeni(IfadeTuru::Metin(String::new()), konum),
+            ],
+        ),
+        konum,
+    );
+    let donen = match s.duzen {
+        Some((duzen, dk)) => {
+            let baslik = match s.baslik {
+                Some(sozcukler) => {
+                    let mut a = Ayristirici::yeni(t, sozcukler);
+                    let e = a.duz_ifade()?;
+                    a.parca_sonu()?;
+                    e
+                }
+                None => Ifade::yeni(IfadeTuru::Metin(String::new()), dk),
+            };
+            Ifade::yeni(
+                IfadeTuru::Cagri(format!("görünüm:{duzen}"), vec![sonuc, baslik]),
+                dk,
+            )
+        }
+        None => {
+            if let Some(b) = s.baslik.as_ref().and_then(|b| b.first()) {
+                return Err(Hata::yeni(
+                    b.konum,
+                    "@başlık yalnızca bir @düzen kullanan görünümde anlamlıdır",
+                ));
+            }
+            sonuc
+        }
+    };
+    govde.push(Deyim::Dondur(Some(donen), konum));
+    Ok(Islev {
+        ad: format!("görünüm:{}", s.ad),
+        parametreler,
+        haller: Vec::new(),
+        donus: Some(Tip::Metin),
+        govde,
+        konum,
+        yereller: Vec::new(),
+        rota: None,
+    })
+}
+
 fn tanimsiz(k: &str, konum: Konum) -> Hata {
     Hata::yeni(konum, format!("tanımsız isim '{k}'"))
         .ipucu("değişkeni önce tanımlayın (ör. x = 5) ya da ekini kesme işaretiyle ayırın")
@@ -1493,6 +2290,7 @@ fn tok_adi(t: &Tok) -> String {
         Tok::Kelime(k) => format!("'{k}'"),
         Tok::Ek(e) => format!("'{e} eki"),
         Tok::Op(o) => format!("'{o}'"),
+        Tok::Uye => "'.'".into(),
         Tok::YeniSatir => "satır sonu".into(),
         Tok::Girinti => "girinti".into(),
         Tok::Cikinti => "blok sonu".into(),

@@ -13,7 +13,13 @@
  * ulaşılamayan nesneleri geri verir. Derleyicinin ayrıca bir şey yapması gerekmez.
  *
  * Tip kodları: 0 sayı, 1 metin, 2 mantık, 3 ondalık, 4 + 8*öğe = liste,
- * 5 + 8*(anahtar + 2*değer) = sözlük (anahtar: 0 sayı, 1 metin).
+ * 5 + 8*(anahtar + 2*değer) = sözlük (anahtar: 0 sayı, 1 metin), 6 = model.
+ *
+ * Model nesneleri birer listedir: [tanım, bağlama hataları, kimlik, alanlar...].
+ * Tanım, derleyicinin ürettiği sabit bir metindir (modelin adı ve alanları).
+ *
+ * Web: `ohc_sun` tek iş parçacıklı bir HTTP/1.1 sunucusu başlatır; derleyici
+ * her `al "/yol":` tanımını `ohc_web_yol` ile kaydeder.
  */
 #include <errno.h>
 #include <inttypes.h>
@@ -25,9 +31,19 @@
 #include <string.h>
 #include <time.h>
 #ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #include <windows.h>
 #include <shellapi.h>
+#include <direct.h>
 #else
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <signal.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/types.h>
 #include <unistd.h>
 #endif
 
@@ -40,15 +56,37 @@
 #define KOD_MANTIK 2
 #define KOD_ONDALIK 3
 
+#define KOD_MODEL 6
+
 #define M(x) ((const char *)(intptr_t)(x))
 #define D(p) ((int64_t)(intptr_t)(p))
+
+/* Web isteği işlenirken oluşan çalışma hataları sunucuyu durdurmaz: hata
+ * isteğin başına geri sarılır ve tarayıcıya 500 sayfası gönderilir. */
+#if defined(__GNUC__)
+typedef void *Tuzak[5];
+#define TUZAK_KUR(t) __builtin_setjmp(t)
+#define TUZAGA_DON(t) __builtin_longjmp(t, 1)
+#else
+typedef jmp_buf Tuzak;
+#define TUZAK_KUR(t) setjmp(t)
+#define TUZAGA_DON(t) longjmp(t, 1)
+#endif
+static Tuzak istek_tuzagi;
+static volatile int tuzak_kurulu;
+static char son_hata[1024];
 
 static void hata(int64_t satir, const char *mesaj) {
     fflush(stdout);
     if (satir > 0)
-        fprintf(stderr, "Çalışma hatası (satır %" PRId64 "): %s\n", satir, mesaj);
+        snprintf(son_hata, sizeof son_hata, "Çalışma hatası (satır %" PRId64 "): %s", satir, mesaj);
     else
-        fprintf(stderr, "Çalışma hatası: %s\n", mesaj);
+        snprintf(son_hata, sizeof son_hata, "Çalışma hatası: %s", mesaj);
+    fprintf(stderr, "%s\n", son_hata);
+    if (tuzak_kurulu) {
+        tuzak_kurulu = 0;
+        TUZAGA_DON(istek_tuzagi);
+    }
     exit(1);
 }
 
@@ -375,6 +413,8 @@ static void ondalik_bicimle(double d, char *s, size_t n) {
     if (!strpbrk(s, ".eni")) strncat(s, ".0", n - strlen(s) - 1);
 }
 
+static void model_bicimle(Tampon *t, int64_t d);
+
 static void bicimle(Tampon *t, int64_t d, int64_t kod, int ic) {
     char k[64];
     switch (kod % 8) {
@@ -415,6 +455,7 @@ static void bicimle(Tampon *t, int64_t d, int64_t kod, int ic) {
         t_yaz(t, "}");
         break;
     }
+    case KOD_MODEL: model_bicimle(t, d); break;
     }
 }
 
@@ -1337,4 +1378,1534 @@ int64_t ohc_ortam(int64_t ad) {
 void ohc_cik(int64_t kod) {
     fflush(stdout);
     exit((int)kod);
+}
+
+/* ====================================================================== */
+/* Modeller                                                                */
+/* ====================================================================== */
+
+typedef struct {
+    char *ad;
+    int64_t kod;
+    int zorunlu;
+    int en_az_var, en_fazla_var;
+    double en_az, en_fazla;
+} AlanBilgisi;
+
+typedef struct ModelBilgisi {
+    const char *tanim;
+    char *ad;
+    int64_t alan_sayisi;
+    AlanBilgisi *alanlar;
+    struct ModelBilgisi *sonraki;
+} ModelBilgisi;
+
+static ModelBilgisi *model_bilgileri;
+
+static char *kopya_n(const char *s, size_t n) {
+    char *k = ham_ayir(n + 1);
+    memcpy(k, s, n);
+    k[n] = 0;
+    return k;
+}
+
+/* Derleyicinin ürettiği tanım metni: ilk satır modelin adı, sonra her alan için
+ * "ad<TAB>tip kodu<TAB>zorunlu<TAB>en az<TAB>en fazla". Bir kez çözülür. */
+static ModelBilgisi *model_bilgisi(const char *tanim) {
+    for (ModelBilgisi *m = model_bilgileri; m; m = m->sonraki)
+        if (m->tanim == tanim) return m;
+    ModelBilgisi *m = ham_ayir(sizeof *m);
+    memset(m, 0, sizeof *m);
+    m->tanim = tanim;
+    const char *p = tanim;
+    const char *son = strchr(p, '\n');
+    m->ad = kopya_n(p, son ? (size_t)(son - p) : strlen(p));
+    p = son ? son + 1 : p + strlen(p);
+    int64_t n = 0;
+    for (const char *q = p; *q; q++)
+        if (*q == '\n') n++;
+    m->alanlar = ham_ayir(sizeof(AlanBilgisi) * (size_t)(n ? n : 1));
+    while (*p) {
+        son = strchr(p, '\n');
+        if (!son) son = p + strlen(p);
+        const char *parca[5] = {"", "0", "0", "", ""};
+        size_t uz[5] = {0, 1, 1, 0, 0};
+        int k = 0;
+        const char *b = p;
+        for (const char *q = p; q <= son && k < 5; q++) {
+            if (q == son || *q == '\t') {
+                parca[k] = b;
+                uz[k] = (size_t)(q - b);
+                k++;
+                b = q + 1;
+            }
+        }
+        AlanBilgisi *a = &m->alanlar[m->alan_sayisi++];
+        memset(a, 0, sizeof *a);
+        a->ad = kopya_n(parca[0], uz[0]);
+        a->kod = strtoll(parca[1], NULL, 10);
+        a->zorunlu = parca[2][0] == '1';
+        if (uz[3]) {
+            a->en_az_var = 1;
+            a->en_az = strtod(parca[3], NULL);
+        }
+        if (uz[4]) {
+            a->en_fazla_var = 1;
+            a->en_fazla = strtod(parca[4], NULL);
+        }
+        p = *son ? son + 1 : son;
+    }
+    m->sonraki = model_bilgileri;
+    model_bilgileri = m;
+    return m;
+}
+
+#define ORNEK(n) ((Liste *)(intptr_t)(n))
+/* i. alan (0: kimlik) */
+#define ALAN(n, i) (ORNEK(n)->ogeler[2 + (i)])
+
+static ModelBilgisi *nesne_bilgisi(int64_t n) { return model_bilgisi(M(ORNEK(n)->ogeler[0])); }
+
+static int64_t alan_sirasi(ModelBilgisi *m, const char *ad) {
+    for (int64_t i = 0; i < m->alan_sayisi; i++)
+        if (!strcmp(m->alanlar[i].ad, ad)) return i;
+    return -1;
+}
+
+static void nesne_denetle(int64_t n, int64_t yuva, int64_t satir) {
+    if (!n) hata(satir, "boş bir model değerinin alanı kullanılamaz (değişkene henüz değer atanmamış olabilir)");
+    if (yuva < 0 || yuva >= ORNEK(n)->uzunluk) hata(satir, "model alanı bulunamadı");
+}
+
+int64_t ohc_alan_al(int64_t n, int64_t yuva, int64_t satir) {
+    nesne_denetle(n, yuva, satir);
+    return ORNEK(n)->ogeler[yuva];
+}
+
+void ohc_alan_koy(int64_t n, int64_t yuva, int64_t d, int64_t satir) {
+    nesne_denetle(n, yuva, satir);
+    ORNEK(n)->ogeler[yuva] = d;
+}
+
+/* Bir tipin sıfır değeri (yeni listeler ve sözlükler her seferinde ayrı). */
+static int64_t sifir_deger(int64_t kod) {
+    switch (kod % 8) {
+    case KOD_METIN: return D("");
+    case KOD_ONDALIK: return bitlere(0.0);
+    case 4: return ohc_liste_yeni();
+    case 5: {
+        int64_t s = ohc_sozluk_yeni();
+        ((Sozluk *)(intptr_t)s)->anahtar_kodu = (kod / 8) % 2;
+        return s;
+    }
+    default: return 0;
+    }
+}
+
+/* Tüm alanları sıfır değerinde yeni bir nesne. */
+static int64_t nesne_yeni(const char *tanim) {
+    ModelBilgisi *m = model_bilgisi(tanim);
+    int64_t n = ohc_liste_yeni();
+    ohc_liste_ekle(n, D(tanim));
+    ohc_liste_ekle(n, 0);
+    for (int64_t i = 0; i < m->alan_sayisi; i++) ohc_liste_ekle(n, sifir_deger(m->alanlar[i].kod));
+    return n;
+}
+
+/* Ürün(kimlik: 1, ad: "Kalem", fiyat: 12.5) */
+static void model_bicimle(Tampon *t, int64_t d) {
+    if (!d) {
+        t_yaz(t, "boş");
+        return;
+    }
+    ModelBilgisi *m = nesne_bilgisi(d);
+    t_yaz(t, m->ad);
+    t_yaz(t, "(");
+    for (int64_t i = 0; i < m->alan_sayisi; i++) {
+        if (i) t_yaz(t, ", ");
+        t_yaz(t, m->alanlar[i].ad);
+        t_yaz(t, ": ");
+        bicimle(t, ALAN(d, i), m->alanlar[i].kod, 1);
+    }
+    t_yaz(t, ")");
+}
+
+/* ---------------------------------------------------------------------- */
+/* JSON                                                                    */
+/* ---------------------------------------------------------------------- */
+
+static void json_metin(Tampon *t, const char *s) {
+    t_yaz(t, "\"");
+    for (const unsigned char *p = (const unsigned char *)s; *p; p++) {
+        switch (*p) {
+        case '"': t_yaz(t, "\\\""); break;
+        case '\\': t_yaz(t, "\\\\"); break;
+        case '\n': t_yaz(t, "\\n"); break;
+        case '\r': t_yaz(t, "\\r"); break;
+        case '\t': t_yaz(t, "\\t"); break;
+        default:
+            if (*p < 0x20) {
+                char b[8];
+                snprintf(b, sizeof b, "\\u%04x", *p);
+                t_yaz(t, b);
+            } else {
+                t_ekle(t, (const char *)p, 1);
+            }
+        }
+    }
+    t_yaz(t, "\"");
+}
+
+/* `bosluklu`: ", " ve ": " ayraçları (veri dosyaları okunaklı olsun diye). */
+static void json_yaz(Tampon *t, int64_t d, int64_t kod, int bosluklu) {
+    const char *virgul = bosluklu ? ", " : ",", *iki_nokta = bosluklu ? ": " : ":";
+    char k[64];
+    switch (kod % 8) {
+    case KOD_SAYI:
+        snprintf(k, sizeof k, "%" PRId64, d);
+        t_yaz(t, k);
+        break;
+    case KOD_METIN: json_metin(t, M(d)); break;
+    case KOD_MANTIK: t_yaz(t, d ? "true" : "false"); break;
+    case KOD_ONDALIK: {
+        double x = ondalik(d);
+        if (x != x || x - x != 0) {
+            t_yaz(t, "null");
+        } else {
+            ondalik_bicimle(x, k, sizeof k);
+            t_yaz(t, k);
+        }
+        break;
+    }
+    case 4: {
+        Liste *l = (Liste *)(intptr_t)d;
+        t_yaz(t, "[");
+        for (int64_t i = 0; l && i < l->uzunluk; i++) {
+            if (i) t_yaz(t, virgul);
+            json_yaz(t, l->ogeler[i], kod / 8, bosluklu);
+        }
+        t_yaz(t, "]");
+        break;
+    }
+    case 5: {
+        Sozluk *s = (Sozluk *)(intptr_t)d;
+        int64_t ak = (kod / 8) % 2, dk = (kod / 8) / 2;
+        t_yaz(t, "{");
+        for (int64_t i = 0; s && i < s->uzunluk; i++) {
+            if (i) t_yaz(t, virgul);
+            if (ak == KOD_METIN) {
+                json_metin(t, M(s->anahtarlar[i]));
+            } else {
+                snprintf(k, sizeof k, "\"%" PRId64 "\"", s->anahtarlar[i]);
+                t_yaz(t, k);
+            }
+            t_yaz(t, iki_nokta);
+            json_yaz(t, s->degerler[i], dk, bosluklu);
+        }
+        t_yaz(t, "}");
+        break;
+    }
+    case KOD_MODEL: {
+        if (!d) {
+            t_yaz(t, "null");
+            break;
+        }
+        ModelBilgisi *m = nesne_bilgisi(d);
+        t_yaz(t, "{");
+        for (int64_t i = 0; i < m->alan_sayisi; i++) {
+            if (i) t_yaz(t, virgul);
+            json_metin(t, m->alanlar[i].ad);
+            t_yaz(t, iki_nokta);
+            json_yaz(t, ALAN(d, i), m->alanlar[i].kod, bosluklu);
+        }
+        t_yaz(t, "}");
+        break;
+    }
+    }
+}
+
+int64_t ohc_json(int64_t d, int64_t kod) {
+    Tampon t = {0};
+    json_yaz(&t, d, kod, 0);
+    return t_metin(&t);
+}
+
+typedef struct {
+    const char *p;
+    const char *hata;
+    int derinlik;
+} Json;
+
+static void j_bosluk(Json *j) {
+    while (*j->p == ' ' || *j->p == '\t' || *j->p == '\n' || *j->p == '\r') j->p++;
+}
+
+static int j_hata(Json *j, const char *m) {
+    if (!j->hata) j->hata = m;
+    return 0;
+}
+
+static int hex_deger(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+static uint32_t j_hex4(Json *j) {
+    uint32_t u = 0;
+    for (int i = 0; i < 4; i++) {
+        int h = hex_deger(j->p[i]);
+        if (h < 0) {
+            j_hata(j, "geçersiz \\u kaçışı");
+            return 0;
+        }
+        u = u * 16 + (uint32_t)h;
+    }
+    j->p += 4;
+    return u;
+}
+
+/* Tırnaklı bir JSON metnini çözüp tampona yazar. */
+static int j_metin(Json *j, Tampon *t) {
+    if (*j->p != '"') return j_hata(j, "metin bekleniyordu");
+    j->p++;
+    t_ekle(t, "", 0);
+    for (;;) {
+        unsigned char c = (unsigned char)*j->p;
+        if (!c) return j_hata(j, "metin kapatılmamış");
+        j->p++;
+        if (c == '"') break;
+        if (c != '\\') {
+            t_ekle(t, (const char *)&c, 1);
+            continue;
+        }
+        char e = *j->p++;
+        switch (e) {
+        case '"': t_ekle(t, "\"", 1); break;
+        case '\\': t_ekle(t, "\\", 1); break;
+        case '/': t_ekle(t, "/", 1); break;
+        case 'b': t_ekle(t, "\b", 1); break;
+        case 'f': t_ekle(t, "\f", 1); break;
+        case 'n': t_ekle(t, "\n", 1); break;
+        case 'r': t_ekle(t, "\r", 1); break;
+        case 't': t_ekle(t, "\t", 1); break;
+        case 'u': {
+            uint32_t u = j_hex4(j);
+            if (j->hata) return 0;
+            if (u >= 0xD800 && u < 0xDC00 && j->p[0] == '\\' && j->p[1] == 'u') {
+                j->p += 2;
+                uint32_t v = j_hex4(j);
+                if (j->hata) return 0;
+                if (v >= 0xDC00 && v < 0xE000) u = 0x10000 + ((u - 0xD800) << 10) + (v - 0xDC00);
+            }
+            u8_yaz(t, u);
+            break;
+        }
+        default: return j_hata(j, "geçersiz kaçış dizisi");
+        }
+    }
+    return 1;
+}
+
+/* Herhangi bir değeri atlar. */
+static int j_atla(Json *j) {
+    j_bosluk(j);
+    if (++j->derinlik > 200) return j_hata(j, "çok derin iç içe değer");
+    int ok = 1;
+    char c = *j->p;
+    if (c == '"') {
+        Tampon t = {0};
+        ok = j_metin(j, &t);
+        free(t.v);
+    } else if (c == '[' || c == '{') {
+        char kapa = c == '[' ? ']' : '}';
+        j->p++;
+        j_bosluk(j);
+        if (*j->p == kapa) {
+            j->p++;
+        } else {
+            for (;;) {
+                if (c == '{') {
+                    Tampon t = {0};
+                    j_bosluk(j);
+                    ok = j_metin(j, &t);
+                    free(t.v);
+                    if (!ok) break;
+                    j_bosluk(j);
+                    if (*j->p != ':') {
+                        ok = j_hata(j, "':' bekleniyordu");
+                        break;
+                    }
+                    j->p++;
+                }
+                if (!(ok = j_atla(j))) break;
+                j_bosluk(j);
+                if (*j->p == ',') {
+                    j->p++;
+                    continue;
+                }
+                if (*j->p == kapa) {
+                    j->p++;
+                    break;
+                }
+                ok = j_hata(j, "',' bekleniyordu");
+                break;
+            }
+        }
+    } else if (!strncmp(j->p, "true", 4) || !strncmp(j->p, "null", 4)) {
+        j->p += 4;
+    } else if (!strncmp(j->p, "false", 5)) {
+        j->p += 5;
+    } else if (c == '-' || (c >= '0' && c <= '9')) {
+        char *son;
+        strtod(j->p, &son);
+        j->p = son;
+    } else {
+        ok = j_hata(j, "beklenmeyen karakter");
+    }
+    j->derinlik--;
+    return ok;
+}
+
+static int64_t j_deger(Json *j, int64_t kod, ModelBilgisi *mb);
+
+/* Beklenen tipte bir değer okur; tip uyuşmazsa değeri atlar ve sıfır değer verir. */
+static int64_t j_deger(Json *j, int64_t kod, ModelBilgisi *mb) {
+    j_bosluk(j);
+    char c = *j->p;
+    switch (kod % 8) {
+    case KOD_SAYI:
+    case KOD_ONDALIK:
+        if (c == '-' || (c >= '0' && c <= '9')) {
+            char *son;
+            double x = strtod(j->p, &son);
+            int64_t n = 0;
+            if (kod % 8 == KOD_SAYI) {
+                n = strtoll(j->p, NULL, 10);
+                if (strpbrk(j->p, ".eE") && strpbrk(j->p, ".eE") < son) n = (int64_t)x;
+            }
+            j->p = son;
+            return kod % 8 == KOD_SAYI ? n : bitlere(x);
+        }
+        break;
+    case KOD_METIN:
+        if (c == '"') {
+            Tampon t = {0};
+            if (!j_metin(j, &t)) {
+                free(t.v);
+                return D("");
+            }
+            return t_metin(&t);
+        }
+        break;
+    case KOD_MANTIK:
+        if (!strncmp(j->p, "true", 4)) {
+            j->p += 4;
+            return 1;
+        }
+        if (!strncmp(j->p, "false", 5)) {
+            j->p += 5;
+            return 0;
+        }
+        break;
+    case 4:
+        if (c == '[') {
+            int64_t l = ohc_liste_yeni();
+            j->p++;
+            j_bosluk(j);
+            if (*j->p == ']') {
+                j->p++;
+                return l;
+            }
+            for (;;) {
+                int64_t d = j_deger(j, kod / 8, mb);
+                if (j->hata) return l;
+                ohc_liste_ekle(l, d);
+                j_bosluk(j);
+                if (*j->p == ',') {
+                    j->p++;
+                    continue;
+                }
+                if (*j->p == ']') {
+                    j->p++;
+                    return l;
+                }
+                j_hata(j, "',' ya da ']' bekleniyordu");
+                return l;
+            }
+        }
+        break;
+    case 5:
+    case KOD_MODEL:
+        if (c == '{' && (kod % 8 == 5 || mb)) {
+            int model = kod % 8 == KOD_MODEL;
+            int64_t sonuc = model ? nesne_yeni(mb->tanim) : sifir_deger(kod);
+            int64_t ak = (kod / 8) % 2, dk = (kod / 8) / 2;
+            j->p++;
+            j_bosluk(j);
+            if (*j->p == '}') {
+                j->p++;
+                return sonuc;
+            }
+            for (;;) {
+                Tampon a = {0};
+                j_bosluk(j);
+                if (!j_metin(j, &a)) {
+                    free(a.v);
+                    return sonuc;
+                }
+                j_bosluk(j);
+                if (*j->p != ':') {
+                    free(a.v);
+                    j_hata(j, "':' bekleniyordu");
+                    return sonuc;
+                }
+                j->p++;
+                if (model) {
+                    int64_t i = alan_sirasi(mb, a.v);
+                    free(a.v);
+                    if (i < 0) {
+                        if (!j_atla(j)) return sonuc;
+                    } else {
+                        int64_t d = j_deger(j, mb->alanlar[i].kod, NULL);
+                        ALAN(sonuc, i) = d;
+                    }
+                } else {
+                    int64_t anahtar = ak == KOD_METIN ? t_metin(&a) : (int64_t)strtoll(a.v ? a.v : "0", NULL, 10);
+                    if (ak != KOD_METIN) free(a.v);
+                    int64_t d = j_deger(j, dk, NULL);
+                    ohc_sozluk_koy(sonuc, anahtar, d, ak);
+                }
+                if (j->hata) return sonuc;
+                j_bosluk(j);
+                if (*j->p == ',') {
+                    j->p++;
+                    continue;
+                }
+                if (*j->p == '}') {
+                    j->p++;
+                    return sonuc;
+                }
+                j_hata(j, "',' ya da '}' bekleniyordu");
+                return sonuc;
+            }
+        }
+        break;
+    }
+    /* Beklenmeyen tip ya da null: atla, sıfır değer ver. */
+    j_atla(j);
+    return sifir_deger(kod);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Veri deposu: her model için veri/<Model>.json                            */
+/* ---------------------------------------------------------------------- */
+
+static const char *veri_klasoru(void) {
+    const char *v = getenv("ORHUNCA_VERI");
+    return (v && *v) ? v : "veri";
+}
+
+static void klasor_olustur(const char *yol) {
+#ifdef _WIN32
+    wchar_t w[1024];
+    if (MultiByteToWideChar(CP_UTF8, 0, yol, -1, w, 1024)) _wmkdir(w);
+#else
+    mkdir(yol, 0777);
+#endif
+}
+
+static int dosya_tasi(const char *eski, const char *yeni) {
+#ifdef _WIN32
+    wchar_t a[1024], b[1024];
+    if (!MultiByteToWideChar(CP_UTF8, 0, eski, -1, a, 1024)) return 0;
+    if (!MultiByteToWideChar(CP_UTF8, 0, yeni, -1, b, 1024)) return 0;
+    return MoveFileExW(a, b, MOVEFILE_REPLACE_EXISTING) != 0;
+#else
+    return rename(eski, yeni) == 0;
+#endif
+}
+
+static char *veri_dosyasi(ModelBilgisi *m) {
+    Tampon t = {0};
+    t_yaz(&t, veri_klasoru());
+    t_yaz(&t, "/");
+    t_yaz(&t, m->ad);
+    t_yaz(&t, ".json");
+    return t.v;
+}
+
+/* Modelin tüm kayıtlarını okur (dosya yoksa boş liste). */
+static int64_t kayitlari_oku(ModelBilgisi *m, int64_t satir) {
+    char *yol = veri_dosyasi(m);
+    int64_t liste = ohc_liste_yeni();
+    FILE *f = dosya_ac(yol, "rb");
+    if (!f) {
+        free(yol);
+        return liste;
+    }
+    Tampon t = {0};
+    char b[8192];
+    size_t n;
+    while ((n = fread(b, 1, sizeof b, f)) > 0) t_ekle(&t, b, n);
+    fclose(f);
+    Json j = {t.v ? t.v : "", NULL, 0};
+    j_bosluk(&j);
+    if (*j.p) {
+        if (*j.p != '[') {
+            j_hata(&j, "kayıtlar bir JSON dizisi ([...]) olmalı");
+        } else {
+            j.p++;
+            j_bosluk(&j);
+            if (*j.p == ']') {
+                j.p++;
+            } else {
+                for (;;) {
+                    int64_t k = j_deger(&j, KOD_MODEL, m);
+                    if (j.hata) break;
+                    ohc_liste_ekle(liste, k);
+                    j_bosluk(&j);
+                    if (*j.p == ',') {
+                        j.p++;
+                        continue;
+                    }
+                    if (*j.p == ']') {
+                        j.p++;
+                        break;
+                    }
+                    j_hata(&j, "',' ya da ']' bekleniyordu");
+                    break;
+                }
+            }
+        }
+    }
+    if (j.hata) {
+        char mesaj[600];
+        snprintf(mesaj, sizeof mesaj, "'%.400s' dosyası bozuk: %s", yol, j.hata);
+        free(t.v);
+        free(yol);
+        hata(satir, mesaj);
+    }
+    free(t.v);
+    free(yol);
+    return liste;
+}
+
+static void kayitlari_yaz(ModelBilgisi *m, int64_t liste, int64_t satir) {
+    klasor_olustur(veri_klasoru());
+    char *yol = veri_dosyasi(m);
+    Tampon t = {0};
+    t_yaz(&t, "[");
+    Liste *l = ORNEK(liste);
+    for (int64_t i = 0; i < l->uzunluk; i++) {
+        t_yaz(&t, i ? ",\n  " : "\n  ");
+        json_yaz(&t, l->ogeler[i], KOD_MODEL, 1);
+    }
+    t_yaz(&t, l->uzunluk ? "\n]\n" : "]\n");
+    Tampon g = {0};
+    t_yaz(&g, yol);
+    t_yaz(&g, ".yeni");
+    FILE *f = dosya_ac(g.v, "wb");
+    int ok = f && fwrite(t.v, 1, t.n, f) == t.n;
+    if (f && fclose(f) != 0) ok = 0;
+    if (ok) ok = dosya_tasi(g.v, yol);
+    if (!ok) {
+        char mesaj[600];
+        snprintf(mesaj, sizeof mesaj, "'%.400s' yazılamadı: %s", yol, strerror(errno));
+        free(t.v);
+        free(g.v);
+        free(yol);
+        hata(satir, mesaj);
+    }
+    free(t.v);
+    free(g.v);
+    free(yol);
+}
+
+static int64_t kayit_sirasi(int64_t liste, int64_t kimlik) {
+    Liste *l = ORNEK(liste);
+    for (int64_t i = 0; i < l->uzunluk; i++)
+        if (ALAN(l->ogeler[i], 0) == kimlik) return i;
+    return -1;
+}
+
+int64_t ohc_model_hepsi(int64_t tanim, int64_t satir) { return kayitlari_oku(model_bilgisi(M(tanim)), satir); }
+
+/* Kimliği verilen kaydı döndürür; yoksa `varsayilan` nesnesini (kimlik 0). */
+int64_t ohc_model_yukle(int64_t varsayilan, int64_t kimlik, int64_t satir) {
+    int64_t liste = kayitlari_oku(nesne_bilgisi(varsayilan), satir);
+    int64_t i = kayit_sirasi(liste, kimlik);
+    return i < 0 ? varsayilan : ORNEK(liste)->ogeler[i];
+}
+
+int64_t ohc_model_var(int64_t tanim, int64_t kimlik, int64_t satir) {
+    return kayit_sirasi(kayitlari_oku(model_bilgisi(M(tanim)), satir), kimlik) >= 0;
+}
+
+int64_t ohc_model_sil(int64_t tanim, int64_t kimlik, int64_t satir) {
+    ModelBilgisi *m = model_bilgisi(M(tanim));
+    int64_t liste = kayitlari_oku(m, satir);
+    int64_t i = kayit_sirasi(liste, kimlik);
+    if (i < 0) return 0;
+    ohc_liste_sil(liste, i, satir);
+    kayitlari_yaz(m, liste, satir);
+    return 1;
+}
+
+/* Yeni nesneye (kimlik 0) sıradaki kimliği verir; var olanı günceller. */
+int64_t ohc_model_kaydet(int64_t n, int64_t satir) {
+    if (!n) hata(satir, "boş bir model değeri kaydedilemez");
+    ModelBilgisi *m = nesne_bilgisi(n);
+    int64_t liste = kayitlari_oku(m, satir);
+    int64_t kimlik = ALAN(n, 0);
+    int64_t i = kimlik > 0 ? kayit_sirasi(liste, kimlik) : -1;
+    if (kimlik <= 0) {
+        kimlik = 0;
+        Liste *l = ORNEK(liste);
+        for (int64_t j = 0; j < l->uzunluk; j++)
+            if (ALAN(l->ogeler[j], 0) > kimlik) kimlik = ALAN(l->ogeler[j], 0);
+        kimlik++;
+        ALAN(n, 0) = kimlik;
+    }
+    if (i >= 0)
+        ORNEK(liste)->ogeler[i] = n;
+    else
+        ohc_liste_ekle(liste, n);
+    kayitlari_yaz(m, liste, satir);
+    return kimlik;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Doğrulama ve form bağlama                                               */
+/* ---------------------------------------------------------------------- */
+
+/* "doğum_tarihi" → "Doğum tarihi" */
+static void gorunen_ad(Tampon *t, const char *ad) {
+    const char *p = ad;
+    int ilk = 1;
+    while (*p) {
+        uint32_t c = u8_oku(&p);
+        if (c == '_') c = ' ';
+        if (ilk) c = buyuk(c);
+        ilk = 0;
+        u8_yaz(t, c);
+    }
+}
+
+/* 100 → "100", 0.5 → "0,5" */
+static void sayi_yaz(Tampon *t, double x) {
+    char k[64];
+    if (x == (double)(int64_t)x && fabs(x) < 1e15) {
+        snprintf(k, sizeof k, "%" PRId64, (int64_t)x);
+    } else {
+        ondalik_bicimle(x, k, sizeof k);
+        for (char *c = k; *c; c++)
+            if (*c == '.') *c = ',';
+    }
+    t_yaz(t, k);
+}
+
+static void kural_mesaji(Tampon *t, AlanBilgisi *a, const char *on, double sinir, const char *son) {
+    gorunen_ad(t, a->ad);
+    t_yaz(t, on);
+    sayi_yaz(t, sinir);
+    t_yaz(t, son);
+}
+
+int64_t ohc_model_hatalar(int64_t n) {
+    int64_t sonuc = ohc_liste_yeni();
+    if (!n) return sonuc;
+    ModelBilgisi *m = nesne_bilgisi(n);
+    int64_t baglama = ORNEK(n)->ogeler[1];
+    for (int64_t i = 1; i < m->alan_sayisi; i++) {
+        AlanBilgisi *a = &m->alanlar[i];
+        if (baglama && ohc_sozluk_icerir(baglama, i, KOD_SAYI)) {
+            ohc_liste_ekle(sonuc, ohc_sozluk_al(baglama, i, KOD_SAYI, 0));
+            continue;
+        }
+        int64_t d = ALAN(n, i);
+        Tampon t = {0};
+        switch (a->kod % 8) {
+        case KOD_METIN: {
+            const char *s = M(d);
+            while (*s && bosluk(*s)) s++;
+            double uz = (double)ohc_metin_uzunluk(d);
+            if (!*s) {
+                if (a->zorunlu) {
+                    gorunen_ad(&t, a->ad);
+                    t_yaz(&t, " boş bırakılamaz");
+                }
+            } else if (a->en_az_var && uz < a->en_az) {
+                kural_mesaji(&t, a, " en az ", a->en_az, " karakter olmalı");
+            } else if (a->en_fazla_var && uz > a->en_fazla) {
+                kural_mesaji(&t, a, " en fazla ", a->en_fazla, " karakter olabilir");
+            }
+            break;
+        }
+        case KOD_SAYI:
+        case KOD_ONDALIK: {
+            double x = a->kod % 8 == KOD_SAYI ? (double)d : ondalik(d);
+            if (a->en_az_var && x < a->en_az)
+                kural_mesaji(&t, a, " en az ", a->en_az, " olmalı");
+            else if (a->en_fazla_var && x > a->en_fazla)
+                kural_mesaji(&t, a, " en fazla ", a->en_fazla, " olabilir");
+            break;
+        }
+        case KOD_MANTIK:
+            if (a->zorunlu && !d) {
+                gorunen_ad(&t, a->ad);
+                t_yaz(&t, " işaretlenmeli");
+            }
+            break;
+        case 4:
+        case 5: {
+            double uz = (double)(a->kod % 8 == 4 ? ohc_liste_uzunluk(d) : ohc_sozluk_uzunluk(d));
+            if (a->zorunlu && uz == 0) {
+                gorunen_ad(&t, a->ad);
+                t_yaz(&t, " boş bırakılamaz");
+            } else if (a->en_az_var && uz < a->en_az) {
+                kural_mesaji(&t, a, " en az ", a->en_az, " öğe içermeli");
+            } else if (a->en_fazla_var && uz > a->en_fazla) {
+                kural_mesaji(&t, a, " en fazla ", a->en_fazla, " öğe içerebilir");
+            }
+            break;
+        }
+        }
+        if (t.n)
+            ohc_liste_ekle(sonuc, t_metin(&t));
+        else
+            free(t.v);
+    }
+    return sonuc;
+}
+
+int64_t ohc_model_gecerli(int64_t n) { return ohc_liste_uzunluk(ohc_model_hatalar(n)) == 0; }
+
+static int dogru_mu(const char *v) {
+    const char *evet[] = {"on", "true", "doğru", "1", "evet", "yes", "Doğru", "Evet", "True", "On"};
+    for (size_t i = 0; i < sizeof evet / sizeof *evet; i++)
+        if (!strcmp(v, evet[i])) return 1;
+    return 0;
+}
+
+/* İsteğin bir alanı (İstek modelinin tanımında adıyla aranır). */
+static int64_t istek_alani(int64_t istek, const char *ad) {
+    if (!istek) return 0;
+    int64_t i = alan_sirasi(nesne_bilgisi(istek), ad);
+    return i < 0 ? 0 : ALAN(istek, i);
+}
+
+/* Formdaki değerleri nesnenin alanlarına yazar; çevrilemeyenler bağlama hatası olur. */
+void ohc_model_doldur(int64_t n, int64_t istek) {
+    ModelBilgisi *m = nesne_bilgisi(n);
+    int64_t form = istek_alani(istek, "form");
+    if (!form) return;
+    for (int64_t i = 1; i < m->alan_sayisi; i++) {
+        AlanBilgisi *a = &m->alanlar[i];
+        int64_t anahtar = D(a->ad);
+        if (!ohc_sozluk_icerir(form, anahtar, KOD_METIN)) continue;
+        int64_t deger = ohc_sozluk_al(form, anahtar, KOD_METIN, 0);
+        const char *v = M(deger);
+        const char *bas = v;
+        while (*bas && bosluk(*bas)) bas++;
+        const char *mesaj = NULL;
+        switch (a->kod % 8) {
+        case KOD_METIN: ALAN(n, i) = deger; break;
+        case KOD_SAYI: {
+            int64_t x;
+            if (!*bas) {
+                if (a->zorunlu) mesaj = " boş bırakılamaz";
+            } else if (sayi_oku(v, &x)) {
+                ALAN(n, i) = x;
+            } else {
+                mesaj = " bir tam sayı olmalı";
+            }
+            break;
+        }
+        case KOD_ONDALIK: {
+            double x;
+            if (!*bas) {
+                if (a->zorunlu) mesaj = " boş bırakılamaz";
+            } else if (ondalik_oku(v, &x)) {
+                ALAN(n, i) = bitlere(x);
+            } else {
+                mesaj = " bir sayı olmalı";
+            }
+            break;
+        }
+        case KOD_MANTIK: ALAN(n, i) = dogru_mu(bas); break;
+        default: break;
+        }
+        if (mesaj) {
+            int64_t baglama = ORNEK(n)->ogeler[1];
+            if (!baglama) {
+                baglama = ohc_sozluk_yeni();
+                ORNEK(n)->ogeler[1] = baglama;
+            }
+            Tampon t = {0};
+            gorunen_ad(&t, a->ad);
+            t_yaz(&t, mesaj);
+            ohc_sozluk_koy(baglama, i, t_metin(&t), KOD_SAYI);
+        }
+    }
+}
+
+/* ---------------------------------------------------------------------- */
+/* Metin yardımcıları: HTML kaçırma, para biçimi, URL kodlama              */
+/* ---------------------------------------------------------------------- */
+
+static void html_yaz(Tampon *t, const char *s) {
+    for (; *s; s++) {
+        switch (*s) {
+        case '&': t_yaz(t, "&amp;"); break;
+        case '<': t_yaz(t, "&lt;"); break;
+        case '>': t_yaz(t, "&gt;"); break;
+        case '"': t_yaz(t, "&quot;"); break;
+        case '\'': t_yaz(t, "&#39;"); break;
+        default: t_ekle(t, s, 1);
+        }
+    }
+}
+
+int64_t ohc_kacir(int64_t m) {
+    if (!strpbrk(M(m), "&<>\"'")) return m;
+    Tampon t = {0};
+    html_yaz(&t, M(m));
+    return t_metin(&t);
+}
+
+/* 1234.5 → "1.234,50" */
+int64_t ohc_para(int64_t d) {
+    double x = ondalik(d);
+    char k[64];
+    if (x != x || fabs(x) > 9e15) {
+        ondalik_bicimle(x, k, sizeof k);
+        return metin_yap(k, strlen(k));
+    }
+    int eksi = x < 0;
+    long long kurus = llround(fabs(x) * 100.0);
+    char rakam[32];
+    snprintf(rakam, sizeof rakam, "%lld", kurus / 100);
+    Tampon t = {0};
+    if (eksi && kurus) t_yaz(&t, "-");
+    size_t n = strlen(rakam);
+    for (size_t i = 0; i < n; i++) {
+        if (i && (n - i) % 3 == 0) t_yaz(&t, ".");
+        t_ekle(&t, &rakam[i], 1);
+    }
+    snprintf(k, sizeof k, ",%02lld", kurus % 100);
+    t_yaz(&t, k);
+    return t_metin(&t);
+}
+
+static void url_kodla(Tampon *t, const char *s, const char *serbest) {
+    static const char *hex = "0123456789ABCDEF";
+    for (const unsigned char *p = (const unsigned char *)s; *p; p++) {
+        if ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9') ||
+            strchr(serbest, *p)) {
+            t_ekle(t, (const char *)p, 1);
+        } else {
+            char b[3] = {'%', hex[*p >> 4], hex[*p & 15]};
+            t_ekle(t, b, 3);
+        }
+    }
+}
+
+int64_t ohc_url_kodla(int64_t m) {
+    Tampon t = {0};
+    url_kodla(&t, M(m), "-_.~");
+    return t_metin(&t);
+}
+
+/* ====================================================================== */
+/* Web sunucusu                                                            */
+/* ====================================================================== */
+
+#ifdef _WIN32
+typedef SOCKET Soket;
+#define GECERSIZ_SOKET INVALID_SOCKET
+#define soket_kapat closesocket
+#else
+typedef int Soket;
+#define GECERSIZ_SOKET (-1)
+#define soket_kapat close
+#endif
+
+typedef struct {
+    const char *yontem;
+    const char *kalip;
+    int64_t (*islev)(int64_t);
+} WebYolu;
+
+static WebYolu *web_yollari;
+static int64_t web_yolu_sayisi, web_yolu_kap;
+
+void ohc_web_yol(int64_t yontem, int64_t kalip, int64_t islev) {
+    if (web_yolu_sayisi == web_yolu_kap) {
+        web_yolu_kap = web_yolu_kap ? web_yolu_kap * 2 : 16;
+        web_yollari = ham_buyut(web_yollari, sizeof(WebYolu) * (size_t)web_yolu_kap);
+    }
+    WebYolu *y = &web_yollari[web_yolu_sayisi++];
+    y->yontem = M(yontem);
+    y->kalip = M(kalip);
+    y->islev = (int64_t(*)(int64_t))(intptr_t)islev;
+}
+
+static void yuzde_coz(Tampon *t, const char *s, size_t n, int arti_bosluk) {
+    t_ekle(t, "", 0);
+    for (size_t i = 0; i < n; i++) {
+        if (s[i] == '%' && i + 2 < n && hex_deger(s[i + 1]) >= 0 && hex_deger(s[i + 2]) >= 0) {
+            char c = (char)(hex_deger(s[i + 1]) * 16 + hex_deger(s[i + 2]));
+            t_ekle(t, &c, 1);
+            i += 2;
+        } else if (arti_bosluk && s[i] == '+') {
+            t_ekle(t, " ", 1);
+        } else {
+            t_ekle(t, &s[i], 1);
+        }
+    }
+}
+
+/* a=1&b=iki+kelime → sözlük<metin, metin> */
+static void form_coz(int64_t sozluk, const char *s, size_t n) {
+    size_t i = 0;
+    while (i < n) {
+        size_t j = i;
+        while (j < n && s[j] != '&') j++;
+        size_t e = i;
+        while (e < j && s[e] != '=') e++;
+        if (j > i) {
+            Tampon a = {0}, d = {0};
+            yuzde_coz(&a, s + i, e - i, 1);
+            if (e < j) yuzde_coz(&d, s + e + 1, j - e - 1, 1);
+            int64_t am = t_metin(&a);
+            int64_t dm = t_metin(&d);
+            ohc_sozluk_koy(sozluk, am, dm, KOD_METIN);
+        }
+        i = j + 1;
+    }
+}
+
+/* JSON nesnesi gövdesinin üst düzey değerleri forma metin olarak girer. */
+static void json_formu(int64_t sozluk, const char *govde) {
+    Json j = {govde, NULL, 0};
+    j_bosluk(&j);
+    if (*j.p != '{') return;
+    j.p++;
+    for (;;) {
+        j_bosluk(&j);
+        if (*j.p == '}') return;
+        Tampon a = {0};
+        if (!j_metin(&j, &a)) {
+            free(a.v);
+            return;
+        }
+        j_bosluk(&j);
+        if (*j.p != ':') {
+            free(a.v);
+            return;
+        }
+        j.p++;
+        j_bosluk(&j);
+        if (*j.p == '"') {
+            Tampon d = {0};
+            if (!j_metin(&j, &d)) {
+                free(a.v);
+                free(d.v);
+                return;
+            }
+            int64_t am = t_metin(&a);
+            int64_t dm = t_metin(&d);
+            ohc_sozluk_koy(sozluk, am, dm, KOD_METIN);
+        } else {
+            const char *b = j.p;
+            int duz = *j.p == '-' || (*j.p >= '0' && *j.p <= '9') || *j.p == 't' || *j.p == 'f';
+            if (!j_atla(&j)) {
+                free(a.v);
+                return;
+            }
+            if (duz) {
+                int64_t am = t_metin(&a);
+                int64_t dm = metin_yap(b, (size_t)(j.p - b));
+                ohc_sozluk_koy(sozluk, am, dm, KOD_METIN);
+            } else {
+                free(a.v);
+            }
+        }
+        j_bosluk(&j);
+        if (*j.p != ',') return;
+        j.p++;
+    }
+}
+
+static int tam_sayi_mi(const char *s, size_t n) {
+    size_t i = (n && s[0] == '-') ? 1 : 0;
+    if (i == n || n - i > 18) return 0;
+    for (; i < n; i++)
+        if (s[i] < '0' || s[i] > '9') return 0;
+    return 1;
+}
+
+/* Kalıp ile yol eşleşirse sabit parça sayısını (+1) döndürür; parametreleri
+ * `parametreler` sözlüğüne yazar (0 ise yazmaz). */
+static int yol_eslesir(const char *kalip, const char *yol, int64_t parametreler) {
+    const char *k = kalip + 1, *y = yol + 1;
+    int sabit = 1;
+    for (;;) {
+        const char *ks = strchr(k, '/'), *ys = strchr(y, '/');
+        size_t kn = ks ? (size_t)(ks - k) : strlen(k), yn = ys ? (size_t)(ys - y) : strlen(y);
+        if (kn > 1 && k[0] == '{' && k[kn - 1] == '}') {
+            const char *ic = k + 1;
+            size_t icn = kn - 2;
+            const char *iki = memchr(ic, ':', icn);
+            size_t adn = iki ? (size_t)(iki - ic) : icn;
+            if (yn == 0) return 0;
+            if (iki && !tam_sayi_mi(y, yn)) return 0;
+            if (parametreler) {
+                int64_t am = metin_yap(ic, adn);
+                int64_t dm = metin_yap(y, yn);
+                ohc_sozluk_koy(parametreler, am, dm, KOD_METIN);
+            }
+        } else {
+            if (kn != yn || memcmp(k, y, kn)) return 0;
+            sabit++;
+        }
+        if (!ks && !ys) return sabit;
+        if (!ks || !ys) return 0;
+        k = ks + 1;
+        y = ys + 1;
+    }
+}
+
+static const char *durum_metni(int64_t d) {
+    switch (d) {
+    case 200: return "OK";
+    case 201: return "Created";
+    case 204: return "No Content";
+    case 301: return "Moved Permanently";
+    case 302: return "Found";
+    case 303: return "See Other";
+    case 304: return "Not Modified";
+    case 307: return "Temporary Redirect";
+    case 400: return "Bad Request";
+    case 401: return "Unauthorized";
+    case 403: return "Forbidden";
+    case 404: return "Not Found";
+    case 405: return "Method Not Allowed";
+    case 409: return "Conflict";
+    case 413: return "Payload Too Large";
+    case 422: return "Unprocessable Entity";
+    case 431: return "Request Header Fields Too Large";
+    case 500: return "Internal Server Error";
+    case 501: return "Not Implemented";
+    default: return d < 400 ? "OK" : "Error";
+    }
+}
+
+static int tumunu_gonder(Soket s, const char *v, size_t n) {
+    while (n) {
+        int k = send(s, v, n > 1048576 ? 1048576 : (int)n, 0);
+        if (k <= 0) return 0;
+        v += k;
+        n -= (size_t)k;
+    }
+    return 1;
+}
+
+/* Başlık değerlerinde satır sonu olamaz (başlık enjeksiyonu). */
+static void baslik_degeri(Tampon *t, const char *v) {
+    for (; *v; v++)
+        if (*v != '\r' && *v != '\n') t_ekle(t, v, 1);
+}
+
+static void yanit_gonder(Soket s, int64_t durum, const char *tur, const char *govde, size_t govde_n, const char *konum,
+                         int64_t basliklar, int bas_istegi) {
+    Tampon t = {0};
+    char k[256];
+    snprintf(k, sizeof k, "HTTP/1.1 %" PRId64 " %s\r\n", durum, durum_metni(durum));
+    t_yaz(&t, k);
+    if (tur && *tur && durum != 204) {
+        t_yaz(&t, "Content-Type: ");
+        baslik_degeri(&t, tur);
+        t_yaz(&t, "\r\n");
+    }
+    snprintf(k, sizeof k, "Content-Length: %zu\r\n", durum == 204 ? (size_t)0 : govde_n);
+    t_yaz(&t, k);
+    if (konum && *konum) {
+        /* Türkçe karakterli adresler yüzde kodlanır. */
+        Tampon u = {0};
+        url_kodla(&u, konum, "-_.~/?#[]@!$&'()*+,;=:%");
+        t_yaz(&t, "Location: ");
+        baslik_degeri(&t, u.v ? u.v : "");
+        t_yaz(&t, "\r\n");
+        free(u.v);
+    }
+    Sozluk *b = (Sozluk *)(intptr_t)basliklar;
+    for (int64_t i = 0; b && i < b->uzunluk; i++) {
+        baslik_degeri(&t, M(b->anahtarlar[i]));
+        t_yaz(&t, ": ");
+        baslik_degeri(&t, M(b->degerler[i]));
+        t_yaz(&t, "\r\n");
+    }
+    t_yaz(&t, "Connection: close\r\n\r\n");
+    tumunu_gonder(s, t.v, t.n);
+    if (!bas_istegi && govde_n && durum != 204) tumunu_gonder(s, govde, govde_n);
+    free(t.v);
+}
+
+static void hata_sayfasi(Soket s, int64_t durum, const char *baslik, const char *ayrinti, int bas) {
+    Tampon t = {0};
+    t_yaz(&t, "<!DOCTYPE html><html lang=\"tr\"><head><meta charset=\"utf-8\">"
+              "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>");
+    html_yaz(&t, baslik);
+    t_yaz(&t, "</title><style>body{font-family:system-ui,sans-serif;margin:0;padding:48px 24px;"
+              "background:#f5f3ee;color:#1b1d21}main{max-width:720px;margin:auto}h1{font-size:22px;margin:0 0 12px}"
+              "pre{white-space:pre-wrap;background:#1b1d21;color:#f5f3ee;padding:16px;border-radius:8px;"
+              "font-size:13px}small{color:#6b7078}</style></head><body><main><h1>");
+    html_yaz(&t, baslik);
+    t_yaz(&t, "</h1>");
+    if (ayrinti && *ayrinti) {
+        t_yaz(&t, "<pre>");
+        html_yaz(&t, ayrinti);
+        t_yaz(&t, "</pre>");
+    }
+    t_yaz(&t, "<small>Orhunca web sunucusu</small></main></body></html>");
+    yanit_gonder(s, durum, "text/html; charset=utf-8", t.v, t.n, NULL, 0, bas);
+    free(t.v);
+}
+
+static const char *icerik_turu(const char *yol) {
+    const char *nokta = strrchr(yol, '.');
+    if (!nokta || strchr(nokta, '/')) return "application/octet-stream";
+    char u[16];
+    size_t i = 0;
+    for (const char *p = nokta + 1; *p && i < sizeof u - 1; p++) u[i++] = (char)(*p >= 'A' && *p <= 'Z' ? *p + 32 : *p);
+    u[i] = 0;
+    static const char *turler[][2] = {
+        {"html", "text/html; charset=utf-8"}, {"htm", "text/html; charset=utf-8"},
+        {"css", "text/css; charset=utf-8"}, {"js", "text/javascript; charset=utf-8"},
+        {"mjs", "text/javascript; charset=utf-8"}, {"json", "application/json; charset=utf-8"},
+        {"svg", "image/svg+xml"}, {"png", "image/png"}, {"jpg", "image/jpeg"}, {"jpeg", "image/jpeg"},
+        {"gif", "image/gif"}, {"webp", "image/webp"}, {"ico", "image/x-icon"}, {"avif", "image/avif"},
+        {"txt", "text/plain; charset=utf-8"}, {"md", "text/plain; charset=utf-8"},
+        {"woff2", "font/woff2"}, {"woff", "font/woff"}, {"ttf", "font/ttf"}, {"otf", "font/otf"},
+        {"pdf", "application/pdf"}, {"mp4", "video/mp4"}, {"webm", "video/webm"}, {"mp3", "audio/mpeg"},
+        {"wav", "audio/wav"}, {"wasm", "application/wasm"}, {"xml", "application/xml"}, {"csv", "text/csv; charset=utf-8"},
+    };
+    for (size_t k = 0; k < sizeof turler / sizeof *turler; k++)
+        if (!strcmp(u, turler[k][0])) return turler[k][1];
+    return "application/octet-stream";
+}
+
+/* 0: yok, 1: dosya, 2: klasör */
+static int dosya_turu(const char *yol) {
+#ifdef _WIN32
+    wchar_t w[1024];
+    if (!MultiByteToWideChar(CP_UTF8, 0, yol, -1, w, 1024)) return 0;
+    DWORD a = GetFileAttributesW(w);
+    if (a == INVALID_FILE_ATTRIBUTES) return 0;
+    return (a & FILE_ATTRIBUTE_DIRECTORY) ? 2 : 1;
+#else
+    struct stat st;
+    if (stat(yol, &st) != 0) return 0;
+    return S_ISDIR(st.st_mode) ? 2 : S_ISREG(st.st_mode) ? 1 : 0;
+#endif
+}
+
+/* statik/ klasöründen dosya gönderir; dosya yoksa 0 döndürür. */
+static int statik_gonder(Soket s, const char *yol, int bas) {
+    if (strstr(yol, "/..") || strchr(yol, '\\') || strstr(yol, "//")) return 0;
+    Tampon d = {0};
+    t_yaz(&d, "statik");
+    t_yaz(&d, yol);
+    int tur = dosya_turu(d.v);
+    if (tur == 2) {
+        if (d.v[d.n - 1] != '/') t_yaz(&d, "/");
+        t_yaz(&d, "index.html");
+        tur = dosya_turu(d.v);
+    }
+    if (tur != 1) {
+        free(d.v);
+        return 0;
+    }
+    FILE *f = dosya_ac(d.v, "rb");
+    if (!f) {
+        free(d.v);
+        return 0;
+    }
+    Tampon icerik = {0};
+    char b[16384];
+    size_t n;
+    while ((n = fread(b, 1, sizeof b, f)) > 0) t_ekle(&icerik, b, n);
+    fclose(f);
+    yanit_gonder(s, 200, icerik_turu(d.v), icerik.v ? icerik.v : "", icerik.n, NULL, 0, bas);
+    free(icerik.v);
+    free(d.v);
+    return 1;
+}
+
+static int64_t son_istek_basarili;
+
+/* Yolun işlevini çalıştırır. Çalışma hatası olursa hata() buraya geri döner. */
+static SATIR_ICI_DEGIL int64_t yolu_calistir(int64_t (*islev)(int64_t), int64_t istek) {
+    son_istek_basarili = 0;
+    if (TUZAK_KUR(istek_tuzagi)) return 0;
+    tuzak_kurulu = 1;
+    int64_t y = islev(istek);
+    tuzak_kurulu = 0;
+    son_istek_basarili = 1;
+    return y;
+}
+
+static const char *bul_n(const char *s, size_t n, const char *aranan) {
+    size_t m = strlen(aranan);
+    for (size_t i = 0; i + m <= n; i++)
+        if (!memcmp(s + i, aranan, m)) return s + i;
+    return NULL;
+}
+
+static void istegi_isle(Soket s, const char *istek_tanimi) {
+    double bas_zaman = ondalik(ohc_zaman());
+    Tampon b = {0};
+    char parca[16384];
+    const char *baslik_sonu = NULL;
+    while (!baslik_sonu) {
+        int k = recv(s, parca, sizeof parca, 0);
+        if (k <= 0) {
+            free(b.v);
+            return;
+        }
+        t_ekle(&b, parca, (size_t)k);
+        baslik_sonu = bul_n(b.v, b.n, "\r\n\r\n");
+        if (!baslik_sonu && b.n > 65536) {
+            hata_sayfasi(s, 431, "İstek başlıkları çok büyük", NULL, 0);
+            free(b.v);
+            return;
+        }
+    }
+    size_t govde_basi = (size_t)(baslik_sonu - b.v) + 4;
+    /* İstek satırı: YÖNTEM HEDEF SÜRÜM */
+    char *satir_sonu = strstr(b.v, "\r\n");
+    *satir_sonu = 0;
+    char yontem[16] = {0};
+    char *bosluk1 = strchr(b.v, ' ');
+    char *bosluk2 = bosluk1 ? strchr(bosluk1 + 1, ' ') : NULL;
+    if (!bosluk1 || !bosluk2 || bosluk1 - b.v >= (long)sizeof yontem || bosluk1[1] != '/') {
+        hata_sayfasi(s, 400, "Geçersiz istek", NULL, 0);
+        free(b.v);
+        return;
+    }
+    memcpy(yontem, b.v, (size_t)(bosluk1 - b.v));
+    *bosluk2 = 0;
+    const char *hedef = bosluk1 + 1;
+    int bas_istegi = !strcmp(yontem, "HEAD");
+
+    /* Başlıklar */
+    int64_t basliklar = ohc_sozluk_yeni();
+    int64_t uzunluk = 0;
+    int parcali = 0;
+    char *p = satir_sonu + 2;
+    while (p < baslik_sonu) {
+        char *son = strstr(p, "\r\n");
+        if (!son) break;
+        *son = 0;
+        char *iki = strchr(p, ':');
+        if (iki) {
+            for (char *c = p; c < iki; c++)
+                if (*c >= 'A' && *c <= 'Z') *c = (char)(*c + 32);
+            char *v = iki + 1;
+            while (*v == ' ' || *v == '\t') v++;
+            size_t vn = strlen(v);
+            while (vn && (v[vn - 1] == ' ' || v[vn - 1] == '\t')) vn--;
+            int64_t am = metin_yap(p, (size_t)(iki - p));
+            int64_t dm = metin_yap(v, vn);
+            ohc_sozluk_koy(basliklar, am, dm, KOD_METIN);
+            if (!strcmp(M(am), "content-length")) uzunluk = strtoll(v, NULL, 10);
+            if (!strcmp(M(am), "transfer-encoding") && strstr(v, "chunked")) parcali = 1;
+        }
+        p = son + 2;
+    }
+    if (parcali) {
+        hata_sayfasi(s, 501, "Parçalı (chunked) istek gövdesi desteklenmiyor", NULL, bas_istegi);
+        free(b.v);
+        return;
+    }
+    if (uzunluk < 0 || uzunluk > 16 * 1024 * 1024) {
+        hata_sayfasi(s, 413, "İstek gövdesi çok büyük", NULL, bas_istegi);
+        free(b.v);
+        return;
+    }
+    while (b.n < govde_basi + (size_t)uzunluk) {
+        int k = recv(s, parca, sizeof parca, 0);
+        if (k <= 0) {
+            free(b.v);
+            return;
+        }
+        t_ekle(&b, parca, (size_t)k);
+    }
+    int64_t govde = metin_yap(b.v + govde_basi, (size_t)uzunluk);
+    /* Gövde okunurken tampon yer değiştirmiş olabilir; hedefi yeniden bul. */
+    hedef = strchr(b.v, ' ') + 1;
+
+    /* Yol ve sorgu */
+    const char *soru = strchr(hedef, '?');
+    size_t yol_n = soru ? (size_t)(soru - hedef) : strlen(hedef);
+    Tampon yt = {0};
+    yuzde_coz(&yt, hedef, yol_n, 0);
+    while (yt.n > 1 && yt.v[yt.n - 1] == '/') yt.v[--yt.n] = 0;
+    int64_t yol = t_metin(&yt);
+    int64_t sorgu = ohc_sozluk_yeni();
+    ((Sozluk *)(intptr_t)sorgu)->anahtar_kodu = KOD_METIN;
+    if (soru) form_coz(sorgu, soru + 1, strlen(soru + 1));
+    Tampon gt = {0};
+    yuzde_coz(&gt, hedef, strlen(hedef), 0);
+    int64_t gorunen = t_metin(&gt);
+
+    int64_t durum = 404;
+    if ((!strcmp(yontem, "GET") || bas_istegi) && statik_gonder(s, M(yol), bas_istegi)) {
+        durum = 200;
+    } else {
+        /* En çok sabit parçası olan eşleşen yol seçilir. */
+        WebYolu *secilen = NULL;
+        int en_iyi = 0, yontem_farkli = 0;
+        for (int64_t i = 0; i < web_yolu_sayisi; i++) {
+            int e = yol_eslesir(web_yollari[i].kalip, M(yol), 0);
+            if (!e) continue;
+            const char *y = web_yollari[i].yontem;
+            if (strcmp(y, yontem) && !(bas_istegi && !strcmp(y, "GET"))) {
+                yontem_farkli = 1;
+                continue;
+            }
+            if (e > en_iyi) {
+                en_iyi = e;
+                secilen = &web_yollari[i];
+            }
+        }
+        if (!secilen) {
+            durum = yontem_farkli ? 405 : 404;
+            Tampon a = {0};
+            t_yaz(&a, yontem);
+            t_yaz(&a, " ");
+            t_yaz(&a, M(yol));
+            hata_sayfasi(s, durum, yontem_farkli ? "Bu adres bu yöntemle kullanılamaz" : "Sayfa bulunamadı", a.v,
+                         bas_istegi);
+            free(a.v);
+        } else {
+            int64_t form = ohc_sozluk_yeni();
+            ((Sozluk *)(intptr_t)form)->anahtar_kodu = KOD_METIN;
+            int64_t tur = ohc_sozluk_icerir(basliklar, D("content-type"), KOD_METIN)
+                              ? ohc_sozluk_al(basliklar, D("content-type"), KOD_METIN, 0)
+                              : D("");
+            if (strstr(M(tur), "application/x-www-form-urlencoded"))
+                form_coz(form, M(govde), strlen(M(govde)));
+            else if (strstr(M(tur), "json"))
+                json_formu(form, M(govde));
+            int64_t parametreler = ohc_sozluk_yeni();
+            ((Sozluk *)(intptr_t)parametreler)->anahtar_kodu = KOD_METIN;
+            yol_eslesir(secilen->kalip, M(yol), parametreler);
+
+            int64_t istek = nesne_yeni(istek_tanimi);
+            ModelBilgisi *im = model_bilgisi(istek_tanimi);
+#define ISTEK_KOY(ad, deger)                                                                                           \
+    do {                                                                                                               \
+        int64_t i_ = alan_sirasi(im, ad);                                                                              \
+        if (i_ >= 0) ALAN(istek, i_) = (deger);                                                                        \
+    } while (0)
+            ISTEK_KOY("yöntem", metin_yap(yontem, strlen(yontem)));
+            ISTEK_KOY("yol", yol);
+            ISTEK_KOY("sorgu", sorgu);
+            ISTEK_KOY("form", form);
+            ISTEK_KOY("parametreler", parametreler);
+            ISTEK_KOY("gövde", govde);
+            ISTEK_KOY("başlıklar", basliklar);
+#undef ISTEK_KOY
+            int64_t y = yolu_calistir(secilen->islev, istek);
+            if (!son_istek_basarili) {
+                durum = 500;
+                hata_sayfasi(s, 500, "Sunucu hatası", son_hata, bas_istegi);
+            } else if (!y) {
+                durum = 204;
+                yanit_gonder(s, 204, NULL, "", 0, NULL, 0, bas_istegi);
+            } else {
+                ModelBilgisi *ym = nesne_bilgisi(y);
+                int64_t i;
+                durum = (i = alan_sirasi(ym, "durum")) >= 0 ? ALAN(y, i) : 200;
+                const char *tur_y = (i = alan_sirasi(ym, "tür")) >= 0 ? M(ALAN(y, i)) : "text/html; charset=utf-8";
+                const char *g = (i = alan_sirasi(ym, "gövde")) >= 0 ? M(ALAN(y, i)) : "";
+                const char *konum = (i = alan_sirasi(ym, "konum")) >= 0 ? M(ALAN(y, i)) : "";
+                int64_t ek = (i = alan_sirasi(ym, "başlıklar")) >= 0 ? ALAN(y, i) : 0;
+                yanit_gonder(s, durum, tur_y, g, strlen(g), konum, ek, bas_istegi);
+            }
+        }
+    }
+    double ms = (ondalik(ohc_zaman()) - bas_zaman) * 1000.0;
+    printf("%s %s → %" PRId64 " · %.0f ms\n", yontem, M(gorunen), durum, ms);
+    fflush(stdout);
+    free(b.v);
+}
+
+static void zaman_asimi(Soket s, int saniye) {
+#ifdef _WIN32
+    DWORD ms = (DWORD)saniye * 1000;
+    setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (const char *)&ms, sizeof ms);
+    setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, (const char *)&ms, sizeof ms);
+#else
+    struct timeval tv;
+    tv.tv_sec = saniye;
+    tv.tv_usec = 0;
+    setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+    setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv);
+#endif
+}
+
+/* Sunucuyu başlatır ve istekleri sırayla işler (dönmez). */
+void ohc_sun(int64_t kapi, int64_t istek_tanimi) {
+    /* ORHUNCA_KAPI programdaki kapıyı geçersiz kılar; 0 ise boş bir kapı seçilir. */
+    const char *e = getenv("ORHUNCA_KAPI");
+    int otomatik = e && !strcmp(e, "0");
+    if (e && atol(e) > 0) kapi = atol(e);
+    if (kapi <= 0 || kapi > 65535) kapi = 3000;
+    if (otomatik) kapi = 0;
+    const char *adres = getenv("ORHUNCA_ADRES");
+    if (!adres || !*adres) adres = "127.0.0.1";
+#ifdef _WIN32
+    WSADATA w;
+    if (WSAStartup(MAKEWORD(2, 2), &w)) hata(0, "Windows soket kütüphanesi başlatılamadı");
+#else
+    signal(SIGPIPE, SIG_IGN);
+#endif
+    Soket dinleyici = socket(AF_INET, SOCK_STREAM, 0);
+    if (dinleyici == GECERSIZ_SOKET) hata(0, "sunucu soketi açılamadı");
+#ifndef _WIN32
+    int bir = 1;
+    setsockopt(dinleyici, SOL_SOCKET, SO_REUSEADDR, &bir, sizeof bir);
+#endif
+    struct sockaddr_in a;
+    memset(&a, 0, sizeof a);
+    a.sin_family = AF_INET;
+    a.sin_port = htons((unsigned short)kapi);
+    a.sin_addr.s_addr = inet_addr(adres);
+    if (bind(dinleyici, (struct sockaddr *)&a, sizeof a) != 0 || listen(dinleyici, 64) != 0) {
+        char m[200];
+        snprintf(m, sizeof m,
+                 "%" PRId64 " numaralı kapı açılamadı; başka bir sunucu kullanıyor olabilir (ORHUNCA_KAPI ile başka "
+                 "bir kapı seçin)",
+                 kapi);
+        hata(0, m);
+    }
+    if (otomatik) {
+        socklen_t uz = sizeof a;
+        getsockname(dinleyici, (struct sockaddr *)&a, &uz);
+        kapi = ntohs(a.sin_port);
+    }
+    printf("Sunucu dinleniyor: http://localhost:%" PRId64 "\n", kapi);
+    fflush(stdout);
+    for (;;) {
+        Soket s = accept(dinleyici, NULL, NULL);
+        if (s == GECERSIZ_SOKET) continue;
+        zaman_asimi(s, 10);
+        istegi_isle(s, M(istek_tanimi));
+        soket_kapat(s);
+    }
 }

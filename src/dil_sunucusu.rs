@@ -178,6 +178,15 @@ const ANAHTAR_KELIMELER: &[(&str, &str)] = &[
     ("sırala", "Fiil: `sayıları sırala.` — metinler Türk alfabesine göre sıralanır"),
     ("çıkar", "Fiil: `5'i sayılardan çıkar.` — ilk eşleşen öğeyi siler"),
     ("ekrana", "`yaz` fiilinin hedefi (isteğe bağlı)"),
+    ("model", "Veri modeli: `model Ürün:` ve altında `ad: metin, zorunlu` gibi alanlar"),
+    ("zorunlu", "Model alanı boş bırakılamaz"),
+    ("en_az", "Model alanı kuralı: sayılarda en küçük değer, metinlerde en az karakter"),
+    ("en_fazla", "Model alanı kuralı: sayılarda en büyük değer, metinlerde en çok karakter"),
+    ("kaydet", "Fiil: modeli veri deposuna yazar: `ürün'ü kaydet.`"),
+    ("al", "Web yolu (GET): `al \"/ürünler\":` — `istek` değişkeni kullanılabilir"),
+    ("gönder", "Web yolu (POST): `gönder \"/ürünler\":` — form: `Ürün.formdan(istek)`"),
+    ("koy", "Web yolu (PUT): `koy \"/ürünler/{kimlik: sayı}\":`"),
+    ("istek", "Gelen web isteği: istek.yöntem, istek.yol, istek.sorgu, istek.form, istek.gövde, istek.başlıklar"),
 ];
 
 const TIP_ADLARI: &[(&str, &str)] = &[
@@ -239,12 +248,18 @@ fn tanimlar(metin: &str) -> Vec<Tanim> {
             if let Some(ad) = r.split(['=', ' ']).next().filter(|a| !a.is_empty()) {
                 ekle(&mut cikti, "sabit", ad);
             }
+        } else if let Some(r) = govde.strip_prefix("model ").filter(|_| girinti == 0) {
+            if let Some(ad) = r.trim_end().strip_suffix(':').map(str::trim) {
+                ekle(&mut cikti, "model", ad);
+            }
+        } else if let Some(kalip) = rota_satiri(satir) {
+            ekle(&mut cikti, "yol", &kalip);
         } else if let Some((ad, _)) = govde.split_once('=') {
             let ad = ad.trim().trim_end_matches(['+', '-']).trim();
             let ilk = !cikti.iter().any(|t: &Tanim| t.ad == ad);
             if ilk
                 && !ad.is_empty()
-                && !ad.contains([' ', '[', '(', '!', '<', '>'])
+                && !ad.contains([' ', '[', '(', '!', '<', '>', '.', ':'])
                 && !govde[govde.find('=').unwrap() + 1..].starts_with('=')
             {
                 ekle(&mut cikti, "değişken", ad);
@@ -258,6 +273,17 @@ fn tanimlar(metin: &str) -> Vec<Tanim> {
         }
     }
     cikti
+}
+
+/// `al "/ürünler":` gibi bir web yolu satırıysa kalıbı verir.
+fn rota_satiri(satir: &str) -> Option<String> {
+    let (kelime, kalan) = satir.split_once(' ')?;
+    if !["al", "gönder", "koy", "sil"].contains(&kelime) {
+        return None;
+    }
+    let kalip = kalan.trim().strip_suffix(':')?.trim();
+    kalip.strip_prefix('"')?.strip_suffix('"')?;
+    Some(format!("{kelime} {kalip}"))
 }
 
 /// `kullan` ile alınan dosyaların yolları
@@ -290,7 +316,7 @@ fn degisken_tipi(program: &Program, metin: &str, satir: usize, ad: &str) -> Opti
         {
             continue;
         }
-        if s.starts_with("işlev ") || s.starts_with("fiil ") {
+        if s.starts_with("işlev ") || s.starts_with("fiil ") || rota_satiri(s).is_some() {
             islev_satiri = Some(i + 1);
         }
         break;
@@ -333,8 +359,22 @@ impl Sunucu {
         };
         let mut tanilar: HashMap<String, Vec<Value>> = HashMap::new();
         tanilar.insert(uri.to_string(), Vec::new());
+        // Görünümler (.ohchtml) projenin giriş dosyasıyla birlikte derlenir.
+        let gorunum = uri.ends_with(".ohchtml");
+        let derlenecek = uri_yol(uri).filter(|y| y.exists()).and_then(|y| {
+            if gorunum {
+                derleme::proje_girisi(&derleme::proje_koku(&y))
+                    .ok()
+                    .filter(|g| g.exists())
+            } else {
+                Some(y)
+            }
+        });
 
-        for u in bicimlendirici::uyarilar(&metin) {
+        for u in bicimlendirici::uyarilar(&metin)
+            .into_iter()
+            .filter(|_| !gorunum)
+        {
             let satir = u.konum.satir - 1;
             tanilar.get_mut(uri).unwrap().push(json!({
                 "range": aralik(&metin, satir, u.konum.sutun - 1, u.konum.sutun - 1 + u.uzunluk),
@@ -344,7 +384,7 @@ impl Sunucu {
             }));
         }
 
-        if let Some(yol) = uri_yol(uri).filter(|y| y.exists()) {
+        if let Some(yol) = derlenecek {
             if let Err(h) = derleme::yukle_ortulu(&yol, &self.ortulu()) {
                 if let Some(t) = &h.teshis {
                     let hedef = std::fs::canonicalize(&t.dosya)
@@ -493,6 +533,15 @@ impl Sunucu {
             ("… olduğu sürece", "${1:koşul} olduğu sürece:\n    $0"),
             ("işlev", "işlev ${1:ad}(${2:a}):\n    döndür $0"),
             ("fiil", "fiil ${1:x}'i ${2:ad}:\n    döndür $0"),
+            (
+                "model",
+                "model ${1:Ürün}:\n    ${2:ad}: ${3:metin}, zorunlu\n    $0",
+            ),
+            ("al (web yolu)", "al \"/${1:yol}\":\n    döndür $0"),
+            (
+                "gönder (web formu)",
+                "gönder \"/${1:yol}\":\n    ${2:x} = ${3:Model}.formdan(istek)\n    $0",
+            ),
         ];
         for (ad, govde) in parcaciklar {
             ogeler.push(
@@ -515,6 +564,8 @@ impl Sunucu {
                     "işlev" => 3,
                     "fiil" => 2,
                     "sabit" => 21,
+                    "model" => 7,
+                    "yol" => continue,
                     _ => 6,
                 };
                 ogeler.push(json!({ "label": t.ad, "kind": tur, "detail": t.metin }));
@@ -565,6 +616,8 @@ impl Sunucu {
                     "işlev" => 12,
                     "fiil" => 6,
                     "sabit" => 14,
+                    "model" => 23,
+                    "yol" => 7,
                     _ => 13,
                 };
                 let r = aralik(&metin, t.satir, t.bas, t.bas + t.ad.chars().count());

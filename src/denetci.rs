@@ -5,9 +5,12 @@
 //! parametrelerini ve yerel değişkenlerini görür.
 
 use crate::agac::*;
+use crate::ayristirici::YERLESIK_DOSYA;
 use crate::ekler::Hal;
 use crate::hata::{Hata, Konum, Sonuc};
 use std::collections::HashMap;
+
+const JSON_TURU: &str = "application/json; charset=utf-8";
 
 #[derive(Clone)]
 struct Imza {
@@ -29,6 +32,10 @@ pub struct Denetci {
     dongu: usize,
     islevde: bool,
     sabitler: HashMap<String, Ifade>,
+    /// Varsayılan değerleri denetlenmiş model tanımları.
+    modeller: HashMap<String, Model>,
+    /// Bir web yolunun gövdesi denetleniyor: `döndür` değerleri yanıta çevrilir.
+    rotada: bool,
 }
 
 pub fn denetle(p: &mut Program) -> Sonuc<()> {
@@ -42,6 +49,8 @@ pub fn denetle(p: &mut Program) -> Sonuc<()> {
         dongu: 0,
         islevde: false,
         sabitler: HashMap::new(),
+        modeller: HashMap::new(),
+        rotada: false,
     };
     for (ad, deger) in p.sabitler.iter_mut() {
         d.ifade(deger)?;
@@ -61,11 +70,21 @@ pub fn denetle(p: &mut Program) -> Sonuc<()> {
         konum: Konum::default(),
         tip: Tip::Ondalik,
     });
+    for m in &p.modeller {
+        d.modeller.insert(m.ad.clone(), m.clone());
+    }
     for f in &p.islevler {
         if d.imzalar.contains_key(&f.ad) {
+            let mesaj = match &f.rota {
+                Some(r) => format!("{} {} yolu iki kez tanımlanmış", r.yontem, r.kalip),
+                None => format!("'{}' işlevi birden fazla tanımlanmış", f.ad),
+            };
+            return Err(Hata::yeni(f.konum, mesaj));
+        }
+        if d.modeller.contains_key(&f.ad) {
             return Err(Hata::yeni(
                 f.konum,
-                format!("'{}' işlevi birden fazla tanımlanmış", f.ad),
+                format!("'{}' bir modelin adı; işleve başka bir ad verin", f.ad),
             ));
         }
         d.imzalar.insert(
@@ -78,10 +97,28 @@ pub fn denetle(p: &mut Program) -> Sonuc<()> {
         );
     }
 
+    // Modellerin alanları ve varsayılan değerleri (değişken göremezler).
+    for m in p.modeller.iter_mut() {
+        d.kapsam.clear();
+        d.sira.clear();
+        d.islevde = false;
+        d.model_denetle(m)?;
+        d.modeller.insert(m.ad.clone(), m.clone());
+    }
+
+    // Web yolları varsa ve program sunucuyu kendisi başlatmıyorsa sonunda başlatılır.
+    if p.islevler.iter().any(|f| f.rota.is_some()) && !cagri_var(&p.ana, "sun") {
+        p.ana.push(Deyim::IfadeDeyimi(Ifade::yeni(
+            IfadeTuru::Cagri("sun".into(), Vec::new()),
+            Konum::default(),
+        )));
+    }
+
     for f in p.islevler.iter_mut() {
         d.kapsam.clear();
         d.sira.clear();
         d.islevde = true;
+        d.rotada = f.rota.is_some();
         d.donus_belirtildi = f.donus.is_some();
         d.donus = f.donus.clone();
         for (ad, tip) in &f.parametreler {
@@ -118,10 +155,54 @@ pub fn denetle(p: &mut Program) -> Sonuc<()> {
     d.kapsam.clear();
     d.sira.clear();
     d.islevde = false;
+    d.rotada = false;
     d.donus = None;
     d.blok(&mut p.ana)?;
     p.ana_yereller = d.yereller();
     Ok(())
+}
+
+/// Bir gövdede (iç içe ifadeler dahil) `ad` adlı bir çağrı var mı?
+fn cagri_var(govde: &[Deyim], ad: &str) -> bool {
+    fn ifadede(e: &Ifade, ad: &str) -> bool {
+        match &e.tur {
+            IfadeTuru::Cagri(a, arg) => a == ad || arg.iter().any(|x| ifadede(x, ad)),
+            IfadeTuru::Liste(o) | IfadeTuru::Metod(_, _, o) if o.iter().any(|x| ifadede(x, ad)) => {
+                true
+            }
+            IfadeTuru::Metod(a, _, _) | IfadeTuru::Alan(a, _, _) | IfadeTuru::Tekli(_, a) => {
+                ifadede(a, ad)
+            }
+            IfadeTuru::Sozluk(c) => c.iter().any(|(a, b)| ifadede(a, ad) || ifadede(b, ad)),
+            IfadeTuru::Ikili(_, a, b) | IfadeTuru::Indeks(a, b) => ifadede(a, ad) || ifadede(b, ad),
+            IfadeTuru::FiilCagri(a, arg) => a == ad || arg.iter().any(|(_, x)| ifadede(x, ad)),
+            IfadeTuru::Kurucu(_, arg) => arg.iter().any(|(_, x)| ifadede(x, ad)),
+            _ => false,
+        }
+    }
+    govde.iter().any(|d| match d {
+        Deyim::Atama { deger, .. } | Deyim::Yaz(deger) | Deyim::IfadeDeyimi(deger) => {
+            ifadede(deger, ad)
+        }
+        Deyim::Dondur(Some(e), _) | Deyim::Sirala(e) => ifadede(e, ad),
+        Deyim::Eger {
+            kosul,
+            govde,
+            degilse,
+        } => ifadede(kosul, ad) || cagri_var(govde, ad) || cagri_var(degilse, ad),
+        Deyim::Surece { kosul, govde } => ifadede(kosul, ad) || cagri_var(govde, ad),
+        Deyim::HerAralik { govde, .. } | Deyim::HerListe { govde, .. } => cagri_var(govde, ad),
+        _ => false,
+    })
+}
+
+fn alan_listesi(m: &Model) -> String {
+    let adlar: Vec<String> = m
+        .alanlar
+        .iter()
+        .map(|a| format!("{}: {}", a.ad, a.tip))
+        .collect();
+    format!("{} modelinin alanları: {}", m.ad, adlar.join(", "))
 }
 
 /// Sayı bekleyen bir yere ondalık gerekiyorsa ifadeyi `ondalık(...)` ile sarar.
@@ -138,6 +219,266 @@ fn genislet(e: &mut Ifade, hedef: &Tip) {
 }
 
 impl Denetci {
+    fn model_denetle(&mut self, m: &mut Model) -> Sonuc<()> {
+        if self.sabitler.contains_key(&m.ad) {
+            return Err(Hata::yeni(
+                m.konum,
+                format!("'{}' hem bir sabitin hem bir modelin adı", m.ad),
+            ));
+        }
+        for a in m.alanlar.iter_mut() {
+            if a.tip.model_icerir() {
+                return Err(Hata::yeni(
+                    a.konum,
+                    "model alanları başka bir model içeremez (henüz); kimliğini sayı olarak saklayın",
+                )
+                .ipucu(format!("{}_kimliği: sayı", a.ad.trim_end_matches("ler"))));
+            }
+            let sinirli = matches!(a.tip, Tip::Sayi | Tip::Ondalik | Tip::Metin | Tip::Liste(_));
+            if (a.en_az.is_some() || a.en_fazla.is_some()) && !sinirli {
+                return Err(Hata::yeni(
+                    a.konum,
+                    format!("en_az / en_fazla {} alanlarında kullanılamaz", a.tip),
+                ));
+            }
+            if let Some(v) = a.varsayilan.as_mut() {
+                let t = self.ifade(v)?;
+                if !a.tip.kabul_eder(&t) {
+                    return Err(Hata::yeni(
+                        v.konum,
+                        format!("'{}' alanı {} tipinde; varsayılan değer {t}", a.ad, a.tip),
+                    ));
+                }
+                genislet(v, &a.tip);
+                v.tip = a.tip.clone();
+            }
+        }
+        Ok(())
+    }
+
+    fn model(&self, ad: &str, konum: Konum) -> Sonuc<Model> {
+        self.modeller
+            .get(ad)
+            .cloned()
+            .ok_or_else(|| Hata::yeni(konum, format!("tanımsız model '{ad}'")))
+    }
+
+    /// Yerleşik modeller (İstek, Yanıt) veri deposuna yazılamaz.
+    fn depolanabilir(&self, m: &Model, konum: Konum) -> Sonuc<()> {
+        if m.konum.dosya == YERLESIK_DOSYA {
+            return Err(Hata::yeni(
+                konum,
+                format!("'{}' yerleşik bir model; kaydedilip okunamaz", m.ad),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Denetlenmiş alan değerlerini modelin tüm alanlarına tamamlar (sırayla).
+    fn kurucu_tamamla(m: &Model, mut verilen: Vec<(String, Ifade)>) -> Vec<(String, Ifade)> {
+        m.alanlar
+            .iter()
+            .map(|a| match verilen.iter().position(|(ad, _)| *ad == a.ad) {
+                Some(i) => verilen.remove(i),
+                None => (a.ad.clone(), a.ilk_deger()),
+            })
+            .collect()
+    }
+
+    /// `döndür` değeri yanıt değilse yanıta çevrilir: metin → HTML, diğerleri → JSON.
+    fn yanita_cevir(&mut self, e: &mut Ifade, t: Tip) -> Sonuc<Tip> {
+        let yanit = Tip::Model("Yanıt".into());
+        if t == yanit {
+            return Ok(t);
+        }
+        if t == Tip::Bos {
+            return Err(Hata::yeni(e.konum, "bu işlev bir değer döndürmüyor"));
+        }
+        let k = e.konum;
+        let ic = std::mem::replace(e, Ifade::yeni(IfadeTuru::Mantik(false), k));
+        let alanlar = if t == Tip::Metin {
+            vec![("gövde".to_string(), ic)]
+        } else {
+            json_alanlari(ic)
+        };
+        let m = self.model("Yanıt", k)?;
+        *e = Ifade {
+            tur: IfadeTuru::Kurucu("Yanıt".into(), Self::kurucu_tamamla(&m, alanlar)),
+            konum: k,
+            tip: yanit.clone(),
+        };
+        Ok(yanit)
+    }
+
+    /// `yanıt(404, "...")`, `yönlendir("/")`, `json_yanıtı(x)`: Yanıt kurucusuna çevrilir.
+    fn yanit_sekeri(&mut self, e: &mut Ifade) -> Sonuc<Tip> {
+        let konum = e.konum;
+        let IfadeTuru::Cagri(ad, arg) = &mut e.tur else {
+            unreachable!()
+        };
+        let ad = ad.clone();
+        let mut tipler = Vec::new();
+        for a in arg.iter_mut() {
+            tipler.push(self.ifade(a)?);
+        }
+        let mut arg = std::mem::take(arg);
+        let sayi = |n: i64| Ifade {
+            tur: IfadeTuru::Sayi(n),
+            konum,
+            tip: Tip::Sayi,
+        };
+        use Tip::*;
+        let alanlar = match (ad.as_str(), tipler.as_slice()) {
+            ("yanıt", [Sayi, Metin]) | ("yanıt", [Sayi, Metin, Metin]) => {
+                let mut v = vec![
+                    ("durum".to_string(), arg.remove(0)),
+                    ("gövde".to_string(), arg.remove(0)),
+                ];
+                if let Some(t) = arg.pop() {
+                    v.push(("tür".to_string(), t));
+                }
+                v
+            }
+            ("yönlendir", [Metin]) => vec![
+                ("durum".to_string(), sayi(303)),
+                ("konum".to_string(), arg.remove(0)),
+            ],
+            ("json_yanıtı", [x]) | ("json_yanıtı", [x, Sayi]) if *x != Bos => {
+                let deger = arg.remove(0);
+                let mut v = json_alanlari(deger);
+                if let Some(d) = arg.pop() {
+                    v.push(("durum".to_string(), d));
+                }
+                v
+            }
+            _ => {
+                let verilen: Vec<String> = tipler.iter().map(|t| t.to_string()).collect();
+                let kullanim = crate::yerlesik::bul(&ad)
+                    .map(|y| y.kullanim)
+                    .unwrap_or_default();
+                return Err(Hata::yeni(
+                    konum,
+                    format!(
+                        "'{ad}' bu bağımsız değişkenlerle kullanılamaz ({})",
+                        verilen.join(", ")
+                    ),
+                )
+                .ipucu(format!("kullanım: {kullanim}")));
+            }
+        };
+        let m = self.model("Yanıt", konum)?;
+        e.tur = IfadeTuru::Kurucu("Yanıt".into(), Self::kurucu_tamamla(&m, alanlar));
+        e.tip = Model("Yanıt".into());
+        Ok(e.tip.clone())
+    }
+
+    /// `görünüm("ürünler", x)` → `görünüm:ürünler(x)`
+    fn gorunum_cagrisi(&mut self, e: &mut Ifade) -> Sonuc<()> {
+        let konum = e.konum;
+        let IfadeTuru::Cagri(ad, arg) = &mut e.tur else {
+            unreachable!()
+        };
+        let Some(IfadeTuru::Metin(g)) = arg.first().map(|a| &a.tur) else {
+            return Err(Hata::yeni(
+                konum,
+                "görünüm(...) ilk değer olarak görünümün adını metin olarak alır",
+            )
+            .ipucu("görünüm(\"ürünler\", ürünler)"));
+        };
+        let hedef = format!("görünüm:{g}");
+        if !self.imzalar.contains_key(&hedef) {
+            return Err(self.gorunum_yok(g, arg[0].konum));
+        }
+        arg.remove(0);
+        *ad = hedef;
+        Ok(())
+    }
+
+    fn gorunum_yok(&self, g: &str, konum: Konum) -> Hata {
+        let mut var: Vec<&str> = self
+            .imzalar
+            .keys()
+            .filter_map(|a| a.strip_prefix("görünüm:"))
+            .collect();
+        var.sort();
+        let ipucu = if var.is_empty() {
+            format!("görünümler/{g}.ohchtml dosyasını oluşturun")
+        } else {
+            format!(
+                "görünümler/{g}.ohchtml dosyasını oluşturun; var olanlar: {}",
+                var.join(", ")
+            )
+        };
+        Hata::yeni(konum, format!("'{g}' görünümü bulunamadı")).ipucu(ipucu)
+    }
+
+    fn metod(&mut self, e: &mut Ifade) -> Sonuc<Tip> {
+        let konum = e.konum;
+        let IfadeTuru::Metod(alici, ad, arg) = &mut e.tur else {
+            unreachable!()
+        };
+        let ad = ad.clone();
+        let mut tipler = Vec::new();
+        for a in arg.iter_mut() {
+            tipler.push(self.ifade(a)?);
+        }
+        use Tip::*;
+        if let IfadeTuru::ModelAdi(m) = &alici.tur {
+            let model = self.model(m, alici.konum)?;
+            alici.tip = Model(model.ad.clone());
+            self.depolanabilir(&model, konum)?;
+            let mt = Model(model.ad.clone());
+            return Ok(match (ad.as_str(), tipler.as_slice()) {
+                ("hepsi", []) => Liste(Box::new(mt)),
+                ("bul", [Sayi]) => mt,
+                ("var_mı" | "sil", [Sayi]) => Mantik,
+                ("formdan", [Model(i)]) if i == "İstek" => mt,
+                _ => {
+                    let bilinen =
+                        ["hepsi", "bul", "var_mı", "sil", "formdan"].contains(&ad.as_str());
+                    let mesaj = if bilinen {
+                        format!("'{}.{ad}' bu bağımsız değişkenlerle kullanılamaz", model.ad)
+                    } else {
+                        format!("'{}' modelinin '{ad}' diye bir yöntemi yok", model.ad)
+                    };
+                    return Err(Hata::yeni(konum, mesaj).ipucu(format!(
+                        "yöntemler: {m}.hepsi(), {m}.bul(kimlik), {m}.var_mı(kimlik), {m}.sil(kimlik), {m}.formdan(istek)",
+                        m = model.ad
+                    )));
+                }
+            });
+        }
+        let t = self.ifade(alici)?;
+        let Model(m) = &t else {
+            return Err(Hata::yeni(
+                konum,
+                format!("yöntem çağrısı yalnızca model nesnelerinde kullanılabilir ({t} bulundu)"),
+            )
+            .ipucu(format!("işlevleri parantezle çağırın: {ad}(x)")));
+        };
+        let model = self.model(m, konum)?;
+        Ok(match (ad.as_str(), tipler.as_slice()) {
+            ("kaydet", []) => {
+                self.depolanabilir(&model, konum)?;
+                Sayi
+            }
+            ("sil", []) => {
+                self.depolanabilir(&model, konum)?;
+                Mantik
+            }
+            ("geçerli_mi", []) => Mantik,
+            ("hatalar", []) => Liste(Box::new(Metin)),
+            ("json", []) => Metin,
+            _ => {
+                return Err(Hata::yeni(
+                    konum,
+                    format!("'{m}' nesnelerinin '{ad}' diye bir yöntemi yok"),
+                )
+                .ipucu("yöntemler: kaydet(), sil(), geçerli_mi(), hatalar(), json()"))
+            }
+        })
+    }
+
     fn tanimla(&mut self, ad: &str, tip: Tip) {
         if self.kapsam.insert(ad.to_string(), tip).is_none() {
             self.sira.push(ad.to_string());
@@ -251,7 +592,46 @@ impl Denetci {
                         format!("'{hedef}' bir işlevin adı, değişken olarak kullanılamaz"),
                     ));
                 }
+                if self.modeller.contains_key(hedef.as_str()) {
+                    return Err(Hata::yeni(
+                        *konum,
+                        format!("'{hedef}' bir modelin adı, değişken olarak kullanılamaz"),
+                    ));
+                }
                 self.ata(hedef, t, *konum)?;
+            }
+            Deyim::AlanAtama {
+                nesne,
+                alan,
+                sira,
+                deger,
+                konum,
+            } => {
+                let t = self.ifade(nesne)?;
+                let Tip::Model(m) = &t else {
+                    return Err(Hata::yeni(
+                        *konum,
+                        format!(
+                            "'.{alan}' yalnızca model nesnelerinde kullanılabilir ({t} bulundu)"
+                        ),
+                    ));
+                };
+                let model = self.model(m, *konum)?;
+                let Some((i, a)) = model.alan(alan) else {
+                    return Err(
+                        Hata::yeni(*konum, format!("'{m}' modelinde '{alan}' alanı yok"))
+                            .ipucu(alan_listesi(&model)),
+                    );
+                };
+                *sira = i;
+                let dt = self.ifade(deger)?;
+                if !a.tip.kabul_eder(&dt) {
+                    return Err(Hata::yeni(
+                        deger.konum,
+                        format!("'{alan}' alanı {} tipinde; {dt} atanamaz", a.tip),
+                    ));
+                }
+                genislet(deger, &a.tip);
             }
             Deyim::IndeksAtama {
                 liste,
@@ -429,6 +809,11 @@ impl Denetci {
                     Some(i) => self.ifade(i)?,
                     None => Tip::Bos,
                 };
+                if self.rotada {
+                    if let Some(i) = deger.as_mut() {
+                        t = self.yanita_cevir(i, t)?;
+                    }
+                }
                 if let (Some(i), Some(beklenen)) = (deger.as_mut(), &self.donus) {
                     genislet(i, beklenen);
                     t = i.tip.clone();
@@ -485,6 +870,20 @@ impl Denetci {
 
     fn ifade(&mut self, e: &mut Ifade) -> Sonuc<Tip> {
         let konum = e.konum;
+        if let IfadeTuru::Cagri(ad, _) = &e.tur {
+            if !self.imzalar.contains_key(ad.as_str()) {
+                match ad.as_str() {
+                    "yanıt" | "yönlendir" | "json_yanıtı" => return self.yanit_sekeri(e),
+                    "görünüm" => self.gorunum_cagrisi(e)?,
+                    _ => {}
+                }
+            }
+        }
+        if let IfadeTuru::Metod(..) = &e.tur {
+            let t = self.metod(e)?;
+            e.tip = t.clone();
+            return Ok(t);
+        }
         let tip = match &mut e.tur {
             IfadeTuru::Sayi(_) => Tip::Sayi,
             IfadeTuru::Ondalik(_) => Tip::Ondalik,
@@ -643,6 +1042,62 @@ impl Denetci {
                 e.tur = IfadeTuru::Cagri(ad, sirali);
                 return self.ifade(e);
             }
+            IfadeTuru::Kurucu(m, arg) => {
+                let model = self.model(m, konum)?;
+                for (ad, d) in arg.iter_mut() {
+                    let Some((_, alan)) = model.alan(ad) else {
+                        return Err(Hata::yeni(
+                            d.konum,
+                            format!("'{}' modelinde '{ad}' alanı yok", model.ad),
+                        )
+                        .ipucu(alan_listesi(&model)));
+                    };
+                    let t = self.ifade(d)?;
+                    if !alan.tip.kabul_eder(&t) {
+                        return Err(Hata::yeni(
+                            d.konum,
+                            format!("'{ad}' alanı {} tipinde; {t} verilemez", alan.tip),
+                        ));
+                    }
+                    genislet(d, &alan.tip);
+                }
+                *arg = Self::kurucu_tamamla(&model, std::mem::take(arg));
+                Tip::Model(model.ad)
+            }
+            IfadeTuru::Alan(n, ad, sira) => {
+                if let IfadeTuru::ModelAdi(m) = &n.tur {
+                    return Err(Hata::yeni(
+                        konum,
+                        format!("'{m}' bir model adı; alanlar nesnelerden okunur"),
+                    )
+                    .ipucu(format!(
+                        "yöntem çağırın: {m}.hepsi()  ya da  {m}.bul(1).{ad}"
+                    )));
+                }
+                let t = self.ifade(n)?;
+                let Tip::Model(m) = &t else {
+                    return Err(Hata::yeni(
+                        konum,
+                        format!("'.{ad}' yalnızca model nesnelerinde kullanılabilir ({t} bulundu)"),
+                    ));
+                };
+                let model = self.model(m, konum)?;
+                let Some((i, alan)) = model.alan(ad) else {
+                    return Err(
+                        Hata::yeni(konum, format!("'{m}' modelinde '{ad}' alanı yok"))
+                            .ipucu(alan_listesi(&model)),
+                    );
+                };
+                *sira = i;
+                alan.tip.clone()
+            }
+            IfadeTuru::ModelAdi(m) => {
+                return Err(Hata::yeni(
+                    konum,
+                    format!("'{m}' bir model adı; değer olarak kullanılamaz"),
+                ))
+            }
+            IfadeTuru::Metod(..) => unreachable!(),
         };
         e.tip = tip.clone();
         Ok(tip)
@@ -701,6 +1156,21 @@ impl Denetci {
             tipler.push(self.ifade(a)?);
         }
         if let Some(imza) = self.imzalar.get(ad).cloned() {
+            if let (Some(g), true) = (
+                ad.strip_prefix("görünüm:"),
+                imza.parametreler.len() != tipler.len(),
+            ) {
+                return Err(Hata::yeni(
+                    konum,
+                    match imza.parametreler.first() {
+                        Some(p) if imza.parametreler.len() == 1 => format!(
+                            "'{g}' görünümü bir değer bekler (@model {p}): görünüm(\"{g}\", değer)"
+                        ),
+                        Some(_) => format!("'{g}' bir düzen görünümü; doğrudan çağrılamaz"),
+                        None => format!("'{g}' görünümü @model tanımlamıyor; değer geçirilemez"),
+                    },
+                ));
+            }
             if imza.parametreler.len() != tipler.len() {
                 return Err(Hata::yeni(
                     konum,
@@ -713,6 +1183,12 @@ impl Denetci {
             }
             for (i, (p, t)) in imza.parametreler.iter().zip(&tipler).enumerate() {
                 genislet(&mut arg[i], p);
+                if let (Some(g), false) = (ad.strip_prefix("görünüm:"), p.kabul_eder(t)) {
+                    return Err(Hata::yeni(
+                        arg[i].konum,
+                        format!("'{g}' görünümü @model {p} bekler, {t} verildi"),
+                    ));
+                }
                 if !p.kabul_eder(t) {
                     let tur = if imza.haller.is_empty() {
                         "işlevinin"
@@ -738,6 +1214,9 @@ impl Denetci {
                     Tip::Sayi
                 }
             });
+        }
+        if let Some(g) = ad.strip_prefix("görünüm:") {
+            return Err(self.gorunum_yok(g, konum));
         }
         self.yerlesik(ad, arg, &tipler, konum)
     }
@@ -821,6 +1300,13 @@ impl Denetci {
                 Bos
             }
             ("argümanlar", []) => Liste(Box::new(Metin)),
+            ("json" | "kaçır", [x]) if *x != Bos => Metin,
+            ("para", [x]) if x.sayisal() => {
+                genislet(&mut arg[0], &Ondalik);
+                Metin
+            }
+            ("url_kodla", [Metin]) => Metin,
+            ("sun", []) | ("sun", [Sayi]) => Bos,
             ("ortam", [Metin]) => Metin,
             ("çık", [Sayi]) => Bos,
             _ => {
@@ -840,6 +1326,29 @@ impl Denetci {
         };
         Ok(sonuc)
     }
+}
+
+/// Değeri JSON olarak gönderen yanıtın alanları.
+fn json_alanlari(deger: Ifade) -> Vec<(String, Ifade)> {
+    let k = deger.konum;
+    vec![
+        (
+            "tür".to_string(),
+            Ifade {
+                tur: IfadeTuru::Metin(JSON_TURU.into()),
+                konum: k,
+                tip: Tip::Metin,
+            },
+        ),
+        (
+            "gövde".to_string(),
+            Ifade {
+                tur: IfadeTuru::Cagri("json".into(), vec![deger]),
+                konum: k,
+                tip: Tip::Metin,
+            },
+        ),
+    ]
 }
 
 fn fiil_ornegi(ad: &str, haller: &[Hal]) -> String {
@@ -876,6 +1385,7 @@ pub fn ikili_tip(op: IkiliOp, a: &Tip, b: &Tip) -> Option<Tip> {
         (Kucuk | Buyuk | KucukEsit | BuyukEsit, Metin, Metin) => Some(Mantik),
         (Esit | EsitDegil, _, _) if sayisal => Some(Mantik),
         (Esit | EsitDegil, Metin, Metin) | (Esit | EsitDegil, Mantik, Mantik) => Some(Mantik),
+        (Esit | EsitDegil, Model(a), Model(b)) if a == b => Some(Mantik),
         (Ve | Veya, Mantik, Mantik) => Some(Mantik),
         _ => None,
     }

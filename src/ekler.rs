@@ -53,10 +53,55 @@ pub fn hal_bul(ek: &str) -> Option<Hal> {
     Some(h)
 }
 
-/// Bir ismin ek aldığında görülebilecek gövdeleri (ünsüz yumuşaması).
-/// `kitap` → `kitab`, `renk` → `reng`, `çocuk` → `çocuğ`, `ağaç` → `ağac`, `kanat` → `kanad`
+/// Ünlüyle başlayan ek aldığında son hecesindeki ünlüyü yitiren sık kelimeler
+/// (ünlü düşmesi): `isim` → `ismi`, `metin` → `metni`, `şehir` → `şehre`.
+const UNLU_DUSMESI: &[(&str, &str)] = &[
+    ("isim", "ism"),
+    ("metin", "metn"),
+    ("resim", "resm"),
+    ("şehir", "şehr"),
+    ("fikir", "fikr"),
+    ("akıl", "akl"),
+    ("burun", "burn"),
+    ("ağız", "ağz"),
+    ("oğul", "oğl"),
+    ("alın", "aln"),
+    ("ömür", "ömr"),
+    ("kayıt", "kayd"),
+    ("hüküm", "hükm"),
+    ("beyin", "beyn"),
+    ("gönül", "gönl"),
+    ("boyun", "boyn"),
+    ("karın", "karn"),
+    ("sabır", "sabr"),
+    ("zihin", "zihn"),
+    ("nehir", "nehr"),
+    ("emir", "emr"),
+    ("asır", "asr"),
+    ("göğüs", "göğs"),
+    ("vakit", "vakt"),
+    ("devir", "devr"),
+    ("nesil", "nesl"),
+    ("zehir", "zehr"),
+    ("keyif", "keyf"),
+    ("kısım", "kısm"),
+    ("şekil", "şekl"),
+    ("cisim", "cism"),
+    ("ilim", "ilm"),
+];
+
+/// Bir ismin ek aldığında görülebilecek gövdeleri (ünsüz yumuşaması, ünlü düşmesi).
+/// `kitap` → `kitab`, `renk` → `reng`, `çocuk` → `çocuğ`, `ağaç` → `ağac`,
+/// `kanat` → `kanad`, `isim` → `ism`, `ürün_ismi` için `ürün_isim` → `ürün_ism`
 fn govdeler(isim: &str) -> Vec<String> {
     let mut v = vec![isim.to_string()];
+    for (tam, dusmus) in UNLU_DUSMESI {
+        if let Some(on) = isim.strip_suffix(tam) {
+            if on.is_empty() || on.ends_with('_') {
+                v.push(format!("{on}{dusmus}"));
+            }
+        }
+    }
     let mut k: Vec<char> = isim.chars().collect();
     if k.len() >= 2 {
         let son = k.len() - 1;
@@ -216,6 +261,25 @@ mod testler {
             Cozum::EkliIsim("çocuk".into(), Hal::Yonelme)
         );
         assert_eq!(s.asil_isim("kitab"), Some("kitap"));
+    }
+
+    #[test]
+    fn unlu_dusmesi() {
+        let s = sozluk(&["isim", "metin", "ürün_şehir"]);
+        assert_eq!(
+            s.cozumle("ismi"),
+            Cozum::EkliIsim("isim".into(), Hal::Belirtme)
+        );
+        assert_eq!(
+            s.cozumle("metne"),
+            Cozum::EkliIsim("metin".into(), Hal::Yonelme)
+        );
+        assert_eq!(s.cozumle("ürün_şehrinden"), Cozum::Bilinmiyor);
+        assert_eq!(
+            s.cozumle("ürün_şehri"),
+            Cozum::EkliIsim("ürün_şehir".into(), Hal::Belirtme)
+        );
+        assert_eq!(s.asil_isim("ism"), Some("isim"));
     }
 
     #[test]

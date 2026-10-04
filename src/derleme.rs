@@ -1,7 +1,7 @@
 //! Derleme hattı: dosyaları yükleme, denetleme, makine kodu üretme ve bağlama.
 //! Komut aracı ve Orhunca Stüdyo bu modülü ortak kullanır.
 
-use crate::{agac, ayristirici, denetci, hata, sozcuk, uretici};
+use crate::{agac, ayristirici, denetci, hata, sablon, sozcuk, uretici};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -134,10 +134,85 @@ pub fn yukle_ortulu(
         }
         sozcukler.push(s);
     }
-    let mut program =
-        ayristirici::ayristir_cok(sozcukler).map_err(|h| DerlemeHatasi::konumlu(h, &dosyalar))?;
+    // Görünümler: projenin görünümler/ klasöründeki .ohchtml dosyaları.
+    let mut sablonlar = Vec::new();
+    if let Some(klasor) = gorunum_klasoru(dosya) {
+        for yol in gorunumleri_bul(&klasor) {
+            let tam = std::fs::canonicalize(&yol).unwrap_or_else(|_| yol.clone());
+            let kaynak = match ortulu.get(&tam) {
+                Some(icerik) => icerik.clone(),
+                None => std::fs::read_to_string(&yol).map_err(|e| {
+                    DerlemeHatasi::duz(format!("'{}' okunamadı: {e}", yol.display()))
+                })?,
+            };
+            let ad = yol
+                .strip_prefix(&klasor)
+                .unwrap_or(&yol)
+                .with_extension("")
+                .components()
+                .map(|c| c.as_os_str().to_string_lossy().into_owned())
+                .collect::<Vec<_>>()
+                .join("/");
+            let sira = dosyalar.len();
+            dosyalar.push((yol.display().to_string(), kaynak));
+            let k = sablon::SablonKaynagi {
+                ad,
+                dosya: sira,
+                kaynak: dosyalar[sira].1.clone(),
+            };
+            sablonlar.push(sablon::coz(&k).map_err(|h| DerlemeHatasi::konumlu(h, &dosyalar))?);
+        }
+    }
+    let mut program = ayristirici::ayristir_cok(sozcukler, sablonlar)
+        .map_err(|h| DerlemeHatasi::konumlu(h, &dosyalar))?;
     denetci::denetle(&mut program).map_err(|h| DerlemeHatasi::konumlu(h, &dosyalar))?;
     Ok(program)
+}
+
+/// Projenin kök klasörü: giriş dosyasından yukarı doğru `.ohcproj` içeren ilk
+/// klasör; yoksa giriş dosyasının klasörü.
+pub fn proje_koku(dosya: &Path) -> PathBuf {
+    let klasor = dosya
+        .parent()
+        .map(Path::to_path_buf)
+        .filter(|k| !k.as_os_str().is_empty())
+        .unwrap_or_else(|| PathBuf::from("."));
+    let mut k = Some(klasor.as_path());
+    for _ in 0..4 {
+        let Some(aday) = k else { break };
+        if proje_dosyasi(aday).is_some() {
+            return aday.to_path_buf();
+        }
+        k = aday.parent();
+    }
+    klasor
+}
+
+/// Görünümlerin klasörü (`<proje>/görünümler`), varsa.
+pub fn gorunum_klasoru(dosya: &Path) -> Option<PathBuf> {
+    let k = proje_koku(dosya).join("görünümler");
+    k.is_dir().then_some(k)
+}
+
+/// Klasördeki (alt klasörler dahil) tüm `.ohchtml` dosyaları, sıralı.
+pub fn gorunumleri_bul(klasor: &Path) -> Vec<PathBuf> {
+    let mut sonuc = Vec::new();
+    let mut bekleyen = vec![klasor.to_path_buf()];
+    while let Some(k) = bekleyen.pop() {
+        let Ok(girdiler) = std::fs::read_dir(&k) else {
+            continue;
+        };
+        for g in girdiler.flatten() {
+            let yol = g.path();
+            if yol.is_dir() {
+                bekleyen.push(yol);
+            } else if yol.extension().is_some_and(|u| u == "ohchtml") {
+                sonuc.push(yol);
+            }
+        }
+    }
+    sonuc.sort();
+    sonuc
 }
 
 pub fn hedef_uclusu(hedef: Option<&str>) -> Result<Triple, String> {
@@ -186,14 +261,19 @@ pub fn derle(dosya: &Path, cikti: &Path, hedef: Option<&str>) -> Result<(), Derl
             "cc".into()
         }
     });
-    let sonuc = Command::new(&baglayici)
+    let mut komut = Command::new(&baglayici);
+    komut
         .arg("-O2")
         .arg("-o")
         .arg(cikti)
         .arg(&nesne_yolu)
         .arg(&cz_yolu)
-        .arg("-lm")
-        .output();
+        .arg("-lm");
+    if windows {
+        // Web sunucusu için Windows soket kütüphanesi
+        komut.arg("-lws2_32");
+    }
+    let sonuc = komut.output();
     let _ = std::fs::remove_dir_all(&gecici);
     let sonuc = sonuc.map_err(|e| {
         format!(

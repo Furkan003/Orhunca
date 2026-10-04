@@ -1,0 +1,16 @@
+Kitap(kimlik: 0, ad: "Nutuk", yazar: "Atatürk", sayfa: 600, fiyat: 150.0, okundu: yanlış, etiketler: [])
+Nutuk / Atatürk
+604
+{"kimlik":0,"ad":"Nutuk","yazar":"Atatürk","sayfa":604,"fiyat":150.0,"okundu":true,"etiketler":["tarih"]}
+yanlış
+- Ad boş bırakılamaz
+- Sayfa en az 1 olmalı
+- Fiyat en az 0 olmalı
+1
+1. Nutuk — 150,00 TL
+2. Çalıkuşu — 89,90 TL
+Çalıkuşu
+doğru
+yanlış
+0
+1

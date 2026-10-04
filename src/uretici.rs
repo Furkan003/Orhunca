@@ -96,7 +96,26 @@ const CALISMA_ZAMANI: &[(&str, usize, bool)] = &[
     ("ohc_argumanlar", 0, true),
     ("ohc_ortam", 1, true),
     ("ohc_cik", 1, false),
+    ("ohc_alan_al", 3, true),
+    ("ohc_alan_koy", 4, false),
+    ("ohc_json", 2, true),
+    ("ohc_kacir", 1, true),
+    ("ohc_para", 1, true),
+    ("ohc_url_kodla", 1, true),
+    ("ohc_model_hepsi", 2, true),
+    ("ohc_model_yukle", 3, true),
+    ("ohc_model_var", 3, true),
+    ("ohc_model_sil", 3, true),
+    ("ohc_model_kaydet", 2, true),
+    ("ohc_model_gecerli", 1, true),
+    ("ohc_model_hatalar", 1, true),
+    ("ohc_model_doldur", 2, false),
+    ("ohc_web_yol", 3, false),
+    ("ohc_sun", 2, false),
 ];
+
+/// Model nesnesinde ilk alanın (kimlik) yuvası: 0 tanım, 1 bağlama hataları.
+const ILK_ALAN: i64 = 2;
 
 pub fn isa_kur(triple: Triple) -> Result<OwnedTargetIsa, String> {
     let mut ayarlar = settings::builder();
@@ -130,6 +149,7 @@ struct Ortak {
     calisma: HashMap<&'static str, FuncId>,
     islevler: HashMap<String, (FuncId, bool)>,
     metinler: HashMap<String, DataId>,
+    modeller: HashMap<String, Model>,
 }
 
 impl Ortak {
@@ -160,6 +180,11 @@ pub fn uret(p: &Program, isa: OwnedTargetIsa) -> Result<Vec<u8>, String> {
         calisma: HashMap::new(),
         islevler: HashMap::new(),
         metinler: HashMap::new(),
+        modeller: p
+            .modeller
+            .iter()
+            .map(|m| (m.ad.clone(), m.clone()))
+            .collect(),
     };
 
     for (ad, n, doner) in CALISMA_ZAMANI {
@@ -195,6 +220,14 @@ pub fn uret(p: &Program, isa: OwnedTargetIsa) -> Result<Vec<u8>, String> {
 
     let mut ctx = ortak.module.make_context();
     let mut fctx = FunctionBuilderContext::new();
+    let rotalar: Vec<(String, String, FuncId)> = p
+        .islevler
+        .iter()
+        .filter_map(|f| {
+            let r = f.rota.as_ref()?;
+            Some((r.yontem.clone(), r.kalip.clone(), ortak.islevler[&f.ad].0))
+        })
+        .collect();
 
     for (f, sig) in p.islevler.iter().zip(imzalar) {
         let (id, doner) = ortak.islevler[&f.ad];
@@ -207,6 +240,7 @@ pub fn uret(p: &Program, isa: OwnedTargetIsa) -> Result<Vec<u8>, String> {
             &f.parametreler,
             &f.govde,
             Some(doner),
+            &[],
         )?;
         ortak
             .module
@@ -231,6 +265,7 @@ pub fn uret(p: &Program, isa: OwnedTargetIsa) -> Result<Vec<u8>, String> {
         &[],
         &p.ana,
         None,
+        &rotalar,
     )?;
     ortak
         .module
@@ -243,6 +278,8 @@ pub fn uret(p: &Program, isa: OwnedTargetIsa) -> Result<Vec<u8>, String> {
 }
 
 /// `donus`: `None` ana program (main), `Some(true)` değer döndüren işlev.
+/// `rotalar`: ana programın başında çalışma zamanına kaydedilecek web yolları.
+#[allow(clippy::too_many_arguments)]
 fn islev_uret(
     ortak: &mut Ortak,
     ctx: &mut Context,
@@ -251,6 +288,7 @@ fn islev_uret(
     parametreler: &[(String, Tip)],
     govde: &[Deyim],
     donus: Option<bool>,
+    rotalar: &[(String, String, FuncId)],
 ) -> Result<(), String> {
     let mut b = FunctionBuilder::new(&mut ctx.func, fctx);
     let giris = b.create_block();
@@ -277,6 +315,13 @@ fn islev_uret(
         cagri_onbellek: HashMap::new(),
         donus,
     };
+    for (yontem, kalip, id) in rotalar {
+        let y = u.metin_sabiti(yontem)?;
+        let k = u.metin_sabiti(kalip)?;
+        let fref = u.ortak.module.declare_func_in_func(*id, u.b.func);
+        let f = u.b.ins().func_addr(I64, fref);
+        u.cz("ohc_web_yol", &[y, k, f]);
+    }
     for d in govde {
         u.deyim(d)?;
     }
@@ -364,6 +409,19 @@ impl Uretici<'_, '_> {
                     let s = self.sabit(indeks.konum.satir as i64);
                     self.cz("ohc_liste_koy", &[l, i, v, s]);
                 }
+            }
+            Deyim::AlanAtama {
+                nesne,
+                sira,
+                deger,
+                konum,
+                ..
+            } => {
+                let n = self.ifade(nesne)?;
+                let v = self.ifade(deger)?;
+                let yuva = self.sabit(ILK_ALAN + *sira as i64);
+                let s = self.sabit(konum.satir as i64);
+                self.cz("ohc_alan_koy", &[n, yuva, v, s]);
             }
             Deyim::Cikar { oge, liste } => {
                 let o = self.ifade(oge)?;
@@ -689,11 +747,128 @@ impl Uretici<'_, '_> {
             "tarih" => self.cz("ohc_tarih", &[]),
             "bekle" => self.cz("ohc_bekle", d),
             "argümanlar" => self.cz("ohc_argumanlar", &[]),
+            "json" => {
+                let kod = self.sabit(t0.kod());
+                self.cz("ohc_json", &[d[0], kod])
+            }
+            "kaçır" => {
+                let m = self.metne(d[0], &t0);
+                self.cz("ohc_kacir", &[m])
+            }
+            "para" => self.cz("ohc_para", d),
+            "url_kodla" => self.cz("ohc_url_kodla", d),
+            "sun" => {
+                let kapi = match d.first() {
+                    Some(k) => *k,
+                    None => self.sabit(0),
+                };
+                let t = self.tanim("İstek")?;
+                self.cz("ohc_sun", &[kapi, t])
+            }
             "ortam" => self.cz("ohc_ortam", d),
             "çık" => self.cz("ohc_cik", d),
             _ => return Err(format!("bilinmeyen işlev '{ad}'")),
         };
         Ok(v)
+    }
+
+    fn metin_sabiti(&mut self, m: &str) -> Result<Value, String> {
+        let id = self.ortak.metin_verisi(m)?;
+        let gv = self.ortak.module.declare_data_in_func(id, self.b.func);
+        Ok(self.b.ins().symbol_value(I64, gv))
+    }
+
+    /// Modelin çalışma zamanı tanımının (alan adları, tipler, kurallar) adresi.
+    fn tanim(&mut self, model: &str) -> Result<Value, String> {
+        let metin = self
+            .ortak
+            .modeller
+            .get(model)
+            .ok_or_else(|| format!("tanımsız model '{model}'"))?
+            .tanim_metni();
+        self.metin_sabiti(&metin)
+    }
+
+    /// Model nesnesi: [tanım, bağlama hataları, kimlik, alanlar...]
+    fn nesne_kur(&mut self, model: &str, degerler: &[&Ifade]) -> Result<Value, String> {
+        let l = self.cz("ohc_liste_yeni", &[]).unwrap();
+        let t = self.tanim(model)?;
+        self.cz("ohc_liste_ekle", &[l, t]);
+        let sifir = self.sabit(0);
+        self.cz("ohc_liste_ekle", &[l, sifir]);
+        for d in degerler {
+            let v = self.ifade(d)?;
+            self.cz("ohc_liste_ekle", &[l, v]);
+        }
+        Ok(l)
+    }
+
+    /// Alanları varsayılan değerlerinde yeni bir nesne.
+    fn varsayilan_nesne(&mut self, model: &str) -> Result<Value, String> {
+        let degerler: Vec<Ifade> = self
+            .ortak
+            .modeller
+            .get(model)
+            .ok_or_else(|| format!("tanımsız model '{model}'"))?
+            .alanlar
+            .iter()
+            .map(|a| a.ilk_deger())
+            .collect();
+        let r: Vec<&Ifade> = degerler.iter().collect();
+        self.nesne_kur(model, &r)
+    }
+
+    fn metod(
+        &mut self,
+        e: &Ifade,
+        alici: &Ifade,
+        ad: &str,
+        arg: &[Ifade],
+    ) -> Result<Value, String> {
+        let satir = self.sabit(e.konum.satir as i64);
+        let Tip::Model(model) = &alici.tip else {
+            return Err(format!("'{ad}' yöntemi model olmayan bir değerde"));
+        };
+        let model = model.clone();
+        let mut d = Vec::new();
+        for a in arg {
+            d.push(self.ifade(a)?);
+        }
+        if let IfadeTuru::ModelAdi(_) = alici.tur {
+            let t = self.tanim(&model)?;
+            return Ok(match ad {
+                "hepsi" => self.cz("ohc_model_hepsi", &[t, satir]).unwrap(),
+                "var_mı" => self.cz("ohc_model_var", &[t, d[0], satir]).unwrap(),
+                "sil" => self.cz("ohc_model_sil", &[t, d[0], satir]).unwrap(),
+                "bul" => {
+                    let n = self.varsayilan_nesne(&model)?;
+                    self.cz("ohc_model_yukle", &[n, d[0], satir]).unwrap()
+                }
+                "formdan" => {
+                    let n = self.varsayilan_nesne(&model)?;
+                    self.cz("ohc_model_doldur", &[n, d[0]]);
+                    n
+                }
+                _ => return Err(format!("bilinmeyen yöntem '{ad}'")),
+            });
+        }
+        let n = self.ifade(alici)?;
+        Ok(match ad {
+            "kaydet" => self.cz("ohc_model_kaydet", &[n, satir]).unwrap(),
+            "sil" => {
+                let yuva = self.sabit(ILK_ALAN);
+                let k = self.cz("ohc_alan_al", &[n, yuva, satir]).unwrap();
+                let t = self.tanim(&model)?;
+                self.cz("ohc_model_sil", &[t, k, satir]).unwrap()
+            }
+            "geçerli_mi" => self.cz("ohc_model_gecerli", &[n]).unwrap(),
+            "hatalar" => self.cz("ohc_model_hatalar", &[n]).unwrap(),
+            "json" => {
+                let kod = self.sabit(6);
+                self.cz("ohc_json", &[n, kod]).unwrap()
+            }
+            _ => return Err(format!("bilinmeyen yöntem '{ad}'")),
+        })
     }
 
     fn mantik(&mut self, cc: IntCC, a: Value, b: Value) -> Value {
@@ -712,6 +887,20 @@ impl Uretici<'_, '_> {
             IfadeTuru::Ondalik(n) => self.sabit(n.to_bits() as i64),
             IfadeTuru::FiilCagri(ad, _) => {
                 return Err(format!("'{ad}' fiil çağrısı denetimden geçmemiş"))
+            }
+            IfadeTuru::Kurucu(model, alanlar) => {
+                let degerler: Vec<&Ifade> = alanlar.iter().map(|(_, d)| d).collect();
+                self.nesne_kur(model, &degerler)?
+            }
+            IfadeTuru::Alan(nesne, _, sira) => {
+                let n = self.ifade(nesne)?;
+                let yuva = self.sabit(ILK_ALAN + *sira as i64);
+                let s = self.sabit(e.konum.satir as i64);
+                self.cz("ohc_alan_al", &[n, yuva, s]).unwrap()
+            }
+            IfadeTuru::Metod(alici, ad, arg) => self.metod(e, alici, ad, arg)?,
+            IfadeTuru::ModelAdi(m) => {
+                return Err(format!("'{m}' model adı değer olarak kullanıldı"))
             }
             IfadeTuru::Mantik(m) => self.sabit(*m as i64),
             IfadeTuru::Metin(m) => {

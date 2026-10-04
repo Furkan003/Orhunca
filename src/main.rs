@@ -9,6 +9,7 @@ mod dil_sunucusu;
 mod ekler;
 mod hata;
 mod paket;
+mod sablon;
 mod sozcuk;
 mod studyo;
 mod uretici;

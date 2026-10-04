@@ -16,6 +16,8 @@ pub enum Tok {
     /// Kesme işaretinden sonraki ek, ör. `'den` → `den`.
     Ek(String),
     Op(&'static str),
+    /// Boşluksuz yazılmış üye noktası: `ürün.ad`, `Ürün.hepsi()`.
+    Uye,
     YeniSatir,
     Girinti,
     Cikinti,
@@ -220,8 +222,20 @@ pub fn sozcukle(kaynak: &str) -> Sonuc<Vec<Sozcuk>> {
             }
 
             if c == '.' {
+                // `ürün.ad`: nokta iki yanında boşluk olmadan bir isim (ya da `)`, `]`)
+                // ile bir kelime arasındaysa üye erişimidir; değilse cümle sonudur.
+                let onceki_uygun = matches!(
+                    cikti.last().map(|s: &Sozcuk| &s.tok),
+                    Some(Tok::Kelime(_)) | Some(Tok::Op(")")) | Some(Tok::Op("]"))
+                ) && i > 0
+                    && !matches!(karakterler[i - 1], ' ' | '\t');
+                let sonraki_kelime = karakterler.get(i + 1).is_some_and(|c| kelime_basi(*c));
                 cikti.push(Sozcuk {
-                    tok: Tok::Op("."),
+                    tok: if onceki_uygun && sonraki_kelime {
+                        Tok::Uye
+                    } else {
+                        Tok::Op(".")
+                    },
                     konum,
                 });
                 i += 1;
@@ -363,6 +377,33 @@ mod testler {
                 Tok::Op("."),
                 Tok::Sayi(5),
                 Tok::Op("."),
+                Tok::YeniSatir,
+                Tok::Son
+            ]
+        );
+    }
+
+    #[test]
+    fn uye_noktasi() {
+        assert_eq!(
+            turler("ü.ad'ı yaz. x.\ny = Ürün.hepsi()"),
+            vec![
+                Tok::Kelime("ü".into()),
+                Tok::Uye,
+                Tok::Kelime("ad".into()),
+                Tok::Ek("ı".into()),
+                Tok::Kelime("yaz".into()),
+                Tok::Op("."),
+                Tok::Kelime("x".into()),
+                Tok::Op("."),
+                Tok::YeniSatir,
+                Tok::Kelime("y".into()),
+                Tok::Op("="),
+                Tok::Kelime("Ürün".into()),
+                Tok::Uye,
+                Tok::Kelime("hepsi".into()),
+                Tok::Op("("),
+                Tok::Op(")"),
                 Tok::YeniSatir,
                 Tok::Son
             ]

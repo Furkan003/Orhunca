@@ -235,6 +235,52 @@ pub const YERLESIKLER: &[Yerlesik] = &[
     ),
     y!("ortam", "ortam(ad) → metin", "Ortam değişkeni; yoksa \"\"."),
     y!("çık", "çık(kod)", "Programı verilen çıkış koduyla bitirir."),
+    // Web
+    y!(
+        "json",
+        "json(değer) → metin",
+        "Değeri (liste, sözlük, model...) JSON metnine çevirir."
+    ),
+    y!(
+        "kaçır",
+        "kaçır(değer) → metin",
+        "HTML'de güvenle gösterilecek biçime çevirir: < → &lt;"
+    ),
+    y!(
+        "para",
+        "para(sayı) → metin",
+        "Türkçe para biçimi: 1234.5 → \"1.234,50\""
+    ),
+    y!(
+        "url_kodla",
+        "url_kodla(metin) → metin",
+        "Adreslerde kullanmak için yüzde kodlar: \"çay\" → \"%C3%A7ay\""
+    ),
+    y!(
+        "görünüm",
+        "görünüm(\"ad\") · görünüm(\"ad\", değer) → metin",
+        "görünümler/ad.ohchtml dosyasını HTML olarak oluşturur."
+    ),
+    y!(
+        "yanıt",
+        "yanıt(durum, gövde) · yanıt(durum, gövde, tür) → Yanıt",
+        "Durum kodlu web yanıtı: yanıt(404, \"Bulunamadı\")"
+    ),
+    y!(
+        "yönlendir",
+        "yönlendir(adres) → Yanıt",
+        "Tarayıcıyı başka bir adrese gönderir (303)."
+    ),
+    y!(
+        "json_yanıtı",
+        "json_yanıtı(değer) · json_yanıtı(değer, durum) → Yanıt",
+        "Değeri JSON olarak gönderen web yanıtı."
+    ),
+    y!(
+        "sun",
+        "sun() · sun(kapı)",
+        "Web sunucusunu başlatır (varsayılan kapı 3000). Yol tanımlıysa kendiliğinden çağrılır."
+    ),
 ];
 
 pub fn bul(ad: &str) -> Option<&'static Yerlesik> {

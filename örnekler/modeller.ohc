@@ -1,0 +1,44 @@
+# Modeller: alanları ve kuralları olan, kaydedilebilen veri tipleri.
+model Kitap:
+    ad: metin, zorunlu, en_fazla 60
+    yazar: metin, zorunlu
+    sayfa: sayı = 100, en_az 1
+    fiyat: ondalık, en_az 0
+    okundu: mantık
+    etiketler: liste<metin>
+
+# Önceki çalıştırmalardan kalan kayıtlar silinir.
+dosya_sil("veri/Kitap.json")
+
+nutuk = Kitap(ad: "Nutuk", yazar: "Atatürk", sayfa: 600, fiyat: 150)
+nutuk'u yaz.
+nutuk.ad + " / " + nutuk.yazar'ı yaz.
+nutuk.sayfa += 4
+nutuk.sayfa'yı yaz.
+"tarih"'i nutuk.etiketler'e ekle.
+nutuk.okundu = doğru
+nutuk.json()'u yaz.
+
+# Kurallar: hatalar Türkçe ve alan sırasıyla verilir.
+eksik = Kitap(ad: "", yazar: "Ali", sayfa: 0, fiyat: -5)
+eksik.geçerli_mi()'yi yaz.
+her h için eksik.hatalar()'dan:
+    "- " + h'yi yaz.
+
+# Kaydetme: kimlik kendiliğinden verilir, kayıtlar veri/Kitap.json dosyasındadır.
+nutuk'u kaydet.
+Kitap(ad: "Çalıkuşu", yazar: "Reşat Nuri", fiyat: 89.9)'u kaydet.
+nutuk.kimliği yaz.
+
+her k için Kitap.hepsi()'nden:
+    k.kimlik + ". " + k.ad + " — " + para(k.fiyat) + " TL"'yi yaz.
+
+k = Kitap.bul(2)
+k.ad'ı yaz.
+k.okundu = doğru
+k'yı kaydet.
+Kitap.bul(2).okundu'yu yaz.
+Kitap.var_mı(7)'yi yaz.
+Kitap.bul(7).kimlik'i yaz.
+nutuk'u sil.
+uzunluk(Kitap.hepsi())'ni yaz.
