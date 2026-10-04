@@ -1,0 +1,162 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Orhunca",
+  "scopeName": "source.orhunca",
+  "patterns": [
+    {
+      "include": "#yorum"
+    },
+    {
+      "include": "#metin"
+    },
+    {
+      "include": "#tanim"
+    },
+    {
+      "include": "#sayi"
+    },
+    {
+      "include": "#ek"
+    },
+    {
+      "include": "#anahtar"
+    },
+    {
+      "include": "#yuklem"
+    },
+    {
+      "include": "#fiil"
+    },
+    {
+      "include": "#tip"
+    },
+    {
+      "include": "#cagri"
+    },
+    {
+      "include": "#islec"
+    }
+  ],
+  "repository": {
+    "yorum": {
+      "name": "comment.line.number-sign.orhunca",
+      "match": "#.*$"
+    },
+    "metin": {
+      "name": "string.quoted.double.orhunca",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.orhunca",
+          "match": "\\\\[nt\"\\\\]"
+        }
+      ]
+    },
+    "tanim": {
+      "patterns": [
+        {
+          "match": "^\\s*(işlev)\\s+([\\p{L}_][\\p{L}\\p{N}_]*)",
+          "captures": {
+            "1": {
+              "name": "keyword.declaration.function.orhunca"
+            },
+            "2": {
+              "name": "entity.name.function.orhunca"
+            }
+          }
+        },
+        {
+          "begin": "^\\s*(fiil)\\b",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.declaration.function.orhunca"
+            }
+          },
+          "end": "$",
+          "patterns": [
+            {
+              "include": "#yorum"
+            },
+            {
+              "include": "#ek"
+            },
+            {
+              "include": "#tip"
+            },
+            {
+              "name": "entity.name.function.orhunca",
+              "match": "[\\p{L}_][\\p{L}\\p{N}_]*(?=\\s*(->[^:]*)?:\\s*(#.*)?$)"
+            },
+            {
+              "include": "#islec"
+            }
+          ]
+        },
+        {
+          "match": "^\\s*(sabit)\\s+([\\p{L}_][\\p{L}\\p{N}_]*)",
+          "captures": {
+            "1": {
+              "name": "keyword.declaration.orhunca"
+            },
+            "2": {
+              "name": "variable.other.constant.orhunca"
+            }
+          }
+        }
+      ]
+    },
+    "sayi": {
+      "name": "constant.numeric.orhunca",
+      "match": "\\b\\d[\\d_]*(\\.\\d+)?"
+    },
+    "ek": {
+      "name": "keyword.other.suffix.orhunca",
+      "match": "['’][\\p{L}]+"
+    },
+    "anahtar": {
+      "patterns": [
+        {
+          "name": "keyword.control.orhunca",
+          "match": "(?<![\\p{L}\\p{N}_])(eğer|değilse|ise|her|için|kadar|olduğu|sürece|iken|döndür|dur|sürdür)(?![\\p{L}\\p{N}_])"
+        },
+        {
+          "name": "keyword.other.orhunca",
+          "match": "(?<![\\p{L}\\p{N}_])(işlev|fiil|kullan|sabit|ekrana)(?![\\p{L}\\p{N}_])"
+        },
+        {
+          "name": "keyword.operator.logical.orhunca",
+          "match": "(?<![\\p{L}\\p{N}_])(ve|veya|değil)(?![\\p{L}\\p{N}_])"
+        },
+        {
+          "name": "constant.language.boolean.orhunca",
+          "match": "(?<![\\p{L}\\p{N}_])(doğru|yanlış)(?![\\p{L}\\p{N}_])"
+        }
+      ]
+    },
+    "yuklem": {
+      "name": "keyword.operator.comparison.orhunca",
+      "match": "(?<![\\p{L}\\p{N}_])(büyük|küçük|eşit|değil)(se|sa|ken)?(?![\\p{L}\\p{N}_])"
+    },
+    "fiil": {
+      "name": "support.function.verb.orhunca",
+      "match": "(?<![\\p{L}\\p{N}_])(yaz|ekle|sırala|çıkar)(?=\\s*\\.?\\s*(#.*)?$)"
+    },
+    "tip": {
+      "name": "storage.type.orhunca",
+      "match": "(?<=:|<|,|->|: |, |-> |<)(sayı|ondalık|metin|mantık|liste|sözlük)(?![\\p{L}\\p{N}_])"
+    },
+    "cagri": {
+      "match": "([\\p{L}_][\\p{L}\\p{N}_]*)\\s*(?=\\()",
+      "captures": {
+        "1": {
+          "name": "entity.name.function.call.orhunca"
+        }
+      }
+    },
+    "islec": {
+      "name": "keyword.operator.orhunca",
+      "match": "->|==|!=|<=|>=|\\+=|-=|//|[+\\-*/%=<>]"
+    }
+  }
+}

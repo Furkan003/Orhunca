@@ -10,7 +10,7 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 | 1 | Sözcük çözümleyici + ayrıştırıcı (Türkçe söz dizimi, hâl ekleri) | ✅ |
 | 2 | Değişkenler, `eğer`, döngüler, işlevler, ekrana yazma, listeler, metinler | ✅ |
 | 3 | Cranelift ile çalıştırılabilir dosya: Linux ✅, Windows `.exe` (çapraz derleme, mingw) ✅ | ✅ |
-| 4 | Dil sunucusu (LSP) + VS Code eklentisi | ⏳ |
+| 4 | Biçimlendirici ✅, dil sunucusu (LSP) ✅, VS Code eklentisi ✅ | ✅ |
 | 5 | Standart kütüphane ✅, paket yöneticisi ⏳ | 🟡 |
 | 6 | Web sunucusu, `.ohchtml`, veritabanı/ORM | ⏳ |
 | 7 | Orhunca Stüdyo: arayüz ✅ (tarayıcıda, `orhunca stüdyo`), Tauri masaüstü paketi ⏳ | 🟡 |
@@ -48,18 +48,15 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 - **Modeller/yapılar yok** (`model Ürün:`).
 - **Hata yakalama yok** (`dene / yakala`): üretilen kodun yığıtını güvenle geri sarmak için
   çalışma zamanına destek gerekiyor.
-- **Ünlü uyumu denetlenmiyor**, yalnızca kabul ediliyor. Biçimlendirici (`orhunca biçimlendir`)
-  yanlış ekleri düzeltmeli (`5'a` → `5'e`).
+- Ünlü uyumu derleyicide hoşgörüyle kabul edilir; biçimlendirici ve dil sunucusu uyarır ve düzeltir.
+  Metinlerde (yabancı kelimeler olabileceği için) yalnızca tampon harf ve ünsüz benzeşmesi denetlenir.
 - Fiil parametrelerinin tipi çağrılardan çıkarılmıyor; `sayı` dışındaki tipler yazılmalı.
 - Listelerde indeks 0'dan başlar.
 
 ## Sıradaki adımlar (öneri sırası)
 
-1. **Dil sunucusu (LSP) + VS Code eklentisi** (Aşama 4): Stüdyo'nun denetim altyapısı hazır.
+1. **Paket yöneticisi** (Aşama 5b).
 2. **Modeller** (`model Ürün:` alanlarla) — web çatısının ön koşulu.
-3. **Biçimlendirici** — ünlü uyumu düzeltmesi, girinti.
-4. **Dil sunucusu (LSP)**: `orhunca denetle` zaten hata konumlarını veriyor; `tower-lsp` ile tanı,
-   tamamlama, üzerine gelince tip.
 
 ## Çalışma şekli
 

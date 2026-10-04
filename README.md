@@ -50,6 +50,17 @@ Sunucu yalnızca `127.0.0.1` üzerinden erişilebilir ve her oturumda rastgele b
 başka web sitelerinin dosyalarınıza ya da derleyiciye erişmesi engellenir. Tasarım kaynağı:
 [docs/tasarim/](docs/tasarim/).
 
+## Düzenleyici desteği
+
+- **Biçimlendirici:** `orhunca biçimlendir [dosya.ohc]` girintiyi düzenler ve kesme işaretli eklerde
+  ünlü uyumunu düzeltir (`5'a` → `5'e`, `3'den` → `3'ten`, `6'i` → `6'yı`). Sayılar okunuşlarına göre
+  ek alır. `--denetle` dosyaları değiştirmeden denetler (CI için).
+- **Dil sunucusu (LSP):** `orhunca dil-sunucusu` — hatalar ve yazım uyarıları, üzerine gelince açıklama
+  (yerleşik işlevler, değişken tipleri), tamamlama, tanıma gitme, belge simgeleri, biçimlendirme.
+  LSP destekleyen her düzenleyiciyle (VS Code, Neovim, Helix, Zed…) çalışır.
+- **VS Code eklentisi:** [editors/vscode](editors/vscode) — sözdizimi renklendirme ve dil sunucusu istemcisi.
+  `cd editors/vscode && npm install && npx @vscode/vsce package` ile `.vsix` oluşturulur.
+
 ## Dil rehberi (v0.1)
 
 ### Değerler ve tipler

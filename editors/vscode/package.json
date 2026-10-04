@@ -1,0 +1,61 @@
+{
+  "name": "orhunca",
+  "displayName": "Orhunca",
+  "description": "Türkçe tabanlı programlama dili Orhunca için sözdizimi renklendirme, hata gösterimi, tamamlama ve biçimlendirme",
+  "version": "0.3.0",
+  "publisher": "orhunca",
+  "license": "SEE LICENSE IN README.md",
+  "repository": { "type": "git", "url": "https://github.com/furkan003/orhunca" },
+  "engines": { "vscode": "^1.82.0" },
+  "categories": ["Programming Languages", "Formatters", "Linters"],
+  "keywords": ["orhunca", "türkçe", "turkish", "programlama"],
+  "main": "./extension.js",
+  "activationEvents": ["onLanguage:orhunca"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "orhunca",
+        "aliases": ["Orhunca", "orhunca"],
+        "extensions": [".ohc"],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "orhunca-proje",
+        "aliases": ["Orhunca projesi"],
+        "extensions": [".ohcproj"]
+      }
+    ],
+    "grammars": [
+      { "language": "orhunca", "scopeName": "source.orhunca", "path": "./syntaxes/orhunca.tmLanguage.json" }
+    ],
+    "commands": [
+      { "command": "orhunca.calistir", "title": "Orhunca: Çalıştır", "icon": "$(play)" },
+      { "command": "orhunca.denetle", "title": "Orhunca: Denetle" },
+      { "command": "orhunca.studyo", "title": "Orhunca: Stüdyo'yu aç" }
+    ],
+    "menus": {
+      "editor/title/run": [
+        { "command": "orhunca.calistir", "when": "editorLangId == orhunca", "group": "navigation" }
+      ]
+    },
+    "keybindings": [
+      { "command": "orhunca.calistir", "key": "ctrl+f5", "mac": "cmd+f5", "when": "editorLangId == orhunca" }
+    ],
+    "configuration": {
+      "title": "Orhunca",
+      "properties": {
+        "orhunca.derleyiciYolu": {
+          "type": "string",
+          "default": "orhunca",
+          "description": "orhunca komutunun yolu (PATH'te değilse tam yolunu yazın)."
+        }
+      }
+    },
+    "configurationDefaults": {
+      "[orhunca]": { "editor.tabSize": 4, "editor.insertSpaces": true, "editor.formatOnSave": false }
+    }
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  }
+}

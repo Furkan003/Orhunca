@@ -2,8 +2,10 @@
 
 mod agac;
 mod ayristirici;
+mod bicimlendirici;
 mod denetci;
 mod derleme;
+mod dil_sunucusu;
 mod ekler;
 mod hata;
 mod sozcuk;
@@ -23,6 +25,8 @@ Kullanım:
   orhunca derle [dosya.ohc] [-o çıktı] [--hedef linux|windows|<üçlü>]
   orhunca çalıştır [dosya.ohc] [-- programın argümanları]
   orhunca denetle [dosya.ohc]
+  orhunca biçimlendir [dosya.ohc ...] [--denetle]
+  orhunca dil-sunucusu        (düzenleyiciler için LSP, stdin/stdout)
   orhunca yeni <proje_adı>
   orhunca stüdyo [--kapı 7313] [--tarayıcı-açma]
   orhunca sürüm
@@ -43,6 +47,8 @@ fn main() -> ExitCode {
         "denetle" => denetle_komutu(kalan).map(|_| ExitCode::SUCCESS),
         "yeni" => yeni_komutu(kalan).map(|_| ExitCode::SUCCESS),
         "stüdyo" | "studyo" => studyo::calistir(kalan).map(|_| ExitCode::SUCCESS),
+        "biçimlendir" | "bicimlendir" => bicimlendir_komutu(kalan),
+        "dil-sunucusu" | "lsp" => dil_sunucusu::calistir().map(|_| ExitCode::SUCCESS),
         "paket" => Err("paket yöneticisi henüz hazır değil (yol haritası: Aşama 5)".into()),
         "sürüm" | "surum" | "--version" | "-V" => {
             println!("orhunca {SURUM}");
@@ -165,6 +171,78 @@ fn calistir_komutu(args: &[String]) -> Result<ExitCode, String> {
         .map_err(|e| format!("program çalıştırılamadı: {e}"))?;
     let _ = std::fs::remove_dir_all(&gecici);
     Ok(ExitCode::from(durum.code().unwrap_or(1).clamp(0, 255) as u8))
+}
+
+/// Bir klasördeki tüm .ohc dosyaları (gizli klasörler ve derleme çıktıları hariç).
+fn ohc_dosyalari(klasor: &Path, cikti: &mut Vec<PathBuf>) {
+    let Ok(okunan) = std::fs::read_dir(klasor) else {
+        return;
+    };
+    let mut girdiler: Vec<_> = okunan.filter_map(|g| g.ok().map(|g| g.path())).collect();
+    girdiler.sort();
+    for p in girdiler {
+        let ad = p
+            .file_name()
+            .map(|a| a.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        if ad.starts_with('.') || ad == "target" || ad == "cikti" {
+            continue;
+        }
+        if p.is_dir() {
+            ohc_dosyalari(&p, cikti);
+        } else if p.extension().is_some_and(|u| u == "ohc") {
+            cikti.push(p);
+        }
+    }
+}
+
+/// `--denetle`: dosyaları değiştirmez; biçimsiz dosya varsa hata koduyla çıkar.
+fn bicimlendir_komutu(args: &[String]) -> Result<ExitCode, String> {
+    let denetle = args.iter().any(|a| a == "--denetle");
+    let mut dosyalar: Vec<PathBuf> = Vec::new();
+    for a in args.iter().filter(|a| !a.starts_with("--")) {
+        let p = PathBuf::from(a);
+        if p.is_dir() {
+            ohc_dosyalari(&p, &mut dosyalar);
+        } else {
+            dosyalar.push(p);
+        }
+    }
+    if dosyalar.is_empty() {
+        ohc_dosyalari(Path::new("."), &mut dosyalar);
+    }
+    let mut degisen = 0;
+    for d in &dosyalar {
+        let kaynak =
+            std::fs::read_to_string(d).map_err(|e| format!("'{}' okunamadı: {e}", d.display()))?;
+        let yeni = bicimlendirici::bicimlendir(&kaynak);
+        for u in bicimlendirici::uyarilar(&kaynak) {
+            println!(
+                "{}:{}:{}: {}",
+                d.display(),
+                u.konum.satir,
+                u.konum.sutun,
+                u.mesaj
+            );
+        }
+        if yeni != kaynak {
+            degisen += 1;
+            if denetle {
+                println!("{}: biçimlendirilmeli", d.display());
+            } else {
+                std::fs::write(d, yeni)
+                    .map_err(|e| format!("'{}' yazılamadı: {e}", d.display()))?;
+                println!("{}: biçimlendirildi", d.display());
+            }
+        }
+    }
+    if denetle && degisen > 0 {
+        return Ok(ExitCode::FAILURE);
+    }
+    if degisen == 0 {
+        println!("{} dosya zaten düzgün.", dosyalar.len());
+    }
+    Ok(ExitCode::SUCCESS)
 }
 
 fn yeni_komutu(args: &[String]) -> Result<(), String> {

@@ -62,7 +62,7 @@
     olusturuluyor: false,
     proje: null, agac: [], kapaliKlasorler: new Set(),
     sekmeler: [], etkin: null, imlec: { satir: 1, sutun: 1 },
-    terminal: [], cikti: [], sorunlar: [], altSekme: 'terminal', altPanel: true,
+    terminal: [], cikti: [], sorunlar: [], uyarilar: [], altSekme: 'terminal', altPanel: true,
     calisma: null, argumanlar: '',
     yanPanel: 'gezgin', araMetin: '', araSonuc: [],
     menu: null, modal: null, bildirim: null,
@@ -137,7 +137,7 @@
   // =====================================================================
   const MENULER = [
     { ad: 'Dosya', ogeler: [['Yeni dosya…', '', 'yeniDosyaModal'], ['Yeni klasör…', '', 'yeniKlasorModal'], '-', ['Kaydet', 'Ctrl+S', 'kaydet'], ['Tümünü kaydet', 'Ctrl+Alt+S', 'tumunuKaydet'], '-', ['Başlangıç ekranı', '', 'baslangicaDon'], ['Projeyi kapat', '', 'projeyiKapat'], '-', ["Stüdyo'yu kapat", '', 'studyoyuKapat']] },
-    { ad: 'Düzen', ogeler: [['Geri al', 'Ctrl+Z', 'geriAl'], ['Yinele', 'Ctrl+Y', 'yinele'], '-', ['Kes', 'Ctrl+X', 'kes'], ['Kopyala', 'Ctrl+C', 'kopyala'], ['Yapıştır', 'Ctrl+V', 'yapistir'], '-', ['Satırı yorum yap', 'Ctrl+/', 'yorumYap']] },
+    { ad: 'Düzen', ogeler: [['Geri al', 'Ctrl+Z', 'geriAl'], ['Yinele', 'Ctrl+Y', 'yinele'], '-', ['Kes', 'Ctrl+X', 'kes'], ['Kopyala', 'Ctrl+C', 'kopyala'], ['Yapıştır', 'Ctrl+V', 'yapistir'], '-', ['Satırı yorum yap', 'Ctrl+/', 'yorumYap'], ['Biçimlendir', 'Ctrl+⇧+F', 'bicimlendir']] },
     { ad: 'Seçim', ogeler: [['Tümünü seç', 'Ctrl+A', 'tumunuSec'], ['Satırı seç', 'Ctrl+L', 'satiriSec'], ['Satırı çoğalt', 'Ctrl+⇧+D', 'satiriCogalt']] },
     { ad: 'Görünüm', ogeler: [['Gezgin', '', 'panelGezgin'], ['Ara', '', 'panelAra'], ['Yapı', '', 'panelYapi'], ['Çalıştır', '', 'panelCalistir'], '-', ['Alt paneli göster/gizle', 'Ctrl+J', 'altPanelAcKapa'], '-', ['Yazıyı büyüt', 'Ctrl+=', 'yaziBuyut'], ['Yazıyı küçült', 'Ctrl+-', 'yaziKucult']] },
     { ad: 'Çalıştır', ogeler: [['Çalıştır', 'F5', 'calistir'], ['Durdur', '⇧+F5', 'durdur'], ['Denetle', 'F7', 'denetleKomut'], '-', ['Linux için derle', '', 'derleLinux'], ['Windows için derle', '', 'derleWindows']] },
@@ -407,7 +407,7 @@
         `<div class="dugme birincil" data-e="modalKapat">Kapat</div>`);
     }
     if (m.tur === 'kisayollar') {
-      const k = [['Çalıştır', 'F5'], ['Durdur', '⇧+F5'], ['Denetle', 'F7'], ['Kaydet', 'Ctrl+S'], ['Tümünü kaydet', 'Ctrl+Alt+S'], ['Satırı yorum yap', 'Ctrl+/'], ['Satırı çoğalt', 'Ctrl+⇧+D'], ['Alt paneli göster/gizle', 'Ctrl+J'], ['Girinti / geri girinti', 'Tab / ⇧+Tab'], ['Projelerde ara', 'Alt+S'], ['Yeni proje', 'Ctrl+⇧+N']];
+      const k = [['Çalıştır', 'F5'], ['Durdur', '⇧+F5'], ['Denetle', 'F7'], ['Kaydet', 'Ctrl+S'], ['Tümünü kaydet', 'Ctrl+Alt+S'], ['Satırı yorum yap', 'Ctrl+/'], ['Biçimlendir', 'Ctrl+⇧+F'], ['Satırı çoğalt', 'Ctrl+⇧+D'], ['Alt paneli göster/gizle', 'Ctrl+J'], ['Girinti / geri girinti', 'Tab / ⇧+Tab'], ['Projelerde ara', 'Alt+S'], ['Yeni proje', 'Ctrl+⇧+N']];
       return kabuk('Klavye kısayolları', `<div class="kisayol-listesi">${k.map(([a, b]) => `<span>${a}</span><span>${b}</span>`).join('')}</div>`, `<div class="dugme birincil" data-e="modalKapat">Kapat</div>`);
     }
     if (m.tur === 'hakkinda') {
@@ -658,12 +658,13 @@
     const tam = normal(tamYol(s.yol));
     const satirlar = s.icerik.split('\n');
     const benim = D.sorunlar.filter(h => h.dosya && normal(h.dosya) === tam && h.satir > 0);
+    const uyarilar = D.uyarilar.filter(h => normal(h.dosya) === tam);
     katman.innerHTML = benim.map(h => {
       const metin = satirlar[h.satir - 1] ?? '';
       const bas = Math.max(0, h.sutun - 1);
       const uz = Math.max(2, metin.length - bas);
       return `<div class="hata-cizgi" style="top:${4 + (h.satir - 1) * 21}px;left:${56 + bas * karakterGenisligi}px;width:${uz * karakterGenisligi}px"></div>`;
-    }).join('');
+    }).join('') + uyarilar.map(h => `<div class="hata-cizgi uyari" style="top:${4 + (h.satir - 1) * 21}px;left:${56 + (h.sutun - 1) * karakterGenisligi}px;width:${Math.max(1, h.uzunluk) * karakterGenisligi}px"></div>`).join('');
     const no = $('#satirNolari');
     if (no) [...no.children].forEach((d, i) => d.classList.toggle('hatali', benim.some(h => h.satir === i + 1)));
   }
@@ -760,8 +761,17 @@
       const kap = $('#kodKap').getBoundingClientRect(), k = $('#kodKap');
       const satir = Math.floor((e.clientY - kap.top + k.scrollTop - 4) / 21) + 1;
       const s = etkinSekme();
-      const h = s && D.sorunlar.find(x => x.dosya && normal(x.dosya) === normal(tamYol(s.yol)) && x.satir === satir);
-      baloncukGoster(h, e.clientX, e.clientY);
+      if (!s) return;
+      const tam = normal(tamYol(s.yol));
+      const sutun = Math.floor((e.clientX - kap.left + k.scrollLeft - 56) / karakterGenisligi) + 1;
+      const h = D.sorunlar.find(x => x.dosya && normal(x.dosya) === tam && x.satir === satir)
+        || D.uyarilar.find(x => normal(x.dosya) === tam && x.satir === satir && sutun >= x.sutun - 2 && sutun <= x.sutun + x.uzunluk);
+      if (h) { baloncukGoster(h, e.clientX, e.clientY); return; }
+      // Yerleşik işlevlerin açıklaması
+      const metin = s.icerik.split('\n')[satir - 1] || '';
+      const kelime = kelimeBul(metin, sutun - 1);
+      const y = kelime && D.yerlesikler.find(x => x.ad === kelime);
+      baloncukGoster(y ? { bilgi: true, mesaj: y.kullanim, ipucu: y.aciklama } : null, e.clientX, e.clientY);
     });
     ta.addEventListener('mouseleave', () => baloncukGoster(null));
     ta.addEventListener('keydown', e => {
@@ -798,11 +808,21 @@
     });
   }
 
+  /** Satırdaki `sira` konumundaki kelime */
+  function kelimeBul(satir, sira) {
+    const re = new RegExp(`[${HARF}][${HARF}0-9]*`, 'gu');
+    let m;
+    while ((m = re.exec(satir))) if (sira >= m.index && sira < m.index + m[0].length) return m[0];
+    return null;
+  }
+
   function baloncukGoster(h, x, y) {
     let b = $('#baloncuk');
     if (!h) { b?.remove(); return; }
-    if (!b) { b = document.createElement('div'); b.id = 'baloncuk'; b.className = 'baloncuk'; document.body.appendChild(b); }
-    b.innerHTML = `<div>${kac(h.mesaj)}</div>${h.ipucu ? `<div class="ipucu">ipucu: ${kac(h.ipucu)}</div>` : ''}`;
+    if (!b) { b = document.createElement('div'); b.id = 'baloncuk'; document.body.appendChild(b); }
+    b.className = 'baloncuk' + (h.bilgi ? ' bilgi' : h.duzeltme !== undefined ? ' uyari' : '');
+    b.innerHTML = h.bilgi ? `<div class="mono">${kac(h.mesaj)}</div><div class="ipucu">${kac(h.ipucu)}</div>`
+      : `<div>${kac(h.mesaj)}</div>${h.ipucu ? `<div class="ipucu">ipucu: ${kac(h.ipucu)}</div>` : ''}`;
     b.style.left = Math.min(x + 12, innerWidth - 480) + 'px';
     b.style.top = (y + 18) + 'px';
   }
@@ -810,12 +830,13 @@
   function cizAltPanel() {
     const p = $('#altPanel');
     p.classList.toggle('gizli', !D.altPanel);
-    const sorunSayisi = D.sorunlar.length;
+    const sorunSayisi = D.sorunlar.length + D.uyarilar.length;
     const sekme = (id, ad) => `<span class="${D.altSekme === id ? 'etkin' : ''}" data-e="altSekme" data-a="${id}">${ad}</span>`;
     let icerik;
     if (D.altSekme === 'sorunlar') {
-      icerik = D.sorunlar.length ? D.sorunlar.map((h, i) => `<div class="sorun" data-e="sorunaGit" data-a="${i}">${S('error')}<div><span>${kac(h.mesaj)}</span><span class="yer">${kac(h.dosya ? goreliYol(h.dosya) : '')}${h.satir ? `:${h.satir}:${h.sutun}` : ''}</span>${h.ipucu ? `<div class="ipucu">ipucu: ${kac(h.ipucu)}</div>` : ''}</div></div>`).join('')
-        : '<div class="tl dim">Sorun yok.</div>';
+      const hatalar = D.sorunlar.map((h, i) => `<div class="sorun" data-e="sorunaGit" data-a="${i}">${S('error')}<div><span>${kac(h.mesaj)}</span><span class="yer">${kac(h.dosya ? goreliYol(h.dosya) : '')}${h.satir ? `:${h.satir}:${h.sutun}` : ''}</span>${h.ipucu ? `<div class="ipucu">ipucu: ${kac(h.ipucu)}</div>` : ''}</div></div>`).join('');
+      const uyarilar = D.uyarilar.map((h, i) => `<div class="sorun uyari" data-e="uyariyaGit" data-a="${i}">${S('warning')}<div><span>${kac(h.mesaj)}</span><span class="yer">${kac(goreliYol(h.dosya))}:${h.satir}:${h.sutun}</span></div><span class="duzelt" data-e="uyariDuzelt" data-a="${i}">Düzelt</span></div>`).join('');
+      icerik = hatalar + uyarilar || '<div class="tl dim">Sorun yok.</div>';
     } else {
       const liste = D.altSekme === 'cikti' ? D.cikti : D.terminal;
       icerik = liste.map(l => `<div class="tl ${l.c || ''}">${kac(l.t.replace(/\n$/, ''))}</div>`).join('')
@@ -832,10 +853,10 @@
   }
 
   function cizDurum() {
-    const n = D.sorunlar.length;
+    const n = D.sorunlar.length, u = D.uyarilar.length;
     $('#durumCubugu').innerHTML = `<div class="durum-rozet"><span class="gokturk">${GOKTURK}</span>Orhunca</div>
       ${D.proje.dal ? `<span class="ogeler">${S('fork_right')}${kac(D.proje.dal)}</span>` : ''}
-      <span class="tiklanir ${n ? 'hatali' : ''}" data-e="altSorunlar">${n} hata · 0 uyarı</span>
+      <span class="tiklanir ${n ? 'hatali' : u ? 'uyarili' : ''}" data-e="altSorunlar">${n} hata · ${u} uyarı</span>
       <div style="flex:1"></div>
       <span id="durumImlec">Satır ${D.imlec.satir}, Sütun ${D.imlec.sutun}</span><span>UTF-8</span><span>${kac(surumAdi())}</span>
       <span>${D.calisma ? 'Çalışıyor…' : 'Konsol'}</span>`;
@@ -859,7 +880,7 @@
 
   async function projeyiAc(bilgi, { ilkCalistirma = false } = {}) {
     D.proje = bilgi;
-    D.sekmeler = []; D.etkin = null; D.sorunlar = []; D.terminal = []; D.cikti = [];
+    D.sekmeler = []; D.etkin = null; D.sorunlar = []; D.uyarilar = []; D.terminal = []; D.cikti = [];
     D.kapaliKlasorler = new Set(); D.calisma = null; D.menu = null; D.modal = null;
     D.yanPanel = 'gezgin'; D.imlec = { satir: 1, sutun: 1 };
     await agaciYukle();
@@ -920,18 +941,20 @@
     const acik = {};
     for (const s of D.sekmeler) if (!s.ikili && uzanti(s.yol) === 'ohc') acik[tamYol(s.yol)] = s.icerik;
     const hedefler = [...new Set([girisDosyasi(), etkinSekme() && uzanti(D.etkin) === 'ohc' ? D.etkin : null].filter(Boolean))];
-    const hatalar = [];
+    const hatalar = [], uyarilar = [];
+    const ayni = (a, b) => a.mesaj === b.mesaj && a.satir === b.satir && a.sutun === b.sutun && normal(a.dosya) === normal(b.dosya);
     for (const h of hedefler) {
       const r = await api('/api/denetle', { dosya: tamYol(h), acik }).catch(() => ({ hatalar: [] }));
-      for (const x of r.hatalar || []) {
-        if (!hatalar.some(y => y.mesaj === x.mesaj && y.satir === x.satir && normal(y.dosya) === normal(x.dosya))) hatalar.push(x);
-      }
+      for (const x of r.hatalar || []) if (!hatalar.some(y => ayni(x, y))) hatalar.push(x);
+      for (const x of r.uyarilar || []) if (!uyarilar.some(y => ayni(x, y))) uyarilar.push(x);
     }
     if (sira !== denetimSirasi || D.ekran !== 'duzenleyici') return;
     D.sorunlar = hatalar;
+    D.uyarilar = uyarilar;
     guncelle('isaretler', 'durum');
+    const toplam = hatalar.length + uyarilar.length;
     if (D.altSekme === 'sorunlar') guncelle('alt');
-    else { const sekme = $('.alt-sekmeler span[data-a="sorunlar"]'); if (sekme) sekme.textContent = `SORUNLAR${hatalar.length ? ' (' + hatalar.length + ')' : ''}`; }
+    else { const sekme = $('.alt-sekmeler span[data-a="sorunlar"]'); if (sekme) sekme.textContent = `SORUNLAR${toplam ? ' (' + toplam + ')' : ''}`; }
   }
 
   function istem() {
@@ -1227,6 +1250,41 @@
     kopyala() { $('#kodAlani')?.focus(); document.execCommand('copy'); },
     async yapistir() { const ta = $('#kodAlani'); if (!ta) return; ta.focus(); try { metinEkle(ta, await navigator.clipboard.readText()); } catch { bildir('Pano okunamadı; Ctrl+V kullanın.', true); } },
     yorumYap() { yorumYap(); },
+    async bicimlendir() {
+      const ta = $('#kodAlani'), s = etkinSekme();
+      if (!ta || !s || uzanti(s.yol) !== 'ohc') return;
+      const r = await api('/api/bicimlendir', { icerik: ta.value });
+      if (r.icerik === undefined || r.icerik === ta.value) { bildir('Dosya zaten düzgün.'); return; }
+      const konum = ta.selectionStart;
+      ta.focus();
+      ta.select();
+      metinEkle(ta, r.icerik);
+      const yeni = Math.min(konum, r.icerik.length);
+      ta.setSelectionRange(yeni, yeni);
+      imleciGuncelle();
+      bildir('Dosya biçimlendirildi.');
+    },
+    async uyariyaGit(i) {
+      const h = D.uyarilar[+i];
+      if (!h) return;
+      await dosyaAc(goreliYol(h.dosya));
+      satiraGit(h.satir, h.sutun);
+    },
+    async uyariDuzelt(i, el, e) {
+      e.stopPropagation();
+      const h = D.uyarilar[+i];
+      if (!h) return;
+      await dosyaAc(goreliYol(h.dosya));
+      const ta = $('#kodAlani');
+      if (!ta) return;
+      const satirlar = ta.value.split('\n');
+      let konum = 0;
+      for (let k = 0; k < h.satir - 1; k++) konum += satirlar[k].length + 1;
+      konum += h.sutun - 1;
+      ta.focus();
+      ta.setSelectionRange(konum, konum + h.uzunluk);
+      metinEkle(ta, h.duzeltme);
+    },
     tumunuSec() { const ta = $('#kodAlani'); if (ta) { ta.focus(); ta.select(); } },
     satiriSec() { const ta = $('#kodAlani'); if (!ta) return; ta.focus(); ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'l', ctrlKey: true })); },
     satiriCogalt() { satiriCogalt(); },
@@ -1329,6 +1387,7 @@
       if (ctrl && e.altKey && (e.key === 's' || e.key === 'S')) { e.preventDefault(); tumunuKaydet(); return; }
       if (ctrl && (e.key === 's' || e.key === 'S')) { e.preventDefault(); kaydet(); return; }
       if (ctrl && (e.key === 'j' || e.key === 'J')) { e.preventDefault(); EYLEM.altPanelAcKapa(); return; }
+      if (ctrl && e.shiftKey && (e.key === 'F' || e.key === 'f')) { e.preventDefault(); EYLEM.bicimlendir(); return; }
       if (ctrl && (e.key === '=' || e.key === '+')) { e.preventDefault(); EYLEM.yaziBuyut(); return; }
       if (ctrl && e.key === '-') { e.preventDefault(); EYLEM.yaziKucult(); return; }
     } else {

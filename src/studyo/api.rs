@@ -86,6 +86,9 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
             Yanit::json(&json!({ "tamam": true }))
         }
         ("POST", "/api/derle") => derle(metin(&g, "dosya"), metin(&g, "hedef")),
+        ("POST", "/api/bicimlendir") => Yanit::json(&json!({
+            "icerik": crate::bicimlendirici::bicimlendir(metin(&g, "icerik"))
+        })),
         _ => Yanit::hata(404, "bilinmeyen uç nokta"),
     }
 }
@@ -524,10 +527,34 @@ fn denetle(dosya: &str, acik: &Value) -> Yanit {
             }
         }
     }
-    match derleme::yukle_ortulu(p, &ortulu) {
-        Ok(_) => Yanit::json(&json!({ "hatalar": [] })),
-        Err(h) => Yanit::json(&json!({ "hatalar": teshis_json(&h) })),
+    // Yazım uyarıları (ünlü uyumu): açık dosyalar ve denetlenen dosya
+    let mut uyarilar = Vec::new();
+    let mut kaynaklar: Vec<(String, String)> = acik
+        .as_object()
+        .map(|a| {
+            a.iter()
+                .filter_map(|(y, i)| Some((y.clone(), i.as_str()?.to_string())))
+                .collect()
+        })
+        .unwrap_or_default();
+    if !kaynaklar.iter().any(|(y, _)| Path::new(y) == p) {
+        if let Ok(i) = std::fs::read_to_string(p) {
+            kaynaklar.push((dosya.to_string(), i));
+        }
     }
+    for (yol, icerik) in &kaynaklar {
+        for u in crate::bicimlendirici::uyarilar(icerik) {
+            uyarilar.push(json!({
+                "dosya": yol, "satir": u.konum.satir, "sutun": u.konum.sutun,
+                "uzunluk": u.uzunluk, "mesaj": u.mesaj, "duzeltme": u.duzeltme,
+            }));
+        }
+    }
+    let hatalar = match derleme::yukle_ortulu(p, &ortulu) {
+        Ok(_) => json!([]),
+        Err(h) => teshis_json(&h),
+    };
+    Yanit::json(&json!({ "hatalar": hatalar, "uyarilar": uyarilar }))
 }
 
 fn calistir(g: &Value) -> Yanit {

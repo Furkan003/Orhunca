@@ -127,6 +127,17 @@ fn sablonlar_derlenir_ve_calisir() {
                 serde_json::json!([]),
                 "{sablon} (örnek: {ornek}) derlenmiyor"
             );
+            // Şablonlar biçimlendirici kurallarına uygun olmalı (uyarı yok).
+            let b = Command::new(env!("CARGO_BIN_EXE_orhunca"))
+                .args(["biçimlendir", "--denetle"])
+                .arg(konum.join(&ad))
+                .output()
+                .unwrap();
+            assert!(
+                b.status.success(),
+                "{sablon}: {}",
+                String::from_utf8_lossy(&b.stdout)
+            );
         }
     }
     // Henüz desteklenmeyen şablon oluşturulamaz.

@@ -18,3 +18,17 @@ jobs:
           sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64
           cargo run -- derle örnekler/asal.ohc --hedef windows -o asal.exe
           file asal.exe
+      - name: Biçim denetimi (Orhunca örnekleri)
+        run: cargo run -- biçimlendir --denetle örnekler
+  vscode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: VS Code eklentisini paketle
+        working-directory: editors/vscode
+        run: |
+          npm ci
+          npx --yes @vscode/vsce package

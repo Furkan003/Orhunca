@@ -390,6 +390,14 @@ h1, h2 { margin: 0; }
 .bos-duzenleyici .kisayollar span { color: var(--soluk2); margin-left: 12px; }
 .baloncuk { position: fixed; z-index: 60; max-width: 460px; padding: 8px 10px; background: #1a1e25; border: 1px solid var(--hata-kenar); border-radius: 6px; font-size: 12.5px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); pointer-events: none; }
 .baloncuk .ipucu { color: var(--soluk); margin-top: 4px; }
+.baloncuk.uyari { border-color: oklch(0.82 0.11 80 / 0.6); }
+.baloncuk.bilgi { border-color: var(--vurgu-35); }
+.baloncuk.bilgi .mono { color: var(--mavi); font-size: 12px; }
+.hata-cizgi.uyari { background: linear-gradient(135deg, transparent 45%, var(--sari) 45%, var(--sari) 55%, transparent 55%) 0 100% / 5px 3px repeat-x; }
+.sorun.uyari .simge { color: var(--sari); }
+.sorun .duzelt { margin-left: auto; padding: 0 10px; font-size: 12px; color: var(--vurgu); }
+.sorun .duzelt:hover { text-decoration: underline; }
+.durum-cubugu .uyarili { color: var(--sari); }
 
 /* sözdizimi renkleri */
 .k { color: var(--vurgu); }
