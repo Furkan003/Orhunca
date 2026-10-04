@@ -1,0 +1,30 @@
+# Tarihler, desenler (düzenli ifadeler), CSV ve JSON.
+
+# Tarih: "yıl-ay-gün" ya da "gün.ay.yıl"
+sınav = "15.06.2026"
+tarih_yazısı(sınav)'nı yaz.
+haftanın_günü(sınav)'nü yaz.
+("Sınava " + gün_farkı("2026-05-01", sınav) + " gün var")'ı yaz.
+gün_ekle(sınav, 30)'u yaz.
+
+# Desenler
+telefon = "05321234567"
+eğer eşleşir(telefon, "05\\d{9}") ise:
+    "Telefon numarası geçerli"'yi yaz.
+eşleşir("ali@okul", "[\\w.]+@\\w+(\\.\\w+)+")'yi yaz.
+eşleşmeler("Ali 90, Ayşe 85, Can 100", "\\d+")'yi yaz.
+desen_değiştir("çok    fazla   boşluk", " +", " ")'yi yaz.
+desen_böl("elma, armut;kiraz", "[,;]\\s*")'ü yaz.
+
+# CSV (Excel'in Türkçe biçimi noktalı virgül kullanır)
+tablo = csv_oku("ad;not\nAyşe;90\nCan;75\n")
+toplam_not = 0
+her satır_ için parça(tablo, 1, uzunluk(tablo) - 1)'den:
+    toplam_not += sayı(satır_[1])
+("Ortalama: " + toplam_not / (uzunluk(tablo) - 1))'yi yaz.
+["Sonuç", "Kaya, Ayşe"]'yi tablo'ya ekle.
+kırp(csv_yaz(tablo))'ı yaz.
+
+# JSON
+yanıt = "{\"şehir\": \"İzmir\", \"günler\": [{\"derece\": 24}, {\"derece\": 21}]}"
+(json_al(yanıt, "şehir") + ": " + json_al(yanıt, "günler.1.derece") + " °C")'yi yaz.

@@ -264,6 +264,35 @@
       bekle(saniye) {
         (s.bekle || mesgulBekle)(saniye);
       },
+      // Eşzamanlı XHR: Web Worker'da ve sayfada çalışır; Node'da yoktur. Sunucu
+      // CORS ile izin vermelidir.
+      http(yontem, adres, govde, gn, n, durum) {
+        const sonuc = (metin, kod) => {
+          const b = kodlayici.encode(metin);
+          sayiYaz(n, b.length);
+          sayiYaz(durum, kod);
+          return ayir(b);
+        };
+        if (typeof XMLHttpRequest === 'undefined') return 0;
+        try {
+          const x = new XMLHttpRequest();
+          x.open(yontem ? 'POST' : 'GET', metin(adres), false);
+          if (yontem) {
+            const g = cozucu.decode(u8().slice(govde, govde + gn));
+            x.setRequestHeader(
+              'Content-Type',
+              /^[{[]/.test(g) ? 'application/json' : 'application/x-www-form-urlencoded',
+            );
+            x.send(g);
+          } else {
+            x.send();
+          }
+          if (x.status === 0) return sonuc('sunucuya ulaşılamadı (ağ ya da CORS izni)', 0);
+          return sonuc(x.responseText, x.status);
+        } catch (h) {
+          return sonuc('sunucuya ulaşılamadı (ağ ya da CORS izni)', 0);
+        }
+      },
       rastgele_tohum: () => (Math.random() * 4294967296) >>> 0,
       arguman_sayisi: () => 1 + argumanlar.length,
       arguman: (i) => metinAyir(i === 0 ? 'program' : String(argumanlar[i - 1])),

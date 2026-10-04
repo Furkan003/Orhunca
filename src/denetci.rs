@@ -1997,8 +1997,26 @@ impl Denetci {
                 Metin
             }
             ("url_kodla", [Metin]) => Metin,
+            ("bugün" | "saat", []) => Metin,
+            ("gün_ekle", [Metin, Sayi]) => Metin,
+            ("gün_farkı", [Metin, Metin]) => Sayi,
+            ("haftanın_günü" | "tarih_yazısı", [Metin]) => Metin,
+            ("eşleşir", [Metin, Metin]) => Mantik,
+            ("desen_bul", [Metin, Metin]) => Metin,
+            ("eşleşmeler" | "desen_böl", [Metin, Metin]) => Liste(Box::new(Metin)),
+            ("desen_değiştir", [Metin, Metin, Metin]) => Metin,
+            ("csv_oku", [Metin]) => Liste(Box::new(Liste(Box::new(Metin)))),
+            ("csv_yaz", [Liste(i)])
+                if matches!(&**i, Liste(j) if matches!(**j, Metin | Bilinmeyen))
+                    || **i == Bilinmeyen =>
+            {
+                Metin
+            }
             ("sun", []) | ("sun", [Sayi]) => Bos,
             ("ortam", [Metin]) => Metin,
+            ("http_al", [Metin]) => Metin,
+            ("json_al", [Metin, Metin]) => Metin,
+            ("http_gönder", [Metin, Metin]) => Metin,
             ("çık", [Sayi]) => Bos,
             ("hata_ver", [Metin]) => Bos,
             ("boş_mu", [Model(_)]) => Mantik,

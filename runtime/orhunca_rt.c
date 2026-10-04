@@ -59,6 +59,7 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #endif
 #endif /* __wasm__ */
@@ -1395,6 +1396,230 @@ int64_t ohc_dosya_sil(int64_t yol) {
 #else
     return remove(M(yol)) == 0;
 #endif
+}
+
+/* ====================================================================== */
+/* HTTP istemcisi                                                          */
+/* ====================================================================== */
+
+/* http_al(adres) / http_gönder(adres, gövde): yanıtın gövdesi. İstek sistemdeki
+ * curl ile yapılır (Windows 10+, macOS ve Linux dağıtımlarında hazır gelir; TLS
+ * sertifikalarını işletim sistemi doğrular). Tarayıcıda (wasm) fetch yerine
+ * eşzamanlı XHR kullanılır. Gövde curl'e standart girdiden verilir; adres
+ * http:// ya da https:// ile başlamalıdır, böylece curl seçeneği sanılamaz. */
+
+static const char *http_hatasi(int kod) {
+    switch (kod) {
+    case 6: return "sunucu bulunamadı (adresi ve internet bağlantısını denetleyin)";
+    case 7: return "sunucuya bağlanılamadı";
+    case 28: return "sunucu 30 saniye içinde yanıt vermedi";
+    case 35: case 51: case 53: case 54: case 58: case 59: case 60: case 77: case 83:
+        return "güvenli bağlantı (HTTPS) kurulamadı";
+    case 47: return "çok fazla yönlendirme";
+    case 52: return "sunucu boş yanıt döndürdü";
+    case 55: case 56: return "bağlantı koptu";
+    case 127: return "curl bulunamadı; HTTP istekleri için curl kurulu olmalı";
+    default: return "istek başarısız oldu";
+    }
+}
+
+int64_t ohc_http(int64_t yontem, int64_t adres, int64_t govde, int64_t satir) {
+    const char *a = M(adres);
+    char mesaj[600];
+    if (strncmp(a, "http://", 7) != 0 && strncmp(a, "https://", 8) != 0) {
+        snprintf(mesaj, sizeof mesaj, "geçersiz adres '%.300s': http:// ya da https:// ile başlamalı", a);
+        hata(satir, mesaj);
+    }
+    /* ASCII olmayan baytlar %XX olur; boşluk, tırnak ve denetim karakterleri reddedilir. */
+    Tampon u = {0};
+    for (const unsigned char *p = (const unsigned char *)a; *p; p++) {
+        if (*p <= 32 || *p == '"' || *p == '\\' || *p == 127) {
+            free(u.v);
+            snprintf(mesaj, sizeof mesaj, "geçersiz adres '%.300s': boşluk ya da özel karakter içeremez (url_kodla kullanın)", a);
+            hata(satir, mesaj);
+        }
+        if (*p >= 128) {
+            char b[4];
+            snprintf(b, sizeof b, "%%%02X", *p);
+            t_ekle(&u, b, 3);
+        } else {
+            t_ekle(&u, (const char *)p, 1);
+        }
+    }
+    const char *g = yontem ? M(govde) : "";
+    size_t gn = strlen(g);
+    Tampon t = {0};
+    int kod = -1;
+#ifdef __wasm__
+    int32_t durum = 0;
+    int32_t n = 0;
+    char *c = js_http((int32_t)yontem, u.v, g, (int32_t)gn, &n, &durum);
+    free(u.v);
+    if (!c) hata(satir, "HTTP isteği bu ortamda yapılamıyor");
+    if (durum == 0) {
+        snprintf(mesaj, sizeof mesaj, "HTTP isteği başarısız: %.400s", c);
+        free(c);
+        hata(satir, mesaj);
+    }
+    t_ekle(&t, c, (size_t)n);
+    free(c);
+    kod = 0;
+    char durum_metni[16];
+    snprintf(durum_metni, sizeof durum_metni, "\n%d", (int)durum);
+    t_yaz(&t, durum_metni);
+#else
+    const char *tur = (gn > 0 && (g[0] == '{' || g[0] == '[')) ? "Content-Type: application/json"
+                                                                : "Content-Type: application/x-www-form-urlencoded";
+    const char *arg[24];
+    int k = 0;
+    arg[k++] = "curl";
+    arg[k++] = "-sS";
+    arg[k++] = "-L";
+    arg[k++] = "--max-redirs";
+    arg[k++] = "5";
+    arg[k++] = "--max-time";
+    arg[k++] = "30";
+    arg[k++] = "--proto";
+    arg[k++] = "=http,https";
+    arg[k++] = "--proto-redir";
+    arg[k++] = "=http,https";
+    arg[k++] = "-A";
+    arg[k++] = "Orhunca";
+    arg[k++] = "-w";
+    arg[k++] = "\\n%{http_code}";
+    if (yontem) {
+        arg[k++] = "-H";
+        arg[k++] = tur;
+        arg[k++] = "--data-binary";
+        arg[k++] = "@-";
+    }
+    arg[k++] = u.v;
+    arg[k] = NULL;
+    fflush(stdout);
+#ifdef _WIN32
+    /* Komut satırı: adres doğrulandı (boşluk ve tırnak yok); "\n%{http_code}" tırnaklı. */
+    Tampon s = {0};
+    t_yaz(&s, "curl.exe");
+    for (int i = 1; i < k; i++) {
+        t_yaz(&s, " \"");
+        t_yaz(&s, arg[i]);
+        t_yaz(&s, "\"");
+    }
+    free(u.v);
+    int wn = MultiByteToWideChar(CP_UTF8, 0, s.v, -1, NULL, 0);
+    wchar_t *w = malloc(sizeof(wchar_t) * (size_t)wn);
+    MultiByteToWideChar(CP_UTF8, 0, s.v, -1, w, wn);
+    free(s.v);
+    SECURITY_ATTRIBUTES sa = {sizeof sa, NULL, TRUE};
+    HANDLE gir_o, gir_y, cik_o, cik_y;
+    CreatePipe(&gir_o, &gir_y, &sa, 0);
+    CreatePipe(&cik_o, &cik_y, &sa, 0);
+    SetHandleInformation(gir_y, HANDLE_FLAG_INHERIT, 0);
+    SetHandleInformation(cik_o, HANDLE_FLAG_INHERIT, 0);
+    STARTUPINFOW si;
+    memset(&si, 0, sizeof si);
+    si.cb = sizeof si;
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdInput = gir_o;
+    si.hStdOutput = cik_y;
+    si.hStdError = INVALID_HANDLE_VALUE;
+    PROCESS_INFORMATION pi;
+    BOOL basladi = CreateProcessW(NULL, w, NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
+    free(w);
+    CloseHandle(gir_o);
+    CloseHandle(cik_y);
+    if (!basladi) {
+        CloseHandle(gir_y);
+        CloseHandle(cik_o);
+        hata(satir, http_hatasi(127));
+    }
+    DWORD yazilan;
+    size_t gonderilen = 0;
+    while (gonderilen < gn && WriteFile(gir_y, g + gonderilen, (DWORD)(gn - gonderilen), &yazilan, NULL) && yazilan > 0)
+        gonderilen += yazilan;
+    CloseHandle(gir_y);
+    char b[8192];
+    DWORD okunan;
+    while (ReadFile(cik_o, b, sizeof b, &okunan, NULL) && okunan > 0) t_ekle(&t, b, okunan);
+    CloseHandle(cik_o);
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    DWORD cikis = 1;
+    GetExitCodeProcess(pi.hProcess, &cikis);
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+    kod = (int)cikis;
+#else
+    signal(SIGPIPE, SIG_IGN);
+    int gir[2], cik[2];
+    if (pipe(gir) != 0 || pipe(cik) != 0) {
+        free(u.v);
+        hata(satir, "HTTP isteği başlatılamadı");
+    }
+    pid_t p = fork();
+    if (p == 0) {
+        dup2(gir[0], 0);
+        dup2(cik[1], 1);
+        int bos = open("/dev/null", O_WRONLY);
+        if (bos >= 0) dup2(bos, 2);
+        close(gir[0]);
+        close(gir[1]);
+        close(cik[0]);
+        close(cik[1]);
+        execvp("curl", (char *const *)arg);
+        _exit(127);
+    }
+    free(u.v);
+    close(gir[0]);
+    close(cik[1]);
+    if (p < 0) {
+        close(gir[1]);
+        close(cik[0]);
+        hata(satir, "HTTP isteği başlatılamadı");
+    }
+    size_t gonderilen = 0;
+    while (gonderilen < gn) {
+        ssize_t y = write(gir[1], g + gonderilen, gn - gonderilen);
+        if (y < 0 && errno == EINTR) continue;
+        if (y <= 0) break;
+        gonderilen += (size_t)y;
+    }
+    close(gir[1]);
+    char b[8192];
+    for (;;) {
+        ssize_t r = read(cik[0], b, sizeof b);
+        if (r < 0 && errno == EINTR) continue;
+        if (r <= 0) break;
+        t_ekle(&t, b, (size_t)r);
+    }
+    close(cik[0]);
+    int st = 0;
+    while (waitpid(p, &st, 0) < 0 && errno == EINTR) {
+    }
+    kod = WIFEXITED(st) ? WEXITSTATUS(st) : -1;
+#endif
+#endif
+    /* Sonda "\n<durum kodu>" var */
+    int durum_kodu = 0;
+    if (t.v) {
+        char *son = strrchr(t.v, '\n');
+        if (son) {
+            durum_kodu = atoi(son + 1);
+            t.n = (size_t)(son - t.v);
+            t.v[t.n] = 0;
+        }
+    }
+    if (kod != 0 || durum_kodu == 0) {
+        free(t.v);
+        snprintf(mesaj, sizeof mesaj, "HTTP isteği başarısız: %s", http_hatasi(kod));
+        hata(satir, mesaj);
+    }
+    if (durum_kodu >= 400) {
+        free(t.v);
+        snprintf(mesaj, sizeof mesaj, "sunucu hata döndürdü: HTTP %d%s", durum_kodu,
+                 durum_kodu == 404 ? " (sayfa bulunamadı)" : durum_kodu >= 500 ? " (sunucu hatası)" : "");
+        hata(satir, mesaj);
+    }
+    return t_metin(&t);
 }
 
 /* ====================================================================== */

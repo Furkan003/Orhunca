@@ -248,6 +248,69 @@ pub const YERLESIKLER: &[Yerlesik] = &[
         "Şu anki tarih ve saat: 2026-10-04 14:30:00"
     ),
     y!(
+        "bugün",
+        "bugün() → metin",
+        "Bugünün tarihi: \"2026-10-04\""
+    ),
+    y!("saat", "saat() → metin", "Şu anki saat: \"14:30:00\""),
+    y!(
+        "gün_ekle",
+        "gün_ekle(tarih, gün) → metin",
+        "Tarihe gün ekler (eksi sayı geri gider): gün_ekle(\"2026-10-04\", 30)"
+    ),
+    y!(
+        "gün_farkı",
+        "gün_farkı(tarih1, tarih2) → sayı",
+        "İki tarih arasındaki gün sayısı. Tarihler 2026-10-04 ya da 04.10.2026 biçiminde."
+    ),
+    y!(
+        "haftanın_günü",
+        "haftanın_günü(tarih) → metin",
+        "\"Pazartesi\", \"Salı\" ..."
+    ),
+    y!(
+        "tarih_yazısı",
+        "tarih_yazısı(tarih) → metin",
+        "Okunur biçim: \"4 Ekim 2026\""
+    ),
+    // Desenler (düzenli ifadeler)
+    y!(
+        "eşleşir",
+        "eşleşir(metin, desen) → mantık",
+        "Metnin tamamı desene uyuyor mu? eşleşir(tel, \"0\\d{10}\"). Desen: . \\d \\w \\s [a-z] [^0-9] * + ? {n,m} ( | ) ^ $"
+    ),
+    y!(
+        "desen_bul",
+        "desen_bul(metin, desen) → metin",
+        "Desene uyan ilk parça; yoksa \"\"."
+    ),
+    y!(
+        "eşleşmeler",
+        "eşleşmeler(metin, desen) → liste<metin>",
+        "Desene uyan bütün parçalar: eşleşmeler(yazı, \"\\d+\")"
+    ),
+    y!(
+        "desen_değiştir",
+        "desen_değiştir(metin, desen, yeni) → metin",
+        "Desene uyan bütün parçaları değiştirir."
+    ),
+    y!(
+        "desen_böl",
+        "desen_böl(metin, desen) → liste<metin>",
+        "Metni desene uyan yerlerden böler: desen_böl(m, \"[,;]\\s*\")"
+    ),
+    // CSV
+    y!(
+        "csv_oku",
+        "csv_oku(metin) → liste<liste<metin>>",
+        "CSV metnini satırlara ve alanlara ayırır; ayraç (, ; ya da sekme) kendiliğinden anlaşılır."
+    ),
+    y!(
+        "csv_yaz",
+        "csv_yaz(liste<liste<metin>>) → metin",
+        "Tabloyu CSV metnine çevirir: dosyaya_yaz(\"x.csv\", csv_yaz(tablo))"
+    ),
+    y!(
         "bekle",
         "bekle(saniye)",
         "Programı verilen süre kadar bekletir."
@@ -272,9 +335,24 @@ pub const YERLESIKLER: &[Yerlesik] = &[
     ),
     // Web
     y!(
+        "http_al",
+        "http_al(adres) → metin",
+        "Bir web adresinin içeriğini indirir: http_al(\"https://...\"). JSON yanıtlarından değer almak için json_al."
+    ),
+    y!(
+        "http_gönder",
+        "http_gönder(adres, gövde) → metin",
+        "POST isteği gönderir; gövde { ya da [ ile başlıyorsa JSON olarak. Yanıtın gövdesini döndürür."
+    ),
+    y!(
         "json",
         "json(değer) → metin",
         "Değeri (liste, sözlük, model...) JSON metnine çevirir."
+    ),
+    y!(
+        "json_al",
+        "json_al(json, yol) → metin",
+        "JSON metninden değer okur: json_al(yanıt, \"hava.sıcaklık\"), json_al(m, \"liste.0.ad\"); yoksa \"\"."
     ),
     y!(
         "kaçır",

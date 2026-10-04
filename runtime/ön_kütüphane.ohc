@@ -257,3 +257,692 @@ işlev url_kodla(m: metin) -> metin:
             bayt_ekle(sonuç, 128 + (c // 64) % 64)
             bayt_ekle(sonuç, 128 + c % 64)
     döndür kodlardan(sonuç)
+
+# ---------------------------------------------------------------------------
+# Tarih: "2026-10-04" (yıl-ay-gün) ya da "04.10.2026" (gün.ay.yıl). Saat kısmı
+# ("2026-10-04 15:30:00") yok sayılır. Hesaplar 1970-01-01'den beri geçen gün
+# sayısıyla yapılır.
+
+# `k` içinde `baş`tan başlayan `n` rakamın değeri; rakam değilse -1.
+işlev rakamlar(k: liste<sayı>, baş: sayı, n: sayı) -> sayı:
+    s = 0
+    her i için baş'tan baş + n - 1'e kadar:
+        eğer k[i] < 48 veya k[i] > 57 ise:
+            döndür -1
+        s = s * 10 + k[i] - 48
+    döndür s
+
+işlev ay_günleri(y: sayı, a: sayı) -> sayı:
+    eğer a == 2 ise:
+        eğer (y % 4 == 0 ve y % 100 != 0) veya y % 400 == 0 ise:
+            döndür 29
+        döndür 28
+    eğer a == 4 veya a == 6 veya a == 9 veya a == 11 ise:
+        döndür 30
+    döndür 31
+
+işlev tarih_günü(t: metin, satır: sayı) -> sayı:
+    k = kodlar(t)
+    y = -1
+    a = -1
+    g = -1
+    eğer uzunluk(k) >= 10 ve k[4] == 45 ve k[7] == 45 ise:
+        y = rakamlar(k, 0, 4)
+        a = rakamlar(k, 5, 2)
+        g = rakamlar(k, 8, 2)
+    değilse eğer uzunluk(k) >= 10 ve k[2] == 46 ve k[5] == 46 ise:
+        g = rakamlar(k, 0, 2)
+        a = rakamlar(k, 3, 2)
+        y = rakamlar(k, 6, 4)
+    eğer y < 1 veya a < 1 veya a > 12 veya g < 1 veya g > ay_günleri(y, a) ise:
+        hata_ver_satırda("geçersiz tarih: \"" + t + "\" (örnek: 2026-10-04 ya da 04.10.2026)", satır)
+    eğer a <= 2 ise:
+        y -= 1
+        a += 9
+    değilse:
+        a -= 3
+    dönem = y // 400
+    yd = y - dönem * 400
+    gy = (153 * a + 2) // 5 + g - 1
+    döndür dönem * 146097 + yd * 365 + yd // 4 - yd // 100 + gy - 719468
+
+işlev sıfırla(n: sayı, hane: sayı) -> metin:
+    m = metin(n)
+    uzunluk(m) < hane olduğu sürece:
+        m = "0" + m
+    döndür m
+
+işlev günden_tarih(n: sayı, satır: sayı) -> metin:
+    z = n + 719468
+    eğer z < 0 ise:
+        hata_ver_satırda("tarih 1. yıldan önceye düşüyor", satır)
+    dönem = z // 146097
+    gd = z - dönem * 146097
+    yd = (gd - gd // 1460 + gd // 36524 - gd // 146096) // 365
+    y = yd + dönem * 400
+    gy = gd - (365 * yd + yd // 4 - yd // 100)
+    ap = (5 * gy + 2) // 153
+    g = gy - (153 * ap + 2) // 5 + 1
+    a = ap + 3
+    eğer ap >= 10 ise:
+        a = ap - 9
+        y += 1
+    döndür sıfırla(y, 4) + "-" + sıfırla(a, 2) + "-" + sıfırla(g, 2)
+
+işlev bugün() -> metin:
+    döndür parça(tarih(), 0, 10)
+
+işlev saat() -> metin:
+    döndür parça(tarih(), 11, 8)
+
+işlev gün_ekle(t: metin, n: sayı, satır: sayı) -> metin:
+    döndür günden_tarih(tarih_günü(t, satır) + n, satır)
+
+işlev gün_farkı(t1: metin, t2: metin, satır: sayı) -> sayı:
+    döndür tarih_günü(t2, satır) - tarih_günü(t1, satır)
+
+işlev haftanın_günü(t: metin, satır: sayı) -> metin:
+    adlar = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
+    # 1970-01-01 bir perşembeydi
+    döndür adlar[(tarih_günü(t, satır) % 7 + 10) % 7]
+
+işlev tarih_yazısı(t: metin, satır: sayı) -> metin:
+    aylar = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
+    k = kodlar(günden_tarih(tarih_günü(t, satır), satır))
+    döndür metin(rakamlar(k, 8, 2)) + " " + aylar[rakamlar(k, 5, 2) - 1] + " " + metin(rakamlar(k, 0, 4))
+
+# ---------------------------------------------------------------------------
+# Düzenli ifadeler (desenler): . [abc] [^a-z] \d \w \s \D \W \S \b ^ $ ( ) |
+# * + ? {n} {n,} {n,m}. Desen, geri izlemeli küçük bir makinenin komutlarına
+# derlenir: her komut üç sayıdır (tür, x, y); atlamalar komutun kendi yerine
+# göredir, böylece parçalar olduğu gibi art arda eklenebilir.
+#   0 karakter x · 1 herhangi (satır sonu hariç) · 2 sınıf (x: sınıf tablosundaki
+#   yeri) · 3 dallan (önce x, olmazsa y) · 4 atla x · 5 bitti · 6 ^ · 7 $ ·
+#   8 \b · 9 \B
+# Sınıf tablosu: [değil_mi, aralık sayısı, alt1, üst1, alt2, üst2, ...]
+
+işlev desen_hatası(d: liste<sayı>, mesaj: metin, satır: sayı):
+    hata_ver_satırda("geçersiz desen \"" + kodlardan(d) + "\": " + mesaj, satır)
+
+işlev komut(p: liste<sayı>, tür: sayı, x: sayı, y: sayı):
+    tür'ü p'ye ekle.
+    x'i p'ye ekle.
+    y'yi p'ye ekle.
+
+işlev komutları_ekle(hedef: liste<sayı>, kaynak: liste<sayı>):
+    her c için kaynak'tan:
+        c'yi hedef'e ekle.
+
+işlev kelime_kodu_mu(c: sayı) -> mantık:
+    döndür (c >= 48 ve c <= 57) veya (c >= 65 ve c <= 90) veya (c >= 97 ve c <= 122) veya c == 95 veya (c >= 192 ve c <= 591 ve c != 215 ve c != 247)
+
+işlev aralık_ekle(sınıf: liste<sayı>, alt: sayı, üst: sayı):
+    alt'ı sınıf'a ekle.
+    üst'ü sınıf'a ekle.
+
+# \d, \w, \s aralıkları
+işlev hazır_aralıklar(sınıf: liste<sayı>, harf: sayı):
+    eğer harf == 100 ise:
+        aralık_ekle(sınıf, 48, 57)
+    değilse eğer harf == 115 ise:
+        aralık_ekle(sınıf, 32, 32)
+        aralık_ekle(sınıf, 9, 13)
+    değilse:
+        aralık_ekle(sınıf, 48, 57)
+        aralık_ekle(sınıf, 65, 90)
+        aralık_ekle(sınıf, 97, 122)
+        aralık_ekle(sınıf, 95, 95)
+        aralık_ekle(sınıf, 192, 214)
+        aralık_ekle(sınıf, 216, 246)
+        aralık_ekle(sınıf, 248, 591)
+
+işlev kaçış_kodu(e: sayı) -> sayı:
+    eğer e == 110 ise:
+        döndür 10
+    eğer e == 116 ise:
+        döndür 9
+    eğer e == 114 ise:
+        döndür 13
+    döndür e
+
+işlev sınıfta_mı(sınıf: liste<sayı>, yer: sayı, c: sayı) -> mantık:
+    içinde = yanlış
+    her i için 0'dan sınıf[yer + 1] - 1'e kadar:
+        eğer c >= sınıf[yer + 2 + 2 * i] ve c <= sınıf[yer + 3 + 2 * i] ise:
+            içinde = doğru
+            dur
+    döndür içinde != (sınıf[yer] == 1)
+
+# [...] sınıfı: tablodaki yeri
+işlev d_sınıf(d: liste<sayı>, i: liste<sayı>, sınıf: liste<sayı>, satır: sayı) -> sayı:
+    baş = uzunluk(sınıf)
+    değil_mi = 0
+    eğer i[0] < uzunluk(d) ve d[i[0]] == 94 ise:
+        değil_mi = 1
+        i[0] = i[0] + 1
+    değil_mi'yi sınıf'a ekle.
+    0'ı sınıf'a ekle.
+    ilk = doğru
+    doğru olduğu sürece:
+        eğer i[0] >= uzunluk(d) ise:
+            desen_hatası(d, "kapanmamış köşeli parantez", satır)
+        c = d[i[0]]
+        i[0] = i[0] + 1
+        eğer c == 93 ve ilk == yanlış ise:
+            dur
+        ilk = yanlış
+        eğer c == 92 ve i[0] < uzunluk(d) ise:
+            e = d[i[0]]
+            i[0] = i[0] + 1
+            eğer e == 100 veya e == 119 veya e == 115 ise:
+                hazır_aralıklar(sınıf, e)
+                sürdür
+            c = kaçış_kodu(e)
+        eğer i[0] + 1 < uzunluk(d) ve d[i[0]] == 45 ve d[i[0] + 1] != 93 ise:
+            son = d[i[0] + 1]
+            i[0] = i[0] + 2
+            eğer son == 92 ve i[0] < uzunluk(d) ise:
+                son = kaçış_kodu(d[i[0]])
+                i[0] = i[0] + 1
+            eğer son < c ise:
+                desen_hatası(d, "ters aralık: " + karakter(c) + "-" + karakter(son), satır)
+            aralık_ekle(sınıf, c, son)
+        değilse:
+            aralık_ekle(sınıf, c, c)
+    sınıf[baş + 1] = (uzunluk(sınıf) - baş - 2) // 2
+    döndür baş
+
+işlev d_öğe(d: liste<sayı>, i: liste<sayı>, sınıf: liste<sayı>, satır: sayı) -> liste<sayı>:
+    c = d[i[0]]
+    i[0] = i[0] + 1
+    p: liste<sayı> = []
+    eğer c == 40 ise:
+        eğer i[0] + 1 < uzunluk(d) ve d[i[0]] == 63 ve d[i[0] + 1] == 58 ise:
+            i[0] = i[0] + 2
+        p = d_seçenek(d, i, sınıf, satır)
+        eğer i[0] >= uzunluk(d) veya d[i[0]] != 41 ise:
+            desen_hatası(d, "kapanmamış parantez", satır)
+        i[0] = i[0] + 1
+    değilse eğer c == 46 ise:
+        komut(p, 1, 0, 0)
+    değilse eğer c == 94 ise:
+        komut(p, 6, 0, 0)
+    değilse eğer c == 36 ise:
+        komut(p, 7, 0, 0)
+    değilse eğer c == 91 ise:
+        komut(p, 2, d_sınıf(d, i, sınıf, satır), 0)
+    değilse eğer c == 42 veya c == 43 veya c == 63 ise:
+        desen_hatası(d, "'" + karakter(c) + "' önünde tekrarlanacak bir şey yok", satır)
+    değilse eğer c == 92 ise:
+        eğer i[0] >= uzunluk(d) ise:
+            desen_hatası(d, "sonda tek başına \\", satır)
+        e = d[i[0]]
+        i[0] = i[0] + 1
+        eğer e == 100 veya e == 119 veya e == 115 veya e == 68 veya e == 87 veya e == 83 ise:
+            yer = uzunluk(sınıf)
+            eğer e < 97 ise:
+                1'i sınıf'a ekle.
+            değilse:
+                0'ı sınıf'a ekle.
+            0'ı sınıf'a ekle.
+            hazır_aralıklar(sınıf, küçük_kod(e))
+            sınıf[yer + 1] = (uzunluk(sınıf) - yer - 2) // 2
+            komut(p, 2, yer, 0)
+        değilse eğer e == 98 ise:
+            komut(p, 8, 0, 0)
+        değilse eğer e == 66 ise:
+            komut(p, 9, 0, 0)
+        değilse:
+            komut(p, 0, kaçış_kodu(e), 0)
+    değilse:
+        komut(p, 0, c, 0)
+    döndür p
+
+işlev yıldız(a: liste<sayı>) -> liste<sayı>:
+    n = uzunluk(a) // 3
+    p: liste<sayı> = []
+    komut(p, 3, 1, n + 2)
+    komutları_ekle(p, a)
+    komut(p, 4, 0 - n - 1, 0)
+    döndür p
+
+işlev belki(a: liste<sayı>) -> liste<sayı>:
+    p: liste<sayı> = []
+    komut(p, 3, 1, uzunluk(a) // 3 + 1)
+    komutları_ekle(p, a)
+    döndür p
+
+# {n}, {n,}, {n,m}: [en az, en çok (-1: sınırsız), sonraki yer]; değilse boş
+işlev d_aralık(d: liste<sayı>, baş: sayı) -> liste<sayı>:
+    i = baş
+    en_az = 0
+    rakam = 0
+    i < uzunluk(d) ve d[i] >= 48 ve d[i] <= 57 olduğu sürece:
+        en_az = en_az * 10 + d[i] - 48
+        rakam += 1
+        i += 1
+    eğer rakam == 0 veya rakam > 4 veya i >= uzunluk(d) ise:
+        döndür []
+    eğer d[i] == 125 ise:
+        döndür [en_az, en_az, i + 1]
+    eğer d[i] != 44 ise:
+        döndür []
+    i += 1
+    eğer i < uzunluk(d) ve d[i] == 125 ise:
+        döndür [en_az, -1, i + 1]
+    en_çok = 0
+    rakam = 0
+    i < uzunluk(d) ve d[i] >= 48 ve d[i] <= 57 olduğu sürece:
+        en_çok = en_çok * 10 + d[i] - 48
+        rakam += 1
+        i += 1
+    eğer rakam == 0 veya rakam > 4 veya i >= uzunluk(d) veya d[i] != 125 ise:
+        döndür []
+    döndür [en_az, en_çok, i + 1]
+
+işlev d_niceleyici(d: liste<sayı>, i: liste<sayı>, a: liste<sayı>, satır: sayı) -> liste<sayı>:
+    eğer i[0] >= uzunluk(d) ise:
+        döndür a
+    c = d[i[0]]
+    p: liste<sayı> = []
+    eğer c == 42 ise:
+        p = yıldız(a)
+    değilse eğer c == 43 ise:
+        komutları_ekle(p, a)
+        komut(p, 3, 0 - uzunluk(a) // 3, 1)
+    değilse eğer c == 63 ise:
+        p = belki(a)
+    değilse eğer c == 123 ise:
+        r = d_aralık(d, i[0] + 1)
+        eğer uzunluk(r) == 0 ise:
+            döndür a
+        eğer r[1] >= 0 ve r[1] < r[0] ise:
+            desen_hatası(d, "{" + metin(r[0]) + "," + metin(r[1]) + "}: en çok, en azdan küçük", satır)
+        eğer r[0] > 1000 veya r[1] > 1000 ise:
+            desen_hatası(d, "tekrar sayısı en çok 1000 olabilir", satır)
+        her j için 1'den r[0]'a kadar:
+            komutları_ekle(p, a)
+        eğer r[1] < 0 ise:
+            komutları_ekle(p, yıldız(a))
+        değilse:
+            her j için r[0] + 1'den r[1]'e kadar:
+                komutları_ekle(p, belki(a))
+        i[0] = r[2] - 1
+    değilse:
+        döndür a
+    i[0] = i[0] + 1
+    döndür p
+
+işlev d_dizi(d: liste<sayı>, i: liste<sayı>, sınıf: liste<sayı>, satır: sayı) -> liste<sayı>:
+    p: liste<sayı> = []
+    i[0] < uzunluk(d) ve d[i[0]] != 124 ve d[i[0]] != 41 olduğu sürece:
+        a = d_öğe(d, i, sınıf, satır)
+        komutları_ekle(p, d_niceleyici(d, i, a, satır))
+    döndür p
+
+işlev d_seçenek(d: liste<sayı>, i: liste<sayı>, sınıf: liste<sayı>, satır: sayı) -> liste<sayı>:
+    p = d_dizi(d, i, sınıf, satır)
+    i[0] < uzunluk(d) ve d[i[0]] == 124 olduğu sürece:
+        i[0] = i[0] + 1
+        q = d_dizi(d, i, sınıf, satır)
+        yeni: liste<sayı> = []
+        komut(yeni, 3, 1, uzunluk(p) // 3 + 2)
+        komutları_ekle(yeni, p)
+        komut(yeni, 4, uzunluk(q) // 3 + 1, 0)
+        komutları_ekle(yeni, q)
+        p = yeni
+    döndür p
+
+işlev desen_derle(desen: metin, sınıf: liste<sayı>, tam: mantık, satır: sayı) -> liste<sayı>:
+    d = kodlar(desen)
+    i = [0]
+    p = d_seçenek(d, i, sınıf, satır)
+    eğer i[0] < uzunluk(d) ise:
+        desen_hatası(d, "fazladan ')'", satır)
+    eğer tam ise:
+        komut(p, 7, 0, 0)
+    komut(p, 5, 0, 0)
+    döndür p
+
+# `baş` yerinden başlayan eşleşmenin sonu; eşleşmezse -1.
+işlev d_çalıştır(p: liste<sayı>, sınıf: liste<sayı>, k: liste<sayı>, baş: sayı, adım: liste<sayı>, satır: sayı) -> sayı:
+    yığın: liste<sayı> = []
+    üst = 0
+    pc = 0
+    sp = baş
+    n = uzunluk(k)
+    doğru olduğu sürece:
+        adım[0] = adım[0] + 1
+        eğer adım[0] > 5000000 ise:
+            hata_ver_satırda("desen çok karmaşık: eşleştirme çok uzun sürdü", satır)
+        tür = p[pc * 3]
+        tamam = doğru
+        eğer tür == 0 ise:
+            tamam = sp < n ve k[sp] == p[pc * 3 + 1]
+            sp += 1
+            pc += 1
+        değilse eğer tür == 1 ise:
+            tamam = sp < n ve k[sp] != 10
+            sp += 1
+            pc += 1
+        değilse eğer tür == 2 ise:
+            tamam = sp < n ve sınıfta_mı(sınıf, p[pc * 3 + 1], k[sp])
+            sp += 1
+            pc += 1
+        değilse eğer tür == 3 ise:
+            eğer üst < uzunluk(yığın) ise:
+                yığın[üst] = pc + p[pc * 3 + 2]
+                yığın[üst + 1] = sp
+            değilse:
+                (pc + p[pc * 3 + 2])'yi yığın'a ekle.
+                sp'yi yığın'a ekle.
+            üst += 2
+            pc += p[pc * 3 + 1]
+        değilse eğer tür == 4 ise:
+            pc += p[pc * 3 + 1]
+        değilse eğer tür == 5 ise:
+            döndür sp
+        değilse eğer tür == 6 ise:
+            tamam = sp == 0
+            pc += 1
+        değilse eğer tür == 7 ise:
+            tamam = sp == n
+            pc += 1
+        değilse:
+            önce = sp > 0 ve kelime_kodu_mu(k[sp - 1])
+            sonra = sp < n ve kelime_kodu_mu(k[sp])
+            tamam = (önce != sonra) == (tür == 8)
+            pc += 1
+        eğer tamam == yanlış ise:
+            eğer üst == 0 ise:
+                döndür -1
+            üst -= 2
+            pc = yığın[üst]
+            sp = yığın[üst + 1]
+    döndür -1
+
+# İlk eşleşme: [baş, son]; yoksa [-1, -1]
+işlev desen_ara(p: liste<sayı>, sınıf: liste<sayı>, k: liste<sayı>, baş: sayı, adım: liste<sayı>, satır: sayı) -> liste<sayı>:
+    her s için baş'tan uzunluk(k)'ya kadar:
+        e = d_çalıştır(p, sınıf, k, s, adım, satır)
+        eğer e >= 0 ise:
+            döndür [s, e]
+    döndür [-1, -1]
+
+# Bütün eşleşmelerin yerleri: [baş1, son1, baş2, son2, ...]
+işlev desen_yerleri(m: metin, desen: metin, satır: sayı) -> liste<sayı>:
+    sınıf: liste<sayı> = []
+    p = desen_derle(desen, sınıf, yanlış, satır)
+    k = kodlar(m)
+    adım = [0]
+    yerler: liste<sayı> = []
+    baş = 0
+    baş <= uzunluk(k) olduğu sürece:
+        r = desen_ara(p, sınıf, k, baş, adım, satır)
+        eğer r[0] < 0 ise:
+            dur
+        r[0]'ı yerler'e ekle.
+        r[1]'i yerler'e ekle.
+        baş = r[1]
+        eğer r[1] == r[0] ise:
+            baş += 1
+    döndür yerler
+
+işlev eşleşir(m: metin, desen: metin, satır: sayı) -> mantık:
+    sınıf: liste<sayı> = []
+    p = desen_derle(desen, sınıf, doğru, satır)
+    döndür d_çalıştır(p, sınıf, kodlar(m), 0, [0], satır) >= 0
+
+işlev desen_bul(m: metin, desen: metin, satır: sayı) -> metin:
+    sınıf: liste<sayı> = []
+    p = desen_derle(desen, sınıf, yanlış, satır)
+    k = kodlar(m)
+    r = desen_ara(p, sınıf, k, 0, [0], satır)
+    eğer r[0] < 0 ise:
+        döndür ""
+    döndür kodlardan(parça(k, r[0], r[1] - r[0]))
+
+işlev eşleşmeler(m: metin, desen: metin, satır: sayı) -> liste<metin>:
+    k = kodlar(m)
+    y = desen_yerleri(m, desen, satır)
+    sonuç: liste<metin> = []
+    her i için 0'dan uzunluk(y) // 2 - 1'e kadar:
+        kodlardan(parça(k, y[2 * i], y[2 * i + 1] - y[2 * i]))'ı sonuç'a ekle.
+    döndür sonuç
+
+işlev desen_değiştir(m: metin, desen: metin, yeni: metin, satır: sayı) -> metin:
+    k = kodlar(m)
+    y = desen_yerleri(m, desen, satır)
+    eğer uzunluk(y) == 0 ise:
+        döndür m
+    parçalar: liste<metin> = []
+    baş = 0
+    her i için 0'dan uzunluk(y) // 2 - 1'e kadar:
+        kodlardan(parça(k, baş, y[2 * i] - baş))'ı parçalar'a ekle.
+        yeni'yi parçalar'a ekle.
+        baş = y[2 * i + 1]
+    kodlardan(parça(k, baş, uzunluk(k) - baş))'ı parçalar'a ekle.
+    döndür birleştir(parçalar, "")
+
+işlev desen_böl(m: metin, desen: metin, satır: sayı) -> liste<metin>:
+    k = kodlar(m)
+    y = desen_yerleri(m, desen, satır)
+    sonuç: liste<metin> = []
+    baş = 0
+    her i için 0'dan uzunluk(y) // 2 - 1'e kadar:
+        eğer y[2 * i + 1] > y[2 * i] ise:
+            kodlardan(parça(k, baş, y[2 * i] - baş))'ı sonuç'a ekle.
+            baş = y[2 * i + 1]
+    kodlardan(parça(k, baş, uzunluk(k) - baş))'ı sonuç'a ekle.
+    döndür sonuç
+
+# ---------------------------------------------------------------------------
+# CSV (virgülle ayrılmış değerler). Ayraç ilk satırdan anlaşılır: noktalı virgül
+# (Türkçe Excel) ya da sekme virgülden çoksa o kullanılır. Tırnaklı alanlar,
+# alan içindeki "" ve satır sonları desteklenir.
+
+işlev csv_oku(m: metin) -> liste<liste<metin>>:
+    k = kodlar(m)
+    n = uzunluk(k)
+    i = 0
+    eğer n > 0 ve k[0] == 65279 ise:
+        i = 1
+    virgül = 0
+    noktalı = 0
+    sekme = 0
+    j = i
+    j < n ve k[j] != 10 olduğu sürece:
+        eğer k[j] == 44 ise:
+            virgül += 1
+        değilse eğer k[j] == 59 ise:
+            noktalı += 1
+        değilse eğer k[j] == 9 ise:
+            sekme += 1
+        j += 1
+    ayraç = 44
+    eğer noktalı > virgül ve noktalı >= sekme ise:
+        ayraç = 59
+    değilse eğer sekme > virgül ise:
+        ayraç = 9
+    tablo: liste<liste<metin>> = []
+    satır_: liste<metin> = []
+    alan: liste<sayı> = []
+    tırnakta = yanlış
+    i < n olduğu sürece:
+        c = k[i]
+        eğer tırnakta ise:
+            eğer c == 34 ve i + 1 < n ve k[i + 1] == 34 ise:
+                34'ü alan'a ekle.
+                i += 1
+            değilse eğer c == 34 ise:
+                tırnakta = yanlış
+            değilse:
+                c'yi alan'a ekle.
+        değilse eğer c == 34 ise:
+            tırnakta = doğru
+        değilse eğer c == ayraç ise:
+            kodlardan(alan)'ı satır_'a ekle.
+            alan = []
+        değilse eğer c == 10 ise:
+            kodlardan(alan)'ı satır_'a ekle.
+            satır_'ı tablo'ya ekle.
+            alan = []
+            satır_ = []
+        değilse eğer c != 13 ise:
+            c'yi alan'a ekle.
+        i += 1
+    eğer uzunluk(alan) > 0 veya uzunluk(satır_) > 0 ise:
+        kodlardan(alan)'ı satır_'a ekle.
+        satır_'ı tablo'ya ekle.
+    döndür tablo
+
+işlev csv_alanı(a: metin) -> metin:
+    eğer metin_içerir(a, ",") veya metin_içerir(a, ";") veya metin_içerir(a, "\"") veya metin_içerir(a, "\n") veya metin_içerir(a, karakter(13)) ise:
+        döndür "\"" + değiştir(a, "\"", "\"\"") + "\""
+    döndür a
+
+işlev csv_yaz(tablo: liste<liste<metin>>) -> metin:
+    satırlar_: liste<metin> = []
+    her s için tablo'dan:
+        alanlar: liste<metin> = []
+        her a için s'den:
+            csv_alanı(a)'yı alanlar'a ekle.
+        birleştir(alanlar, ",")'yı satırlar_'a ekle.
+    döndür birleştir(satırlar_, "\n") + "\n"
+
+# ---------------------------------------------------------------------------
+# JSON'dan değer okuma: json_al(metin, "hava.sıcaklık"), json_al(m, "öğrenciler.0.ad").
+# Yolun her parçası bir nesne anahtarı ya da (dizilerde) 0'dan başlayan sıradır.
+# Metin değerler çözülmüş olarak, sayılar ve doğru/yanlış yazıldığı gibi, nesne ve
+# diziler JSON metni olarak döner; yol bulunamazsa "".
+
+işlev j_boşluk(k: liste<sayı>, i: sayı) -> sayı:
+    i < uzunluk(k) ve boşluk_kodu_mu(k[i]) olduğu sürece:
+        i += 1
+    döndür i
+
+# Değerin bittiği yer
+işlev j_atla(k: liste<sayı>, i: sayı) -> sayı:
+    n = uzunluk(k)
+    eğer i >= n ise:
+        döndür n
+    eğer k[i] == 34 ise:
+        i += 1
+        i < n ve k[i] != 34 olduğu sürece:
+            eğer k[i] == 92 ise:
+                i += 1
+            i += 1
+        döndür i + 1
+    eğer k[i] == 123 veya k[i] == 91 ise:
+        derinlik = 0
+        i < n olduğu sürece:
+            c = k[i]
+            eğer c == 34 ise:
+                i = j_atla(k, i)
+                eğer derinlik == 0 ise:
+                    döndür i
+                sürdür
+            eğer c == 123 veya c == 91 ise:
+                derinlik += 1
+            değilse eğer c == 125 veya c == 93 ise:
+                derinlik -= 1
+                eğer derinlik == 0 ise:
+                    döndür i + 1
+            i += 1
+        döndür n
+    i < n ve k[i] != 44 ve k[i] != 125 ve k[i] != 93 ve boşluk_kodu_mu(k[i]) == yanlış olduğu sürece:
+        i += 1
+    döndür i
+
+işlev onaltılık_değeri(c: sayı) -> sayı:
+    eğer c >= 48 ve c <= 57 ise:
+        döndür c - 48
+    eğer c >= 97 ve c <= 102 ise:
+        döndür c - 87
+    eğer c >= 65 ve c <= 70 ise:
+        döndür c - 55
+    döndür 0
+
+# `i` bir tırnağın yeri; çözülmüş metnin kodları
+işlev j_metin(k: liste<sayı>, i: sayı) -> liste<sayı>:
+    s: liste<sayı> = []
+    n = uzunluk(k)
+    i += 1
+    i < n ve k[i] != 34 olduğu sürece:
+        c = k[i]
+        eğer c == 92 ve i + 1 < n ise:
+            i += 1
+            e = k[i]
+            eğer e == 110 ise:
+                c = 10
+            değilse eğer e == 116 ise:
+                c = 9
+            değilse eğer e == 114 ise:
+                c = 13
+            değilse eğer e == 98 ise:
+                c = 8
+            değilse eğer e == 102 ise:
+                c = 12
+            değilse eğer e == 117 ve i + 4 < n ise:
+                c = 0
+                her j için 1'den 4'e kadar:
+                    c = c * 16 + onaltılık_değeri(k[i + j])
+                i += 4
+                # vekil çift (😀 gibi)
+                eğer c >= 55296 ve c <= 56319 ve i + 6 < n ve k[i + 1] == 92 ve k[i + 2] == 117 ise:
+                    d = 0
+                    her j için 3'ten 6'ya kadar:
+                        d = d * 16 + onaltılık_değeri(k[i + j])
+                    eğer d >= 56320 ve d <= 57343 ise:
+                        c = 65536 + (c - 55296) * 1024 + (d - 56320)
+                        i += 6
+            değilse:
+                c = e
+        c'yi s'ye ekle.
+        i += 1
+    döndür s
+
+işlev json_al(m: metin, yol: metin) -> metin:
+    k = kodlar(m)
+    n = uzunluk(k)
+    i = j_boşluk(k, 0)
+    eğer yol != "" ise:
+        her anahtar için böl(yol, ".")'dan:
+            eğer i >= n ise:
+                döndür ""
+            bulundu = yanlış
+            eğer k[i] == 123 ise:
+                i = j_boşluk(k, i + 1)
+                i < n ve k[i] == 34 olduğu sürece:
+                    ad = kodlardan(j_metin(k, i))
+                    i = j_boşluk(k, j_atla(k, i))
+                    eğer i < n ve k[i] == 58 ise:
+                        i = j_boşluk(k, i + 1)
+                    eğer ad == anahtar ise:
+                        bulundu = doğru
+                        dur
+                    i = j_boşluk(k, j_atla(k, i))
+                    eğer i < n ve k[i] == 44 ise:
+                        i = j_boşluk(k, i + 1)
+            değilse eğer k[i] == 91 ve sayı_mı(anahtar) ise:
+                sıra = sayı(anahtar)
+                i = j_boşluk(k, i + 1)
+                j = 0
+                i < n ve k[i] != 93 olduğu sürece:
+                    eğer j == sıra ise:
+                        bulundu = doğru
+                        dur
+                    i = j_boşluk(k, j_atla(k, i))
+                    eğer i < n ve k[i] == 44 ise:
+                        i = j_boşluk(k, i + 1)
+                    j += 1
+            eğer bulundu == yanlış ise:
+                döndür ""
+    eğer i >= n ise:
+        döndür ""
+    eğer k[i] == 34 ise:
+        döndür kodlardan(j_metin(k, i))
+    son = j_atla(k, i)
+    eğer son - i == 4 ve kodlardan(parça(k, i, 4)) == "null" ise:
+        döndür ""
+    döndür kodlardan(parça(k, i, son - i))

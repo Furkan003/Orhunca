@@ -90,6 +90,7 @@ pub(crate) const CALISMA_ZAMANI: &[(&str, usize, bool)] = &[
     ("ohc_bekle", 1, false),
     ("ohc_argumanlar", 0, true),
     ("ohc_ortam", 1, true),
+    ("ohc_http", 4, true),
     ("ohc_cik", 1, false),
     ("ohc_alan_al", 3, true),
     ("ohc_alan_koy", 4, false),
@@ -1151,6 +1152,14 @@ impl Uretici<'_, '_> {
                 self.cz("ohc_sun", &[kapi, t])
             }
             "ortam" => self.cz("ohc_ortam", d),
+            "http_al" => {
+                let sifir = self.sabit(0);
+                self.cz("ohc_http", &[sifir, d[0], sifir, satir])
+            }
+            "http_gönder" => {
+                let bir = self.sabit(1);
+                self.cz("ohc_http", &[bir, d[0], d[1], satir])
+            }
             "çık" => self.cz("ohc_cik", d),
             "hata_ver" => self.cz("ohc_hata_ver", &[d[0], satir]),
             HATA_SATIRDA => self.cz("ohc_hata_ver", &[d[0], d[1]]),
