@@ -175,6 +175,48 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 - Stüdyo: satır numarasında kesme noktaları (F9), durulan satırın vurgusu, değişkenler, çağrı yığını
   (çerçeve seçimi), araç çubuğu (F5/F10/F11/⇧F11, duraklat). Test: tests/studyo.rs.
 
+## Aşama 10 – Okullar için hazır ürün (v0.6)
+
+### 10a – Marka
+- "Ayraç" logosu (‹𐰆›), simgeler (`araclar/logo_uret.py` → `docs/marka/`), Stüdyo açılış animasyonu
+  (Oyma → Ayraç → Yazı → Kod; tıklayınca ya da tuşla geçilir, azaltılmış hareket ayarına uyar).
+
+### 10b – Sürüm hattı ve kurulum dosyaları
+- `.github/workflows/surum.yml`: `orhunca` komutu (Linux glibc 2.17+, Windows, macOS evrensel) ve
+  Stüdyo kurulum dosyaları: Windows `.exe` (NSIS) ve `.msi` (Türkçe), Linux `.deb`, `.rpm`,
+  `.AppImage`, macOS `.dmg`. Kurulum `orhunca` komutunu PATH'e ekler, `.ohc`/`.ohcproj` dosyalarını
+  Stüdyo'ya bağlar. `v*` etiketiyle GitHub Releases'e SHA256SUMS ile yayımlanır.
+- `kurulum/kur.sh`, `kurulum/kur.ps1`: tek satırlık kurulum.
+
+### 10c – Web sitesi ve tarayıcıda deneme
+- `web/site` (GitHub Pages): indirme bölümü, derleyicinin WebAssembly'si ile tarayıcıda deneme
+  (konsol programları Web Worker'da, arayüz programları yalıtılmış çerçevede; paylaşım bağlantısı).
+
+### 10d – Hata mesajları
+- Başka dillerden gelen alışkanlıklar (`print(...)`, `for`, `def` ...) için Orhunca karşılığı;
+  yanlış yazılmış isimlere "bunu mu demek istediniz?" (Türkçe harfler sadeleştirilerek).
+
+### 10e – Stüdyo kolaylıkları
+- `orhunca etkileşim` (REPL), açık tema, otomatik tamamlama (doğru hâl ekiyle), adım adım gösterim,
+  erişilebilirlik (klavye, ekran okuyucu).
+
+### 10f – Öğrenme
+- `dersler/`: 13 ders; Stüdyo'da Dersler paneli, alıştırmalar çalıştırılıp çıktıyla denetlenir.
+  Günlük hayattan örnekler (not ortalaması, alışveriş listesi, birim çevirici, kelime sayacı).
+
+### 10g – Kütüphane
+- Tarih (`bugün`, `gün_ekle`, `gün_farkı`, `haftanın_günü`, `tarih_yazısı`), desenler (düzenli
+  ifadeler; Orhunca ile yazılmış geri izlemeli makine), CSV, `json_al`, HTTP (`http_al`, `http_gönder`).
+- Arayüz öğeleri: `tablo`, `grafik` (çubuk, çizgi, pasta), `sekmeler`, `iletişim_kutusu`.
+- Paket dizini (`kütüphaneler/dizin.json`, `orhunca paket ara`, `orhunca paket ekle istatistik`),
+  resmi paketler: istatistik, geometri; depo alt klasöründen paket.
+
+### 10h – Güvenlik ve dayanıklılık
+- Bulanık sınama (`tests/bulanik.rs`); derin/uzun girdi sınırları; derleyici geniş yığında.
+- Web sunucusu: statik dosyalarda gizli dosya ve aygıt adı reddi, parçalı gövde taşması, yavaş
+  gönderim zaman aşımı, bağlantı ve oturum sınırları. Stüdyo: `..` reddi, başlık sınırı, zaman aşımı.
+- Sonsuz özyineleme yerelde ve tarayıcıda yakalanabilir çalışma hatası.
+
 ## Henüz yapılmayanlar
 
 - Çalışma zamanının çekirdeği (bellek ve çöp toplayıcı, listeler, sözlükler, dosyalar, ağ, JSON,
@@ -189,7 +231,9 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 
 1. Öz-barındırma: tip denetçisinin Orhunca'ya taşınması (`öz/BENİOKU.md`).
 2. Hata ayıklayıcıda koşullu kesme noktaları ve değişkenlerin ağaç görünümü.
-3. macOS için hazır çalıştırıcı ve pencere kabuğu.
+3. macOS için hazır çalıştırıcı (şimdilik macOS'ta derleme sistemdeki C derleyicisiyle yapılır).
+4. Kurulum dosyalarının imzalanması (Windows SmartScreen ve macOS Gatekeeper uyarıları için).
+5. Döngüde metin büyütmenin (`m = m + ...`) hızlandırılması.
 
 ## Çalışma şekli
 

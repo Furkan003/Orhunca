@@ -247,6 +247,21 @@ bir çalışma hatasında program kapanmadan önce hatanın olduğu satırda dur
 | Başlangıç | Yeni proje |
 |---|---|
 | ![Başlangıç](docs/ekran/baslangic.png) | ![Yeni proje](docs/ekran/yeni-proje.png) |
+| Dersler | Açık tema |
+| ![Dersler](docs/ekran/dersler.png) | ![Açık tema](docs/ekran/acik-tema.png) |
+
+**Öğrenme:** sol çubuktaki **Dersler** paneli [dersler/](dersler) klasöründeki 13 dersi açar
+(ilk programdan web'e). Her dersin alıştırması *Başla* ile bir dosya olarak açılır, *Denetle*
+programı çalıştırıp çıktısını beklenenle karşılaştırır; tamamlanan dersler işaretlenir. Dersler
+web sitesinde de okunabilir.
+
+**Kolaylıklar:** yazarken tamamlama (Ctrl+Boşluk; kesme işaretinden sonra ifadenin doğru hâl eki
+önerilir: `sayılar'` → `'ı`), **adım adım gösterim** (program her satırda kendiliğinden durup ilerler,
+değişkenler güncellenir; sınıfta göstermek için), Ayarlar'da **açık tema** (projektör için), klavyeyle
+tam kullanım ve ekran okuyucu desteği.
+
+**Etkileşim (REPL):** `orhunca etkileşim` satır satır deneme ortamı açar: `3 + 4` yazınca `7`,
+tanımlar ve atamalar oturumda kalır, `:yardım`, `:liste`, `:sil`, `:çık`.
 
 **Masaüstü uygulaması:** [masaustu/](masaustu) Stüdyo'yu tarayıcısız, kendi penceresinde açan Tauri
 uygulamasıdır (`cd masaustu && cargo run --release`; kurulum dosyaları için `cargo tauri build`).
