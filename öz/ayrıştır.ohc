@@ -1,0 +1,12 @@
+# Bir Orhunca dosyasının söz dizimi ağacını yazar (öz/ayrıştırıcı.ohc ile).
+# Kullanım: orhunca çalıştır öz/ayrıştır.ohc -- örnekler/merhaba.ohc
+#
+# Çıktı, derleyicinin dökümüyle (src/dokum.rs) aynı biçimdedir.
+kullan "ayrıştırıcı.ohc"
+
+argümanlar_ = argümanlar()
+eğer uzunluk(argümanlar_) 0'a eşitse:
+    "kullanım: ayrıştır <dosya.ohc>"'u yaz.
+    çık(2)
+
+ayrıştır_ve_dök(dosya_oku(argümanlar_[0]))'ü yaz.

@@ -130,13 +130,19 @@ Seçenekler bütün öğelerde kullanılabilir: `renk`, `arka`, `boyut`, `kalın
 
 ## Öz-barındırma
 
-Derleyicinin parçaları Orhunca'ya taşınıyor: [öz/sözcük.ohc](öz/sözcük.ohc), derleyicinin sözcük
-çözümleyicisinin Orhunca ile yazılmış karşılığıdır ve onunla aynı sözcükleri, konumları ve hata
-mesajlarını üretir (`tests/oz.rs` bütün örneklerde karşılaştırır). Ayrıntılar ve sıradaki adımlar:
-[öz/BENİOKU.md](öz/BENİOKU.md).
+Derleyicinin parçaları Orhunca'ya taşınıyor:
+
+- [öz/sözcük.ohc](öz/sözcük.ohc): sözcük çözümleyici (aynı sözcükler, konumlar ve hata mesajları).
+- [öz/ayrıştırıcı.ohc](öz/ayrıştırıcı.ohc): ayrıştırıcı — hâl ekleri ve ek çözümlemesi, fiil
+  cümleleri, Türkçe koşullar, modeller, seçenekler, web yolları ve arayüz öğeleri. Derleyicinin
+  ayrıştırıcısıyla aynı söz dizimi ağacını ve aynı hata mesajlarını üretir.
+
+`tests/oz.rs` ikisini bütün örneklerde, şablonlarda ve onlarca hatalı girdide derleyiciyle
+karşılaştırır (yerel ve WebAssembly derlemesiyle). Ayrıntılar: [öz/BENİOKU.md](öz/BENİOKU.md).
 
 ```sh
 orhunca çalıştır öz/sözcükle.ohc -- örnekler/merhaba.ohc
+orhunca çalıştır öz/ayrıştır.ohc -- örnekler/fiiller.ohc
 ```
 
 ## Orhunca Stüdyo

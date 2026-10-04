@@ -31,12 +31,38 @@ sözcük sözcük karşılaştırır; Orhunca çözümleyicisi WebAssembly'ye de
 Bu iş dile iki eklemeyi gerektirdi: tipi yazılmış değişkenler (`çıktı: liste<Sözcük> = []`) ve
 karakter kodları (`kod("A")` = 65, `karakter(231)` = "ç").
 
+## İkinci adım: ayrıştırıcı
+
+`ayrıştırıcı.ohc`, derleyicinin [src/ayristirici.rs](../src/ayristirici.rs) dosyasındaki
+ayrıştırıcının karşılığıdır (yaklaşık 2000 satır Orhunca): programdaki isimlerden kurulan ek
+çözümleme sözlüğü (ünsüz yumuşaması, ünlü düşmesi, belirsizlik), fiille biten cümleler, Türkçe
+koşullar (`x 4'ten büyük veya eşitse`), işlevler, fiiller, modeller, seçenekler, web yolları ve
+arayüz öğeleri. Söz dizimi ağacı iç içe modellerle kurulur; hatalar `hata_ver` ile atılıp en
+dışta `dene / yakala` ile yakalanır.
+
+```sh
+orhunca çalıştır öz/ayrıştır.ohc -- örnekler/fiiller.ohc
+```
+
+Çıktı, derleyicinin ağaç dökümüyle ([src/dokum.rs](../src/dokum.rs)) aynı biçimdedir:
+
+```text
+işlev@4:1 karele (sayı ? Belirtme) -> -
+  döndür@5:5 (ikili@5:12 Carp (isim@5:12 sayı) (isim@5:19 sayı))
+işlev@10:1 düş (miktar ondalık Belirtme) (bakiye ondalık Ayrilma) -> ondalık
+  eğer (ikili@11:10 Buyuk (isim@11:10 miktar) (isim@11:17 bakiye))
+    yaz (metin@12:9 "Yetersiz bakiye")
+```
+
+`tests/oz.rs` iki ayrıştırıcıyı bütün örneklerde ve onlarca hatalı girdide satır satır
+karşılaştırır; ayrıştırıcı kendi kaynağını da ayrıştırır.
+
+Bu adım dilin eksiklerini de gösterdi; ayrıştırıcıyı yazmak için eklenenler: hata yakalama
+(`dene / yakala`, `hata_ver`), seçenek türleri, iç içe modeller (`alt: liste<İfade>`),
+indeksli birleşik atama ve parametre tipi çıkarımı.
+
 ## Sıradaki adımlar
 
-1. Ayrıştırıcı (hâl ekleri, cümle yapısı) ve söz dizimi ağacı modelleri.
-2. Tip denetçisi ve Türkçe hata mesajları.
-3. Kod üretimi: WebAssembly (ikili biçimi Orhunca ile yazmak, Cranelift'ten bağımsızdır).
-4. Derleyicinin kendisini derlemesi.
-
-Eksikleri: Orhunca'da henüz hata yakalama (`dene / yakala`) ve sözcük türleri için numaralandırma
-(enum) yok; hatalar `HATA` türünde bir sözcükle, türler metinle gösteriliyor.
+1. Tip denetçisi ve Türkçe hata mesajları.
+2. Kod üretimi: WebAssembly (ikili biçimi Orhunca ile yazmak, Cranelift'ten bağımsızdır).
+3. Derleyicinin kendisini derlemesi.

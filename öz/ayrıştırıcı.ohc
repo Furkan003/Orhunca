@@ -1,0 +1,2146 @@
+# Orhunca'nın ayrıştırıcısı — Orhunca ile yazılmış.
+#
+# Öz-barındırmanın ikinci adımı: derleyicinin src/ayristirici.rs dosyasındaki
+# ayrıştırıcının karşılığıdır. Sözcükleri (sözcük.ohc) söz dizimi ağacına çevirir:
+# hâl ekleri, fiille biten cümleler, Türkçe koşullar, modeller, seçenekler, web yolları,
+# arayüz öğeleri. Aynı ağacı ve aynı hata mesajlarını üretir; tests/oz.rs ikisinin
+# dökümlerini (src/dokum.rs) bütün örneklerde karşılaştırır.
+#
+# Kullanım: kullan "ayrıştırıcı.ohc"  …  p = ayrıştır(kaynak)  ·  p'nin dökümü: döküm(p)
+kullan "sözcük.ohc"
+
+# ---------------------------------------------------------------------------
+# Söz dizimi ağacı
+# ---------------------------------------------------------------------------
+
+# Bir ifade. tür: sayı, ondalık, metin, mantık, isim, liste, sözlük, ikili, tekli, çağrı,
+# fiil, indeks, kurucu, alan, yöntem, modeladı. `ad` türe göre değerin yazısı, işlecin,
+# çağrılan işlevin, alanın ya da modelin adıdır. `etiketler`, alt ifadelerle sıralı olarak
+# fiil çağrısında hâlleri, kurucuda alan adlarını tutar.
+model İfade:
+    tür: metin
+    ad: metin
+    satır: sayı
+    sütun: sayı
+    alt: liste<İfade>
+    etiketler: liste<metin>
+
+model Deyim:
+    tür: metin
+    ad: metin
+    tip: metin
+    satır: sayı
+    sütun: sayı
+    ifadeler: liste<İfade>
+    gövde: liste<Deyim>
+    diğer: liste<Deyim>
+    # Arayüz öğesi: ilk `argüman_sayısı` ifade değer, kalanlar adlı seçenek
+    argüman_sayısı: sayı
+    seçenek_adları: liste<metin>
+    olay_var: mantık
+    olay_adı: metin
+    olay_satır: sayı
+    olay_sütun: sayı
+
+model Alan:
+    ad: metin
+    tip: metin
+    satır: sayı
+    sütun: sayı
+    zorunlu: mantık
+    e_posta: mantık
+    en_az: metin
+    en_fazla: metin
+    etiket: metin
+    varsayılan_var: mantık
+    varsayılan: İfade
+
+model ModelTanımı:
+    ad: metin
+    satır: sayı
+    sütun: sayı
+    alanlar: liste<Alan>
+
+model SeçenekTanımı:
+    ad: metin
+    satır: sayı
+    sütun: sayı
+    değerler: liste<metin>
+
+model DurumTanımı:
+    ad: metin
+    tip: metin
+    satır: sayı
+    sütun: sayı
+    değer: İfade
+
+model İşlev:
+    ad: metin
+    satır: sayı
+    sütun: sayı
+    parametreler: liste<metin>
+    tipler: liste<metin>
+    haller: liste<metin>
+    dönüş: metin
+    arayüz: mantık
+    rota_var: mantık
+    rota_yöntem: metin
+    rota_kalıp: metin
+    gövde: liste<Deyim>
+
+model Program:
+    modeller: liste<ModelTanımı>
+    seçenekler: liste<SeçenekTanımı>
+    sabit_adları: liste<metin>
+    sabitler: liste<İfade>
+    durumlar: liste<DurumTanımı>
+    işlevler: liste<İşlev>
+    ana: liste<Deyim>
+
+işlev yeni_ifade(tür: metin, ad: metin, satır: sayı, sütun: sayı) -> İfade:
+    döndür İfade(tür: tür, ad: ad, satır: satır, sütun: sütun)
+
+işlev ifade1(tür: metin, ad: metin, a: İfade, satır: sayı, sütun: sayı) -> İfade:
+    e = yeni_ifade(tür, ad, satır, sütun)
+    a'yı e.alt'a ekle.
+    döndür e
+
+işlev ifade2(tür: metin, ad: metin, a: İfade, b: İfade, satır: sayı, sütun: sayı) -> İfade:
+    e = ifade1(tür, ad, a, satır, sütun)
+    b'yi e.alt'a ekle.
+    döndür e
+
+işlev yeni_deyim(tür: metin, ad: metin, satır: sayı, sütun: sayı) -> Deyim:
+    döndür Deyim(tür: tür, ad: ad, tip: "-", satır: satır, sütun: sütun)
+
+# ---------------------------------------------------------------------------
+# Sabit tablolar
+# ---------------------------------------------------------------------------
+
+# İsim olarak kullanılamayan kelimeler
+işlev ayrılmış_kelimeler() -> liste<metin>:
+    döndür ["eğer", "değilse", "ise", "her", "için", "kadar", "işlev", "kullan", "sabit", "fiil", "döndür", "dur", "sürdür", "ve", "veya", "değil", "doğru", "yanlış", "olduğu", "sürece", "iken", "yaz", "ekle", "sırala", "çıkar", "ekran", "ekrana", "uzunluğu"]
+
+işlev yerleşik_fiiller() -> liste<metin>:
+    döndür ["yaz", "ekle", "sırala", "çıkar"]
+
+işlev model_fiilleri() -> liste<metin>:
+    döndür ["kaydet", "sil"]
+
+işlev rota_kelimeleri() -> liste<metin>:
+    döndür ["al", "gönder", "koy", "sil"]
+
+işlev rota_yöntemi(k: metin) -> metin:
+    eğer k == "al" ise:
+        döndür "GET"
+    eğer k == "gönder" ise:
+        döndür "POST"
+    eğer k == "koy" ise:
+        döndür "PUT"
+    döndür "DELETE"
+
+# Ayrıştırıcının bildiği yerleşik işlevler (adları işlev olarak tanımlanamaz)
+işlev temel_yerleşikler() -> liste<metin>:
+    döndür ["uzunluk", "metin", "sayı", "ondalık", "yuvarla", "oku"]
+
+# Standart kütüphanenin tamamı (src/yerlesik.rs): model adı olamazlar.
+işlev standart_kütüphane() -> liste<metin>:
+    döndür ["uzunluk", "metin", "sayı", "ondalık", "yuvarla", "sayı_mı", "ondalık_mı", "büyük_harf", "küçük_harf", "kırp", "parça", "böl", "birleştir", "içerir", "bul", "değiştir", "başlar", "biter", "tekrarla", "harfler", "kod", "karakter", "satırlar", "sil", "ters", "karıştır", "kopya", "en_büyük", "en_küçük", "toplam", "anahtarlar", "değerler", "dosya_oku", "dosyaya_yaz", "dosyaya_ekle", "dosya_var", "dosya_sil", "karekök", "üs", "mutlak", "sinüs", "kosinüs", "tanjant", "logaritma", "rastgele", "zaman", "tarih", "bekle", "oku", "argümanlar", "ortam", "çık", "boş_mu", "hata_ver", "json", "kaçır", "para", "url_kodla", "görünüm", "yanıt", "yönlendir", "json_yanıtı", "sun"]
+
+# Arayüz öğeleri ve olayları (src/arayuz.rs)
+işlev arayüz_öğeleri() -> liste<metin>:
+    döndür ["başlık", "alt_başlık", "yazı", "düğme", "bağlantı", "resim", "ayraç", "boşluk", "giriş", "metin_alanı", "onay_kutusu", "seçim", "kaydırıcı", "ilerleme", "satır", "sütun", "kart", "kutu", "ızgara", "zamanlayıcı"]
+
+işlev arayüz_olayları() -> liste<metin>:
+    döndür ["tıklanınca", "değişince", "gönderilince", "çalınca"]
+
+# Web çatısının yerleşik modelleri: her programa eklenir.
+işlev yerleşik_modeller() -> metin:
+    döndür "model İstek:\n    yöntem: metin\n    yol: metin\n    sorgu: sözlük<metin, metin>\n    form: sözlük<metin, metin>\n    parametreler: sözlük<metin, metin>\n    gövde: metin\n    başlıklar: sözlük<metin, metin>\n\nmodel Yanıt:\n    durum: sayı = 200\n    tür: metin = \"text/html; charset=utf-8\"\n    gövde: metin\n    konum: metin\n    başlıklar: sözlük<metin, metin>\n"
+
+# ---------------------------------------------------------------------------
+# Hâl ekleri ve ek çözümleme (src/ekler.rs)
+# ---------------------------------------------------------------------------
+
+# Hâl: Belirtme, Yonelme, Ayrilma, Bulunma, Vasita, Ilgi; ek değilse "".
+işlev hal_bul(ek: metin) -> metin:
+    eğer içerir(["ı", "i", "u", "ü", "yı", "yi", "yu", "yü", "nı", "ni", "nu", "nü"], ek) ise:
+        döndür "Belirtme"
+    eğer içerir(["a", "e", "ya", "ye", "na", "ne"], ek) ise:
+        döndür "Yonelme"
+    eğer içerir(["dan", "den", "tan", "ten", "ndan", "nden"], ek) ise:
+        döndür "Ayrilma"
+    eğer içerir(["da", "de", "ta", "te", "nda", "nde"], ek) ise:
+        döndür "Bulunma"
+    eğer içerir(["la", "le", "yla", "yle"], ek) ise:
+        döndür "Vasita"
+    eğer içerir(["ın", "in", "un", "ün", "nın", "nin", "nun", "nün"], ek) ise:
+        döndür "Ilgi"
+    döndür ""
+
+işlev hal_adı(h: metin) -> metin:
+    eğer h == "Belirtme" ise:
+        döndür "belirtme (-i)"
+    eğer h == "Yonelme" ise:
+        döndür "yönelme (-e)"
+    eğer h == "Ayrilma" ise:
+        döndür "ayrılma (-den)"
+    eğer h == "Bulunma" ise:
+        döndür "bulunma (-de)"
+    eğer h == "Vasita" ise:
+        döndür "vasıta (-le)"
+    döndür "ilgi (-in)"
+
+# Ünlü düşmesi: `isim` → `ism`, `metin` → `metn` ...
+işlev ünlü_düşmesi() -> liste<metin>:
+    döndür ["isim", "ism", "metin", "metn", "resim", "resm", "şehir", "şehr", "fikir", "fikr", "akıl", "akl", "burun", "burn", "ağız", "ağz", "oğul", "oğl", "alın", "aln", "ömür", "ömr", "kayıt", "kayd", "hüküm", "hükm", "beyin", "beyn", "gönül", "gönl", "boyun", "boyn", "karın", "karn", "sabır", "sabr", "zihin", "zihn", "nehir", "nehr", "emir", "emr", "asır", "asr", "göğüs", "göğs", "vakit", "vakt", "devir", "devr", "nesil", "nesl", "zehir", "zehr", "keyif", "keyf", "kısım", "kısm", "şekil", "şekl", "cisim", "cism", "ilim", "ilm"]
+
+# Bir ismin ek aldığında görülebilecek gövdeleri (ünsüz yumuşaması, ünlü düşmesi).
+işlev gövdeleri(isim: metin) -> liste<metin>:
+    v = [isim]
+    tablo = ünlü_düşmesi()
+    her i için 0'dan uzunluk(tablo) // 2 - 1'e kadar:
+        tam = tablo[2 * i]
+        eğer biter(isim, tam) ise:
+            ön = parça(isim, 0, uzunluk(isim) - uzunluk(tam))
+            eğer ön == "" veya biter(ön, "_") ise:
+                (ön + tablo[2 * i + 1])'i v'ye ekle.
+    k = harfler(isim)
+    n = uzunluk(k)
+    eğer n >= 2 ise:
+        son = k[n - 1]
+        yumuşak = ""
+        eğer son == "p" ise:
+            yumuşak = "b"
+        değilse eğer son == "ç" ise:
+            yumuşak = "c"
+        değilse eğer son == "t" ise:
+            yumuşak = "d"
+        değilse eğer son == "k" ve k[n - 2] == "n" ise:
+            yumuşak = "g"
+        değilse eğer son == "k" ise:
+            yumuşak = "ğ"
+        eğer yumuşak != "" ise:
+            (parça(isim, 0, n - 1) + yumuşak)'ı v'ye ekle.
+    döndür v
+
+model İsimSözlüğü:
+    gövdeler: sözlük<metin, metin>
+    isimler: sözlük<metin, mantık>
+
+işlev sözlüğe_ekle(s: İsimSözlüğü, isim: metin):
+    s.isimler[isim] = doğru
+    her g için gövdeleri(isim)'nden:
+        eğer değil içerir(s.gövdeler, g) ise:
+            s.gövdeler[g] = isim
+
+# Kesme işaretiyle yazılmış bir kökün asıl ismi (`kitab'ı` → `kitap`); yoksa "".
+işlev asıl_isim(s: İsimSözlüğü, kök: metin) -> metin:
+    eğer içerir(s.isimler, kök) ise:
+        döndür kök
+    eğer içerir(s.gövdeler, kök) ise:
+        döndür s.gövdeler[kök]
+    döndür ""
+
+# Kelimede asıl ismin (ya da yumuşamış gövdesinin) harf sayısı
+işlev gövde_uzunluğu(kelime: metin, isim: metin) -> sayı:
+    en = 0
+    her g için gövdeleri(isim)'nden:
+        eğer başlar(kelime, g) ve uzunluk(g) > en ise:
+            en = uzunluk(g)
+    döndür en
+
+# Çözüm türü: İsim, EkliIsim, Belirsiz, Bilinmiyor
+model Çözüm:
+    tür: metin
+    isim: metin
+    hal: metin
+    adaylar: liste<metin>
+
+işlev çözümle(s: İsimSözlüğü, kelime: metin) -> Çözüm:
+    isimler: liste<metin> = []
+    haller: liste<metin> = []
+    eğer içerir(s.isimler, kelime) ise:
+        kelime'yi isimler'e ekle.
+        ""'yi haller'e ekle.
+    k = harfler(kelime)
+    n = uzunluk(k)
+    kök = ""
+    her i için 1'den n - 1'e kadar:
+        kök = kök + k[i - 1]
+        h = hal_bul(parça(kelime, i, n - i))
+        eğer h != "" ve içerir(s.gövdeler, kök) ise:
+            asıl = s.gövdeler[kök]
+            var = yanlış
+            her j için 0'dan uzunluk(isimler) - 1'e kadar:
+                eğer isimler[j] == asıl ve haller[j] == h ise:
+                    var = doğru
+            eğer değil var ise:
+                asıl'ı isimler'e ekle.
+                h'yi haller'e ekle.
+    eğer uzunluk(isimler) == 0 ise:
+        döndür Çözüm(tür: "Bilinmiyor")
+    eğer uzunluk(isimler) == 1 ise:
+        eğer haller[0] == "" ise:
+            döndür Çözüm(tür: "Isim", isim: isimler[0])
+        döndür Çözüm(tür: "EkliIsim", isim: isimler[0], hal: haller[0])
+    adaylar: liste<metin> = []
+    her j için 0'dan uzunluk(isimler) - 1'e kadar:
+        eğer haller[j] == "" ise:
+            ("'" + isimler[j] + "' ismi")'ni adaylar'a ekle.
+        değilse:
+            g = gövde_uzunluğu(kelime, isimler[j])
+            ek = parça(kelime, g, n - g)
+            (isimler[j] + "'" + ek + " (" + hal_adı(haller[j]) + ")")'yi adaylar'a ekle.
+    döndür Çözüm(tür: "Belirsiz", adaylar: adaylar)
+
+# ---------------------------------------------------------------------------
+# Ayrıştırıcı durumu
+# ---------------------------------------------------------------------------
+
+seçenek KoşulTürü: Eğer, Süresince
+
+model Ayrıştırıcı:
+    s: liste<Sözcük>
+    poz: sayı
+    # İfade içinde yakalanan hâl eki: eki taşıyan öğe ifadeyi bitirir.
+    yakalanan_var: mantık
+    yakalanan_hal: metin
+    yakalanan_satır: sayı
+    yakalanan_sütun: sayı
+    # `arayüz:` ya da `bileşen` gövdesi: arayüz öğeleri yazılabilir.
+    arayüz_içinde: mantık
+    # Tanımlar (tüm dosyalarda ortak)
+    isimler: İsimSözlüğü
+    fiiller: sözlük<metin, mantık>
+    modeller: sözlük<metin, mantık>
+    alanlar: İsimSözlüğü
+    seçenekler: sözlük<metin, liste<metin>>
+    # Son hata
+    hata_satır: sayı
+    hata_sütun: sayı
+    hata_ipucu: metin
+
+işlev hata_at(a: Ayrıştırıcı, satır: sayı, sütun: sayı, mesaj: metin, ipucu: metin):
+    a.hata_satır = satır
+    a.hata_sütun = sütun
+    a.hata_ipucu = ipucu
+    hata_ver(mesaj)
+
+işlev hata_s(a: Ayrıştırıcı, s: Sözcük, mesaj: metin, ipucu: metin):
+    hata_at(a, s.satır, s.sütun, mesaj, ipucu)
+
+işlev bak(a: Ayrıştırıcı) -> Sözcük:
+    döndür a.s[a.poz]
+
+işlev bak_n(a: Ayrıştırıcı, n: sayı) -> Sözcük:
+    i = a.poz + n
+    eğer i > uzunluk(a.s) - 1 ise:
+        i = uzunluk(a.s) - 1
+    döndür a.s[i]
+
+işlev ilerle(a: Ayrıştırıcı) -> Sözcük:
+    s = a.s[a.poz]
+    eğer a.poz < uzunluk(a.s) - 1 ise:
+        a.poz += 1
+    döndür s
+
+işlev s_op(s: Sözcük, op: metin) -> mantık:
+    döndür s.tür == "Op" ve s.değer == op
+
+işlev s_kelime(s: Sözcük, k: metin) -> mantık:
+    döndür s.tür == "Kelime" ve s.değer == k
+
+işlev op_mu(a: Ayrıştırıcı, op: metin) -> mantık:
+    döndür s_op(bak(a), op)
+
+işlev kelime_mi(a: Ayrıştırıcı, k: metin) -> mantık:
+    döndür s_kelime(bak(a), k)
+
+işlev tür_mü(a: Ayrıştırıcı, tür: metin) -> mantık:
+    döndür bak(a).tür == tür
+
+işlev satır_sonu_mu(s: Sözcük) -> mantık:
+    döndür s.tür == "YeniSatir" veya s.tür == "Son"
+
+# Ondalığın en kısa gösterimi (Rust'ın {:?} biçimi): "2.50" → "2.5", "7" → "7.0"
+işlev ondalık_yazısı(yazı: metin) -> metin:
+    eksi = başlar(yazı, "-")
+    eğer eksi ise:
+        yazı = parça(yazı, 1, uzunluk(yazı) - 1)
+    tam = yazı
+    kesir = "0"
+    i = bul(yazı, ".")
+    eğer i >= 0 ise:
+        tam = parça(yazı, 0, i)
+        kesir = parça(yazı, i + 1, uzunluk(yazı) - i - 1)
+    uzunluk(tam) > 1 ve başlar(tam, "0") olduğu sürece:
+        tam = parça(tam, 1, uzunluk(tam) - 1)
+    eğer tam == "" ise:
+        tam = "0"
+    uzunluk(kesir) > 1 ve biter(kesir, "0") olduğu sürece:
+        kesir = parça(kesir, 0, uzunluk(kesir) - 1)
+    eğer kesir == "" ise:
+        kesir = "0"
+    sonuç = tam + "." + kesir
+    eğer eksi ise:
+        sonuç = "-" + sonuç
+    döndür sonuç
+
+# Rust'ın {} biçimi: tam değerlerde ".0" yazılmaz.
+işlev ondalık_gösterimi(yazı: metin) -> metin:
+    d = ondalık_yazısı(yazı)
+    eğer biter(d, ".0") ise:
+        döndür parça(d, 0, uzunluk(d) - 2)
+    döndür d
+
+işlev tok_adı(s: Sözcük) -> metin:
+    eğer s.tür == "Sayi" ise:
+        döndür "'" + metin(sayı(s.değer)) + "' sayısı"
+    eğer s.tür == "Ondalik" ise:
+        döndür "'" + ondalık_gösterimi(s.değer) + "' sayısı"
+    eğer s.tür == "Metin" ise:
+        döndür "\"" + s.değer + "\" metni"
+    eğer s.tür == "Kelime" veya s.tür == "Op" ise:
+        döndür "'" + s.değer + "'"
+    eğer s.tür == "Ek" ise:
+        döndür "'" + s.değer + " eki"
+    eğer s.tür == "Uye" ise:
+        döndür "'.'"
+    eğer s.tür == "YeniSatir" ise:
+        döndür "satır sonu"
+    eğer s.tür == "Girinti" ise:
+        döndür "girinti"
+    eğer s.tür == "Cikinti" ise:
+        döndür "blok sonu"
+    döndür "dosya sonu"
+
+işlev beklenmeyen(a: Ayrıştırıcı, beklenen: metin):
+    s = bak(a)
+    hata_s(a, s, beklenen + " bekleniyordu, " + tok_adı(s) + " bulundu", "-")
+
+işlev bekle_op(a: Ayrıştırıcı, op: metin, tarif: metin):
+    eğer op_mu(a, op) ise:
+        ilerle(a)
+    değilse:
+        beklenmeyen(a, "'" + op + "' (" + tarif + ")")
+
+işlev bekle_kelime(a: Ayrıştırıcı, k: metin):
+    eğer kelime_mi(a, k) ise:
+        ilerle(a)
+    değilse:
+        beklenmeyen(a, "'" + k + "'")
+
+işlev deyim_sonu_mu(a: Ayrıştırıcı) -> mantık:
+    t = bak(a).tür
+    döndür t == "YeniSatir" veya t == "Son" veya t == "Cikinti" veya op_mu(a, ".")
+
+işlev deyim_bitir(a: Ayrıştırıcı):
+    eğer op_mu(a, ".") ise:
+        ilerle(a)
+    t = bak(a).tür
+    eğer t == "YeniSatir" ise:
+        ilerle(a)
+    değilse eğer t != "Son" ve t != "Cikinti" ise:
+        beklenmeyen(a, "satır sonu")
+
+# `büyükse`, `küçükken`, `eşit`, `değilse`: kök ve ek ("büyük:se"); değilse "".
+işlev yüklem(kelime: metin) -> metin:
+    her kök için ["büyük", "küçük", "eşit", "değil"]'den:
+        eğer başlar(kelime, kök) ise:
+            ek = parça(kelime, uzunluk(kök), uzunluk(kelime) - uzunluk(kök))
+            eğer ek == "" veya ek == "se" veya ek == "sa" veya ek == "ken" ise:
+                döndür kök + ":" + ek
+    döndür ""
+
+işlev yüklem_kökü(y: metin) -> metin:
+    döndür böl(y, ":")[0]
+
+işlev yüklem_eki(y: metin) -> metin:
+    döndür böl(y, ":")[1]
+
+# `uzunluğu`, `uzunluğunu`, `uzunluğuna`: "?" kelime değil, "" eksiz, yoksa hâl
+işlev uzunluk_kelimesi(k: metin) -> metin:
+    eğer değil başlar(k, "uzunluğu") ise:
+        döndür "?"
+    ek = parça(k, 8, uzunluk(k) - 8)
+    eğer ek == "" ise:
+        döndür ""
+    h = hal_bul(ek)
+    eğer h == "" veya değil başlar(ek, "n") ise:
+        döndür "?"
+    döndür h
+
+işlev ayrılmış_mı(k: metin) -> mantık:
+    döndür içerir(ayrılmış_kelimeler(), k) veya yüklem(k) != "" veya uzunluk_kelimesi(k) != "?"
+
+# ---------------------------------------------------------------------------
+# Tanımlar: programdaki tüm isimler (ek çözümlemesi için), fiiller, modeller
+# ---------------------------------------------------------------------------
+
+işlev kelime_at(s: liste<Sözcük>, i: sayı) -> metin:
+    eğer i < uzunluk(s) ve s[i].tür == "Kelime" ve değil ayrılmış_mı(s[i].değer) ise:
+        döndür s[i].değer
+    döndür ""
+
+işlev op_at(s: liste<Sözcük>, i: sayı, op: metin) -> mantık:
+    döndür i < uzunluk(s) ve s_op(s[i], op)
+
+işlev satır_başı(s: liste<Sözcük>, i: sayı) -> mantık:
+    eğer i == 0 ise:
+        döndür doğru
+    t = s[i - 1].tür
+    döndür t == "YeniSatir" veya t == "Girinti" veya t == "Cikinti" veya t == "Son"
+
+işlev tanımları_kur(a: Ayrıştırıcı, s: liste<Sözcük>):
+    sözlüğe_ekle(a.isimler, "pi")
+    sözlüğe_ekle(a.alanlar, "kimlik")
+    n = uzunluk(s)
+    model_derinliği = 0
+    her i için 0'dan n - 1'e kadar:
+        t = s[i].tür
+        eğer t == "Girinti" ve model_derinliği > 0 ise:
+            model_derinliği += 1
+        değilse eğer t == "Cikinti" ve model_derinliği == 2 ise:
+            model_derinliği = 0
+        değilse eğer t == "Cikinti" ve model_derinliği > 2 ise:
+            model_derinliği -= 1
+        değilse eğer t == "Son" ise:
+            model_derinliği = 0
+        # `seçenek Renk: kırmızı, yeşil`
+        eğer satır_başı(s, i) ve s_kelime(s[i], "seçenek") ise:
+            ad = kelime_at(s, i + 1)
+            eğer ad != "" ve op_at(s, i + 2, ":") ise:
+                değerler: liste<metin> = []
+                blok_biçimi = i + 3 < n ve s[i + 3].tür == "YeniSatir"
+                derinlik = 0
+                j = i + 3
+                j < n olduğu sürece:
+                    x = s[j]
+                    eğer x.tür == "Girinti" ise:
+                        derinlik += 1
+                    değilse eğer x.tür == "Cikinti" ise:
+                        eğer derinlik <= 1 ise:
+                            dur
+                        derinlik -= 1
+                    değilse eğer x.tür == "YeniSatir" ve değil blok_biçimi ise:
+                        dur
+                    değilse eğer x.tür == "Son" ise:
+                        dur
+                    değilse eğer x.tür == "Kelime" ise:
+                        sözlüğe_ekle(a.alanlar, x.değer)
+                        x.değer'i değerler'e ekle.
+                    j += 1
+                a.seçenekler[ad] = değerler
+                sürdür
+        eğer satır_başı(s, i) ve s_kelime(s[i], "model") ise:
+            ad = kelime_at(s, i + 1)
+            eğer ad != "" ve op_at(s, i + 2, ":") ise:
+                a.modeller[ad] = doğru
+                model_derinliği = 1
+                sürdür
+        eğer model_derinliği == 2 ve satır_başı(s, i) ise:
+            alan = kelime_at(s, i)
+            eğer alan != "" ve op_at(s, i + 1, ":") ise:
+                sözlüğe_ekle(a.alanlar, alan)
+            sürdür
+        eğer model_derinliği > 1 ise:
+            sürdür
+        # Web yolu: `al "/ürünler/{kimlik: sayı}":` → istek ve yol parametreleri tanımlı
+        eğer satır_başı(s, i) ve t == "Kelime" ve i + 2 < n ise:
+            eğer s[i + 1].tür == "Metin" ve s_op(s[i + 2], ":") ve içerir(rota_kelimeleri(), s[i].değer) ise:
+                sözlüğe_ekle(a.isimler, "istek")
+                dene:
+                    her p için rota_kalıbı(a, s[i + 1].değer, s[i + 1]).parametreler'den:
+                        sözlüğe_ekle(a.isimler, p)
+                yakala:
+                    a.hata_ipucu = "-"
+        # `işler: liste<metin> = []`: tipi yazılmış değişken tanımı
+        eğer satır_başı(s, i) ve op_at(s, i + 1, ":") ise:
+            k = kelime_at(s, i)
+            eğer k != "" ve i + 2 < n ve s[i + 2].tür == "Kelime" ise:
+                j = i + 2
+                eşittir = yanlış
+                j < n ve değil satır_sonu_mu(s[j]) olduğu sürece:
+                    eğer s_op(s[j], "=") ise:
+                        eşittir = doğru
+                    j += 1
+                eğer eşittir ise:
+                    sözlüğe_ekle(a.isimler, k)
+        önceki_her = i > 0 ve s_kelime(s[i - 1], "her")
+        k = kelime_at(s, i)
+        eğer k != "" ise:
+            tip_sonrası = i > 0 ve s_op(s[i - 1], ":")
+            atama_mı = op_at(s, i + 1, "=") veya op_at(s, i + 1, "+=") veya op_at(s, i + 1, "-=")
+            eğer (atama_mı ve değil tip_sonrası) veya önceki_her ise:
+                sözlüğe_ekle(a.isimler, k)
+        # `yakala hata:` → hata değişkeni
+        eğer satır_başı(s, i) ve s_kelime(s[i], "yakala") ise:
+            k = kelime_at(s, i + 1)
+            eğer k != "" ve op_at(s, i + 2, ":") ise:
+                sözlüğe_ekle(a.isimler, k)
+        eğer s_kelime(s[i], "sabit") veya s_kelime(s[i], "durum") ise:
+            k = kelime_at(s, i + 1)
+            eğer k != "" ise:
+                sözlüğe_ekle(a.isimler, k)
+        eğer s_kelime(s[i], "işlev") veya s_kelime(s[i], "bileşen") ise:
+            ad = kelime_at(s, i + 1)
+            eğer ad != "" ise:
+                sözlüğe_ekle(a.isimler, ad)
+            # Parametreler: parantez içinde virgülle ayrılmış parçaların ilk kelimesi
+            j = i + 2
+            parça_başı = doğru
+            eğer op_at(s, j, "(") ise:
+                j += 1
+                j < n olduğu sürece:
+                    x = s[j]
+                    eğer s_op(x, ")") veya satır_sonu_mu(x) ise:
+                        dur
+                    eğer s_op(x, ",") ise:
+                        parça_başı = doğru
+                    değilse eğer x.tür == "Kelime" ve parça_başı ise:
+                        k = kelime_at(s, j)
+                        eğer k != "" ise:
+                            sözlüğe_ekle(a.isimler, k)
+                        parça_başı = yanlış
+                    değilse:
+                        parça_başı = yanlış
+                    j += 1
+        # `fiil sayı'yı (b: ondalık)'ya böl -> ondalık:`
+        eğer s_kelime(s[i], "fiil") ise:
+            j = i + 1
+            derinlik = 0
+            fiil_adı = ""
+            j < n olduğu sürece:
+                x = s[j]
+                eğer s_op(x, "(") ise:
+                    derinlik += 1
+                değilse eğer s_op(x, ")") ise:
+                    derinlik -= 1
+                değilse eğer s_op(x, ":") ve derinlik == 0 ise:
+                    dur
+                değilse eğer s_op(x, "->") veya satır_sonu_mu(x) ise:
+                    dur
+                değilse eğer x.tür == "Kelime" ise:
+                    k = kelime_at(s, j)
+                    eğer k != "" ise:
+                        parantez_başı = s_op(s[j - 1], "(")
+                        ekli = j + 1 < n ve s[j + 1].tür == "Ek"
+                        eğer parantez_başı veya (derinlik == 0 ve ekli) ise:
+                            sözlüğe_ekle(a.isimler, k)
+                        değilse eğer derinlik == 0 ise:
+                            fiil_adı = k
+                j += 1
+            eğer fiil_adı != "" ise:
+                a.fiiller[fiil_adı] = doğru
+
+model RotaKalıbı:
+    kalıp: metin
+    parametreler: liste<metin>
+    tipler: liste<metin>
+
+işlev ad_geçerli_mi(ad: metin) -> mantık:
+    k = harfler(ad)
+    eğer uzunluk(k) == 0 veya değil (harf_mi(k[0]) veya k[0] == "_") ise:
+        döndür yanlış
+    her c için k'den:
+        eğer değil (harf_mi(c) veya rakam_mı(c) veya c == "_") ise:
+            döndür yanlış
+    döndür doğru
+
+# `"/ürünler/{kimlik: sayı}"` → `/ürünler/{kimlik:sayı}` ve [(kimlik, sayı)]
+işlev rota_kalıbı(a: Ayrıştırıcı, kalıp: metin, k: Sözcük) -> RotaKalıbı:
+    eğer değil başlar(kalıp, "/") ise:
+        hata_s(a, k, "web yolu '/' ile başlamalı", "al \"/ürünler\":")
+    r = RotaKalıbı()
+    parçalar: liste<metin> = []
+    bölümler = böl(kalıp, "/")
+    her i için 1'den uzunluk(bölümler) - 1'e kadar:
+        p = bölümler[i]
+        eğer başlar(p, "{") ve biter(p, "}") ve uzunluk(p) >= 2 ise:
+            iç = parça(p, 1, uzunluk(p) - 2)
+            ad = kırp(iç)
+            tip = "metin"
+            j = bul(iç, ":")
+            eğer j >= 0 ise:
+                ad = kırp(parça(iç, 0, j))
+                tip = kırp(parça(iç, j + 1, uzunluk(iç) - j - 1))
+            eğer değil ad_geçerli_mi(ad) veya ad == "istek" ise:
+                hata_s(a, k, "'" + ad + "' geçerli bir yol parametresi adı değil", "-")
+            eğer tip != "metin" ve tip != "sayı" ise:
+                hata_s(a, k, "yol parametresinin tipi metin ya da sayı olmalı, '" + tip + "' bulundu", "-")
+            eğer içerir(r.parametreler, ad) ise:
+                hata_s(a, k, "'" + ad + "' parametresi yolda iki kez geçiyor", "-")
+            eğer tip == "sayı" ise:
+                ("{" + ad + ":sayı}")'yı parçalar'a ekle.
+            değilse:
+                ("{" + ad + "}")'yi parçalar'a ekle.
+            ad'ı r.parametreler'e ekle.
+            tip'i r.tipler'e ekle.
+        değilse eğer içerir(p, "{") veya içerir(p, "}") ise:
+            hata_s(a, k, "yol parametresi yolun bütün bir parçası olmalı", "al \"/ürünler/{kimlik: sayı}\":")
+        değilse:
+            p'yi parçalar'a ekle.
+    uzunluk(parçalar) > 1 ve parçalar[uzunluk(parçalar) - 1] == "" olduğu sürece:
+        sil(parçalar, uzunluk(parçalar) - 1)
+    r.kalıp = "/" + birleştir(parçalar, "/")
+    döndür r
+
+# ---------------------------------------------------------------------------
+# Program ve bloklar
+# ---------------------------------------------------------------------------
+
+işlev tanım_başı_mı(a: Ayrıştırıcı) -> mantık:
+    döndür kelime_mi(a, "işlev") veya kelime_mi(a, "fiil") veya model_başı_mı(a) veya rota_başı_mı(a) veya bileşen_başı_mı(a) veya arayüz_başı_mı(a) veya durum_başı_mı(a) veya seçenek_başı_mı(a)
+
+işlev program_(a: Ayrıştırıcı, p: Program):
+    bak(a).tür != "Son" olduğu sürece:
+        t = bak(a).tür
+        eğer t == "YeniSatir" ise:
+            ilerle(a)
+        değilse eğer t == "Girinti" ise:
+            hata_s(a, bak(a), "beklenmeyen girinti", "-")
+        değilse eğer kelime_mi(a, "işlev") veya bileşen_başı_mı(a) ise:
+            işlev_(a)'yı p.işlevler'e ekle.
+        değilse eğer arayüz_başı_mı(a) ise:
+            f = arayüz_bloğu(a)
+            her g için p.işlevler'den:
+                eğer g.ad == "arayüz" ise:
+                    hata_at(a, f.satır, f.sütun, "programda yalnızca bir 'arayüz:' bloğu olabilir", "arayüzün parçalarını 'bileşen' olarak tanımlayıp çağırın")
+            f'yi p.işlevler'e ekle.
+        değilse eğer durum_başı_mı(a) ise:
+            d = durum_(a)
+            her dx için p.durumlar'dan:
+                eğer dx.ad == d.ad ise:
+                    hata_at(a, d.satır, d.sütun, "'" + d.ad + "' durumu iki kez tanımlanmış", "-")
+            d'yi p.durumlar'a ekle.
+        değilse eğer kelime_mi(a, "fiil") ise:
+            fiil_tanımı(a)'nı p.işlevler'e ekle.
+        değilse eğer model_başı_mı(a) ise:
+            m = model_tanımı(a)
+            her mx için p.modeller'den:
+                eğer mx.ad == m.ad ise:
+                    hata_at(a, m.satır, m.sütun, "'" + m.ad + "' modeli iki kez tanımlanmış", "-")
+            m'yi p.modeller'e ekle.
+        değilse eğer rota_başı_mı(a) ise:
+            rota(a)'yı p.işlevler'e ekle.
+        değilse eğer seçenek_başı_mı(a) ise:
+            t2 = seçenek_tanımı(a)
+            her sx için p.seçenekler'den:
+                eğer sx.ad == t2.ad ise:
+                    hata_at(a, t2.satır, t2.sütun, "'" + t2.ad + "' seçenek türü iki kez tanımlanmış", "-")
+            t2'yi p.seçenekler'e ekle.
+        değilse eğer kelime_mi(a, "kullan") ise:
+            ilerle(a)
+            eğer bak(a).tür != "Metin" ise:
+                beklenmeyen(a, "dosya yolu (ör. kullan \"araçlar.ohc\")")
+            ilerle(a)
+            deyim_bitir(a)
+        değilse eğer kelime_mi(a, "sabit") ise:
+            ilerle(a)
+            k = bak(a)
+            ad = isim_adı(a, "sabit adı")
+            bekle_op(a, "=", "sabitin değeri")
+            değer = düz_ifade(a)
+            deyim_bitir(a)
+            eğer içerir(p.sabit_adları, ad) ise:
+                hata_s(a, k, "'" + ad + "' sabiti iki kez tanımlanmış", "-")
+            ad'ı p.sabit_adları'na ekle.
+            değer'i p.sabitler'e ekle.
+        değilse:
+            deyim(a)'i p.ana'ya ekle.
+
+işlev blok(a: Ayrıştırıcı) -> liste<Deyim>:
+    bekle_op(a, ":", "bloğun başında")
+    eğer bak(a).tür != "YeniSatir" ise:
+        beklenmeyen(a, "':' sonrasında yeni satır")
+    ilerle(a)
+    eğer bak(a).tür != "Girinti" ise:
+        hata_s(a, bak(a), "blok boş olamaz; içeriden başlayan satırlar bekleniyordu", "-")
+    ilerle(a)
+    gövde: liste<Deyim> = []
+    bak(a).tür != "Cikinti" ve bak(a).tür != "Son" olduğu sürece:
+        eğer tanım_başı_mı(a) ise:
+            hata_s(a, bak(a), "işlevler, fiiller, modeller, seçenekler, web yolları, bileşenler, durumlar ve arayüz yalnızca en dış düzeyde tanımlanabilir", "-")
+        deyim(a)'i gövde'ye ekle.
+    eğer bak(a).tür == "Cikinti" ise:
+        ilerle(a)
+    döndür gövde
+
+işlev seçenek_başı_mı(a: Ayrıştırıcı) -> mantık:
+    döndür kelime_mi(a, "seçenek") ve bak_n(a, 1).tür == "Kelime" ve s_op(bak_n(a, 2), ":")
+
+işlev seçenek_değeri_ekle(a: Ayrıştırıcı, t: SeçenekTanımı):
+    k = bak(a)
+    d = isim_adı(a, "seçenek değeri")
+    eğer içerir(t.değerler, d) ise:
+        hata_s(a, k, "'" + d + "' değeri iki kez yazılmış", "-")
+    d'yi t.değerler'e ekle.
+
+işlev seçenek_tanımı(a: Ayrıştırıcı) -> SeçenekTanımı:
+    bekle_kelime(a, "seçenek")
+    k = bak(a)
+    ad = isim_adı(a, "seçenek türünün adı")
+    eğer içerir(a.modeller, ad) ise:
+        hata_s(a, k, "'" + ad + "' bir modelin adı", "-")
+    bekle_op(a, ":", "seçenek türünün adından sonra")
+    t = SeçenekTanımı(ad: ad, satır: k.satır, sütun: k.sütun)
+    eğer bak(a).tür == "YeniSatir" ise:
+        ilerle(a)
+        eğer bak(a).tür != "Girinti" ise:
+            hata_s(a, bak(a), "seçenek türünün değerleri yazılmalı", "seçenek Renk: kırmızı, yeşil, mavi")
+        ilerle(a)
+        bak(a).tür != "Cikinti" ve bak(a).tür != "Son" olduğu sürece:
+            eğer bak(a).tür == "YeniSatir" ise:
+                ilerle(a)
+                sürdür
+            seçenek_değeri_ekle(a, t)
+            eğer op_mu(a, ",") ise:
+                ilerle(a)
+            değilse eğer bak(a).tür != "YeniSatir" ve bak(a).tür != "Cikinti" ve bak(a).tür != "Son" ise:
+                beklenmeyen(a, "',' ya da satır sonu")
+        eğer bak(a).tür == "Cikinti" ise:
+            ilerle(a)
+    değilse:
+        doğru olduğu sürece:
+            seçenek_değeri_ekle(a, t)
+            eğer değil op_mu(a, ",") ise:
+                dur
+            ilerle(a)
+        deyim_bitir(a)
+    döndür t
+
+işlev arayüz_başı_mı(a: Ayrıştırıcı) -> mantık:
+    döndür kelime_mi(a, "arayüz") ve s_op(bak_n(a, 1), ":")
+
+işlev bileşen_başı_mı(a: Ayrıştırıcı) -> mantık:
+    döndür kelime_mi(a, "bileşen") ve bak_n(a, 1).tür == "Kelime" ve s_op(bak_n(a, 2), "(")
+
+işlev durum_başı_mı(a: Ayrıştırıcı) -> mantık:
+    döndür kelime_mi(a, "durum") ve bak_n(a, 1).tür == "Kelime" ve (s_op(bak_n(a, 2), "=") veya s_op(bak_n(a, 2), ":"))
+
+işlev durum_(a: Ayrıştırıcı) -> DurumTanımı:
+    bekle_kelime(a, "durum")
+    k = bak(a)
+    d = DurumTanımı(ad: isim_adı(a, "durum adı"), tip: "-", satır: k.satır, sütun: k.sütun)
+    eğer op_mu(a, ":") ise:
+        ilerle(a)
+        d.tip = tip_(a)
+    bekle_op(a, "=", "durumun ilk değeri")
+    d.değer = düz_ifade(a)
+    deyim_bitir(a)
+    döndür d
+
+işlev arayüz_bloğu(a: Ayrıştırıcı) -> İşlev:
+    k = bak(a)
+    ilerle(a)
+    a.arayüz_içinde = doğru
+    gövde = blok(a)
+    a.arayüz_içinde = yanlış
+    döndür İşlev(ad: "arayüz", satır: k.satır, sütun: k.sütun, dönüş: "boş", arayüz: doğru, gövde: gövde)
+
+işlev öğe_başı_mı(a: Ayrıştırıcı) -> mantık:
+    döndür a.arayüz_içinde ve bak(a).tür == "Kelime" ve içerir(arayüz_öğeleri(), bak(a).değer) ve (s_op(bak_n(a, 1), "(") veya s_op(bak_n(a, 1), ":"))
+
+işlev öğe(a: Ayrıştırıcı) -> Deyim:
+    k = ilerle(a)
+    d = yeni_deyim("öğe", k.değer, k.satır, k.sütun)
+    seçenekler: liste<İfade> = []
+    eğer op_mu(a, "(") ise:
+        ilerle(a)
+        değil op_mu(a, ")") olduğu sürece:
+            eğer bak(a).tür == "Kelime" ve s_op(bak_n(a, 1), ":") ise:
+                sk = ilerle(a)
+                ilerle(a)
+                x = düz_ifade(a)
+                eğer içerir(d.seçenek_adları, sk.değer) ise:
+                    hata_s(a, sk, "'" + sk.değer + "' seçeneği iki kez verilmiş", "-")
+                sk.değer'i d.seçenek_adları'na ekle.
+                x'i seçenekler'e ekle.
+            değilse:
+                eğer uzunluk(seçenekler) > 0 ise:
+                    hata_s(a, bak(a), "adlı seçenekler (renk: ...) değerlerden sonra yazılır", "-")
+                düz_ifade(a)'yı d.ifadeler'e ekle.
+            eğer değil op_mu(a, ")") ise:
+                bekle_op(a, ",", "değerler arasında")
+        ilerle(a)
+    d.argüman_sayısı = uzunluk(d.ifadeler)
+    her x için seçenekler'den:
+        x'i d.ifadeler'e ekle.
+    eğer bak(a).tür == "Kelime" ise:
+        ok = bak(a)
+        eğer değil içerir(arayüz_olayları(), ok.değer) ise:
+            hata_s(a, ok, "'" + ok.değer + "' bir olay değil", "olaylar: tıklanınca, değişince, gönderilince, çalınca")
+        ilerle(a)
+        # Olay bloğu sıradan koddur: içinde öğe yazılmaz.
+        a.arayüz_içinde = yanlış
+        d.diğer = blok(a)
+        a.arayüz_içinde = doğru
+        d.olay_var = doğru
+        d.olay_adı = ok.değer
+        d.olay_satır = ok.satır
+        d.olay_sütun = ok.sütun
+    değilse eğer op_mu(a, ":") ise:
+        d.gövde = blok(a)
+    değilse:
+        deyim_bitir(a)
+    döndür d
+
+işlev model_başı_mı(a: Ayrıştırıcı) -> mantık:
+    döndür kelime_mi(a, "model") ve bak_n(a, 1).tür == "Kelime" ve s_op(bak_n(a, 2), ":")
+
+işlev rota_başı_mı(a: Ayrıştırıcı) -> mantık:
+    döndür bak(a).tür == "Kelime" ve içerir(rota_kelimeleri(), bak(a).değer) ve bak_n(a, 1).tür == "Metin" ve s_op(bak_n(a, 2), ":")
+
+işlev sayı_yazısı(s: Sözcük) -> metin:
+    eğer s.tür == "Sayi" ise:
+        döndür metin(sayı(s.değer)) + ".0"
+    döndür ondalık_yazısı(s.değer)
+
+işlev model_tanımı(a: Ayrıştırıcı) -> ModelTanımı:
+    k = bak(a)
+    bekle_kelime(a, "model")
+    ak = bak(a)
+    ad = isim_adı(a, "model adı")
+    eğer ad == "İstek" veya ad == "Yanıt" ise:
+        hata_s(a, ak, "'" + ad + "' yerleşik bir model; başka bir ad seçin", "-")
+    eğer içerir(temel_yerleşikler(), ad) veya içerir(standart_kütüphane(), ad) ise:
+        hata_s(a, ak, "'" + ad + "' yerleşik bir işlevin adı", "-")
+    eğer içerir(["sayı", "ondalık", "metin", "mantık", "liste", "sözlük"], ad) ise:
+        hata_s(a, ak, "'" + ad + "' bir tip adı", "-")
+    bekle_op(a, ":", "model adından sonra")
+    eğer bak(a).tür != "YeniSatir" ise:
+        beklenmeyen(a, "':' sonrasında yeni satır")
+    ilerle(a)
+    eğer bak(a).tür != "Girinti" ise:
+        hata_s(a, bak(a), "model boş olamaz; içeriden başlayan alan satırları bekleniyordu", "model Ürün:\n    ad: metin")
+    ilerle(a)
+    m = ModelTanımı(ad: ad, satır: ak.satır, sütun: ak.sütun)
+    bak(a).tür != "Cikinti" ve bak(a).tür != "Son" olduğu sürece:
+        fk = bak(a)
+        alan_adı = isim_adı(a, "alan adı")
+        her x için m.alanlar'dan:
+            eğer x.ad == alan_adı ise:
+                hata_s(a, fk, "'" + alan_adı + "' alanı iki kez tanımlanmış", "-")
+        bekle_op(a, ":", "alan adından sonra tipi (ör. ad: metin)")
+        al = Alan(ad: alan_adı, tip: tip_(a), satır: fk.satır, sütun: fk.sütun, en_az: "-", en_fazla: "-", etiket: "-")
+        eğer op_mu(a, "=") ise:
+            ilerle(a)
+            al.varsayılan_var = doğru
+            al.varsayılan = düz_ifade(a)
+        op_mu(a, ",") olduğu sürece:
+            ilerle(a)
+            nk = bak(a)
+            nitelik = ""
+            eğer nk.tür == "Kelime" ise:
+                nitelik = nk.değer
+            eğer nitelik == "zorunlu" ise:
+                ilerle(a)
+                al.zorunlu = doğru
+            değilse eğer nitelik == "birincil" ve al.ad == "kimlik" ise:
+                ilerle(a)
+            değilse eğer nitelik == "e_posta" ise:
+                ilerle(a)
+                al.e_posta = doğru
+            değilse eğer nitelik == "etiket" ise:
+                ilerle(a)
+                eğer bak(a).tür != "Metin" ise:
+                    beklenmeyen(a, "etiket metni (ör. etiket \"E-posta\")")
+                e = bak(a).değer
+                eğer e == "" veya içerir(e, "\t") veya içerir(e, "\n") ise:
+                    hata_s(a, bak(a), "etiket boş olamaz ve satır sonu içeremez", "-")
+                ilerle(a)
+                al.etiket = json(e)
+            değilse eğer nitelik == "birincil" ise:
+                hata_s(a, nk, "'birincil' yalnızca kimlik alanında kullanılır", "-")
+            değilse eğer nitelik == "en_az" veya nitelik == "en_fazla" ise:
+                ilerle(a)
+                eksi = op_mu(a, "-")
+                eğer eksi ise:
+                    ilerle(a)
+                eğer bak(a).tür != "Sayi" ve bak(a).tür != "Ondalik" ise:
+                    beklenmeyen(a, "'" + nitelik + "' için bir sayı")
+                n = sayı_yazısı(ilerle(a))
+                eğer eksi ise:
+                    n = "-" + n
+                eğer nitelik == "en_az" ise:
+                    al.en_az = n
+                değilse:
+                    al.en_fazla = n
+            değilse:
+                hata_s(a, nk, "bilinmeyen alan niteliği", "nitelikler: zorunlu, en_az 1, en_fazla 100, e_posta, etiket \"Görünen ad\"")
+        deyim_bitir(a)
+        al'ı m.alanlar'a ekle.
+    eğer bak(a).tür == "Cikinti" ise:
+        ilerle(a)
+    # Her modelin ilk alanı kimliktir; yazılmamışsa eklenir.
+    sıra = -1
+    her i için 0'dan uzunluk(m.alanlar) - 1'e kadar:
+        eğer sıra < 0 ve m.alanlar[i].ad == "kimlik" ise:
+            sıra = i
+    eğer sıra >= 0 ise:
+        kim = m.alanlar[sıra]
+        eğer kim.tip != "sayı" veya kim.varsayılan_var ise:
+            hata_at(a, kim.satır, kim.sütun, "kimlik alanı varsayılan değeri olmayan bir sayı olmalı", "-")
+        sil(m.alanlar, sıra)
+        yeni: liste<Alan> = [kim]
+        her x için m.alanlar'dan:
+            x'i yeni'ye ekle.
+        m.alanlar = yeni
+    değilse:
+        yeni: liste<Alan> = [Alan(ad: "kimlik", tip: "sayı", satır: k.satır, sütun: k.sütun, en_az: "-", en_fazla: "-", etiket: "-")]
+        her x için m.alanlar'dan:
+            x'i yeni'ye ekle.
+        m.alanlar = yeni
+    döndür m
+
+# `al "/ürünler/{kimlik: sayı}":` — gövde, `istek` parametresi alan ve `Yanıt`
+# döndüren bir işleve çevrilir. Yol parametreleri yerel değişken olur.
+işlev rota(a: Ayrıştırıcı) -> İşlev:
+    k = ilerle(a)
+    yöntem = rota_yöntemi(k.değer)
+    kk = ilerle(a)
+    r = rota_kalıbı(a, kk.değer, kk)
+    gövde = blok(a)
+    f = İşlev(ad: yöntem + " " + r.kalıp, satır: k.satır, sütun: k.sütun, dönüş: "Yanıt", rota_var: doğru, rota_yöntem: yöntem, rota_kalıp: r.kalıp)
+    "istek"'i f.parametreler'e ekle.
+    "İstek"'i f.tipler'e ekle.
+    her i için 0'dan uzunluk(r.parametreler) - 1'e kadar:
+        ad = r.parametreler[i]
+        # ad = istek.parametreler["ad"]   (sayı ise sayı(...))
+        istek = yeni_ifade("isim", "istek", kk.satır, kk.sütun)
+        p = ifade1("alan", "parametreler", istek, kk.satır, kk.sütun)
+        değer = ifade2("indeks", "", p, yeni_ifade("metin", ad, kk.satır, kk.sütun), kk.satır, kk.sütun)
+        eğer r.tipler[i] == "sayı" ise:
+            değer = ifade1("çağrı", "sayı", değer, kk.satır, kk.sütun)
+        d = yeni_deyim("atama", ad, kk.satır, kk.sütun)
+        değer'i d.ifadeler'e ekle.
+        d'yi f.gövde'ye ekle.
+    her d için gövde'den:
+        d'yi f.gövde'ye ekle.
+    döndür f
+
+# `işlev ad(...) -> tip:` ya da `bileşen Ad(...):` (arayüz parçası)
+işlev işlev_(a: Ayrıştırıcı) -> İşlev:
+    k = bak(a)
+    bileşen = kelime_mi(a, "bileşen")
+    ilerle(a)
+    tarif = "işlev adı"
+    eğer bileşen ise:
+        tarif = "bileşen adı"
+    ad = isim_adı(a, tarif)
+    eğer bileşen ve içerir(arayüz_öğeleri(), ad) ise:
+        hata_s(a, k, "'" + ad + "' yerleşik bir arayüz öğesinin adı", "-")
+    eğer içerir(temel_yerleşikler(), ad) ise:
+        hata_s(a, k, "'" + ad + "' yerleşik bir işlevin adı", "-")
+    bekle_op(a, "(", "parametre listesi")
+    f = İşlev(ad: ad, satır: k.satır, sütun: k.sütun, dönüş: "-", arayüz: bileşen)
+    değil op_mu(a, ")") olduğu sürece:
+        p = isim_adı(a, "parametre adı")
+        tip = "?"
+        eğer op_mu(a, ":") ise:
+            ilerle(a)
+            tip = tip_(a)
+        p'yi f.parametreler'e ekle.
+        tip'i f.tipler'e ekle.
+        eğer değil op_mu(a, ")") ise:
+            bekle_op(a, ",", "parametreler arasında")
+    ilerle(a)
+    eğer bileşen ise:
+        f.dönüş = "boş"
+    değilse eğer op_mu(a, "->") ise:
+        ilerle(a)
+        f.dönüş = tip_(a)
+    a.arayüz_içinde = bileşen
+    f.gövde = blok(a)
+    a.arayüz_içinde = yanlış
+    döndür f
+
+# `fiil sayı'yı karele:` ya da `fiil (a: ondalık)'yı b'ye böl -> ondalık:`
+işlev fiil_tanımı(a: Ayrıştırıcı) -> İşlev:
+    k = bak(a)
+    bekle_kelime(a, "fiil")
+    f = İşlev(satır: k.satır, sütun: k.sütun, dönüş: "-")
+    doğru olduğu sürece:
+        pk = bak(a)
+        ad = ""
+        tip = "?"
+        eğer op_mu(a, "(") ise:
+            ilerle(a)
+            ad = isim_adı(a, "parametre adı")
+            eğer op_mu(a, ":") ise:
+                ilerle(a)
+                tip = tip_(a)
+            bekle_op(a, ")", "parametrenin sonunda")
+        değilse eğer bak_n(a, 1).tür == "Ek" ise:
+            ad = isim_adı(a, "parametre adı")
+        değilse:
+            dur
+        eğer bak(a).tür != "Ek" ise:
+            beklenmeyen(a, "parametrenin hâl eki (ör. sayı'yı)")
+        ek = ilerle(a)
+        hal = hal_bul(ek.değer)
+        eğer hal == "" ise:
+            hata_s(a, ek, "tanınmayan ek '" + ek.değer + "'", "-")
+        eğer hal == "Ilgi" ise:
+            hata_s(a, ek, "fiil parametresi ilgi hâlinde (-in) olamaz", "-")
+        eğer içerir(f.haller, hal) ise:
+            hata_s(a, ek, "bu fiilde zaten " + hal_adı(hal) + " hâlinde bir parametre var", "her parametre farklı bir hâl eki almalı; çağrıda rolleri ekler belirler")
+        eğer içerir(f.parametreler, ad) ise:
+            hata_s(a, pk, "'" + ad + "' parametresi iki kez yazılmış", "-")
+        ad'ı f.parametreler'e ekle.
+        tip'i f.tipler'e ekle.
+        hal'i f.haller'e ekle.
+    ak = bak(a)
+    eğer ak.tür == "Kelime" ve içerir(a.fiiller, ak.değer) ise:
+        ilerle(a)
+        f.ad = ak.değer
+    değilse eğer ak.tür == "Kelime" ve içerir(yerleşik_fiiller(), ak.değer) ise:
+        hata_s(a, ak, "'" + ak.değer + "' yerleşik bir fiil, yeniden tanımlanamaz", "-")
+    değilse eğer ak.tür == "Kelime" ve değil ayrılmış_mı(ak.değer) ise:
+        hata_s(a, ak, "'" + ak.değer + "' parametresinin bir hâl eki olmalı", ak.değer + "'i ya da (x: sayı)'yı biçiminde yazın")
+    değilse:
+        beklenmeyen(a, "fiil adı")
+    eğer içerir(temel_yerleşikler(), f.ad) ise:
+        hata_s(a, ak, "'" + f.ad + "' yerleşik bir işlevin adı", "-")
+    eğer op_mu(a, "->") ise:
+        ilerle(a)
+        f.dönüş = tip_(a)
+    f.gövde = blok(a)
+    döndür f
+
+işlev isim_adı(a: Ayrıştırıcı, tarif: metin) -> metin:
+    s = bak(a)
+    eğer s.tür == "Kelime" ve değil ayrılmış_mı(s.değer) ise:
+        ilerle(a)
+        döndür s.değer
+    eğer s.tür == "Kelime" ise:
+        hata_s(a, s, "'" + s.değer + "' ayrılmış bir kelime, " + tarif + " olarak kullanılamaz", "-")
+    beklenmeyen(a, tarif)
+    döndür ""
+
+# Tipin yazısı (src/agac.rs'deki gösterim): sayı, liste<metin>, sözlük<metin, sayı>, Ürün
+işlev tip_(a: Ayrıştırıcı) -> metin:
+    k = ilerle(a)
+    eğer k.tür != "Kelime" ise:
+        hata_s(a, k, "tip adı bekleniyordu, " + tok_adı(k) + " bulundu", "-")
+    ad = k.değer
+    eğer ad == "sayı" veya ad == "ondalık" veya ad == "metin" veya ad == "mantık" ise:
+        döndür ad
+    eğer ad == "liste" ise:
+        eğer op_mu(a, "<") ise:
+            ilerle(a)
+            iç = tip_(a)
+            bekle_op(a, ">", "liste tipinin sonunda")
+            döndür "liste<" + iç + ">"
+        döndür "liste<sayı>"
+    eğer ad == "sözlük" ise:
+        bekle_op(a, "<", "sözlük tipi: sözlük<metin, sayı>")
+        anahtar = tip_(a)
+        bekle_op(a, ",", "sözlük tipinde anahtar ile değer arasında")
+        değer = tip_(a)
+        bekle_op(a, ">", "sözlük tipinin sonunda")
+        döndür "sözlük<" + anahtar + ", " + değer + ">"
+    eğer içerir(a.modeller, ad) veya içerir(a.seçenekler, ad) ise:
+        döndür ad
+    hata_s(a, k, "bilinmeyen tip '" + ad + "'", "tipler: sayı, ondalık, metin, mantık, liste<sayı>, sözlük<metin, sayı>, bir model ya da seçenek adı")
+    döndür ""
+
+# ---------------------------------------------------------------------------
+# Deyimler
+# ---------------------------------------------------------------------------
+
+işlev deyim(a: Ayrıştırıcı) -> Deyim:
+    k = bak(a)
+    eğer öğe_başı_mı(a) ise:
+        döndür öğe(a)
+    eğer kelime_mi(a, "eğer") ise:
+        ilerle(a)
+        döndür eğer_(a)
+    eğer kelime_mi(a, "değilse") ise:
+        hata_s(a, k, "'değilse' bir 'eğer' bloğundan hemen sonra gelmeli", "-")
+    eğer kelime_mi(a, "her") ise:
+        döndür her_(a)
+    eğer kelime_mi(a, "dene") ve s_op(bak_n(a, 1), ":") ise:
+        döndür dene_(a)
+    eğer yakala_başı_mı(a) ise:
+        hata_s(a, k, "'yakala' bir 'dene' bloğundan hemen sonra gelmeli", "-")
+    eğer kelime_mi(a, "döndür") ise:
+        ilerle(a)
+        d = yeni_deyim("döndür", "", k.satır, k.sütun)
+        eğer değil deyim_sonu_mu(a) ise:
+            düz_ifade(a)'yı d.ifadeler'e ekle.
+        deyim_bitir(a)
+        döndür d
+    eğer kelime_mi(a, "dur") veya kelime_mi(a, "sürdür") ise:
+        ilerle(a)
+        deyim_bitir(a)
+        döndür yeni_deyim(k.değer, "", k.satır, k.sütun)
+    d = atama(a)
+    eğer d.tür != "" ise:
+        döndür d
+    eğer sürece_satırı_mı(a) ise:
+        d = yeni_deyim("sürece", "", k.satır, k.sütun)
+        koşul(a, KoşulTürü.Süresince)'u d.ifadeler'e ekle.
+        d.gövde = blok(a)
+        döndür d
+    döndür cümle(a)
+
+# `x = ...`, `x += ...`, `liste[i] = ...`; atama değilse türü boş bir deyim
+işlev atama(a: Ayrıştırıcı) -> Deyim:
+    k = bak(a)
+    eğer k.tür != "Kelime" veya ayrılmış_mı(k.değer) ise:
+        döndür Deyim()
+    s1 = bak_n(a, 1)
+    eğer s_op(s1, "=") veya s_op(s1, "+=") veya s_op(s1, "-=") ise:
+        ilerle(a)
+        ilerle(a)
+        değer = düz_ifade(a)
+        eğer s1.değer != "=" ise:
+            op = "Topla"
+            eğer s1.değer == "-=" ise:
+                op = "Cikar"
+            değer = ifade2("ikili", op, yeni_ifade("isim", k.değer, k.satır, k.sütun), değer, k.satır, k.sütun)
+        deyim_bitir(a)
+        d = yeni_deyim("atama", k.değer, k.satır, k.sütun)
+        değer'i d.ifadeler'e ekle.
+        döndür d
+    eğer s_op(s1, "[") veya s1.tür == "Uye" ise:
+        döndür üye_ataması(a, k)
+    eğer s_op(s1, ":") ve tip_bildirimi_mi(a) ise:
+    # `işler: liste<metin> = []`
+        ilerle(a)
+        ilerle(a)
+        d = yeni_deyim("atama", k.değer, k.satır, k.sütun)
+        d.tip = tip_(a)
+        bekle_op(a, "=", "değişkenin ilk değeri")
+        düz_ifade(a)'yı d.ifadeler'e ekle.
+        deyim_bitir(a)
+        döndür d
+    döndür Deyim()
+
+# `ad: tip = değer` satırı mı? (`:` sonrasında bir kelime ve satırda `=` var)
+işlev tip_bildirimi_mi(a: Ayrıştırıcı) -> mantık:
+    eğer bak_n(a, 2).tür != "Kelime" ise:
+        döndür yanlış
+    i = a.poz + 2
+    değil satır_sonu_mu(a.s[i]) olduğu sürece:
+        eğer s_op(a.s[i], "=") ise:
+            döndür doğru
+        i += 1
+    döndür yanlış
+
+# `ürün.fiyat = 12.5`, `ürün.stok += 1`, `ürün.etiketler[0] = "yeni"`
+işlev üye_ataması(a: Ayrıştırıcı, k: Sözcük) -> Deyim:
+    i = a.poz
+    derinlik = 0
+    op = ""
+    değil satır_sonu_mu(a.s[i]) olduğu sürece:
+        x = a.s[i]
+        eğer s_op(x, "[") veya s_op(x, "(") ise:
+            derinlik += 1
+        değilse eğer s_op(x, "]") veya s_op(x, ")") ise:
+            derinlik -= 1
+        değilse eğer derinlik == 0 ve (s_op(x, "=") veya s_op(x, "+=") veya s_op(x, "-=")) ise:
+            op = x.değer
+            dur
+        i += 1
+    eğer op == "" ise:
+        döndür Deyim()
+    a.yakalanan_var = yanlış
+    hedef = sonek(a)
+    eğer a.yakalanan_var ise:
+        a.yakalanan_var = yanlış
+        hata_at(a, a.yakalanan_satır, a.yakalanan_sütun, "atamanın sol tarafı ek almaz", "-")
+    eğer değil op_mu(a, op) ise:
+        beklenmeyen(a, "'" + op + "'")
+    ilerle(a)
+    değer = düz_ifade(a)
+    deyim_bitir(a)
+    eğer op != "=" ve (hedef.tür == "alan" veya hedef.tür == "indeks") ise:
+        işlem = "Topla"
+        eğer op == "-=" ise:
+            işlem = "Cikar"
+        değer = ifade2("ikili", işlem, hedef, değer, k.satır, k.sütun)
+    eğer hedef.tür == "alan" ise:
+        d = yeni_deyim("alan_ataması", hedef.ad, k.satır, k.sütun)
+        hedef.alt[0]'ı d.ifadeler'e ekle.
+        değer'i d.ifadeler'e ekle.
+        döndür d
+    eğer hedef.tür == "indeks" ise:
+        d = yeni_deyim("indeks_ataması", "", k.satır, k.sütun)
+        hedef.alt[0]'ı d.ifadeler'e ekle.
+        hedef.alt[1]'i d.ifadeler'e ekle.
+        değer'i d.ifadeler'e ekle.
+        döndür d
+    hata_s(a, k, "atamanın sol tarafı bir değişken, liste öğesi ya da model alanı olmalı", "-")
+    döndür Deyim()
+
+# Satır `... olduğu sürece:` ya da `... küçükken:` ile mi bitiyor?
+işlev sürece_satırı_mı(a: Ayrıştırıcı) -> mantık:
+    i = a.poz
+    değil satır_sonu_mu(a.s[i]) olduğu sürece:
+        i += 1
+    eğer i < a.poz + 2 veya değil s_op(a.s[i - 1], ":") ise:
+        döndür yanlış
+    x = a.s[i - 2]
+    eğer x.tür != "Kelime" ise:
+        döndür yanlış
+    y = yüklem(x.değer)
+    döndür x.değer == "sürece" veya x.değer == "iken" veya (y != "" ve yüklem_eki(y) == "ken")
+
+işlev eğer_(a: Ayrıştırıcı) -> Deyim:
+    k = bak(a)
+    d = yeni_deyim("eğer", "", k.satır, k.sütun)
+    koşul(a, KoşulTürü.Eğer)'i d.ifadeler'e ekle.
+    d.gövde = blok(a)
+    eğer kelime_mi(a, "değilse") ise:
+        ilerle(a)
+        eğer kelime_mi(a, "eğer") ise:
+            ilerle(a)
+            eğer_(a)'yı d.diğer'e ekle.
+        değilse:
+            d.diğer = blok(a)
+    döndür d
+
+işlev yakala_başı_mı(a: Ayrıştırıcı) -> mantık:
+    eğer değil kelime_mi(a, "yakala") ise:
+        döndür yanlış
+    döndür s_op(bak_n(a, 1), ":") veya (bak_n(a, 1).tür == "Kelime" ve s_op(bak_n(a, 2), ":"))
+
+işlev dene_(a: Ayrıştırıcı) -> Deyim:
+    k = bak(a)
+    bekle_kelime(a, "dene")
+    d = yeni_deyim("dene", "-", k.satır, k.sütun)
+    d.gövde = blok(a)
+    eğer değil yakala_başı_mı(a) ise:
+        hata_s(a, bak(a), "'dene' bloğundan sonra bir 'yakala' bloğu gelmeli", "dene:\n    ...\nyakala hata:\n    hata'yı yaz.")
+    ilerle(a)
+    eğer değil op_mu(a, ":") ise:
+        d.ad = isim_adı(a, "hata değişkeni")
+    d.diğer = blok(a)
+    döndür d
+
+# `her i için 1'den 10'a kadar:` ya da `her sayı için sayılardan:`
+işlev her_(a: Ayrıştırıcı) -> Deyim:
+    k = bak(a)
+    bekle_kelime(a, "her")
+    değişken = isim_adı(a, "döngü değişkeni")
+    bekle_kelime(a, "için")
+    kaynak = ekli_ifade(a)
+    eğer kaynak.hal != "Ayrilma" ise:
+        hata_at(a, kaynak.satır, kaynak.sütun, "döngünün kaynağı ayrılma hâlinde (-den) olmalı", "her sayı için sayılardan:  ya da  her i için 1'den 10'a kadar:")
+    eğer op_mu(a, ":") ise:
+        d = yeni_deyim("her_liste", değişken, k.satır, k.sütun)
+        kaynak.ifade'yi d.ifadeler'e ekle.
+        d.gövde = blok(a)
+        döndür d
+    son = ekli_ifade(a)
+    eğer son.hal != "Yonelme" ise:
+        hata_at(a, son.satır, son.sütun, "aralığın sonu yönelme hâlinde (-e) olmalı", "her i için 1'den 10'a kadar:")
+    bekle_kelime(a, "kadar")
+    d = yeni_deyim("her_aralık", değişken, k.satır, k.sütun)
+    kaynak.ifade'yi d.ifadeler'e ekle.
+    son.ifade'yi d.ifadeler'e ekle.
+    d.gövde = blok(a)
+    döndür d
+
+# Metinler karakter kodlarına göre (Türk alfabesine göre değil) sıralanır.
+işlev kod_küçük_mü(a: metin, b: metin) -> mantık:
+    x = harfler(a)
+    y = harfler(b)
+    her i için 0'dan en_küçük(uzunluk(x), uzunluk(y)) - 1'e kadar:
+        eğer kod(x[i]) != kod(y[i]) ise:
+            döndür kod(x[i]) < kod(y[i])
+    döndür uzunluk(x) < uzunluk(y)
+
+işlev kod_sırasıyla(l: liste<metin>) -> liste<metin>:
+    sonuç: liste<metin> = []
+    her m için l'den:
+        i = 0
+        i < uzunluk(sonuç) ve kod_küçük_mü(sonuç[i], m) olduğu sürece:
+            i += 1
+        yeni: liste<metin> = []
+        her j için 0'dan uzunluk(sonuç) - 1'e kadar:
+            eğer j == i ise:
+                m'yi yeni'ye ekle.
+            sonuç[j]'yi yeni'ye ekle.
+        eğer i == uzunluk(sonuç) ise:
+            m'yi yeni'ye ekle.
+        sonuç = yeni
+    döndür sonuç
+
+# Cümlenin bir öğesi: ifade, hâli ("" eksiz) ve konumu
+model Ekli:
+    ifade: İfade
+    hal: metin
+    satır: sayı
+    sütun: sayı
+
+# Öğeler arasında `hal` hâlindeki ilkini çıkarır ve döndürür; yoksa türü boş ifade.
+işlev öğe_al(öğeler: liste<Ekli>, hal: metin) -> İfade:
+    her i için 0'dan uzunluk(öğeler) - 1'e kadar:
+        eğer öğeler[i].hal == hal ise:
+            e = öğeler[i].ifade
+            sil(öğeler, i)
+            döndür e
+    döndür İfade()
+
+işlev fiil_listesi(a: Ayrıştırıcı) -> metin:
+    fiiller = yerleşik_fiiller()
+    her f için model_fiilleri()'nden:
+        f'yi fiiller'e ekle.
+    kullanıcı = kod_sırasıyla(anahtarlar(a.fiiller))
+    her f için kullanıcı'dan:
+        f'yi fiiller'e ekle.
+    döndür birleştir(fiiller, ", ")
+
+# Fiille biten cümle: `x'i ekrana yaz.`, `5'i sayılara ekle.`, `sayıları sırala.`
+işlev cümle(a: Ayrıştırıcı) -> Deyim:
+    k = bak(a)
+    öğeler: liste<Ekli> = []
+    fiil_ = ""
+    fiil_satır = 0
+    fiil_sütun = 0
+    doğru olduğu sürece:
+        s = bak(a)
+        eğer s.tür == "Kelime" ise:
+            s1 = bak_n(a, 1)
+            kullanıcı = içerir(a.fiiller, s.değer) ve değil s_op(s1, "(")
+            model_fiili = içerir(model_fiilleri(), s.değer) ve (s1.tür == "YeniSatir" veya s1.tür == "Son" veya s1.tür == "Cikinti" veya s_op(s1, "."))
+            eğer içerir(yerleşik_fiiller(), s.değer) veya kullanıcı veya model_fiili ise:
+                fiil_ = s.değer
+                fiil_satır = s.satır
+                fiil_sütun = s.sütun
+                ilerle(a)
+                dur
+            eğer s.değer == "ekrana" ise:
+                ilerle(a)
+                sürdür
+            eğer s.değer == "ekran" ve s1.tür == "Ek" ve hal_bul(s1.değer) == "Yonelme" ise:
+                ilerle(a)
+                ilerle(a)
+                sürdür
+        eğer deyim_sonu_mu(a) veya op_mu(a, ":") ise:
+            dur
+        # Cümlenin son kelimesi tanınmıyorsa büyük olasılıkla bilinmeyen bir fiildir.
+        eğer s.tür == "Kelime" ise:
+            s1 = bak_n(a, 1)
+            satırın_sonunda = s1.tür == "YeniSatir" veya s1.tür == "Son" veya s1.tür == "Cikinti" veya s_op(s1, ".")
+            eğer satırın_sonunda ve değil ayrılmış_mı(s.değer) ve çözümle(a.isimler, s.değer).tür == "Bilinmiyor" ise:
+                hata_s(a, s, "bilinmeyen fiil '" + s.değer + "'", "kullanılabilen fiiller: " + fiil_listesi(a) + ". Yeni fiil tanımlamak için: fiil x'i " + s.değer + ":")
+        ekli_ifade(a)'yı öğeler'e ekle.
+    eğer bak(a).tür == "Ek" ve fiil_ != "" ise:
+        ek = bak(a).değer
+        hata_s(a, bak(a), "fiilin sonucu doğrudan ek alamaz ('" + ek + ")", "fiil cümlesini parantez içine alın: (... " + fiil_ + ")'" + ek)
+    eğer op_mu(a, ":") ise:
+        hata_s(a, bak(a), "bu satır bir blok başlatamaz", "koşul için 'eğer', döngü için 'her' ya da '... olduğu sürece:' kullanın")
+    deyim_bitir(a)
+
+    eğer fiil_ == "" ise:
+        eğer uzunluk(öğeler) == 1 ve öğeler[0].hal == "" ise:
+            e = öğeler[0].ifade
+            eğer e.tür == "çağrı" veya e.tür == "yöntem" ise:
+                d = yeni_deyim("ifade", "", k.satır, k.sütun)
+                e'yi d.ifadeler'e ekle.
+                döndür d
+        hata_s(a, k, "cümle bir fiille bitmeli", "ör. x'i ekrana yaz.  5'i sayılara ekle.  sayıları sırala.")
+
+    eğer içerir(a.fiiller, fiil_) ise:
+        çağrı = yeni_ifade("fiil", fiil_, fiil_satır, fiil_sütun)
+        her ö için öğeler'den:
+            eğer ö.hal == "" ise:
+                hata_at(a, ö.satır, ö.sütun, "bu öğe ek almamış; '" + fiil_ + "' fiili için rolü belli değil", "-")
+            ö.ifade'yi çağrı.alt'a ekle.
+            ö.hal'i çağrı.etiketler'e ekle.
+        d = yeni_deyim("ifade", "", k.satır, k.sütun)
+        çağrı'yı d.ifadeler'e ekle.
+        döndür d
+
+    d = Deyim()
+    eğer fiil_ == "yaz" ise:
+        değer = öğe_al(öğeler, "Belirtme")
+        eğer değer.tür == "" ise:
+            hata_at(a, fiil_satır, fiil_sütun, "'yaz' neyin yazılacağını belirtme hâlinde (-i) bekler", "x'i ekrana yaz.  \"Merhaba\"'yı yaz.")
+        # `metni "notlar.txt"'ye yaz.` → dosyaya yazar
+        yol = öğe_al(öğeler, "Yonelme")
+        eğer yol.tür != "" ise:
+            d = yeni_deyim("dosyaya_yaz", "", k.satır, k.sütun)
+            değer'i d.ifadeler'e ekle.
+            yol'u d.ifadeler'e ekle.
+        değilse:
+            d = yeni_deyim("yaz", "", k.satır, k.sütun)
+            değer'i d.ifadeler'e ekle.
+    değilse eğer fiil_ == "çıkar" veya fiil_ == "ekle" ise:
+        hedef_hal = "Ayrilma"
+        eğer fiil_ == "ekle" ise:
+            hedef_hal = "Yonelme"
+        öğe_ifadesi = öğe_al(öğeler, "Belirtme")
+        liste_ = öğe_al(öğeler, hedef_hal)
+        eğer öğe_ifadesi.tür == "" veya liste_.tür == "" ise:
+            eğer fiil_ == "çıkar" ise:
+                hata_at(a, fiil_satır, fiil_sütun, "'çıkar' bir öğe (-i) ve bir liste (-den) bekler", "5'i sayılardan çıkar.")
+            hata_at(a, fiil_satır, fiil_sütun, "'ekle' bir öğe (-i) ve bir liste (-e) bekler", "5'i sayılara ekle.")
+        d = yeni_deyim(fiil_, "", k.satır, k.sütun)
+        öğe_ifadesi'ni d.ifadeler'e ekle.
+        liste_'yi d.ifadeler'e ekle.
+    değilse eğer fiil_ == "kaydet" veya fiil_ == "sil" ise:
+        nesne = öğe_al(öğeler, "Belirtme")
+        eğer nesne.tür == "" ise:
+            hata_at(a, fiil_satır, fiil_sütun, "'" + fiil_ + "' bir model nesnesini belirtme hâlinde (-i) bekler", "ürün'ü " + fiil_ + ".")
+        d = yeni_deyim("ifade", "", k.satır, k.sütun)
+        ifade1("yöntem", fiil_, nesne, fiil_satır, fiil_sütun)'i d.ifadeler'e ekle.
+    değilse:
+        liste_ = öğe_al(öğeler, "Belirtme")
+        eğer liste_.tür == "" ise:
+            hata_at(a, fiil_satır, fiil_sütun, "'sırala' belirtme hâlinde (-i) bir liste bekler", "sayıları sırala.")
+        d = yeni_deyim("sırala", "", k.satır, k.sütun)
+        liste_'yi d.ifadeler'e ekle.
+    eğer uzunluk(öğeler) > 0 ise:
+        ö = öğeler[0]
+        eğer ö.hal == "" ise:
+            hata_at(a, ö.satır, ö.sütun, "bu öğe ek almamış; '" + fiil_ + "' fiili için rolü belli değil", "-")
+        hata_at(a, ö.satır, ö.sütun, hal_adı(ö.hal) + " hâlindeki bu öğe '" + fiil_ + "' fiiliyle kullanılmaz", "-")
+    döndür d
+
+# ---------------------------------------------------------------------------
+# Koşullar: `x 4'ten büyükse`, `a b'ye eşit değilse`, `x > 3 ve y < 2 ise`,
+# `x 10'dan küçük olduğu sürece`, `x 10'dan küçükken`
+# ---------------------------------------------------------------------------
+
+işlev parçaları_birleştir(parçalar: liste<İfade>, op: metin) -> İfade:
+    sonuç = parçalar[0]
+    her i için 1'den uzunluk(parçalar) - 1'e kadar:
+        sonuç = ifade2("ikili", op, sonuç, parçalar[i], sonuç.satır, sonuç.sütun)
+    döndür sonuç
+
+işlev koşul(a: Ayrıştırıcı, tür: KoşulTürü) -> İfade:
+    # ve/veya: 've' daha sıkı bağlanır.
+    veya_parçaları: liste<İfade> = []
+    ve_parçaları: liste<İfade> = [koşul_parçası(a, tür)]
+    doğru olduğu sürece:
+        eğer kelime_mi(a, "ve") ise:
+            ilerle(a)
+            koşul_parçası(a, tür)'nı ve_parçaları'na ekle.
+        değilse eğer kelime_mi(a, "veya") ise:
+            ilerle(a)
+            parçaları_birleştir(ve_parçaları, "Ve")'yi veya_parçaları'na ekle.
+            ve_parçaları = [koşul_parçası(a, tür)]
+        değilse:
+            dur
+    parçaları_birleştir(ve_parçaları, "Ve")'yi veya_parçaları'na ekle.
+    ifade = parçaları_birleştir(veya_parçaları, "Veya")
+    eğer tür == KoşulTürü.Eğer ise:
+        eğer kelime_mi(a, "ise") ise:
+            ilerle(a)
+    değilse:
+        eğer kelime_mi(a, "olduğu") ise:
+            ilerle(a)
+            bekle_kelime(a, "sürece")
+        değilse eğer kelime_mi(a, "iken") veya kelime_mi(a, "sürece") ise:
+            ilerle(a)
+    eğer değil op_mu(a, ":") ise:
+        beklenmeyen(a, "koşulun sonunda ':'")
+    döndür ifade
+
+işlev koşul_sonu_mu(a: Ayrıştırıcı) -> mantık:
+    eğer op_mu(a, ":") ise:
+        döndür doğru
+    her k için ["ise", "olduğu", "iken", "sürece", "ve", "veya"]'dan:
+        eğer kelime_mi(a, k) ise:
+            döndür doğru
+    döndür yanlış
+
+işlev satırda_fiil_var(a: Ayrıştırıcı) -> mantık:
+    i = a.poz
+    değil satır_sonu_mu(a.s[i]) olduğu sürece:
+        eğer a.s[i].tür == "Kelime" ve içerir(a.fiiller, a.s[i].değer) ise:
+            döndür doğru
+        i += 1
+    döndür yanlış
+
+işlev koşul_parçası(a: Ayrıştırıcı, tür: KoşulTürü) -> İfade:
+    k = bak(a)
+    a.yakalanan_var = yanlış
+    sol = değil_ifadesi(a)
+    # `eğer 5'i karele 20'den büyükse:` — koşul bir fiil çağrısıyla başlıyor.
+    eğer a.yakalanan_var ve satırda_fiil_var(a) ise:
+        a.yakalanan_var = yanlış
+        sol = fiil_tamamla(a, sol, a.yakalanan_hal, a.yakalanan_satır, a.yakalanan_sütun)
+    eğer a.yakalanan_var ise:
+        a.yakalanan_var = yanlış
+        hata_at(a, a.yakalanan_satır, a.yakalanan_sütun, "koşulun ilk öğesi ek almamalı (" + hal_adı(a.yakalanan_hal) + " bulundu)", "karşılaştırma iki değer ister: x 3'e eşitse, x 4'ten büyükse")
+    eğer koşul_sonu_mu(a) ise:
+        döndür sol
+    # `bitti değilse`
+    eğer bak(a).tür == "Kelime" ise:
+        y = yüklem(bak(a).değer)
+        eğer y != "" ve yüklem_kökü(y) == "değil" ise:
+            ilerle(a)
+            yüklem_eki_denetle(a, tür, yüklem_eki(y), k.satır, k.sütun)
+            döndür ifade1("tekli", "Degil", sol, k.satır, k.sütun)
+    sağ = ekli_ifade(a)
+    yk = bak(a)
+    eğer yk.tür != "Kelime" veya yüklem(yk.değer) == "" ise:
+        beklenmeyen(a, "'büyük', 'küçük' ya da 'eşit'")
+    y = yüklem(yk.değer)
+    kök = yüklem_kökü(y)
+    ek = yüklem_eki(y)
+    ilerle(a)
+    op = ""
+    eğer kök == "büyük" ve sağ.hal == "Ayrilma" ise:
+        op = "Buyuk"
+    değilse eğer kök == "küçük" ve sağ.hal == "Ayrilma" ise:
+        op = "Kucuk"
+    değilse eğer kök == "eşit" ve sağ.hal == "Yonelme" ise:
+        op = "Esit"
+    değilse eğer kök == "büyük" veya kök == "küçük" ise:
+        hata_at(a, sağ.satır, sağ.sütun, "karşılaştırılan değer ayrılma hâlinde (-den) olmalı", "x 4'ten büyükse")
+    değilse eğer kök == "eşit" ise:
+        hata_at(a, sağ.satır, sağ.sütun, "eşitlikte karşılaştırılan değer yönelme hâlinde (-e) olmalı", "x 4'e eşitse")
+    değilse:
+        hata_s(a, yk, "'değil' burada beklenmiyordu", "-")
+    # `büyük veya eşitse`, `eşit değilse`
+    eğer ek == "" ise:
+        eğer (op == "Buyuk" veya op == "Kucuk") ve kelime_mi(a, "veya") ise:
+            s2 = bak_n(a, 1)
+            eğer s2.tür == "Kelime" ise:
+                y2 = yüklem(s2.değer)
+                eğer y2 != "" ve yüklem_kökü(y2) == "eşit" ise:
+                    ilerle(a)
+                    ilerle(a)
+                    eğer op == "Buyuk" ise:
+                        op = "BuyukEsit"
+                    değilse:
+                        op = "KucukEsit"
+                    ek = yüklem_eki(y2)
+        eğer bak(a).tür == "Kelime" ise:
+            y2 = yüklem(bak(a).değer)
+            eğer y2 != "" ve yüklem_kökü(y2) == "değil" ise:
+                ilerle(a)
+                eğer op == "Esit" ise:
+                    op = "EsitDegil"
+                değilse eğer op == "Buyuk" ise:
+                    op = "KucukEsit"
+                değilse eğer op == "Kucuk" ise:
+                    op = "BuyukEsit"
+                değilse eğer op == "BuyukEsit" ise:
+                    op = "Kucuk"
+                değilse eğer op == "KucukEsit" ise:
+                    op = "Buyuk"
+                ek = yüklem_eki(y2)
+    yüklem_eki_denetle(a, tür, ek, yk.satır, yk.sütun)
+    döndür ifade2("ikili", op, sol, sağ.ifade, k.satır, k.sütun)
+
+işlev yüklem_eki_denetle(a: Ayrıştırıcı, tür: KoşulTürü, ek: metin, satır: sayı, sütun: sayı):
+    eğer tür == KoşulTürü.Eğer ve ek == "ken" ise:
+        hata_at(a, satır, sütun, "'-ken' eki döngüler içindir; koşulda '-se' kullanın", "x 4'ten büyükse:")
+    eğer tür == KoşulTürü.Süresince ve (ek == "se" veya ek == "sa") ise:
+        hata_at(a, satır, sütun, "'-se' eki koşullar içindir; döngüde '-ken' ya da 'olduğu sürece' kullanın", "x 10'dan küçükken:")
+
+# ---------------------------------------------------------------------------
+# İfadeler
+# ---------------------------------------------------------------------------
+
+# Ek almaması gereken ifade. Ekli bir öğeyle başlayan ifade yalnızca bir kullanıcı
+# fiili çağrısı olabilir: `y = 5'i karele`.
+işlev düz_ifade(a: Ayrıştırıcı) -> İfade:
+    e = ekli_ifade(a)
+    eğer e.hal == "" ise:
+        döndür e.ifade
+    döndür fiil_tamamla(a, e.ifade, e.hal, e.satır, e.sütun)
+
+# İlk ekli öğesi okunmuş bir fiil cümlesini fiile kadar okur.
+işlev fiil_tamamla(a: Ayrıştırıcı, ilk: İfade, hal: metin, satır: sayı, sütun: sayı) -> İfade:
+    çağrı = yeni_ifade("fiil", "", 0, 0)
+    ilk'i çağrı.alt'a ekle.
+    hal'i çağrı.etiketler'e ekle.
+    doğru olduğu sürece:
+        s = bak(a)
+        eğer s.tür == "Kelime" ve içerir(a.fiiller, s.değer) ise:
+            ilerle(a)
+            eğer bak(a).tür == "Ek" ise:
+                ek = bak(a).değer
+                hata_s(a, bak(a), "fiilin sonucu doğrudan ek alamaz ('" + ek + ")", "fiil cümlesini parantez içine alın: (... " + s.değer + ")'" + ek)
+            çağrı.ad = s.değer
+            çağrı.satır = s.satır
+            çağrı.sütun = s.sütun
+            döndür çağrı
+        devam = s.tür == "Kelime" veya s.tür == "Sayi" veya s.tür == "Ondalik" veya s.tür == "Metin" veya op_mu(a, "(") veya op_mu(a, "[") veya op_mu(a, "-")
+        eğer değil devam veya (s.tür == "Kelime" ve ayrılmış_mı(s.değer)) ise:
+            ipucu = "-"
+            eğer uzunluk(a.fiiller) > 0 veya uzunluk(çağrı.alt) > 1 ise:
+                ipucu = "bir fiil çağırıyorsanız cümle fiille bitmeli: y = 5'i karele"
+            hata_at(a, satır, sütun, "burada ek beklenmiyordu (" + hal_adı(hal) + " bulundu)", ipucu)
+        e = ekli_ifade(a)
+        eğer e.hal == "" ise:
+            hata_at(a, e.satır, e.sütun, "fiil cümlesindeki her öğe bir hâl eki almalı", "-")
+        e.ifade'yi çağrı.alt'a ekle.
+        e.hal'i çağrı.etiketler'e ekle.
+    döndür çağrı
+
+# Sonu bir hâl eki taşıyabilen ifade.
+işlev ekli_ifade(a: Ayrıştırıcı) -> Ekli:
+    önceki_var = a.yakalanan_var
+    önceki_hal = a.yakalanan_hal
+    önceki_satır = a.yakalanan_satır
+    önceki_sütun = a.yakalanan_sütun
+    a.yakalanan_var = yanlış
+    k = bak(a)
+    ifade = veya_ifadesi(a)
+    sonuç = Ekli(ifade: ifade, satır: k.satır, sütun: k.sütun)
+    eğer a.yakalanan_var ise:
+        sonuç.hal = a.yakalanan_hal
+        sonuç.satır = a.yakalanan_satır
+        sonuç.sütun = a.yakalanan_sütun
+    a.yakalanan_var = önceki_var
+    a.yakalanan_hal = önceki_hal
+    a.yakalanan_satır = önceki_satır
+    a.yakalanan_sütun = önceki_sütun
+    döndür sonuç
+
+işlev ikili(op: metin, sol: İfade, sağ: İfade) -> İfade:
+    döndür ifade2("ikili", op, sol, sağ, sol.satır, sol.sütun)
+
+işlev veya_ifadesi(a: Ayrıştırıcı) -> İfade:
+    sol = ve_ifadesi(a)
+    değil a.yakalanan_var ve kelime_mi(a, "veya") ve değil yüklem_veya_mı(a) olduğu sürece:
+        ilerle(a)
+        sol = ikili("Veya", sol, ve_ifadesi(a))
+    döndür sol
+
+# `büyük veya eşit` içindeki `veya` mantıksal 'veya' değildir.
+işlev yüklem_veya_mı(a: Ayrıştırıcı) -> mantık:
+    s = bak_n(a, 1)
+    döndür s.tür == "Kelime" ve yüklem(s.değer) != ""
+
+işlev ve_ifadesi(a: Ayrıştırıcı) -> İfade:
+    sol = değil_ifadesi(a)
+    değil a.yakalanan_var ve kelime_mi(a, "ve") olduğu sürece:
+        ilerle(a)
+        sol = ikili("Ve", sol, değil_ifadesi(a))
+    döndür sol
+
+işlev değil_ifadesi(a: Ayrıştırıcı) -> İfade:
+    eğer kelime_mi(a, "değil") ise:
+        k = ilerle(a)
+        döndür ifade1("tekli", "Degil", değil_ifadesi(a), k.satır, k.sütun)
+    döndür karşılaştırma(a)
+
+işlev karşılaştırma(a: Ayrıştırıcı) -> İfade:
+    sol = toplama(a)
+    değil a.yakalanan_var olduğu sürece:
+        op = ""
+        eğer op_mu(a, "==") ise:
+            op = "Esit"
+        değilse eğer op_mu(a, "!=") ise:
+            op = "EsitDegil"
+        değilse eğer op_mu(a, "<") ise:
+            op = "Kucuk"
+        değilse eğer op_mu(a, ">") ise:
+            op = "Buyuk"
+        değilse eğer op_mu(a, "<=") ise:
+            op = "KucukEsit"
+        değilse eğer op_mu(a, ">=") ise:
+            op = "BuyukEsit"
+        değilse:
+            dur
+        ilerle(a)
+        sol = ikili(op, sol, toplama(a))
+    döndür sol
+
+işlev toplama(a: Ayrıştırıcı) -> İfade:
+    sol = çarpma(a)
+    değil a.yakalanan_var olduğu sürece:
+        op = ""
+        eğer op_mu(a, "+") ise:
+            op = "Topla"
+        değilse eğer op_mu(a, "-") ise:
+            op = "Cikar"
+        değilse:
+            dur
+        ilerle(a)
+        sol = ikili(op, sol, çarpma(a))
+    döndür sol
+
+işlev çarpma(a: Ayrıştırıcı) -> İfade:
+    sol = tekli(a)
+    değil a.yakalanan_var olduğu sürece:
+        op = ""
+        eğer op_mu(a, "*") ise:
+            op = "Carp"
+        değilse eğer op_mu(a, "/") ise:
+            op = "Bol"
+        değilse eğer op_mu(a, "//") ise:
+            op = "TamBol"
+        değilse eğer op_mu(a, "%") ise:
+            op = "Mod"
+        değilse:
+            dur
+        ilerle(a)
+        sol = ikili(op, sol, tekli(a))
+    döndür sol
+
+işlev tekli(a: Ayrıştırıcı) -> İfade:
+    eğer op_mu(a, "-") ise:
+        k = ilerle(a)
+        iç = tekli(a)
+        eğer iç.tür == "sayı" ise:
+            döndür yeni_ifade("sayı", metin(-sayı(iç.ad)), k.satır, k.sütun)
+        eğer iç.tür == "ondalık" ise:
+            eğer başlar(iç.ad, "-") ise:
+                döndür yeni_ifade("ondalık", parça(iç.ad, 1, uzunluk(iç.ad) - 1), k.satır, k.sütun)
+            döndür yeni_ifade("ondalık", "-" + iç.ad, k.satır, k.sütun)
+        döndür ifade1("tekli", "Eksi", iç, k.satır, k.sütun)
+    döndür sonek(a)
+
+işlev ek_yakala(a: Ayrıştırıcı, hal: metin, k: Sözcük):
+    a.yakalanan_var = doğru
+    a.yakalanan_hal = hal
+    a.yakalanan_satır = k.satır
+    a.yakalanan_sütun = k.sütun
+
+# Temel öğe + indeks + üye erişimi + hâl eki.
+işlev sonek(a: Ayrıştırıcı) -> İfade:
+    ifade = temel(a)
+    değil a.yakalanan_var olduğu sürece:
+        eğer op_mu(a, "[") ise:
+            k = ilerle(a)
+            i = düz_ifade(a)
+            bekle_op(a, "]", "indeksin sonunda")
+            ifade = ifade2("indeks", "", ifade, i, k.satır, k.sütun)
+        değilse eğer bak(a).tür == "Uye" ise:
+            ifade = üye(a, ifade)
+        değilse:
+            dur
+    eğer bak(a).tür == "Ek" ise:
+        k = bak(a)
+        eğer a.yakalanan_var ise:
+            hata_s(a, k, "bu kelime zaten bir ek almış", "-")
+        ilerle(a)
+        hal = hal_bul(k.değer)
+        eğer hal == "" ise:
+            hata_s(a, k, "tanınmayan ek '" + k.değer + "'", "kullanılabilen hâl ekleri: -i, -e, -den, -de, -le, -in")
+        ek_yakala(a, hal, k)
+    # `listenin uzunluğu`, `listenin uzunluğunu yaz`
+    eğer a.yakalanan_var ve a.yakalanan_hal == "Ilgi" ise:
+        u = "?"
+        eğer bak(a).tür == "Kelime" ise:
+            u = uzunluk_kelimesi(bak(a).değer)
+        eğer u == "?" ise:
+            hata_at(a, a.yakalanan_satır, a.yakalanan_sütun, "ilgi hâlinden (-in) sonra 'uzunluğu' bekleniyordu", "sayıların uzunluğu")
+        ek_k = ilerle(a)
+        a.yakalanan_var = yanlış
+        eğer u != "" ise:
+            ek_yakala(a, u, ek_k)
+        ifade = ifade1("çağrı", "uzunluk", ifade, ifade.satır, ifade.sütun)
+        eğer bak(a).tür == "Ek" ise:
+        # `sayıların uzunluğu'nu yaz`
+            eğer a.yakalanan_var ise:
+                hata_s(a, bak(a), "bu kelime zaten bir ek almış", "-")
+            k = ilerle(a)
+            hal = hal_bul(k.değer)
+            eğer hal == "" ise:
+                hata_s(a, k, "tanınmayan ek '" + k.değer + "'", "-")
+            ek_yakala(a, hal, k)
+    döndür ifade
+
+# `nesne.alan`, `nesne.yöntem(...)`; alan adı ek almış olabilir: `ürün.fiyatı`
+işlev üye(a: Ayrıştırıcı, nesne: İfade) -> İfade:
+    ilerle(a)
+    k = bak(a)
+    eğer k.tür != "Kelime" ise:
+        beklenmeyen(a, "noktadan sonra alan ya da yöntem adı")
+    ad = k.değer
+    ilerle(a)
+    eğer op_mu(a, "(") ise:
+        ilerle(a)
+        e = ifade1("yöntem", ad, nesne, k.satır, k.sütun)
+        değil op_mu(a, ")") olduğu sürece:
+            düz_ifade(a)'yı e.alt'a ekle.
+            eğer değil op_mu(a, ")") ise:
+                bekle_op(a, ",", "bağımsız değişkenler arasında")
+        ilerle(a)
+        döndür e
+    # Seçenek değeri adıyla yazılmışsa ek çözümlemesi yapılmaz: `Durum.yolda`
+    seçenek_değeri = nesne.tür == "modeladı" ve içerir(a.seçenekler, nesne.ad) ve içerir(a.seçenekler[nesne.ad], ad)
+    alan = ad
+    eğer seçenek_değeri veya bak(a).tür == "Ek" ise:
+        asıl = asıl_isim(a.alanlar, ad)
+        eğer asıl != "" ise:
+            alan = asıl
+    değilse:
+        ç = çözümle(a.alanlar, ad)
+        eğer ç.tür == "Isim" ise:
+            alan = ç.isim
+        değilse eğer ç.tür == "EkliIsim" ise:
+            ek_yakala(a, ç.hal, k)
+            alan = ç.isim
+        değilse eğer ç.tür == "Belirsiz" ise:
+            hata_s(a, k, "'" + ad + "' belirsiz: " + birleştir(ç.adaylar, " ya da "), "eki kesme işaretiyle ayırın: ürün.ad'ı")
+    döndür ifade1("alan", alan, nesne, k.satır, k.sütun)
+
+# `Ürün(ad: "Kalem", fiyat: 12.5)`
+işlev kurucu(a: Ayrıştırıcı, model_: metin, k: Sözcük) -> İfade:
+    ilerle(a)
+    e = yeni_ifade("kurucu", model_, k.satır, k.sütun)
+    değil op_mu(a, ")") olduğu sürece:
+        ak = bak(a)
+        eğer ak.tür != "Kelime" veya değil s_op(bak_n(a, 1), ":") ise:
+            hata_s(a, ak, "model kurucusunda değerler alan adıyla verilir", model_ + "(ad: \"Kalem\", fiyat: 12.5)")
+        ilerle(a)
+        ilerle(a)
+        d = düz_ifade(a)
+        eğer içerir(e.etiketler, ak.değer) ise:
+            hata_s(a, ak, "'" + ak.değer + "' alanı iki kez verilmiş", "-")
+        d'yi e.alt'a ekle.
+        ak.değer'i e.etiketler'e ekle.
+        eğer değil op_mu(a, ")") ise:
+            bekle_op(a, ",", "alanlar arasında")
+    ilerle(a)
+    döndür e
+
+işlev temel(a: Ayrıştırıcı) -> İfade:
+    k = bak(a)
+    eğer k.tür == "Sayi" ise:
+        ilerle(a)
+        döndür yeni_ifade("sayı", metin(sayı(k.değer)), k.satır, k.sütun)
+    eğer k.tür == "Ondalik" ise:
+        ilerle(a)
+        döndür yeni_ifade("ondalık", ondalık_yazısı(k.değer), k.satır, k.sütun)
+    eğer k.tür == "Metin" ise:
+        ilerle(a)
+        döndür yeni_ifade("metin", k.değer, k.satır, k.sütun)
+    eğer s_op(k, "(") ise:
+        ilerle(a)
+        i = düz_ifade(a)
+        bekle_op(a, ")", "kapanış parantezi")
+        döndür i
+    eğer s_op(k, "[") ise:
+        ilerle(a)
+        e = yeni_ifade("liste", "", k.satır, k.sütun)
+        değil op_mu(a, "]") olduğu sürece:
+            düz_ifade(a)'yı e.alt'a ekle.
+            eğer değil op_mu(a, "]") ise:
+                bekle_op(a, ",", "liste öğeleri arasında")
+        ilerle(a)
+        döndür e
+    eğer s_op(k, "{") ise:
+        ilerle(a)
+        e = yeni_ifade("sözlük", "", k.satır, k.sütun)
+        değil op_mu(a, "}") olduğu sürece:
+            düz_ifade(a)'yı e.alt'a ekle.
+            bekle_op(a, ":", "anahtar ile değer arasında")
+            düz_ifade(a)'yı e.alt'a ekle.
+            eğer değil op_mu(a, "}") ise:
+                bekle_op(a, ",", "sözlük öğeleri arasında")
+        ilerle(a)
+        döndür e
+    eğer k.tür == "Kelime" ise:
+        döndür kelime(a, k)
+    hata_s(a, k, "ifade bekleniyordu, " + tok_adı(k) + " bulundu", "-")
+    döndür İfade()
+
+işlev tanımsız(a: Ayrıştırıcı, k: Sözcük):
+    hata_s(a, k, "tanımsız isim '" + k.değer + "'", "değişkeni önce tanımlayın (ör. x = 5) ya da ekini kesme işaretiyle ayırın")
+
+işlev kelime(a: Ayrıştırıcı, k: Sözcük) -> İfade:
+    w = k.değer
+    eğer w == "doğru" veya w == "yanlış" ise:
+        ilerle(a)
+        döndür yeni_ifade("mantık", w, k.satır, k.sütun)
+    eğer uzunluk_kelimesi(w) != "?" ise:
+        hata_s(a, k, "'uzunluğu' ilgi hâlindeki bir isimden sonra gelmeli", "sayıların uzunluğu")
+    eğer ayrılmış_mı(w) ise:
+        hata_s(a, k, "'" + w + "' burada beklenmiyordu", "-")
+    ilerle(a)
+    # Model: kurucu `Ürün(...)` ya da yöntem alıcısı `Ürün.hepsi()`
+    eğer içerir(a.modeller, w) ise:
+        eğer op_mu(a, "(") ise:
+            döndür kurucu(a, w, k)
+        eğer bak(a).tür == "Uye" ise:
+            döndür yeni_ifade("modeladı", w, k.satır, k.sütun)
+        hata_s(a, k, "'" + w + "' bir model adı", "yeni bir nesne için: " + w + "(alan: değer)  ya da kayıtlar için: " + w + ".hepsi()")
+    # Seçenek türü: `Renk.kırmızı`, `Renk.hepsi()`, `Renk("mavi")`
+    eğer içerir(a.seçenekler, w) ve değil op_mu(a, "(") ise:
+        eğer bak(a).tür == "Uye" ise:
+            döndür yeni_ifade("modeladı", w, k.satır, k.sütun)
+        hata_s(a, k, "'" + w + "' bir seçenek türü", "bir değeri için: " + w + ".‹değer›  ·  hepsi için: " + w + ".hepsi()  ·  metinden: " + w + "(m)")
+    # İşlev çağrısı
+    eğer op_mu(a, "(") ise:
+        ilerle(a)
+        e = yeni_ifade("çağrı", w, k.satır, k.sütun)
+        değil op_mu(a, ")") olduğu sürece:
+            düz_ifade(a)'yı e.alt'a ekle.
+            eğer değil op_mu(a, ")") ise:
+                bekle_op(a, ",", "bağımsız değişkenler arasında")
+        ilerle(a)
+        döndür e
+    # Bağımsız değişkensiz kullanıcı fiili: `y = zar_at`
+    eğer içerir(a.fiiller, w) ise:
+        döndür yeni_ifade("fiil", w, k.satır, k.sütun)
+    # Kesme işaretiyle yazılmış ek: kök tanımlı bir isim olmalı.
+    eğer bak(a).tür == "Ek" ise:
+        isim = asıl_isim(a.isimler, w)
+        eğer isim == "" ise:
+            tanımsız(a, k)
+        döndür yeni_ifade("isim", isim, k.satır, k.sütun)
+    ç = çözümle(a.isimler, w)
+    eğer ç.tür == "Isim" ise:
+        döndür yeni_ifade("isim", ç.isim, k.satır, k.sütun)
+    eğer ç.tür == "EkliIsim" ise:
+        ek_yakala(a, ç.hal, k)
+        döndür yeni_ifade("isim", ç.isim, k.satır, k.sütun)
+    eğer ç.tür == "Belirsiz" ise:
+        hata_s(a, k, "'" + w + "' belirsiz: " + birleştir(ç.adaylar, " ya da "), "ekli kullanımı kesme işaretiyle ayırın (ör. kitap'la)")
+    tanımsız(a, k)
+    döndür İfade()
+
+# ---------------------------------------------------------------------------
+# Giriş noktası ve döküm (src/dokum.rs ile aynı biçim)
+# ---------------------------------------------------------------------------
+
+# Kaynağı ayrıştırır; ağacın dökümünü ya da hatayı (`HATA@satır:sütun mesaj | ipucu`) verir.
+işlev ayrıştır_ve_dök(kaynak: metin) -> metin:
+    s = sözcükle(kaynak)
+    son = s[uzunluk(s) - 1]
+    eğer son.tür == "HATA" ise:
+        döndür "HATA@" + son.satır + ":" + son.sütun + " " + son.değer + " | -\n"
+    a = Ayrıştırıcı(s: s, hata_satır: -1, hata_ipucu: "-")
+    # Tanımlar ana dosyadan ve yerleşik modellerden toplanır.
+    hepsi: liste<Sözcük> = []
+    her x için s'den:
+        x'i hepsi'ne ekle.
+    her x için sözcükle(yerleşik_modeller())'den:
+        x'i hepsi'ne ekle.
+    tanımları_kur(a, hepsi)
+    p = Program()
+    dene:
+        program_(a, p)
+    yakala h:
+        eğer a.hata_satır < 0 ise:
+            döndür "İÇ HATA: " + h + "\n"
+        döndür "HATA@" + a.hata_satır + ":" + a.hata_sütun + " " + h + " | " + a.hata_ipucu + "\n"
+    döndür döküm(p)
+
+işlev yer(satır: sayı, sütun: sayı) -> metin:
+    döndür "@" + satır + ":" + sütun
+
+işlev ifadeler_dökümü(l: liste<İfade>, baş: sayı) -> metin:
+    m = ""
+    her i için baş'tan uzunluk(l) - 1'e kadar:
+        m = m + " " + ifade_dökümü(l[i])
+    döndür m
+
+işlev ifade_dökümü(e: İfade) -> metin:
+    t = e.tür
+    y = yer(e.satır, e.sütun)
+    eğer t == "sayı" veya t == "ondalık" veya t == "mantık" veya t == "isim" veya t == "modeladı" ise:
+        döndür "(" + t + y + " " + e.ad + ")"
+    eğer t == "metin" ise:
+        döndür "(metin" + y + " " + json(e.ad) + ")"
+    eğer t == "liste" ise:
+        döndür "(liste" + y + ifadeler_dökümü(e.alt, 0) + ")"
+    eğer t == "sözlük" ise:
+        m = "(sözlük" + y
+        her i için 0'dan uzunluk(e.alt) // 2 - 1'e kadar:
+            m = m + " (çift " + ifade_dökümü(e.alt[2 * i]) + " " + ifade_dökümü(e.alt[2 * i + 1]) + ")"
+        döndür m + ")"
+    eğer t == "ikili" veya t == "tekli" ise:
+        döndür "(" + t + y + " " + e.ad + ifadeler_dökümü(e.alt, 0) + ")"
+    eğer t == "çağrı" ise:
+        döndür "(çağrı" + y + " " + e.ad + ifadeler_dökümü(e.alt, 0) + ")"
+    eğer t == "fiil" veya t == "kurucu" ise:
+        m = "(" + t + y + " " + e.ad
+        her i için 0'dan uzunluk(e.alt) - 1'e kadar:
+            m = m + " (" + e.etiketler[i] + " " + ifade_dökümü(e.alt[i]) + ")"
+        döndür m + ")"
+    eğer t == "indeks" ise:
+        döndür "(indeks" + y + ifadeler_dökümü(e.alt, 0) + ")"
+    eğer t == "alan" ise:
+        döndür "(alan" + y + " " + ifade_dökümü(e.alt[0]) + " " + e.ad + ")"
+    döndür "(yöntem" + y + " " + ifade_dökümü(e.alt[0]) + " " + e.ad + ifadeler_dökümü(e.alt, 1) + ")"
+
+işlev döküm_satırı(g: sayı, m: metin) -> metin:
+    döndür tekrarla(" ", g) + m + "\n"
+
+işlev blok_dökümü(gövde: liste<Deyim>, g: sayı) -> metin:
+    m = ""
+    her d için gövde'den:
+        m = m + deyim_dökümü(d, g)
+    döndür m
+
+işlev deyim_dökümü(d: Deyim, g: sayı) -> metin:
+    t = d.tür
+    y = yer(d.satır, d.sütun)
+    e = d.ifadeler
+    eğer t == "atama" ise:
+        döndür döküm_satırı(g, "atama" + y + " " + d.ad + " " + d.tip + " " + ifade_dökümü(e[0]))
+    eğer t == "indeks_ataması" ise:
+        döndür döküm_satırı(g, "indeks_atama" + ifadeler_dökümü(e, 0))
+    eğer t == "alan_ataması" ise:
+        döndür döküm_satırı(g, "alan_atama" + y + " " + ifade_dökümü(e[0]) + " " + d.ad + " " + ifade_dökümü(e[1]))
+    eğer t == "yaz" veya t == "ekle" veya t == "çıkar" veya t == "dosyaya_yaz" veya t == "sırala" veya t == "ifade" ise:
+        döndür döküm_satırı(g, t + ifadeler_dökümü(e, 0))
+    eğer t == "eğer" ise:
+        m = döküm_satırı(g, "eğer " + ifade_dökümü(e[0])) + blok_dökümü(d.gövde, g + 2)
+        eğer uzunluk(d.diğer) > 0 ise:
+            m = m + döküm_satırı(g, "değilse") + blok_dökümü(d.diğer, g + 2)
+        döndür m
+    eğer t == "sürece" ise:
+        döndür döküm_satırı(g, "sürece " + ifade_dökümü(e[0])) + blok_dökümü(d.gövde, g + 2)
+    eğer t == "her_aralık" veya t == "her_liste" ise:
+        döndür döküm_satırı(g, t + y + " " + d.ad + ifadeler_dökümü(e, 0)) + blok_dökümü(d.gövde, g + 2)
+    eğer t == "döndür" veya t == "dur" veya t == "sürdür" ise:
+        döndür döküm_satırı(g, t + y + ifadeler_dökümü(e, 0))
+    eğer t == "öğe" ise:
+        m = "öğe" + y + " " + d.ad
+        her i için 0'dan uzunluk(e) - 1'e kadar:
+            eğer i < d.argüman_sayısı ise:
+                m = m + " " + ifade_dökümü(e[i])
+            değilse:
+                m = m + " (" + d.seçenek_adları[i - d.argüman_sayısı] + " " + ifade_dökümü(e[i]) + ")"
+        m = döküm_satırı(g, m)
+        eğer d.olay_var ise:
+            m = m + döküm_satırı(g + 2, "olay" + yer(d.olay_satır, d.olay_sütun) + " " + d.olay_adı) + blok_dökümü(d.diğer, g + 4)
+        döndür m + blok_dökümü(d.gövde, g + 2)
+    # dene
+    döndür döküm_satırı(g, "dene" + y + " " + d.ad) + blok_dökümü(d.gövde, g + 2) + döküm_satırı(g, "yakala") + blok_dökümü(d.diğer, g + 2)
+
+işlev döküm(p: Program) -> metin:
+    m = ""
+    her md için p.modeller'den:
+        m = m + döküm_satırı(0, "model" + yer(md.satır, md.sütun) + " " + md.ad)
+        her al için md.alanlar'dan:
+            v = "-"
+            eğer al.varsayılan_var ise:
+                v = ifade_dökümü(al.varsayılan)
+            ç = "alan" + yer(al.satır, al.sütun) + " " + al.ad + " " + al.tip
+            ç = ç + " zorunlu=" + doğru_yanlış(al.zorunlu) + " e_posta=" + doğru_yanlış(al.e_posta)
+            ç = ç + " en_az=" + al.en_az + " en_fazla=" + al.en_fazla + " etiket=" + al.etiket + " " + v
+            m = m + döküm_satırı(2, ç)
+    her t için p.seçenekler'den:
+        m = m + döküm_satırı(0, "seçenek" + yer(t.satır, t.sütun) + " " + t.ad + " " + birleştir(t.değerler, " "))
+    her i için 0'dan uzunluk(p.sabitler) - 1'e kadar:
+        m = m + döküm_satırı(0, "sabit " + p.sabit_adları[i] + " " + ifade_dökümü(p.sabitler[i]))
+    her d için p.durumlar'dan:
+        m = m + döküm_satırı(0, "durum" + yer(d.satır, d.sütun) + " " + d.ad + " " + d.tip + " " + ifade_dökümü(d.değer))
+    her f için p.işlevler'den:
+        ç = "işlev" + yer(f.satır, f.sütun) + " " + f.ad
+        her i için 0'dan uzunluk(f.parametreler) - 1'e kadar:
+            ç = ç + " (" + f.parametreler[i] + " " + f.tipler[i]
+            eğer i < uzunluk(f.haller) ise:
+                ç = ç + " " + f.haller[i]
+            ç = ç + ")"
+        ç = ç + " -> " + f.dönüş
+        eğer f.arayüz ise:
+            ç = ç + " arayüz"
+        eğer f.rota_var ise:
+            ç = ç + " rota " + f.rota_yöntem + " " + json(f.rota_kalıp)
+        m = m + döküm_satırı(0, ç) + blok_dökümü(f.gövde, 2)
+    döndür m + döküm_satırı(0, "ana") + blok_dökümü(p.ana, 2)
+
+işlev doğru_yanlış(b: mantık) -> metin:
+    eğer b ise:
+        döndür "true"
+    döndür "false"

@@ -122,6 +122,11 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
   (işlev, fiil, bileşen) ilk çağrıdaki değerin tipini alır, hiç çağrılmayan işlevde sayıdır.
   Dönüş tipleri de böylece çağrıdan önce bilinir (yalnızca özyinelemede varsayılan kalır).
 
+### 9e – Öz-barındırma: ayrıştırıcı
+- `öz/ayrıştırıcı.ohc`: derleyicinin ayrıştırıcısının Orhunca ile yazılmış karşılığı (ek
+  çözümleme, cümleler, koşullar, tanımlar, arayüz). `src/dokum.rs` ağaç dökümüyle karşılaştırılır:
+  bütün örnekler, şablonlar ve ~80 hatalı girdi; yerel ve WebAssembly.
+
 ## Henüz yapılmayanlar
 
 - **Çalışma zamanı C ile yazılı** (`runtime/orhunca_rt.c`). Bağlama zaten bir C araç zinciri
@@ -133,10 +138,9 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 
 ## Sıradaki adımlar (öneri sırası)
 
-1. Öz-barındırma: ayrıştırıcının Orhunca'ya taşınması (`öz/BENİOKU.md`).
-2. Hata yakalama (`dene / yakala`) ve numaralandırmalar (enum): öz-barındırmayı kolaylaştırır.
-3. Arayüz uygulamalarını yerel pencerede (Tauri) paketleme: `orhunca paketle`.
-4. Windows'ta bağlayıcı gereksinimini kaldırmak (MinGW yerine hazır bağlayıcı ve çalışma zamanı).
+1. Öz-barındırma: tip denetçisinin Orhunca'ya taşınması (`öz/BENİOKU.md`).
+2. Arayüz uygulamalarını yerel pencerede (Tauri) paketleme: `orhunca paketle`.
+3. Windows'ta bağlayıcı gereksinimini kaldırmak (MinGW yerine hazır bağlayıcı ve çalışma zamanı).
 
 ## Çalışma şekli
 
