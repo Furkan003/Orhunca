@@ -636,6 +636,15 @@ fn islev_uret(
         }
     }
 
+    if donus.is_none() {
+        // İç içe modellerin tanımları çalışma zamanında adla bulunur.
+        let mut adlar: Vec<String> = u.o.modeller.keys().cloned().collect();
+        adlar.sort();
+        for ad in adlar {
+            let t = u.o.tanim(&ad)?;
+            u.yap("ohc_model_tanimla", &[Arg::Metin(t)])?;
+        }
+    }
     for d in govde {
         u.deyim(d)?;
     }
@@ -1672,6 +1681,9 @@ impl Uretici<'_> {
             IfadeTuru::ModelAdi(m) => {
                 return Err(format!("'{m}' model adı değer olarak kullanıldı"))
             }
+            IfadeTuru::Kurucu(model, alanlar) if alanlar.is_empty() => {
+                self.varsayilan_nesne(model)?;
+            }
             IfadeTuru::Kurucu(model, alanlar) => {
                 let degerler: Vec<&Ifade> = alanlar.iter().map(|(_, d)| d).collect();
                 self.nesne_kur(model, &degerler)?;
@@ -2046,6 +2058,10 @@ impl Uretici<'_> {
             }
             "ortam" => self.cagri("ohc_ortam", &d)?,
             "çık" => self.cagri("ohc_cik", &d)?,
+            "boş_mu" => {
+                self.ifade(&arg[0])?;
+                self.mantik(K::I64Eqz);
+            }
             "hata_ver" => {
                 d.push(satir);
                 self.cagri("ohc_hata_ver", &d)?

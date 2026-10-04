@@ -41,13 +41,13 @@ impl Tip {
         }
     }
 
-    /// Tipin içinde (liste öğesi, sözlük değeri olarak) bir model var mı?
-    pub fn model_icerir(&self) -> bool {
+    /// Tipin içindeki (liste öğesi, sözlük değeri olarak) modelin adı.
+    pub fn ic_model(&self) -> Option<&str> {
         match self {
-            Tip::Model(_) => true,
-            Tip::Liste(t) => t.model_icerir(),
-            Tip::Sozluk(a, d) => a.model_icerir() || d.model_icerir(),
-            _ => false,
+            Tip::Model(m) => Some(m),
+            Tip::Liste(t) => t.ic_model(),
+            Tip::Sozluk(a, d) => a.ic_model().or(d.ic_model()),
+            _ => None,
         }
     }
 
@@ -487,6 +487,10 @@ pub struct AlanTanimi {
     pub e_posta: bool,
     /// Seçenek türündeki alanın geçerli değerleri (denetçi doldurur)
     pub secenekler: Vec<String>,
+    /// Alan (ya da liste/sözlük öğesi) bir modelse onun adı (denetçi doldurur)
+    pub ic_model: Option<String>,
+    /// Model alanı kendi modeline geri dönen bir zincirde: varsayılanı boş (denetçi doldurur)
+    pub dongusel: bool,
     pub konum: Konum,
 }
 
@@ -502,6 +506,8 @@ impl AlanTanimi {
             Tip::Mantik => IfadeTuru::Mantik(false),
             Tip::Liste(_) => IfadeTuru::Liste(Vec::new()),
             Tip::Sozluk(..) => IfadeTuru::Sozluk(Vec::new()),
+            // Boş argümanlı kurucu: modelin varsayılan nesnesi (kod üretici kurar)
+            Tip::Model(m) if !self.dongusel => IfadeTuru::Kurucu(m.clone(), Vec::new()),
             _ => IfadeTuru::Sayi(0),
         };
         Ifade {
@@ -538,6 +544,9 @@ impl Model {
             if !a.secenekler.is_empty() {
                 s.push('\t');
                 s.push_str(&a.secenekler.join("|"));
+            } else if let Some(m) = &a.ic_model {
+                s.push_str("\t@");
+                s.push_str(m);
             }
             s.push('\n');
         }

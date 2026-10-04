@@ -398,6 +398,28 @@ Nitelikler: `zorunlu`, `en_az N`, `en_fazla N` (metinde karakter, listede öğe 
 (biçim denetimi), `etiket "Görünen ad"` (hata mesajlarında). Hata mesajlarında alan adındaki `_`
 boşluk olur: `doğum_tarihi` → "Doğum tarihi".
 
+Bir alan başka bir model, model listesi ya da sözlüğü olabilir:
+
+```
+model Adres:
+    şehir: metin, zorunlu
+
+model Müşteri:
+    ad: metin
+    adres: Adres                 # başta varsayılan bir Adres nesnesi
+    eski_adresler: liste<Adres>
+
+m = Müşteri(ad: "Ayşe")
+m.adres.şehir = "Kars"
+m'yi kaydet.                     # iç nesneler kaydın içine gömülü saklanır
+m.hatalar()'ı yaz.               # iç modelin hataları da: "Adres: Şehir boş bırakılamaz"
+
+model Düğüm:
+    değer: sayı
+    sonraki: Düğüm               # kendi modeline dönen alan başta boştur
+eğer boş_mu(d.sonraki) ise: ...
+```
+
 ### Seçenekler (numaralandırma)
 
 ```

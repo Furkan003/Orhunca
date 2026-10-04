@@ -119,6 +119,7 @@ pub(crate) const CALISMA_ZAMANI: &[(&str, usize, bool)] = &[
     ("ohc_hata_mesaji", 0, true),
     ("ohc_hata_ver", 2, false),
     ("ohc_secenek_cevir", 4, true),
+    ("ohc_model_tanimla", 1, false),
 ];
 
 /// `dene:` bloğunun işlevinin dönüş kodları (çalışma hatasında -1).
@@ -395,6 +396,15 @@ fn islev_uret(
         cagri_onbellek: HashMap::new(),
         donus,
     };
+    if donus.is_none() {
+        // İç içe modellerin tanımları çalışma zamanında adla bulunur.
+        let mut adlar: Vec<String> = u.ortak.modeller.keys().cloned().collect();
+        adlar.sort();
+        for ad in adlar {
+            let t = u.tanim(&ad)?;
+            u.cz("ohc_model_tanimla", &[t]);
+        }
+    }
     for (yontem, kalip, id) in rotalar {
         let y = u.metin_sabiti(yontem)?;
         let k = u.metin_sabiti(kalip)?;
@@ -1048,6 +1058,10 @@ impl Uretici<'_, '_> {
             "ortam" => self.cz("ohc_ortam", d),
             "çık" => self.cz("ohc_cik", d),
             "hata_ver" => self.cz("ohc_hata_ver", &[d[0], satir]),
+            "boş_mu" => {
+                let sifir = self.sabit(0);
+                Some(self.mantik(IntCC::Equal, d[0], sifir))
+            }
             _ => return Err(format!("bilinmeyen işlev '{ad}'")),
         };
         Ok(v)
@@ -1168,6 +1182,9 @@ impl Uretici<'_, '_> {
             IfadeTuru::Ondalik(n) => self.sabit(n.to_bits() as i64),
             IfadeTuru::FiilCagri(ad, _) => {
                 return Err(format!("'{ad}' fiil çağrısı denetimden geçmemiş"))
+            }
+            IfadeTuru::Kurucu(model, alanlar) if alanlar.is_empty() => {
+                self.varsayilan_nesne(model)?
             }
             IfadeTuru::Kurucu(model, alanlar) => {
                 let degerler: Vec<&Ifade> = alanlar.iter().map(|(_, d)| d).collect();

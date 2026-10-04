@@ -91,6 +91,7 @@ pub fn denetle(p: &mut Program) -> Sonuc<()> {
         konum: Konum::default(),
         tip: Tip::Ondalik,
     });
+    dongusel_alanlari_isaretle(&mut p.modeller);
     for m in &p.modeller {
         d.modeller.insert(m.ad.clone(), m.clone());
     }
@@ -211,6 +212,45 @@ pub fn denetle(p: &mut Program) -> Sonuc<()> {
     Ok(())
 }
 
+/// Model alanı zinciri kendi modeline geri dönüyorsa (`model Düğüm: sonraki: Düğüm`)
+/// alanın varsayılanı boştur; değilse alanın modelinin varsayılan nesnesidir.
+fn dongusel_alanlari_isaretle(modeller: &mut [Model]) {
+    let kenarlar: HashMap<String, Vec<String>> = modeller
+        .iter()
+        .map(|m| {
+            let hedefler = m
+                .alanlar
+                .iter()
+                .filter_map(|a| match &a.tip {
+                    Tip::Model(x) => Some(x.clone()),
+                    _ => None,
+                })
+                .collect();
+            (m.ad.clone(), hedefler)
+        })
+        .collect();
+    let ulasir = |bas: &str, hedef: &str| {
+        let mut gorulen = HashSet::new();
+        let mut yigin = vec![bas.to_string()];
+        while let Some(x) = yigin.pop() {
+            if x == hedef {
+                return true;
+            }
+            if gorulen.insert(x.clone()) {
+                yigin.extend(kenarlar.get(&x).into_iter().flatten().cloned());
+            }
+        }
+        false
+    };
+    for m in modeller.iter_mut() {
+        for a in m.alanlar.iter_mut() {
+            if let Tip::Model(x) = &a.tip {
+                a.dongusel = ulasir(x, &m.ad);
+            }
+        }
+    }
+}
+
 /// Bir gövdede (iç içe ifadeler dahil) `ad` adlı bir çağrı var mı?
 fn cagri_var(govde: &[Deyim], ad: &str) -> bool {
     fn ifadede(e: &Ifade, ad: &str) -> bool {
@@ -277,12 +317,18 @@ impl Denetci {
             ));
         }
         for a in m.alanlar.iter_mut() {
-            if a.tip.model_icerir() {
-                return Err(Hata::yeni(
-                    a.konum,
-                    "model alanları başka bir model içeremez (henüz); kimliğini sayı olarak saklayın",
-                )
-                .ipucu(format!("{}_kimliği: sayı", a.ad.trim_end_matches("ler"))));
+            if let Some(ic) = a.tip.ic_model() {
+                if self
+                    .modeller
+                    .get(ic)
+                    .is_some_and(|x| x.konum.dosya == YERLESIK_DOSYA)
+                {
+                    return Err(Hata::yeni(
+                        a.konum,
+                        format!("'{ic}' yerleşik bir model; model alanı olamaz"),
+                    ));
+                }
+                a.ic_model = Some(ic.to_string());
             }
             let sinirli = matches!(a.tip, Tip::Sayi | Tip::Ondalik | Tip::Metin | Tip::Liste(_));
             if (a.en_az.is_some() || a.en_fazla.is_some()) && !sinirli {
@@ -1793,6 +1839,7 @@ impl Denetci {
             ("ortam", [Metin]) => Metin,
             ("çık", [Sayi]) => Bos,
             ("hata_ver", [Metin]) => Bos,
+            ("boş_mu", [Model(_)]) => Mantik,
             _ if arayuz::oge(ad).is_some() => {
                 return Err(Hata::yeni(
                     konum,

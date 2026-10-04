@@ -1587,6 +1587,7 @@ typedef struct {
     int en_az_var, en_fazla_var;
     double en_az, en_fazla;
     char *secenekler; /* seçenek türündeki alanın geçerli değerleri: "a|b|c" (yoksa NULL) */
+    char *ic_model;   /* alan (ya da liste/sözlük öğesi) bir modelse onun adı */
 } AlanBilgisi;
 
 typedef struct ModelBilgisi {
@@ -1607,8 +1608,9 @@ static char *kopya_n(const char *s, size_t n) {
 }
 
 /* Derleyicinin ürettiği tanım metni: ilk satır modelin adı, sonra her alan için
- * "ad<TAB>tip kodu<TAB>kurallar<TAB>en az<TAB>en fazla<TAB>etiket[<TAB>seçenekler]"
- * (kurallar: 1 zorunlu, 2 e-posta biçimi; seçenekler: "a|b|c"). Her tanım bir kez çözülür. */
+ * "ad<TAB>tip kodu<TAB>kurallar<TAB>en az<TAB>en fazla<TAB>etiket[<TAB>ek]"
+ * (kurallar: 1 zorunlu, 2 e-posta biçimi; ek: seçenek alanında "a|b|c", model içeren
+ * alanda "@Model"). Her tanım bir kez çözülür. */
 static ModelBilgisi *model_bilgisi(const char *tanim) {
     for (ModelBilgisi *m = model_bilgileri; m; m = m->sonraki)
         if (m->tanim == tanim) return m;
@@ -1646,7 +1648,10 @@ static ModelBilgisi *model_bilgisi(const char *tanim) {
         a->zorunlu = kurallar & 1;
         a->e_posta = (kurallar & 2) != 0;
         a->etiket = uz[5] ? kopya_n(parca[5], uz[5]) : NULL;
-        a->secenekler = uz[6] ? kopya_n(parca[6], uz[6]) : NULL;
+        if (uz[6] && parca[6][0] == '@')
+            a->ic_model = kopya_n(parca[6] + 1, uz[6] - 1);
+        else if (uz[6])
+            a->secenekler = kopya_n(parca[6], uz[6]);
         if (uz[3]) {
             a->en_az_var = 1;
             a->en_az = strtod(parca[3], NULL);
@@ -1660,6 +1665,26 @@ static ModelBilgisi *model_bilgisi(const char *tanim) {
     m->sonraki = model_bilgileri;
     model_bilgileri = m;
     return m;
+}
+
+/* Programın modellerinin tanımları (ana programın başında kaydedilir): iç içe
+ * modellerin tanımı adla bulunur. */
+static const char **kayitli_tanimlar;
+static int64_t kayitli_tanim_sayisi;
+
+void ohc_model_tanimla(int64_t tanim) {
+    kayitli_tanimlar = ham_buyut(kayitli_tanimlar, sizeof(char *) * (size_t)(kayitli_tanim_sayisi + 1));
+    kayitli_tanimlar[kayitli_tanim_sayisi++] = M(tanim);
+}
+
+static ModelBilgisi *model_bilgisi_adla(const char *ad) {
+    if (!ad) return NULL;
+    size_t n = strlen(ad);
+    for (int64_t i = 0; i < kayitli_tanim_sayisi; i++) {
+        const char *t = kayitli_tanimlar[i];
+        if (!strncmp(t, ad, n) && (t[n] == '\n' || !t[n])) return model_bilgisi(t);
+    }
+    return NULL;
 }
 
 #define ORNEK(n) ((Liste *)(intptr_t)(n))
@@ -2074,13 +2099,13 @@ static int64_t j_deger(Json *j, int64_t kod, ModelBilgisi *mb) {
                     if (i < 0) {
                         if (!j_atla(j)) return sonuc;
                     } else {
-                        int64_t d = j_deger(j, mb->alanlar[i].kod, NULL);
+                        int64_t d = j_deger(j, mb->alanlar[i].kod, model_bilgisi_adla(mb->alanlar[i].ic_model));
                         ALAN(sonuc, i) = d;
                     }
                 } else {
                     int64_t anahtar = ak == KOD_METIN ? t_metin(&a) : (int64_t)strtoll(a.v ? a.v : "0", NULL, 10);
                     if (ak != KOD_METIN) free(a.v);
-                    int64_t d = j_deger(j, dk, NULL);
+                    int64_t d = j_deger(j, dk, mb);
                     ohc_sozluk_koy(sonuc, anahtar, d, ak);
                 }
                 if (j->hata) return sonuc;
@@ -2378,6 +2403,26 @@ int64_t ohc_secenek_cevir(int64_t m, int64_t secenekler, int64_t tur, int64_t sa
     return 0;
 }
 
+int64_t ohc_model_hatalar(int64_t n);
+
+/* İç modelin hataları, alanın adıyla: "Müşteri: Ad boş bırakılamaz", "Kalemler 2: ..." */
+static void ic_hatalar(int64_t sonuc, AlanBilgisi *a, int64_t nesne, int64_t sira) {
+    if (!nesne) return;
+    int64_t h = ohc_model_hatalar(nesne);
+    for (int64_t i = 0; i < ohc_liste_uzunluk(h); i++) {
+        Tampon t = {0};
+        gorunen_ad(&t, a);
+        if (sira >= 0) {
+            char b[32];
+            snprintf(b, sizeof b, " %" PRId64, sira + 1);
+            t_yaz(&t, b);
+        }
+        t_yaz(&t, ": ");
+        t_yaz(&t, M(ohc_liste_al(h, i, 0)));
+        ohc_liste_ekle(sonuc, t_metin(&t));
+    }
+}
+
 int64_t ohc_model_hatalar(int64_t n) {
     int64_t sonuc = ohc_liste_yeni();
     if (!n) return sonuc;
@@ -2435,9 +2480,21 @@ int64_t ohc_model_hatalar(int64_t n) {
                 t_yaz(&t, " işaretlenmeli");
             }
             break;
+        case KOD_MODEL:
+            if (!d) {
+                if (a->zorunlu) {
+                    gorunen_ad(&t, a);
+                    t_yaz(&t, " boş bırakılamaz");
+                }
+            } else {
+                ic_hatalar(sonuc, a, d, -1);
+            }
+            break;
         case 4:
         case 5: {
             double uz = (double)(a->kod % 8 == 4 ? ohc_liste_uzunluk(d) : ohc_sozluk_uzunluk(d));
+            if (a->kod == 4 + 8 * KOD_MODEL)
+                for (int64_t k = 0; k < (int64_t)uz; k++) ic_hatalar(sonuc, a, ohc_liste_al(d, k, 0), k);
             if (a->zorunlu && uz == 0) {
                 gorunen_ad(&t, a);
                 t_yaz(&t, " boş bırakılamaz");

@@ -246,6 +246,11 @@ pub const YERLESIKLER: &[Yerlesik] = &[
     y!("ortam", "ortam(ad) → metin", "Ortam değişkeni; yoksa \"\"."),
     y!("çık", "çık(kod)", "Programı verilen çıkış koduyla bitirir."),
     y!(
+        "boş_mu",
+        "boş_mu(nesne) → mantık",
+        "Model değeri boş mu? (kendi modeline dönen alanlar, ör. sonraki: Düğüm, başta boştur)"
+    ),
+    y!(
         "hata_ver",
         "hata_ver(mesaj)",
         "Bir çalışma hatası oluşturur; 'dene' bloğundaysa 'yakala' bloğu çalışır, değilse program biter."

@@ -1,0 +1,64 @@
+# İç içe modeller: model alanı başka bir model, model listesi ya da sözlüğü olabilir.
+model Adres:
+    şehir: metin, zorunlu
+    posta_kodu: metin
+
+model Müşteri:
+    ad: metin, zorunlu
+    adres: Adres
+
+model Kalem:
+    ürün: metin, zorunlu
+    adet: sayı, en_az 1
+    fiyat: ondalık
+
+model Sipariş:
+    müşteri: Müşteri
+    kalemler: liste<Kalem>
+
+işlev toplam(s: Sipariş) -> ondalık:
+    t = 0.0
+    her k için s.kalemler'den:
+        t += k.adet * k.fiyat
+    döndür t
+
+# İç model alanları başta varsayılan nesnelerdir.
+s = Sipariş()
+s.müşteri.ad = "Ayşe"
+s.müşteri.adres.şehir = "Kars"
+Kalem(ürün: "Defter", adet: 3, fiyat: 12.5)'i s.kalemler'e ekle.
+Kalem(ürün: "", adet: 0)'ı s.kalemler'e ekle.
+s'yi yaz.
+
+# Doğrulama iç modellere de iner.
+s.hatalar()'ı yaz.
+s.kalemler[1].ürün = "Kalem"
+s.kalemler[1].adet = 2
+s.kalemler[1].fiyat = 7.25
+("Geçerli: " + s.geçerli_mi())'yi yaz.
+("Toplam: " + toplam(s))'u yaz.
+s.json()'u yaz.
+
+# Kendi modeline dönen alanlar (bağlı liste, ağaç): başta boştur.
+model Düğüm:
+    değer: sayı
+    sonraki: Düğüm
+    çocuklar: liste<Düğüm>
+
+baş = Düğüm(değer: 1)
+baş.sonraki = Düğüm(değer: 2)
+baş.sonraki.sonraki = Düğüm(değer: 3)
+n = baş
+toplam_değer = 0
+doğru olduğu sürece:
+    toplam_değer += n.değer
+    eğer boş_mu(n.sonraki) ise:
+        dur
+    n = n.sonraki
+("Bağlı liste toplamı: " + toplam_değer)'ı yaz.
+
+kök = Düğüm(değer: 10)
+her i için 1'den 3'e kadar:
+    kök.çocuklar'a Düğüm(değer: 10 + i)'yi ekle.
+kök.çocuklar[2].çocuklar'a Düğüm(değer: 99)'u ekle.
+kök.çocuklar[2].çocuklar[0].değer'i yaz.

@@ -1,0 +1,7 @@
+Sipariş(kimlik: 0, müşteri: Müşteri(kimlik: 0, ad: "Ayşe", adres: Adres(kimlik: 0, şehir: "Kars", posta_kodu: "")), kalemler: [Kalem(kimlik: 0, ürün: "Defter", adet: 3, fiyat: 12.5), Kalem(kimlik: 0, ürün: "", adet: 0, fiyat: 0.0)])
+["Kalemler 2: Ürün boş bırakılamaz", "Kalemler 2: Adet en az 1 olmalı"]
+Geçerli: doğru
+Toplam: 52.0
+{"müşteri":{"ad":"Ayşe","adres":{"şehir":"Kars","posta_kodu":""}},"kalemler":[{"ürün":"Defter","adet":3,"fiyat":12.5},{"ürün":"Kalem","adet":2,"fiyat":7.25}]}
+Bağlı liste toplamı: 6
+99

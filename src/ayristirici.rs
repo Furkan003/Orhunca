@@ -950,6 +950,8 @@ impl Ayristirici {
                 etiket: None,
                 e_posta: false,
                 secenekler: Vec::new(),
+                ic_model: None,
+                dongusel: false,
                 konum: fk,
             };
             while self.op_mu(",") {
@@ -1046,6 +1048,8 @@ impl Ayristirici {
                     etiket: None,
                     e_posta: false,
                     secenekler: Vec::new(),
+                    ic_model: None,
+                    dongusel: false,
                     konum,
                 },
             ),

@@ -111,11 +111,16 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
   adıdır (metin). Model alanı (varsayılan ilk değer, form doğrulaması), sözlük anahtarı, arayüzde
   `seçim` bağlama. Ayrıca `liste[i] += 1` gibi indeksli birleşik atama.
 
+### 9c – İç içe modeller
+- Model alanı başka bir model, `liste<Model>` ya da `sözlük<metin, Model>` olabilir. Varsayılan:
+  iç modelin varsayılan nesnesi; kendi modeline dönen zincirlerde (`sonraki: Düğüm`) boş
+  (`boş_mu(x)`). Kayıtlarda iç nesneler gömülü JSON'dur; doğrulama iç modellere iner. Çalışma
+  zamanı iç modelin tanımını adla bulur (tanım metninde `@Model` sütunu, programın başında kayıt).
+
 ## Henüz yapılmayanlar
 
 - **Çalışma zamanı C ile yazılı** (`runtime/orhunca_rt.c`). Bağlama zaten bir C araç zinciri
   istediğinden pratik bir seçim; self-hosting aşamasında Orhunca ile yeniden yazılabilir.
-- Model alanları başka bir model olamaz (ilişkiler kimlik alanıyla kurulur: `yazar_kimliği: sayı`).
 - Web sunucusu tek iş parçacıklıdır; oturum/çerez, dosya yükleme ve HTTPS yok (geliştirme için).
 - Ünlü uyumu derleyicide hoşgörüyle kabul edilir; biçimlendirici ve dil sunucusu uyarır ve düzeltir.
   Metinlerde (yabancı kelimeler olabileceği için) yalnızca tampon harf ve ünsüz benzeşmesi denetlenir.

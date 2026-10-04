@@ -287,3 +287,29 @@ fn indeksli_birlesik_atama() {
     assert!(ok, "{hata}");
     assert_eq!(cikti, "[0, 7]\n{\"a\": 3}\n");
 }
+
+#[test]
+fn ic_ice_modeller_kaydedilip_okunur() {
+    let klasor = std::env::temp_dir().join(format!("orhunca-ic-ice-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&klasor);
+    std::fs::create_dir_all(&klasor).unwrap();
+    let dosya = klasor.join("p.ohc");
+    std::fs::write(
+        &dosya,
+        "model Adres:\n    şehir: metin\nmodel Kişi:\n    ad: metin\n    adres: Adres\n    eski: liste<Adres>\n\
+         k = Kişi(ad: \"Ali\")\nk.adres.şehir = \"Van\"\nAdres(şehir: \"Muş\")'u k.eski'ye ekle.\nk'yi kaydet.\n\
+         y = Kişi.bul(1)\n(y.adres.şehir + \" \" + y.eski[0].şehir)'i yaz.\nKişi.hepsi()[0].ad'ı yaz.\n",
+    )
+    .unwrap();
+    let c = orhunca()
+        .arg("çalıştır")
+        .arg(&dosya)
+        .env("ORHUNCA_VERI", klasor.join("veri"))
+        .output()
+        .unwrap();
+    assert!(c.status.success(), "{}", String::from_utf8_lossy(&c.stderr));
+    assert_eq!(String::from_utf8_lossy(&c.stdout), "Van Muş\nAli\n");
+    let veri = std::fs::read_to_string(klasor.join("veri/Kişi.json")).unwrap();
+    assert!(veri.contains("\"adres\": {\"şehir\": \"Van\"}"), "{veri}");
+    let _ = std::fs::remove_dir_all(&klasor);
+}
