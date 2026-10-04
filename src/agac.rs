@@ -1,11 +1,13 @@
 //! Söz dizimi ağacı (AST).
 
+use crate::ekler::Hal;
 use crate::hata::Konum;
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Tip {
     Sayi,
+    Ondalik,
     Metin,
     Mantik,
     Liste(Box<Tip>),
@@ -16,14 +18,26 @@ pub enum Tip {
 }
 
 impl Tip {
-    /// Çalışma zamanının yazdırma/sıralama için kullandığı tip kodu.
+    /// Çalışma zamanının yazdırma/sıralama için kullandığı tip kodu:
+    /// 0 sayı, 1 metin, 2 mantık, 3 ondalık, 4 + 8*öğe liste.
     pub fn kod(&self) -> i64 {
         match self {
             Tip::Metin => 1,
             Tip::Mantik => 2,
-            Tip::Liste(t) => 3 + 4 * t.kod(),
+            Tip::Ondalik => 3,
+            Tip::Liste(t) => 4 + 8 * t.kod(),
             _ => 0,
         }
+    }
+
+    /// Bu tipte bir yere `t` tipinde bir değer konabilir mi? Sayılar ondalığa
+    /// kendiliğinden çevrilir.
+    pub fn kabul_eder(&self, t: &Tip) -> bool {
+        (*self == Tip::Ondalik && *t == Tip::Sayi) || self.birlestir(t).is_some()
+    }
+
+    pub fn sayisal(&self) -> bool {
+        matches!(self, Tip::Sayi | Tip::Ondalik)
     }
 
     /// `liste<?>` ile `liste<sayı>` gibi tipleri birleştirir.
@@ -41,6 +55,7 @@ impl fmt::Display for Tip {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Tip::Sayi => write!(f, "sayı"),
+            Tip::Ondalik => write!(f, "ondalık"),
             Tip::Metin => write!(f, "metin"),
             Tip::Mantik => write!(f, "mantık"),
             Tip::Liste(t) => write!(f, "liste<{t}>"),
@@ -55,7 +70,10 @@ pub enum IkiliOp {
     Topla,
     Cikar,
     Carp,
+    /// `/`: her zaman ondalık sonuç verir (7 / 2 = 3.5).
     Bol,
+    /// `//`: tam bölme (7 // 2 = 3).
+    TamBol,
     Mod,
     Esit,
     EsitDegil,
@@ -94,6 +112,7 @@ impl Ifade {
 #[derive(Debug, Clone)]
 pub enum IfadeTuru {
     Sayi(i64),
+    Ondalik(f64),
     Metin(String),
     Mantik(bool),
     Isim(String),
@@ -101,6 +120,9 @@ pub enum IfadeTuru {
     Ikili(IkiliOp, Box<Ifade>, Box<Ifade>),
     Tekli(TekliOp, Box<Ifade>),
     Cagri(String, Vec<Ifade>),
+    /// Kullanıcı tanımlı fiil çağrısı: `5'i karele`. Bağımsız değişkenler hâl
+    /// ekleriyle eşleştirilir; denetçi bunu sıralı bir `Cagri`ya çevirir.
+    FiilCagri(String, Vec<(Hal, Ifade)>),
     Indeks(Box<Ifade>, Box<Ifade>),
 }
 
@@ -154,6 +176,8 @@ pub enum Deyim {
 pub struct Islev {
     pub ad: String,
     pub parametreler: Vec<(String, Tip)>,
+    /// Fiillerde her parametrenin hâl eki (`fiil sayı'yı karele:`); işlevlerde boş.
+    pub haller: Vec<Hal>,
     /// `None`: dönüş tipi gövdeden çıkarılır.
     pub donus: Option<Tip>,
     pub govde: Vec<Deyim>,

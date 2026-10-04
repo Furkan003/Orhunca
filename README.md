@@ -35,11 +35,14 @@ Dosya verilmezse geçerli klasördeki `.ohcproj` dosyasının `giriş` dosyası 
 | Tip | Örnek |
 |---|---|
 | `sayı` (64 bit tamsayı) | `42`, `-7`, `1_000_000` |
+| `ondalık` (64 bit kayan nokta) | `3.14`, `-0.5`, `19.99` |
 | `metin` | `"Merhaba"` (`\n`, `\t`, `\"`) |
 | `mantık` | `doğru`, `yanlış` |
 | `liste<T>` | `[3, 8, 1]`, `["a", "b"]`, `[]` |
 
-Tipler çıkarılır; bir değişkenin tipi sonradan değişemez.
+Tipler çıkarılır; bir değişkenin tipi sonradan değişemez. Sayılar gerektiğinde kendiliğinden
+ondalığa çevrilir (`2 * 1.5`, ondalık parametreye `3` vermek), tersi yapılmaz: ondalık
+biriktirecek bir değişkeni `toplam = 0.0` diye başlatın.
 
 ### Hâl ekleri
 
@@ -74,7 +77,10 @@ x += 1
 l[0] = 99
 "Toplam: " + x'i yaz.    # metin + sayı otomatik metne çevrilir
 ```
-Aritmetik: `+ - * / %` · Karşılaştırma: `== != < > <= >=` · Mantık: `ve`, `veya`, `değil`
+- `/` her zaman ondalık sonuç verir: `7 / 2` → `3.5`
+- `//` tam bölmedir, aşağı yuvarlar: `7 // 2` → `3`, `-7 // 2` → `-4`
+- `%` kalanın işareti bölenle aynıdır: `-7 % 3` → `2`
+Aritmetik: `+ - * / // %` · Karşılaştırma: `== != < > <= >=` · Mantık: `ve`, `veya`, `değil`
 
 ### Koşullar
 
@@ -116,9 +122,43 @@ topla(2, 3)'ü yaz.
 ```
 İşlevler yalnızca kendi parametrelerini ve yerel değişkenlerini görür. Özyineleme desteklenir.
 
+### Kendi fiilleriniz
+
+Parametreler hâl ekleriyle tanımlanır, son kelime fiilin adıdır. Çağrıda sıra önemsizdir;
+hangi değerin hangi parametreye gideceğini ekler belirler.
+
+```
+fiil sayı'yı karele:
+    döndür sayı * sayı
+
+fiil (kişi: metin)'yi selamla:
+    "Merhaba, " + kişi'yi yaz.
+
+fiil (miktar: ondalık)'ı (bakiye: ondalık)'dan düş -> ondalık:
+    döndür bakiye - miktar
+
+"Ayşe"'yi selamla.                    # cümle olarak
+kare = 7'yi karele                    # değer döndüren fiil
+bakiye = 30'u bakiye'den düş
+bakiye = bakiye'den 25.5'i düş        # aynı çağrı, farklı sıra
+eğer 5'i karele 20'den büyükse:       # koşulda
+    ...
+```
+- Tipi yazılmayan parametreler `sayı`dır; başka tip için `(ad: metin)'i` yazın.
+- Her parametre farklı bir hâl eki almalıdır (belirtme, yönelme, ayrılma, bulunma, vasıta).
+- Fiiller parantezle de çağrılabilir: `karele(4)`.
+
 ### Yerleşik işlevler
 
-`uzunluk(x)` (liste ya da metin, karakter sayısı) · `metin(x)` · `sayı(x)` · `oku()` (klavyeden bir satır)
+`uzunluk(x)` (liste ya da metin, karakter sayısı) · `metin(x)` · `sayı(x)` (ondalığı keser) ·
+`ondalık(x)` (`"3,5"` gibi virgüllü metinleri de okur) · `yuvarla(x)` (2.5 → 3) ·
+`yuvarla(x, 2)` (2 basamağa) · `oku()` (klavyeden bir satır)
+
+### Bellek
+
+Bellek otomatik yönetilir: artık kullanılmayan metin ve listeler çöp toplayıcı tarafından geri
+verilir. `ORHUNCA_BELLEK_RAPORU=1` ortam değişkeniyle program sonunda kaç kez toplama yapıldığı ve
+en yüksek canlı bellek yazdırılır.
 
 ### Hata mesajları
 
@@ -144,6 +184,10 @@ dosya.ohc
    ↓
 [Bağlama]  nesne + runtime/orhunca_rt.c → Linux çalıştırılabilir dosyası / Windows .exe
 ```
+
+`runtime/orhunca_rt.c`: yazdırma, metin ve liste işlemleri ile çöp toplayıcı. Toplayıcı
+"tutucu" bir işaretle-süpür toplayıcıdır: yığıttaki ve yazmaçlardaki her sözcüğü olası bir
+işaretçi sayar, böylece derleyicinin ürettiği koda ek bir şey gerekmez.
 
 Testler: `cargo test` (birim testleri + `örnekler/` klasöründeki programları derleyip çalıştıran uçtan uca testler).
 

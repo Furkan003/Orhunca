@@ -5,8 +5,10 @@
 //! liste (işaretçi). Metin ve liste işlemleri çalışma zamanı kütüphanesine çağrıdır.
 
 use crate::agac::*;
-use cranelift_codegen::ir::condcodes::IntCC;
-use cranelift_codegen::ir::{types, AbiParam, Function, InstBuilder, UserFuncName, Value};
+use cranelift_codegen::ir::condcodes::{FloatCC, IntCC};
+use cranelift_codegen::ir::{
+    types, AbiParam, Function, InstBuilder, MemFlagsData, UserFuncName, Value,
+};
 use cranelift_codegen::isa::OwnedTargetIsa;
 use cranelift_codegen::settings::{self, Configurable};
 use cranelift_codegen::Context;
@@ -20,10 +22,13 @@ const I64: types::Type = types::I64;
 
 /// Çalışma zamanı işlevleri: ad, parametre sayısı, değer döndürür mü.
 const CALISMA_ZAMANI: &[(&str, usize, bool)] = &[
-    ("ohc_basla", 0, false),
     ("ohc_yaz", 2, false),
     ("ohc_bol", 3, true),
     ("ohc_mod", 3, true),
+    ("ohc_ondalik_bol", 3, true),
+    ("ohc_yuvarla", 1, true),
+    ("ohc_yuvarla_basamak", 2, true),
+    ("ohc_metinden_ondalik", 2, true),
     ("ohc_metin_birlestir", 2, true),
     ("ohc_metne_cevir", 2, true),
     ("ohc_metin_esit", 2, true),
@@ -160,7 +165,7 @@ pub fn uret(p: &Program, isa: OwnedTargetIsa) -> Result<Vec<u8>, String> {
     sig.returns.push(AbiParam::new(types::I32));
     let id = ortak
         .module
-        .declare_function("main", Linkage::Export, &sig)
+        .declare_function("ohc_ana", Linkage::Export, &sig)
         .map_err(|e| e.to_string())?;
     ctx.func = Function::with_name_signature(UserFuncName::user(0, id.as_u32()), sig);
     islev_uret(
@@ -217,9 +222,6 @@ fn islev_uret(
         cagri_onbellek: HashMap::new(),
         donus,
     };
-    if donus.is_none() {
-        u.cz("ohc_basla", &[]);
-    }
     for d in govde {
         u.deyim(d)?;
     }
@@ -483,6 +485,28 @@ impl Uretici<'_, '_> {
         Ok(())
     }
 
+    /// Ondalıklar 64 bitlik tamsayı yuvalarında bit deseni olarak taşınır.
+    fn f64(&mut self, v: Value) -> Value {
+        self.b.ins().bitcast(types::F64, MemFlagsData::new(), v)
+    }
+
+    fn bitler(&mut self, v: Value) -> Value {
+        self.b.ins().bitcast(I64, MemFlagsData::new(), v)
+    }
+
+    fn fmantik(&mut self, cc: FloatCC, a: Value, b: Value) -> Value {
+        let (a, b) = (self.f64(a), self.f64(b));
+        let c = self.b.ins().fcmp(cc, a, b);
+        self.b.ins().uextend(I64, c)
+    }
+
+    /// Ondalık işlem: iki tarafı f64'e çevirir, sonucu bit desenine geri çevirir.
+    fn fislem(&mut self, a: Value, b: Value, f: fn(&mut Self, Value, Value) -> Value) -> Value {
+        let (a, b) = (self.f64(a), self.f64(b));
+        let r = f(self, a, b);
+        self.bitler(r)
+    }
+
     fn mantik(&mut self, cc: IntCC, a: Value, b: Value) -> Value {
         let c = self.b.ins().icmp(cc, a, b);
         self.b.ins().uextend(I64, c)
@@ -496,6 +520,10 @@ impl Uretici<'_, '_> {
     fn ifade(&mut self, e: &Ifade) -> Result<Value, String> {
         Ok(match &e.tur {
             IfadeTuru::Sayi(n) => self.sabit(*n),
+            IfadeTuru::Ondalik(n) => self.sabit(n.to_bits() as i64),
+            IfadeTuru::FiilCagri(ad, _) => {
+                return Err(format!("'{ad}' fiil çağrısı denetimden geçmemiş"))
+            }
             IfadeTuru::Mantik(m) => self.sabit(*m as i64),
             IfadeTuru::Metin(m) => {
                 let id = self.ortak.metin_verisi(m)?;
@@ -510,6 +538,12 @@ impl Uretici<'_, '_> {
                     self.cz("ohc_liste_ekle", &[l, v]);
                 }
                 l
+            }
+            IfadeTuru::Tekli(TekliOp::Eksi, ic) if ic.tip == Tip::Ondalik => {
+                let v = self.ifade(ic)?;
+                let f = self.f64(v);
+                let r = self.b.ins().fneg(f);
+                self.bitler(r)
             }
             IfadeTuru::Tekli(TekliOp::Eksi, ic) => {
                 let v = self.ifade(ic)?;
@@ -552,12 +586,29 @@ impl Uretici<'_, '_> {
                         }
                         self.cz("ohc_metin_birlestir", &[a, b]).unwrap()
                     }
+                    // Denetçi karışık işlemlerde iki tarafı da ondalığa çevirmiştir.
+                    _ if sol.tip == Tip::Ondalik => match op {
+                        IkiliOp::Topla => self.fislem(a, b, |u, a, b| u.b.ins().fadd(a, b)),
+                        IkiliOp::Cikar => self.fislem(a, b, |u, a, b| u.b.ins().fsub(a, b)),
+                        IkiliOp::Carp => self.fislem(a, b, |u, a, b| u.b.ins().fmul(a, b)),
+                        IkiliOp::Bol => {
+                            let s = self.sabit(satir);
+                            self.cz("ohc_ondalik_bol", &[a, b, s]).unwrap()
+                        }
+                        IkiliOp::Esit => self.fmantik(FloatCC::Equal, a, b),
+                        IkiliOp::EsitDegil => self.fmantik(FloatCC::NotEqual, a, b),
+                        IkiliOp::Kucuk => self.fmantik(FloatCC::LessThan, a, b),
+                        IkiliOp::Buyuk => self.fmantik(FloatCC::GreaterThan, a, b),
+                        IkiliOp::KucukEsit => self.fmantik(FloatCC::LessThanOrEqual, a, b),
+                        IkiliOp::BuyukEsit => self.fmantik(FloatCC::GreaterThanOrEqual, a, b),
+                        _ => return Err(format!("ondalık için desteklenmeyen işlem {op:?}")),
+                    },
                     IkiliOp::Topla => self.b.ins().iadd(a, b),
                     IkiliOp::Cikar => self.b.ins().isub(a, b),
                     IkiliOp::Carp => self.b.ins().imul(a, b),
-                    IkiliOp::Bol | IkiliOp::Mod => {
+                    IkiliOp::Bol | IkiliOp::TamBol | IkiliOp::Mod => {
                         let s = self.sabit(satir);
-                        let ad = if *op == IkiliOp::Bol {
+                        let ad = if *op != IkiliOp::Mod {
                             "ohc_bol"
                         } else {
                             "ohc_mod"
@@ -607,6 +658,24 @@ impl Uretici<'_, '_> {
                         "uzunluk" => self.cz("ohc_liste_uzunluk", &degerler).unwrap(),
                         "metin" => self.metne(degerler[0], &arg[0].tip),
                         "sayı" if arg[0].tip == Tip::Sayi => degerler[0],
+                        "sayı" if arg[0].tip == Tip::Ondalik => {
+                            let f = self.f64(degerler[0]);
+                            self.b.ins().fcvt_to_sint_sat(I64, f)
+                        }
+                        "ondalık" if arg[0].tip == Tip::Ondalik => degerler[0],
+                        "ondalık" if arg[0].tip == Tip::Sayi => {
+                            let f = self.b.ins().fcvt_from_sint(types::F64, degerler[0]);
+                            self.bitler(f)
+                        }
+                        "ondalık" => {
+                            let s = self.sabit(e.konum.satir as i64);
+                            self.cz("ohc_metinden_ondalik", &[degerler[0], s]).unwrap()
+                        }
+                        "yuvarla" if degerler.len() == 2 => {
+                            self.cz("ohc_yuvarla_basamak", &degerler).unwrap()
+                        }
+                        "yuvarla" if arg[0].tip == Tip::Sayi => degerler[0],
+                        "yuvarla" => self.cz("ohc_yuvarla", &degerler).unwrap(),
                         "sayı" => {
                             let s = self.sabit(e.konum.satir as i64);
                             self.cz("ohc_metinden_sayi", &[degerler[0], s]).unwrap()

@@ -7,6 +7,7 @@ use crate::agac::*;
 use crate::ekler::{hal_bul, Cozum, Hal, Sozluk};
 use crate::hata::{Hata, Konum, Sonuc};
 use crate::sozcuk::{Sozcuk, Tok};
+use std::collections::HashSet;
 
 /// İsim olarak kullanılamayan kelimeler.
 const AYRILMIS: &[&str] = &[
@@ -17,6 +18,7 @@ const AYRILMIS: &[&str] = &[
     "için",
     "kadar",
     "işlev",
+    "fiil",
     "döndür",
     "dur",
     "sürdür",
@@ -38,8 +40,8 @@ const AYRILMIS: &[&str] = &[
 
 const FIILLER: &[&str] = &["yaz", "ekle", "sırala"];
 
-/// Yerleşik işlevler: `uzunluk(x)`, `metin(x)`, `sayı(x)`, `oku()`.
-pub const YERLESIK: &[&str] = &["uzunluk", "metin", "sayı", "oku"];
+/// Yerleşik işlevler: `uzunluk(x)`, `metin(x)`, `sayı(x)`, `ondalık(x)`, `yuvarla(x)`, `oku()`.
+pub const YERLESIK: &[&str] = &["uzunluk", "metin", "sayı", "ondalık", "yuvarla", "oku"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum YuklemKoku {
@@ -92,23 +94,28 @@ pub struct Ayristirici {
     /// İfade içinde yakalanan hâl eki: eki taşıyan öğe ifadeyi bitirir ve ek
     /// tüm ifadeye ait sayılır (`a + b'yi yaz` → `(a + b)'yi yaz`).
     yakalanan: Option<(Hal, Konum)>,
+    /// Kullanıcının `fiil` ile tanımladığı fiiller.
+    fiiller: HashSet<String>,
 }
 
 pub fn ayristir(sozcukler: Vec<Sozcuk>) -> Sonuc<Program> {
-    let sozluk = sozluk_kur(&sozcukler);
+    let (sozluk, fiiller) = sozluk_kur(&sozcukler);
     let mut a = Ayristirici {
         sozcukler,
         poz: 0,
         sozluk,
         yakalanan: None,
+        fiiller,
     };
     a.program()
 }
 
 /// Programdaki tüm tanımlı isimleri (atama hedefleri, döngü değişkenleri,
-/// işlevler ve parametreleri) toplayarak ek çözümleme sözlüğünü kurar.
-fn sozluk_kur(s: &[Sozcuk]) -> Sozluk {
+/// işlevler ve parametreleri) toplayarak ek çözümleme sözlüğünü kurar. Kullanıcı
+/// fiillerinin adlarını da ayrıca döndürür.
+fn sozluk_kur(s: &[Sozcuk]) -> (Sozluk, HashSet<String>) {
     let mut sozluk = Sozluk::default();
+    let mut fiiller = HashSet::new();
     let kelime = |i: usize| match s.get(i).map(|s| &s.tok) {
         Some(Tok::Kelime(k)) if !ayrilmis_mi(k) => Some(k.as_str()),
         _ => None,
@@ -146,8 +153,39 @@ fn sozluk_kur(s: &[Sozcuk]) -> Sozluk {
                 }
             }
         }
+        // `fiil sayı'yı (b: ondalık)'ya böl -> ondalık:`
+        // Ekli kelimeler ve parantez içindeki ilk kelimeler parametre, ekiz son kelime fiil adıdır.
+        if s[i].tok == Tok::Kelime("fiil".into()) {
+            let mut j = i + 1;
+            let mut derinlik = 0;
+            let mut ad = None;
+            while let Some(t) = s.get(j) {
+                match &t.tok {
+                    Tok::Op("(") => derinlik += 1,
+                    Tok::Op(")") => derinlik -= 1,
+                    Tok::Op(":") if derinlik == 0 => break,
+                    Tok::Op("->") | Tok::YeniSatir | Tok::Son => break,
+                    Tok::Kelime(_) => {
+                        if let Some(k) = kelime(j) {
+                            let parantez_basi = s[j - 1].tok == Tok::Op("(");
+                            let ekli = matches!(s.get(j + 1).map(|s| &s.tok), Some(Tok::Ek(_)));
+                            if parantez_basi || (derinlik == 0 && ekli) {
+                                sozluk.ekle(k);
+                            } else if derinlik == 0 {
+                                ad = Some(k.to_string());
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+                j += 1;
+            }
+            if let Some(ad) = ad {
+                fiiller.insert(ad);
+            }
+        }
     }
-    sozluk
+    (sozluk, fiiller)
 }
 
 impl Ayristirici {
@@ -236,6 +274,7 @@ impl Ayristirici {
                 }
                 Tok::Girinti => return Err(Hata::yeni(self.konum(), "beklenmeyen girinti")),
                 _ if self.kelime_mi("işlev") => p.islevler.push(self.islev()?),
+                _ if self.kelime_mi("fiil") => p.islevler.push(self.fiil_tanimi()?),
                 _ => p.ana.push(self.deyim()?),
             }
         }
@@ -257,10 +296,10 @@ impl Ayristirici {
         self.ilerle();
         let mut govde = Vec::new();
         while !matches!(self.bak(), Tok::Cikinti | Tok::Son) {
-            if self.kelime_mi("işlev") {
+            if self.kelime_mi("işlev") || self.kelime_mi("fiil") {
                 return Err(Hata::yeni(
                     self.konum(),
-                    "işlevler yalnızca en dış düzeyde tanımlanabilir",
+                    "işlevler ve fiiller yalnızca en dış düzeyde tanımlanabilir",
                 ));
             }
             govde.push(self.deyim()?);
@@ -307,6 +346,104 @@ impl Ayristirici {
         Ok(Islev {
             ad,
             parametreler,
+            haller: Vec::new(),
+            donus,
+            govde,
+            konum,
+            yereller: Vec::new(),
+        })
+    }
+
+    /// `fiil sayı'yı karele:` ya da `fiil (a: ondalık)'yı b'ye böl -> ondalık:`
+    fn fiil_tanimi(&mut self) -> Sonuc<Islev> {
+        let konum = self.konum();
+        self.bekle_kelime("fiil")?;
+        let mut parametreler = Vec::new();
+        let mut haller: Vec<Hal> = Vec::new();
+        loop {
+            let pkonum = self.konum();
+            let (ad, tip) = if self.op_mu("(") {
+                self.ilerle();
+                let ad = self.isim_adi("parametre adı")?;
+                let tip = if self.op_mu(":") {
+                    self.ilerle();
+                    self.tip()?
+                } else {
+                    Tip::Sayi
+                };
+                self.bekle_op(")", "parametrenin sonunda")?;
+                (ad, tip)
+            } else if matches!(self.bak_n(1), Tok::Ek(_)) {
+                (self.isim_adi("parametre adı")?, Tip::Sayi)
+            } else {
+                break;
+            };
+            let Tok::Ek(ek) = self.bak().clone() else {
+                return Err(self.beklenmeyen("parametrenin hâl eki (ör. sayı'yı)"));
+            };
+            let ekonum = self.konum();
+            self.ilerle();
+            let hal =
+                hal_bul(&ek).ok_or_else(|| Hata::yeni(ekonum, format!("tanınmayan ek '{ek}'")))?;
+            if hal == Hal::Ilgi {
+                return Err(Hata::yeni(
+                    ekonum,
+                    "fiil parametresi ilgi hâlinde (-in) olamaz",
+                ));
+            }
+            if haller.contains(&hal) {
+                return Err(Hata::yeni(
+                    ekonum,
+                    format!("bu fiilde zaten {} hâlinde bir parametre var", hal.adi()),
+                )
+                .ipucu("her parametre farklı bir hâl eki almalı; çağrıda rolleri ekler belirler"));
+            }
+            if parametreler.iter().any(|(p, _)| *p == ad) {
+                return Err(Hata::yeni(
+                    pkonum,
+                    format!("'{ad}' parametresi iki kez yazılmış"),
+                ));
+            }
+            parametreler.push((ad, tip));
+            haller.push(hal);
+        }
+        let akonum = self.konum();
+        let ad = match self.bak().clone() {
+            Tok::Kelime(k) if self.fiiller.contains(&k) => {
+                self.ilerle();
+                k
+            }
+            Tok::Kelime(k) if FIILLER.contains(&k.as_str()) => {
+                return Err(Hata::yeni(
+                    akonum,
+                    format!("'{k}' yerleşik bir fiil, yeniden tanımlanamaz"),
+                ))
+            }
+            Tok::Kelime(k) if !ayrilmis_mi(&k) => {
+                return Err(
+                    Hata::yeni(akonum, format!("'{k}' parametresinin bir hâl eki olmalı"))
+                        .ipucu(format!("{k}'i ya da (x: sayı)'yı biçiminde yazın")),
+                )
+            }
+            _ => return Err(self.beklenmeyen("fiil adı")),
+        };
+        if YERLESIK.contains(&ad.as_str()) {
+            return Err(Hata::yeni(
+                akonum,
+                format!("'{ad}' yerleşik bir işlevin adı"),
+            ));
+        }
+        let donus = if self.op_mu("->") {
+            self.ilerle();
+            Some(self.tip()?)
+        } else {
+            None
+        };
+        let govde = self.blok()?;
+        Ok(Islev {
+            ad,
+            parametreler,
+            haller,
             donus,
             govde,
             konum,
@@ -341,6 +478,7 @@ impl Ayristirici {
         };
         Ok(match ad.as_str() {
             "sayı" => Tip::Sayi,
+            "ondalık" => Tip::Ondalik,
             "metin" => Tip::Metin,
             "mantık" => Tip::Mantik,
             "liste" => {
@@ -561,7 +699,8 @@ impl Ayristirici {
         let mut fiil: Option<(String, Konum)> = None;
         loop {
             if let Tok::Kelime(k) = self.bak() {
-                if FIILLER.contains(&k.as_str()) {
+                let kullanici = self.fiiller.contains(k) && *self.bak_n(1) != Tok::Op("(");
+                if FIILLER.contains(&k.as_str()) || kullanici {
                     fiil = Some((k.clone(), self.konum()));
                     self.ilerle();
                     break;
@@ -588,8 +727,17 @@ impl Ayristirici {
                     Tok::YeniSatir | Tok::Son | Tok::Cikinti | Tok::Op(".")
                 );
                 if sonda && !ayrilmis_mi(k) && self.sozluk.cozumle(k) == Cozum::Bilinmiyor {
-                    return Err(Hata::yeni(self.konum(), format!("bilinmeyen fiil '{k}'"))
-                        .ipucu(format!("kullanılabilen fiiller: {}", FIILLER.join(", "))));
+                    let mut fiiller: Vec<&str> = FIILLER.to_vec();
+                    let mut kullanici: Vec<&str> =
+                        self.fiiller.iter().map(|s| s.as_str()).collect();
+                    kullanici.sort();
+                    fiiller.extend(kullanici);
+                    return Err(
+                        Hata::yeni(self.konum(), format!("bilinmeyen fiil '{k}'")).ipucu(format!(
+                            "kullanılabilen fiiller: {}. Yeni fiil tanımlamak için: fiil x'i {k}:",
+                            fiiller.join(", ")
+                        )),
+                    );
                 }
             }
             ogeler.push(self.ekli_ifade()?);
@@ -617,6 +765,23 @@ impl Ayristirici {
             return Err(Hata::yeni(konum, "cümle bir fiille bitmeli")
                 .ipucu("ör. x'i ekrana yaz.  5'i sayılara ekle.  sayıları sırala."));
         };
+
+        if self.fiiller.contains(&fiil) {
+            let mut arg = Vec::new();
+            for (ifade, hal, k) in ogeler {
+                let Some(hal) = hal else {
+                    return Err(Hata::yeni(
+                        k,
+                        format!("bu öğe ek almamış; '{fiil}' fiili için rolü belli değil"),
+                    ));
+                };
+                arg.push((hal, ifade));
+            }
+            return Ok(Deyim::IfadeDeyimi(Ifade::yeni(
+                IfadeTuru::FiilCagri(fiil, arg),
+                fiil_konum,
+            )));
+        }
 
         let sonuc = match fiil.as_str() {
             "yaz" => {
@@ -731,10 +896,24 @@ impl Ayristirici {
                 .any(|k| self.kelime_mi(k))
     }
 
+    fn satirda_fiil_var(&self) -> bool {
+        self.sozcukler[self.poz..]
+            .iter()
+            .take_while(|s| !matches!(s.tok, Tok::YeniSatir | Tok::Son))
+            .any(|s| matches!(&s.tok, Tok::Kelime(k) if self.fiiller.contains(k)))
+    }
+
     fn kosul_parcasi(&mut self, tur: KosulTuru) -> Sonuc<Ifade> {
         let konum = self.konum();
         self.yakalanan = None;
-        let sol = self.degil_ifadesi()?;
+        let mut sol = self.degil_ifadesi()?;
+        // `eğer 5'i karele 20'den büyükse:` — koşul bir fiil çağrısıyla başlıyor.
+        if let Some((h, k)) = self.yakalanan {
+            if self.satirda_fiil_var() {
+                self.yakalanan = None;
+                sol = self.fiil_tamamla(sol, h, k)?;
+            }
+        }
         if let Some((h, k)) = self.yakalanan.take() {
             return Err(Hata::yeni(
                 k,
@@ -848,15 +1027,52 @@ impl Ayristirici {
     // ---------- ifadeler ----------
 
     /// Ek almaması gereken ifade (atama sağ tarafı, parametreler...).
+    /// Ekli bir öğeyle başlayan ifade yalnızca bir kullanıcı fiili çağrısı
+    /// olabilir: `y = 5'i karele`, `y = a'yı b'ye böl`.
     fn duz_ifade(&mut self) -> Sonuc<Ifade> {
         let (ifade, hal, konum) = self.ekli_ifade()?;
-        if let Some(h) = hal {
-            return Err(Hata::yeni(
-                konum,
-                format!("burada ek beklenmiyordu ({} bulundu)", h.adi()),
-            ));
+        match hal {
+            None => Ok(ifade),
+            Some(h) => self.fiil_tamamla(ifade, h, konum),
         }
-        Ok(ifade)
+    }
+
+    /// İlk ekli öğesi okunmuş bir fiil cümlesini fiile kadar okur.
+    fn fiil_tamamla(&mut self, ilk: Ifade, hal: Hal, konum: Konum) -> Sonuc<Ifade> {
+        let mut arg = vec![(hal, ilk)];
+        loop {
+            if let Tok::Kelime(k) = self.bak().clone() {
+                if self.fiiller.contains(&k) {
+                    let fk = self.konum();
+                    self.ilerle();
+                    return Ok(Ifade::yeni(IfadeTuru::FiilCagri(k, arg), fk));
+                }
+            }
+            let devam = matches!(
+                self.bak(),
+                Tok::Kelime(_) | Tok::Sayi(_) | Tok::Ondalik(_) | Tok::Metin(_)
+            ) || self.op_mu("(")
+                || self.op_mu("[")
+                || self.op_mu("-");
+            if !devam || matches!(self.bak(), Tok::Kelime(k) if ayrilmis_mi(k)) {
+                let mut h = Hata::yeni(
+                    konum,
+                    format!("burada ek beklenmiyordu ({} bulundu)", hal.adi()),
+                );
+                if !self.fiiller.is_empty() || arg.len() > 1 {
+                    h = h.ipucu("bir fiil çağırıyorsanız cümle fiille bitmeli: y = 5'i karele");
+                }
+                return Err(h);
+            }
+            let (ifade, h, k) = self.ekli_ifade()?;
+            let Some(h) = h else {
+                return Err(Hata::yeni(
+                    k,
+                    "fiil cümlesindeki her öğe bir hâl eki almalı",
+                ));
+            };
+            arg.push((h, ifade));
+        }
     }
 
     /// Sonu bir hâl eki taşıyabilen ifade.
@@ -954,6 +1170,7 @@ impl Ayristirici {
             let op = match self.bak() {
                 Tok::Op("*") => IkiliOp::Carp,
                 Tok::Op("/") => IkiliOp::Bol,
+                Tok::Op("//") => IkiliOp::TamBol,
                 Tok::Op("%") => IkiliOp::Mod,
                 _ => break,
             };
@@ -969,8 +1186,10 @@ impl Ayristirici {
             let k = self.konum();
             self.ilerle();
             let ic = self.tekli()?;
-            if let IfadeTuru::Sayi(n) = ic.tur {
-                return Ok(Ifade::yeni(IfadeTuru::Sayi(-n), k));
+            match ic.tur {
+                IfadeTuru::Sayi(n) => return Ok(Ifade::yeni(IfadeTuru::Sayi(-n), k)),
+                IfadeTuru::Ondalik(n) => return Ok(Ifade::yeni(IfadeTuru::Ondalik(-n), k)),
+                _ => {}
             }
             return Ok(Ifade::yeni(
                 IfadeTuru::Tekli(TekliOp::Eksi, Box::new(ic)),
@@ -1041,6 +1260,10 @@ impl Ayristirici {
                 self.ilerle();
                 Ok(Ifade::yeni(IfadeTuru::Sayi(n), konum))
             }
+            Tok::Ondalik(n) => {
+                self.ilerle();
+                Ok(Ifade::yeni(IfadeTuru::Ondalik(n), konum))
+            }
             Tok::Metin(m) => {
                 self.ilerle();
                 Ok(Ifade::yeni(IfadeTuru::Metin(m), konum))
@@ -1105,6 +1328,11 @@ impl Ayristirici {
             return Ok(Ifade::yeni(IfadeTuru::Cagri(k, arg), konum));
         }
 
+        // Bağımsız değişkensiz kullanıcı fiili: `y = zar_at`
+        if self.fiiller.contains(&k) {
+            return Ok(Ifade::yeni(IfadeTuru::FiilCagri(k, Vec::new()), konum));
+        }
+
         // Kesme işaretiyle yazılmış ek: kök tanımlı bir isim olmalı.
         if matches!(self.bak(), Tok::Ek(_)) {
             let isim = self
@@ -1139,6 +1367,7 @@ fn tanimsiz(k: &str, konum: Konum) -> Hata {
 fn tok_adi(t: &Tok) -> String {
     match t {
         Tok::Sayi(n) => format!("'{n}' sayısı"),
+        Tok::Ondalik(n) => format!("'{n}' sayısı"),
         Tok::Metin(m) => format!("\"{m}\" metni"),
         Tok::Kelime(k) => format!("'{k}'"),
         Tok::Ek(e) => format!("'{e} eki"),
@@ -1218,6 +1447,23 @@ mod testler {
         let a = ayr("l = [1]\nlistenin = 0\nl'nin uzunluğunu yaz.\n");
         let Deyim::Yaz(i) = &a.ana[2] else { panic!() };
         assert!(matches!(&i.tur, IfadeTuru::Cagri(ad, _) if ad == "uzunluk"));
+    }
+
+    #[test]
+    fn fiil_tanimi_ve_cagrisi() {
+        let a =
+            ayr("fiil x'i (y: ondalık)'ye böl -> ondalık:\n    döndür x / y\nz = 2.0'ye 5'i böl\n");
+        assert_eq!(a.islevler[0].ad, "böl");
+        assert_eq!(a.islevler[0].haller, vec![Hal::Belirtme, Hal::Yonelme]);
+        assert_eq!(a.islevler[0].parametreler[1].1, Tip::Ondalik);
+        let Deyim::Atama { deger, .. } = &a.ana[0] else {
+            panic!()
+        };
+        let IfadeTuru::FiilCagri(ad, arg) = &deger.tur else {
+            panic!()
+        };
+        assert_eq!(ad, "böl");
+        assert_eq!(arg[0].0, Hal::Yonelme);
     }
 
     #[test]

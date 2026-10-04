@@ -2,7 +2,7 @@
 
 Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 
-## Durum (v0.1)
+## Durum (v0.2)
 
 | Aşama | İçerik | Durum |
 |---|---|---|
@@ -16,24 +16,30 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 | 7 | Orhunca Stüdyo (Tauri + Monaco), "Öğren" sekmesi | ⏳ |
 | 8 | WebAssembly, Türkçe arayüz dili, self-hosting | ⏳ |
 
-## v0.1'de bilinçli olarak yapılmayanlar
+## v0.2'de eklenenler
 
-- **Bellek geri verilmiyor.** Metin ve listeler `malloc` ile ayrılır, serbest bırakılmaz. Kısa programlar için sorun değil; ileride referans sayımı ya da bölge tabanlı bellek.
-- **Çalışma zamanı C ile yazılı** (`runtime/orhunca_rt.c`, ~250 satır). Bağlama zaten bir C araç zinciri istediğinden pratik bir seçim; self-hosting aşamasında Orhunca ile yeniden yazılabilir.
-- **Ondalık sayılar yok** (`ondalık` tipi). Cranelift `f64` destekler; eklemesi kolay.
-- **Kullanıcı tanımlı fiiller yok.** İşlevler şimdilik `topla(2, 3)` biçiminde çağrılır. Hedef: `işlev (sayı'yı) karele:` gibi hâl ekli parametre tanımları ve `5'i karele.` çağrısı.
+- **Ondalık sayılar** (`ondalık` tipi, `3.14`). `/` her zaman ondalık verir, `//` tam bölme.
+- **Kullanıcı tanımlı fiiller**: `fiil sayı'yı karele:` → `5'i karele.` Parametreler hâl
+  ekleriyle eşleşir, çağrıda sıra önemsiz.
+- **Otomatik bellek yönetimi**: çalışma zamanında tutucu işaretle-süpür çöp toplayıcı.
+
+## Henüz yapılmayanlar
+
+- **Çalışma zamanı C ile yazılı** (`runtime/orhunca_rt.c`). Bağlama zaten bir C araç zinciri
+  istediğinden pratik bir seçim; self-hosting aşamasında Orhunca ile yeniden yazılabilir.
 - **Modeller/yapılar yok** (`model Ürün:`), modül/içe aktarma yok.
-- **Ünlü uyumu denetlenmiyor**, yalnızca kabul ediliyor. Biçimlendirici (`orhunca biçimlendir`) yanlış ekleri düzeltmeli (`5'a` → `5'e`).
+- **Ünlü uyumu denetlenmiyor**, yalnızca kabul ediliyor. Biçimlendirici (`orhunca biçimlendir`)
+  yanlış ekleri düzeltmeli (`5'a` → `5'e`).
+- Fiil parametrelerinin tipi çağrılardan çıkarılmıyor; `sayı` dışındaki tipler yazılmalı.
 - Listelerde indeks 0'dan başlar.
 
 ## Sıradaki adımlar (öneri sırası)
 
-1. **Ondalık sayılar** ve `metin` işlemleri (alt metin, bölme, büyük/küçük harf — Türkçe `i/İ`, `ı/I` kurallarıyla).
-2. **Kullanıcı tanımlı fiiller** (hâl ekli parametreler) — dilin en özgün özelliği.
-3. **Modeller** (`model Ürün:` alanlarla) — web çatısının ön koşulu.
-4. **Biçimlendirici** — ünlü uyumu düzeltmesi, girinti.
-5. **Dil sunucusu (LSP)**: `orhunca denetle` zaten hata konumlarını veriyor; `tower-lsp` ile tanı, tamamlama, üzerine gelince tip.
-6. Bellek yönetimi.
+1. **Metin işlemleri** (alt metin, bölme, büyük/küçük harf — Türkçe `i/İ`, `ı/I` kurallarıyla).
+2. **Modeller** (`model Ürün:` alanlarla) — web çatısının ön koşulu.
+3. **Biçimlendirici** — ünlü uyumu düzeltmesi, girinti.
+4. **Dil sunucusu (LSP)**: `orhunca denetle` zaten hata konumlarını veriyor; `tower-lsp` ile tanı,
+   tamamlama, üzerine gelince tip.
 
 ## Çalışma şekli
 

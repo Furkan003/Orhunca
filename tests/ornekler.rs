@@ -99,3 +99,81 @@ eğer uzunluk(l) > 0 ve l[0] == 1 ise:
     assert!(ok, "{hata}");
     assert_eq!(cikti, "1\n3\n4\n5\n");
 }
+
+#[test]
+fn cop_toplayici_canli_nesneleri_korur() {
+    // Eşik çok küçük tutulur: toplayıcı binlerce kez çalışır, hiçbir canlı
+    // metin ya da liste kaybolmamalıdır.
+    let dosya = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/cop_toplayici.ohc");
+    let c = orhunca()
+        .arg("çalıştır")
+        .arg(&dosya)
+        .env("ORHUNCA_GC_ESIK", "2000")
+        .env("ORHUNCA_BELLEK_RAPORU", "1")
+        .output()
+        .unwrap();
+    let hata = String::from_utf8_lossy(&c.stderr);
+    assert!(c.status.success(), "{hata}");
+    assert_eq!(String::from_utf8_lossy(&c.stdout), "500\n0\n");
+    let toplama: u64 = hata
+        .split_whitespace()
+        .nth(1)
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
+    assert!(toplama > 100, "toplayıcı yeterince çalışmadı: {hata}");
+}
+
+#[test]
+fn bellek_geri_verilir() {
+    // 500 bin döngüde metin ve liste üretilir; canlı bellek küçük kalmalıdır.
+    let kaynak = "\
+i = 0
+toplam = 0
+i 500_000'den küçükken:
+    s = \"kayıt-\" + i
+    l = [i, i + 1]
+    toplam += uzunluk(s) + uzunluk(l)
+    i += 1
+toplam'ı yaz.
+";
+    let klasor = std::env::temp_dir().join(format!("orhunca-bellek-{}", std::process::id()));
+    std::fs::create_dir_all(&klasor).unwrap();
+    let dosya = klasor.join("bellek.ohc");
+    std::fs::write(&dosya, kaynak).unwrap();
+    let c = orhunca()
+        .arg("çalıştır")
+        .arg(&dosya)
+        .env("ORHUNCA_GC_ESIK", "1000000")
+        .env("ORHUNCA_BELLEK_RAPORU", "1")
+        .output()
+        .unwrap();
+    let _ = std::fs::remove_dir_all(&klasor);
+    let hata = String::from_utf8_lossy(&c.stderr);
+    assert!(c.status.success(), "{hata}");
+    let beklenen: usize = (0..500_000)
+        .map(|i: usize| 6 + i.to_string().len() + 2)
+        .sum();
+    assert_eq!(String::from_utf8_lossy(&c.stdout), format!("{beklenen}\n"));
+    let en_yuksek: u64 = hata
+        .split_whitespace()
+        .rev()
+        .nth(1)
+        .and_then(|s| s.parse().ok())
+        .unwrap();
+    assert!(en_yuksek < 4_000_000, "bellek geri verilmiyor: {hata}");
+}
+
+#[test]
+fn fiil_hatalari_turkce() {
+    let (ok, _, hata) = calistir("fiil x'i y'ye böl:\n    döndür x / y\n10'u böl.\n");
+    assert!(!ok);
+    assert!(
+        hata.contains("yönelme (-e) hâlinde bir öğe bekliyor"),
+        "{hata}"
+    );
+    assert!(hata.contains("kullanım: x'i y'ye böl."), "{hata}");
+
+    let (ok, _, hata) = calistir("x = 1\nx = 2.5\n");
+    assert!(!ok);
+    assert!(hata.contains("x = 0.0"), "{hata}");
+}

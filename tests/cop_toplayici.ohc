@@ -1,0 +1,27 @@
+işlev üret(n) -> liste<metin>:
+    l = []
+    her i için 0'dan n - 1'e kadar:
+        ("öğe" + i)'yi l'ye ekle.
+    döndür l
+
+işlev zincir(d, s: metin) -> metin:
+    eğer d 0'a eşitse:
+        döndür s
+    çöp = "geçici" + d + "-" + s
+    döndür zincir(d - 1, s + "x") + ""
+
+kayıtlar = üret(20_000)
+iç_içe = []
+her i için 0'dan 999'a kadar:
+    [i, i * 2]'yi iç_içe'ye ekle.
+    her j için 0'dan 200'e kadar:
+        g = "çöp" + j
+hata_sayısı = 0
+her i için 0'dan 19_999'a kadar:
+    eğer kayıtlar[i] ("öğe" + i)'ye eşit değilse:
+        hata_sayısı += 1
+her i için 0'dan 999'a kadar:
+    eğer iç_içe[i][1] (i * 2)'ye eşit değilse:
+        hata_sayısı += 1
+uzunluk(zincir(500, ""))'u yaz.
+hata_sayısı'nı yaz.

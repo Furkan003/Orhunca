@@ -1,0 +1,37 @@
+# Ondalık sayılar
+fiyat = 19.99
+adet = 3
+toplam = fiyat * adet
+"Toplam: " + toplam'ı yaz.
+"Yuvarlanmış: " + yuvarla(toplam, 1)'i yaz.
+
+# '/' her zaman ondalık sonuç verir, '//' tam bölmedir.
+7 / 2'yi yaz.
+7 // 2'yi yaz.
+-7 // 2'yi yaz.
+-7 % 3'ü yaz.
+0.1 + 0.2'yi yaz.
+
+ortalama = 0.0
+notlar = [85, 92, 78]
+her not için notlardan:
+    ortalama += not
+ortalama = ortalama / uzunluk(notlar)
+"Ortalama: " + yuvarla(ortalama, 2)'yi yaz.
+
+eğer ortalama 80'den büyükse:
+    "Geçti"'yi yaz.
+
+sıcaklıklar = [21.5, 18.25, 25, 19.75]
+sıcaklıkları sırala.
+sıcaklıkları yaz.
+
+ondalık("3,75") + 1'i yaz.
+sayı(9.99)'u yaz.
+yuvarla(2.5)'i yaz.
+yuvarla(-2.5)'i yaz.
+
+işlev daire_alanı(r: ondalık) -> ondalık:
+    döndür 3.14159 * r * r
+
+yuvarla(daire_alanı(2), 3)'ü yaz.

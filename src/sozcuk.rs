@@ -10,6 +10,7 @@ use crate::hata::{Hata, Konum, Sonuc};
 #[derive(Debug, Clone, PartialEq)]
 pub enum Tok {
     Sayi(i64),
+    Ondalik(f64),
     Metin(String),
     Kelime(String),
     /// Kesme işaretinden sonraki ek, ör. `'den` → `den`.
@@ -27,9 +28,9 @@ pub struct Sozcuk {
     pub konum: Konum,
 }
 
-const OPLAR: [&str; 21] = [
-    "->", "==", "!=", "<=", ">=", "+=", "-=", "+", "-", "*", "/", "%", "=", "<", ">", "(", ")",
-    "[", "]", ",", ":",
+const OPLAR: [&str; 22] = [
+    "->", "//", "==", "!=", "<=", ">=", "+=", "-=", "+", "-", "*", "/", "%", "=", "<", ">", "(",
+    ")", "[", "]", ",", ":",
 ];
 
 fn kesme_mi(c: char) -> bool {
@@ -117,10 +118,31 @@ pub fn sozcukle(kaynak: &str) -> Sonuc<Vec<Sozcuk>> {
                 {
                     i += 1;
                 }
+                // Ondalık kısım: noktadan sonra rakam gelmeliyse (`3.14`). `5.` cümle sonudur.
+                let mut ondalik = false;
+                if i + 1 < karakterler.len()
+                    && karakterler[i] == '.'
+                    && karakterler[i + 1].is_ascii_digit()
+                {
+                    ondalik = true;
+                    i += 1;
+                    while i < karakterler.len()
+                        && (karakterler[i].is_ascii_digit() || karakterler[i] == '_')
+                    {
+                        i += 1;
+                    }
+                }
                 let metin: String = karakterler[bas..i].iter().filter(|c| **c != '_').collect();
-                let deger: i64 = metin
-                    .parse()
-                    .map_err(|_| Hata::yeni(konum, format!("'{metin}' sayısı çok büyük")))?;
+                let tok =
+                    if ondalik {
+                        Tok::Ondalik(metin.parse().map_err(|_| {
+                            Hata::yeni(konum, format!("'{metin}' geçerli bir ondalık sayı değil"))
+                        })?)
+                    } else {
+                        Tok::Sayi(metin.parse().map_err(|_| {
+                            Hata::yeni(konum, format!("'{metin}' sayısı çok büyük"))
+                        })?)
+                    };
                 if i < karakterler.len() && kelime_basi(karakterler[i]) {
                     let ek: String = karakterler[i..]
                         .iter()
@@ -132,10 +154,7 @@ pub fn sozcukle(kaynak: &str) -> Sonuc<Vec<Sozcuk>> {
                     )
                     .ipucu(format!("{metin}'{ek} şeklinde yazın")));
                 }
-                cikti.push(Sozcuk {
-                    tok: Tok::Sayi(deger),
-                    konum,
-                });
+                cikti.push(Sozcuk { tok, konum });
                 i = ek_oku(&karakterler, i, satir_no, &mut cikti)?;
                 continue;
             }
@@ -325,6 +344,23 @@ mod testler {
         let t = turler("eğer x:\n    y = 1\nz = 2\n");
         assert!(t.contains(&Tok::Girinti));
         assert!(t.contains(&Tok::Cikinti));
+    }
+
+    #[test]
+    fn ondalik_ve_cumle_sonu() {
+        assert_eq!(
+            turler("2.75'i yaz. 5."),
+            vec![
+                Tok::Ondalik(2.75),
+                Tok::Ek("i".into()),
+                Tok::Kelime("yaz".into()),
+                Tok::Op("."),
+                Tok::Sayi(5),
+                Tok::Op("."),
+                Tok::YeniSatir,
+                Tok::Son
+            ]
+        );
     }
 
     #[test]

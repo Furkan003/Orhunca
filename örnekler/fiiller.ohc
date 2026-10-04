@@ -1,0 +1,46 @@
+# Kendi fiillerinizi tanımlayın: parametreler hâl ekleriyle işaretlenir,
+# çağrıda sıra önemsizdir, roller eklerden anlaşılır.
+
+fiil sayı'yı karele:
+    döndür sayı * sayı
+
+fiil (kişi: metin)'yi selamla:
+    "Merhaba, " + kişi + "!"'yi yaz.
+
+fiil (miktar: ondalık)'ı (bakiye: ondalık)'dan düş -> ondalık:
+    eğer miktar bakiye'den büyükse:
+        "Yetersiz bakiye"'yi yaz.
+        döndür bakiye
+    döndür bakiye - miktar
+
+fiil (öğe: metin)'yi (liste: liste<metin>)'ye iki_kez_ekle:
+    öğe'yi listeye ekle.
+    öğe'yi listeye ekle.
+
+fiil n'den geri_say:
+    n 0'dan büyükken:
+        n'yi yaz.
+        n -= 1
+    "Kalkış!"'ı yaz.
+
+# Cümle olarak çağırma
+"Ayşe"'yi selamla.
+3'ten geri_say.
+
+# Değer döndüren fiil, atamada ve koşulda kullanılabilir
+kare = 7'yi karele
+kare'yi yaz.
+(12'yi karele)'yi yaz.
+
+bakiye = 100.0
+bakiye = 30'u bakiye'den düş
+bakiye = bakiye'den 25.5'i düş
+"Kalan: " + bakiye'yi yaz.
+bakiye = 500'ü bakiye'den düş
+
+eğer 5'i karele 20'den büyükse:
+    "25 > 20"'yi yaz.
+
+meyveler = ["elma"]
+"armut"'u meyvelere iki_kez_ekle.
+meyveleri yaz.
