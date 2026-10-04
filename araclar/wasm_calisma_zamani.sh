@@ -13,7 +13,7 @@ cikti=runtime/wasm/orhunca_rt.wasm
 # Dışa açılan işlevler: çalışma zamanının tüm ohc_* işlevleri (web sunucusu hariç)
 disa=$(grep -oE '^(int64_t|void) ohc_[a-z0-9_]+\(' runtime/orhunca_rt.c |
     sed -E 's/^(int64_t|void) (ohc_[a-z0-9_]+)\(/\2/' |
-    grep -vxE 'ohc_sun|ohc_web_yol|ohc_dene' | sort -u | sed 's/^/-Wl,--export=/' | tr '\n' ' ')
+    grep -vxE 'ohc_sun|ohc_web_yol|ohc_dene|ohc_ay_gir|ohc_ay_cik|ohc_ay_satir' | sort -u | sed 's/^/-Wl,--export=/' | tr '\n' ' ')
 
 # shellcheck disable=SC2086
 "$CLANG" --target=wasm32-unknown-unknown -O2 -nostdlib -ffreestanding \
