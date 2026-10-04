@@ -83,6 +83,8 @@ jobs:
           grep -q "Şu anki değer: 0" pencere.txt
       - name: Hata ayıklayıcı (çalışma zamanı, Windows soketleri)
         shell: bash
+        env:
+          PYTHONUTF8: "1"
         run: python araclar/ayiklama_sinamasi.py target/debug/orhunca.exe "$RUNNER_TEMP/ayiklama"
   kabuk:
     # Hazır pencere kabuklarını (orhunca paketle) kaynaktan derler, gerçek bir
