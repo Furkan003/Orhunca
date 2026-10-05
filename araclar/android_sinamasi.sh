@@ -1,6 +1,6 @@
 #!/bin/sh
 # Android emülatöründe uçtan uca sınama: APK kurulur, sınama kipinde açılır (kabuk sayfadaki
-# yazıyı logcat'e yazar, "Artır" düğmesine basar), ekranda sayacın arttığı görülür.
+# yazıyı logcat'e yazar, "+ 1" düğmesine basar), ekranda sayacın arttığı görülür.
 #   araclar/android_sinamasi.sh sayac.apk org.orhunca.sayac
 set -eu
 apk=$1; paket=$2
@@ -18,7 +18,7 @@ bekle_yazi() {
 }
 adb install -r "$apk"
 adb logcat -c
-adb shell am start -W -n "$paket/org.orhunca.kabuk.AnaEtkinlik" --ez orhunca_sinama true --es tikla "Artır"
+adb shell am start -W -n "$paket/org.orhunca.kabuk.AnaEtkinlik" --ez orhunca_sinama true --es tikla "'+ 1'"
 bekle_yazi "Şu anki değer: 0"
 bekle_yazi "Şu anki değer: 1"
 adb shell screencap -p /sdcard/ekran.png && adb pull /sdcard/ekran.png android-ekran.png >/dev/null
