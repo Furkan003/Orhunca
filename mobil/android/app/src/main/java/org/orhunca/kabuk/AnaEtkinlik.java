@@ -12,9 +12,13 @@ import android.graphics.Insets;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
+import android.util.Log;
 import android.view.View;
+import android.webkit.ConsoleMessage;
 import android.view.WindowInsets;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
@@ -37,7 +41,14 @@ public class AnaEtkinlik extends Activity {
         a.setAllowFileAccess(true);
         a.setMediaPlaybackRequiresUserGesture(false);
         sayfa.addJavascriptInterface(new Kopru(), "OrhuncaMobil");
-        sayfa.setWebChromeClient(new WebChromeClient());
+        // Sayfadaki hatalar ve console.log iletileri logcat'e (etiket: Orhunca)
+        sayfa.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onConsoleMessage(ConsoleMessage m) {
+                Log.i("Orhunca", m.message() + " (" + m.sourceId() + ":" + m.lineNumber() + ")");
+                return true;
+            }
+        });
         sayfa.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView w, WebResourceRequest istek) {
@@ -48,6 +59,11 @@ public class AnaEtkinlik extends Activity {
                     return true;
                 }
                 return false;
+            }
+
+            @Override
+            public void onPageFinished(WebView w, String adres) {
+                if (getIntent().getBooleanExtra("orhunca_sinama", false)) sinama();
             }
         });
         // Android 15'te uygulama kenardan kenara çizilir: sistem çubukları kadar boşluk bırakılır.
@@ -61,6 +77,34 @@ public class AnaEtkinlik extends Activity {
         setContentView(sayfa);
         if (durum != null) sayfa.restoreState(durum);
         else sayfa.loadUrl("file:///android_asset/uygulama.html");
+    }
+
+    /**
+     * Uçtan uca sınama (araclar/android_sinamasi.sh): sayfadaki yazı logcat'e yazılır
+     * (etiket: OrhuncaSinama); `tikla` verildiyse o yazılı düğmeye basılıp yazı yeniden yazılır.
+     */
+    private void sinama() {
+        Handler h = new Handler(Looper.getMainLooper());
+        String tikla = getIntent().getStringExtra("tikla");
+        h.postDelayed(() -> {
+            yaziyiKaydet();
+            if (tikla == null) return;
+            String js = "(function(){for(const b of document.querySelectorAll('button')){if(b.textContent.trim()==="
+                    + org.json.JSONObject.quote(tikla) + "){b.click();return 1}}return 0})()";
+            sayfa.evaluateJavascript(js, v -> h.postDelayed(this::yaziyiKaydet, 1500));
+        }, 3000);
+    }
+
+    private void yaziyiKaydet() {
+        sayfa.evaluateJavascript("document.body.innerText", v -> {
+            String metin = v;
+            try {
+                metin = new org.json.JSONArray("[" + v + "]").getString(0);
+            } catch (Exception e) {
+                // değer olduğu gibi yazılır
+            }
+            Log.i("OrhuncaSinama", metin.replace('\n', ' '));
+        });
     }
 
     @Override
