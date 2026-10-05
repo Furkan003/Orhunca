@@ -242,6 +242,20 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
   asistan kodu kendisi denetleyip çalıştırır, dosya değişikliğini öneri olarak verir.
   Okullar `ORHUNCA_YAPAY_ZEKA=kapali` ile kapatabilir. Bkz. [docs/yapay-zeka.md](docs/yapay-zeka.md).
 
+## Aşama 12 – Telefon, çeviri, oyun
+
+### 12a – Android
+- `orhunca paketle --hedef android`: hazır WebView kabuğu (mobil/android → runtime/kabuk/android.okb),
+  ikili manifestte ad/kimlik/sürüm değişimi, APK İmza Şeması v2 (ECDSA P-256). SDK gerekmez.
+  CI'da gerçek emülatörde açılıp düğmesine dokunularak sınanır.
+
+### 12b – iOS
+- `orhunca paketle --hedef ios`: WKWebView'lu Xcode projesi (mobil/ios), GitHub'da imzasız .ipa
+  üreten iş akışı. CI'da simülatörde açılır.
+
+### 12c – Telefon komutları
+- `titret`, `paylaş`, `bildirim_gönder` (Android/iOS köprüsü; tarayıcıda Web API'leri).
+
 ## Henüz yapılmayanlar
 
 - Çalışma zamanının çekirdeği (bellek ve çöp toplayıcı, listeler, sözlükler, dosyalar, ağ, JSON,

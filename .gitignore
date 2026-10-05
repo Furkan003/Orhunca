@@ -3,3 +3,7 @@ target/
 /derleme/
 _site/
 web/oyun/target/
+mobil/android/.gradle/
+mobil/android/build/
+mobil/android/app/build/
+mobil/android/local.properties

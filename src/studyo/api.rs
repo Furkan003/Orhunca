@@ -1077,6 +1077,10 @@ fn derle(dosya: &str, hedef: &str) -> Yanit {
     let mut cikti = klasor.join(&ad);
     if derleme::web_hedefi_mi(hedef) {
         cikti.set_extension("html");
+    } else if derleme::android_mi(hedef) {
+        cikti.set_extension("apk");
+    } else if derleme::ios_mu(hedef) {
+        cikti = klasor.join(format!("{ad}-ios"));
     } else if derleme::windows_mu(hedef) {
         cikti.set_extension("exe");
     }

@@ -179,6 +179,87 @@ jobs:
         with:
           name: kabuk-${{ matrix.ad }}
           path: ${{ matrix.kabuk }}
+  android:
+    if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')
+    # Android kabuğunu kaynaktan derler, bir arayüz programını .apk'ya paketler ve
+    # gerçek bir Android emülatöründe açıp düğmesine dokunarak sınar.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14.3"
+      - name: Android kabuğunu derle
+        run: araclar/android_kabuk.sh
+      - name: Paketle
+        run: |
+          cargo build
+          ORHUNCA_ANDROID_ANAHTARI=$RUNNER_TEMP/anahtar target/debug/orhunca paketle örnekler/arayüz/sayaç.ohc --hedef android -o sayac.apk
+          "$ANDROID_HOME"/build-tools/*/apksigner verify --verbose sayac.apk | head -3
+      - name: KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - name: Emülatörde sına
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: araclar/android_sinamasi.sh sayac.apk org.orhunca.sayac
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android
+          path: |
+            sayac.apk
+            android-ekran.png
+  ios:
+    if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')
+    # iOS: üretilen Xcode projesi simülatör ve cihaz (imzasız .ipa) için derlenir,
+    # simülatörde açılıp ekran görüntüsü alınır.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Xcode projesini üret
+        run: |
+          cargo build
+          target/debug/orhunca paketle örnekler/arayüz/sayaç.ohc --hedef ios -o sayac-ios
+      - name: Simülatör için derle ve aç
+        working-directory: sayac-ios
+        run: |
+          xcodebuild -project Uygulama.xcodeproj -target Uygulama -configuration Debug -sdk iphonesimulator \
+            CODE_SIGNING_ALLOWED=NO build | tail -5
+          cihaz=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(c['udid'] for k,v in d.items() if 'iOS' in k for c in v if 'iPhone' in c['name']))")
+          xcrun simctl boot "$cihaz"
+          xcrun simctl bootstatus "$cihaz" -b
+          xcrun simctl install "$cihaz" build/Debug-iphonesimulator/Uygulama.app
+          xcrun simctl launch "$cihaz" org.orhunca.sayac
+          sleep 15
+          xcrun simctl io "$cihaz" screenshot ../ios-ekran.png
+          # Uygulama çökmeden çalışıyor olmalı
+          xcrun simctl spawn "$cihaz" launchctl list | grep -q org.orhunca.sayac
+      - name: Cihaz için derle (imzasız .ipa)
+        working-directory: sayac-ios
+        run: |
+          xcodebuild -project Uygulama.xcodeproj -target Uygulama -configuration Release -sdk iphoneos \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build | tail -5
+          mkdir -p Payload && cp -R build/Release-iphoneos/Uygulama.app Payload/ && zip -qr ../Sayac.ipa Payload
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios
+          path: |
+            ios-ekran.png
+            Sayac.ipa
   vscode:
     runs-on: ubuntu-latest
     steps:

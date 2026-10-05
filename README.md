@@ -77,7 +77,7 @@ Dersler ve otomatik denetlenen alıştırmalar, hata ayıklayıcı, adım adım 
 <td valign="top">
 
 **Gerçek programlar**<br>
-Cranelift ile doğrudan makine koduna derlenir: tek dosyalık `.exe`, Linux programı, tarayıcı için WebAssembly ya da kendi penceresinde açılan uygulama.
+Cranelift ile doğrudan makine koduna derlenir: tek dosyalık `.exe`, Linux programı, tarayıcı için WebAssembly, kendi penceresinde açılan uygulama ya da Android ve iPhone uygulaması.
 
 </td>
 <td valign="top">
@@ -228,6 +228,7 @@ ifadeler), CSV, JSON, HTTP istekleri; resmi `istatistik` ve `geometri` paketleri
 | [Dil rehberi](docs/dil-rehberi.md) | Söz dizimi, hâl ekleri, modeller, web, standart kütüphane |
 | [Arayüz dili](docs/arayuz.md) | `durum`, `arayüz:`, öğeler ve olaylar; masaüstüne paketleme |
 | [Orhunca Stüdyo](docs/studyo.md) | Geliştirme ortamı, hata ayıklayıcı, canlı önizleme |
+| [Telefon uygulamaları](docs/mobil.md) | Android (.apk) ve iPhone/iPad; `titret`, `paylaş`, `bildirim_gönder` |
 | [Yapay zekâ](docs/yapay-zeka.md) | Stüdyo asistanı; Claude Code, Cursor gibi ajanları `orhunca mcp` ile bağlamak |
 | [Paketler](docs/paketler.md) | Paket dizini, `orhunca paket`, kendi paketinizi yayımlamak |
 | [Geliştirme](docs/gelistirme.md) | Kaynaktan derleme, mimari, öz-barındırma, VS Code eklentisi |

@@ -1,0 +1,35 @@
+// Orhunca Android kabuğu: arayüz programının sayfasını tam ekran bir WebView'da açar.
+// `orhunca paketle --hedef android` bu kabuğu kullanır: uygulama adı, paket kimliği ve
+// sayfa (assets/uygulama.html) paketlenirken değiştirilir, APK yeniden imzalanır.
+// Derleme: araclar/android_kabuk.sh (sonuç: runtime/kabuk/android.okb)
+plugins {
+    id "com.android.application"
+}
+
+android {
+    namespace "org.orhunca.kabuk"
+    compileSdk 35
+
+    defaultConfig {
+        // Paketlenirken değiştirilen yer tutucular (bkz. src/android.rs)
+        applicationId "org.orhunca.yertutucu"
+        minSdk 24
+        targetSdk 35
+        versionCode 1
+        versionName "0.0.0-yertutucu"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}

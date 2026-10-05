@@ -1,0 +1,24 @@
+# GitHub'da iPhone uygulamasını derler (Mac gerekmez). Bu klasörü bir GitHub deposuna
+# yükleyin; her gönderimde imzasız bir .ipa üretilir
+# (Actions → son çalışma → Artifacts). İmzasız .ipa, AltStore ya da Sideloadly ile
+# ücretsiz Apple hesabıyla iPhone'a kurulabilir. App Store için Xcode'da
+# Apple geliştirici hesabınızla imzalayın.
+name: iOS
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Derle (imzasız)
+        run: |
+          xcodebuild -project Uygulama.xcodeproj -target Uygulama -configuration Release -sdk iphoneos \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+          mkdir -p Payload && cp -R build/Release-iphoneos/Uygulama.app Payload/
+          zip -qr "$GITHUB_WORKSPACE/Uygulama.ipa" Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iphone-uygulamasi
+          path: Uygulama.ipa

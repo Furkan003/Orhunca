@@ -394,6 +394,22 @@ pub const YERLESIKLER: &[Yerlesik] = &[
         "sun() · sun(kapı)",
         "Web sunucusunu başlatır (varsayılan kapı 3000). Yol tanımlıysa kendiliğinden çağrılır."
     ),
+    // Telefon (Android/iOS uygulamasında ve tarayıcıda; bilgisayar programında etkisizdir)
+    y!(
+        "titret",
+        "titret(milisaniye)",
+        "Telefonu verilen süre kadar titretir: titret(200)."
+    ),
+    y!(
+        "paylaş",
+        "paylaş(metin)",
+        "Telefonun paylaşma penceresini açar (WhatsApp, e-posta...): paylaş(\"Puanım: \" + puan)."
+    ),
+    y!(
+        "bildirim_gönder",
+        "bildirim_gönder(başlık, metin)",
+        "Telefonda bildirim gösterir; ilk seferde izin istenir."
+    ),
 ];
 
 pub fn bul(ad: &str) -> Option<&'static Yerlesik> {

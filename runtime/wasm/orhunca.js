@@ -334,6 +334,38 @@
 
     // Arayüz: çizim sırasında program öğe ağacını bu işlevlerle kurar.
     let yigin = [];
+    // Telefon komutları: Android kabuğu `OrhuncaMobil` nesnesini, iOS kabuğu
+    // `webkit.messageHandlers.orhunca` kanalını sağlar; tarayıcıda Web API'leri kullanılır.
+    const kok = typeof globalThis !== 'undefined' ? globalThis : {};
+    const android = kok.OrhuncaMobil;
+    const ios = kok.webkit && kok.webkit.messageHandlers && kok.webkit.messageHandlers.orhunca;
+    const mb = {
+      titret(ms) {
+        const n = Math.max(1, Math.min(Number(ms), 5000));
+        if (android) android.titret(n);
+        else if (ios) ios.postMessage({ tur: 'titret', ms: n });
+        else if (kok.navigator && kok.navigator.vibrate) kok.navigator.vibrate(n);
+      },
+      paylas(p) {
+        const m = metin(Number(p));
+        if (android) android.paylas(m);
+        else if (ios) ios.postMessage({ tur: 'paylas', metin: m });
+        else if (kok.navigator && kok.navigator.share) kok.navigator.share({ text: m }).catch(() => {});
+        else if (kok.navigator && kok.navigator.clipboard) kok.navigator.clipboard.writeText(m).catch(() => {});
+      },
+      bildirim(a, b) {
+        const baslik = metin(Number(a));
+        const icerik = metin(Number(b));
+        if (android) android.bildirim(baslik, icerik);
+        else if (ios) ios.postMessage({ tur: 'bildirim', baslik, metin: icerik });
+        else if (typeof kok.Notification === 'function') {
+          const goster = () => new kok.Notification(baslik, { body: icerik });
+          if (kok.Notification.permission === 'granted') goster();
+          else if (kok.Notification.permission !== 'denied') kok.Notification.requestPermission().then((d) => d === 'granted' && goster());
+        }
+      },
+    };
+
     const ui = {
       ac(p) {
         const d = { tur: metin(p), oz: {}, olay: {}, cocuk: [] };
@@ -354,7 +386,7 @@
     const rtOrnek = await ornekle(s.calismaZamani, { js });
     rt = rtOrnek.exports;
     bellek = rt.memory;
-    const prog = await ornekle(s.program, { rt, ui, dn });
+    const prog = await ornekle(s.program, { rt, ui, dn, mb });
 
     /** Çalışma hatasını yazar ve çıkış kodunu verir; başka hataları fırlatır. */
     const hataKodu = (h) => {

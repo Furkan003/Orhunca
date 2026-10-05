@@ -1,0 +1,230 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0A0000000000000000000001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B0000000000000000000001 /* AppDelegate.swift */; };
+		0A0000000000000000000002 /* SayfaDenetcisi.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B0000000000000000000002 /* SayfaDenetcisi.swift */; };
+		0A0000000000000000000003 /* uygulama.html in Resources */ = {isa = PBXBuildFile; fileRef = 0B0000000000000000000003 /* uygulama.html */; };
+		0A0000000000000000000004 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0B0000000000000000000004 /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0B0000000000000000000001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		0B0000000000000000000002 /* SayfaDenetcisi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SayfaDenetcisi.swift; sourceTree = "<group>"; };
+		0B0000000000000000000003 /* uygulama.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = uygulama.html; sourceTree = "<group>"; };
+		0B0000000000000000000004 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		0B0000000000000000000005 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		0B0000000000000000000006 /* Uygulama.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Uygulama.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		0C0000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0D0000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				0D0000000000000000000002 /* Uygulama */,
+				0D0000000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		0D0000000000000000000002 /* Uygulama */ = {
+			isa = PBXGroup;
+			children = (
+				0B0000000000000000000001 /* AppDelegate.swift */,
+				0B0000000000000000000002 /* SayfaDenetcisi.swift */,
+				0B0000000000000000000003 /* uygulama.html */,
+				0B0000000000000000000004 /* Assets.xcassets */,
+				0B0000000000000000000005 /* Info.plist */,
+			);
+			path = Uygulama;
+			sourceTree = "<group>";
+		};
+		0D0000000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				0B0000000000000000000006 /* Uygulama.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		0E0000000000000000000001 /* Uygulama */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0F0000000000000000000002 /* Build configuration list for PBXNativeTarget "Uygulama" */;
+			buildPhases = (
+				0C0000000000000000000002 /* Sources */,
+				0C0000000000000000000001 /* Frameworks */,
+				0C0000000000000000000003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Uygulama;
+			productName = Uygulama;
+			productReference = 0B0000000000000000000006 /* Uygulama.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		0E0000000000000000000002 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+			};
+			buildConfigurationList = 0F0000000000000000000001 /* Build configuration list for PBXProject "Uygulama" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = tr;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				tr,
+				en,
+				Base,
+			);
+			mainGroup = 0D0000000000000000000001;
+			productRefGroup = 0D0000000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				0E0000000000000000000001 /* Uygulama */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		0C0000000000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0A0000000000000000000003 /* uygulama.html in Resources */,
+				0A0000000000000000000004 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		0C0000000000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0A0000000000000000000001 /* AppDelegate.swift in Sources */,
+				0A0000000000000000000002 /* SayfaDenetcisi.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		0F0000000000000000000011 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		0F0000000000000000000012 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		0F0000000000000000000021 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = Uygulama/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = "{{SURUM}}";
+				PRODUCT_BUNDLE_IDENTIFIER = "{{KIMLIK}}";
+				PRODUCT_NAME = Uygulama;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		0F0000000000000000000022 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = Uygulama/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = "{{SURUM}}";
+				PRODUCT_BUNDLE_IDENTIFIER = "{{KIMLIK}}";
+				PRODUCT_NAME = Uygulama;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		0F0000000000000000000001 /* Build configuration list for PBXProject "Uygulama" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0F0000000000000000000011 /* Debug */,
+				0F0000000000000000000012 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		0F0000000000000000000002 /* Build configuration list for PBXNativeTarget "Uygulama" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0F0000000000000000000021 /* Debug */,
+				0F0000000000000000000022 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 0E0000000000000000000002 /* Project object */;
+}

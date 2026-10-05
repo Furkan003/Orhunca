@@ -354,6 +354,12 @@ pub fn varsayilan_cikti(dosya: &Path, hedef: Option<&str>) -> PathBuf {
     let mut c = PathBuf::from(kok);
     if web_hedefi_mi(hedef) {
         c.set_extension("html");
+    } else if android_mi(hedef) {
+        c.set_extension("apk");
+    } else if ios_mu(hedef) {
+        let mut ad = c.into_os_string();
+        ad.push("-ios");
+        c = PathBuf::from(ad);
     } else if windows_mu(hedef) {
         c.set_extension("exe");
     }
@@ -435,6 +441,9 @@ pub fn kabuga_ekle(kabuk: &[u8], baslik: &str, sayfa: &[u8]) -> Vec<u8> {
 /// Programı kendi penceresinde açılan bir masaüstü uygulamasına paketler
 /// (Windows'ta WebView2, Linux'ta WebKitGTK; ikisi de sistemde hazır bulunur).
 pub fn paketle(dosya: &Path, cikti: &Path, hedef: Option<&str>) -> Result<(), DerlemeHatasi> {
+    if android_mi(hedef) || ios_mu(hedef) {
+        return mobil_paketle(dosya, cikti, ios_mu(hedef));
+    }
     let triple = hedef_uclusu(hedef)?;
     use target_lexicon::{Architecture, OperatingSystem};
     let macos = matches!(
@@ -473,6 +482,96 @@ pub fn paketle(dosya: &Path, cikti: &Path, hedef: Option<&str>) -> Result<(), De
         let _ = std::fs::set_permissions(cikti, std::fs::Permissions::from_mode(0o755));
     }
     Ok(())
+}
+
+/// `--hedef android` (ya da `apk`)
+pub fn android_mi(hedef: Option<&str>) -> bool {
+    matches!(hedef, Some("android" | "apk"))
+}
+
+/// `--hedef ios` (iPhone/iPad; Xcode projesi üretilir)
+pub fn ios_mu(hedef: Option<&str>) -> bool {
+    matches!(hedef, Some("ios" | "iphone"))
+}
+
+/// Android (.apk) ya da iOS (Xcode projesi). Proje ayarları (.ohcproj, isteğe bağlı):
+/// `ad`, `sürüm`, `paket_kimliği` (ör. "org.okulum.sayac"), `simge` (PNG; iOS için
+/// 1024×1024). Proje klasöründeki `simge.png` de kullanılır.
+fn mobil_paketle(dosya: &Path, cikti: &Path, ios: bool) -> Result<(), DerlemeHatasi> {
+    let (wasm, arayuz) = wasm_derle(dosya)?;
+    if !arayuz {
+        return Err(DerlemeHatasi::duz(
+            "telefon uygulaması yalnızca arayüz programlarından yapılabilir (`arayüz:` bloğu olan programlar)".to_string(),
+        ));
+    }
+    let kok = proje_koku(dosya);
+    let proje = proje_dosyasi(&kok);
+    let ayar = |a: &[&str]| proje.as_ref().and_then(|p| proje_ayari(p, a));
+    let ad = ayar(&["ad"]).unwrap_or_else(|| {
+        // Dosya adından: "sınıf_defteri" → "Sınıf defteri"
+        let kok = dosya
+            .file_stem()
+            .map(|k| k.to_string_lossy().replace('_', " "))
+            .unwrap_or_else(|| "Uygulama".into());
+        let mut h = kok.chars();
+        match h.next() {
+            Some('i') => format!("İ{}", h.as_str()),
+            Some('ı') => format!("I{}", h.as_str()),
+            Some(c) => c.to_uppercase().chain(h).collect(),
+            None => kok,
+        }
+    });
+    let kimlik = ayar(&[
+        "paket_kimliği",
+        "paket_kimligi",
+        "android_kimliği",
+        "android_kimligi",
+    ])
+    .unwrap_or_else(|| crate::android::varsayilan_kimlik(&ad));
+    let surum = ayar(&["sürüm", "surum"]).unwrap_or_else(|| "1.0.0".into());
+    let simge_yolu = ayar(&["simge"])
+        .map(|s| kok.join(s))
+        .or_else(|| Some(kok.join("simge.png")).filter(|p| p.is_file()));
+    let simge = match simge_yolu {
+        Some(p) => {
+            let v = std::fs::read(&p).map_err(|e| {
+                DerlemeHatasi::duz(format!("simge '{}' okunamadı: {e}", p.display()))
+            })?;
+            if !v.starts_with(b"\x89PNG") {
+                return Err(DerlemeHatasi::duz(format!(
+                    "simge '{}' bir PNG dosyası değil",
+                    p.display()
+                )));
+            }
+            Some(v)
+        }
+        None => None,
+    };
+    let sayfa = web_sayfasi(&ad, &wasm, true);
+    if ios {
+        return crate::ios::proje_olustur(
+            &crate::ios::Uygulama {
+                ad: &ad,
+                kimlik: &kimlik,
+                surum: &surum,
+                sayfa: sayfa.as_bytes(),
+                simge: simge.as_deref(),
+            },
+            cikti,
+        )
+        .map_err(DerlemeHatasi::duz);
+    }
+    crate::android::paketle(
+        &crate::android::Uygulama {
+            ad: &ad,
+            kimlik: &kimlik,
+            surum: &surum,
+            sayfa: sayfa.as_bytes(),
+            simge: simge.as_deref(),
+        },
+        cikti,
+    )
+    .map_err(DerlemeHatasi::duz)
 }
 
 /// macOS: `<ad>.app` paketi (Finder'dan çift tıklayınca açılır).

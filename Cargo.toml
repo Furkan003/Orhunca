@@ -19,6 +19,9 @@ cranelift-native = "0.136"
 target-lexicon = "0.13"
 serde_json = "1"
 wasm-encoder = "0.261"
+# Android APK imzası (ECDSA P-256)
+p256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
+getrandom = "0.2"
 object = { version = "0.40", default-features = false, features = ["read_core", "elf", "coff", "std"] }
 
 [dev-dependencies]

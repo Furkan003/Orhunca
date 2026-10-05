@@ -78,3 +78,9 @@ Programın dosyaları (`dosyaya_yaz`, `dosya_oku` …) kullanıcının veri klas
 saklanır (`%APPDATA%\orhunca-<ad>`, `~/.local/share/orhunca-<ad>`). Stüdyo'da: Çalıştır menüsü →
 *Masaüstü uygulaması*. Pencere kabuğunun kaynağı [masaustu/kabuk/](../masaustu/kabuk) (wry/tao);
 derleyici hazır kabukları içinde taşır, ek bir araç gerekmez.
+
+### Telefon uygulaması
+
+Arayüz programları Android ve iPhone uygulamasına da dönüşür:
+`orhunca paketle uygulama.ohc --hedef android` (ya da `--hedef ios`). Telefona özel
+komutlar `titret`, `paylaş` ve `bildirim_gönder`'dir. Ayrıntılar: [Telefon uygulamaları](mobil.md).

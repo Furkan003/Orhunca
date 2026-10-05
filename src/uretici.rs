@@ -1170,6 +1170,8 @@ impl Uretici<'_, '_> {
                 self.cz("ohc_http", &[bir, d[0], d[1], satir])
             }
             "çık" => self.cz("ohc_cik", d),
+            // Telefon komutları bilgisayar programında etkisizdir
+            "titret" | "paylaş" | "bildirim_gönder" => None,
             "hata_ver" => self.cz("ohc_hata_ver", &[d[0], satir]),
             HATA_SATIRDA => self.cz("ohc_hata_ver", &[d[0], d[1]]),
             "boş_mu" => {

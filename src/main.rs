@@ -12,7 +12,7 @@ Kullanım:
   orhunca çalıştır [dosya.ohc] [--hedef web] [-- programın argümanları]
   orhunca denetle [dosya.ohc]
   orhunca etkileşim           (satır satır deneme: yazdığınız her satır hemen çalışır)
-  orhunca paketle [dosya.ohc] [-o çıktı] [--hedef linux|windows]
+  orhunca paketle [dosya.ohc] [-o çıktı] [--hedef linux|windows|macos|android|ios]
   orhunca biçimlendir [dosya.ohc ...] [--denetle]
   orhunca dil-sunucusu        (düzenleyiciler için LSP, stdin/stdout)
   orhunca mcp                 (yapay zekâ ajanları için MCP sunucusu, stdin/stdout)
@@ -25,7 +25,9 @@ Kullanım:
 Dosya verilmezse geçerli klasördeki .ohcproj dosyasının giriş dosyası kullanılır.
 C derleyicisi gerekmez (Linux ve Windows); sistemin C derleyicisiyle bağlamak için ORHUNCA_CC=cc.
 paketle: arayüz programını kendi penceresinde açılan masaüstü uygulamasına
-dönüştürür (Windows: WebView2, Linux: WebKitGTK).
+dönüştürür (Windows: WebView2, Linux: WebKitGTK); --hedef android: telefona
+kurulabilen imzalı .apk (Android SDK gerekmez); --hedef ios: iPhone/iPad için Xcode
+projesi (Mac'te Xcode ile ya da GitHub'da derlenir).
 --hedef web: WebAssembly; tarayıcıda açılan tek bir .html dosyası (-o x.wasm: ayrı
 dosyalar). 'çalıştır --hedef web' programı Node.js ile çalıştırır.";
 

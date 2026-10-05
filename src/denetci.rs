@@ -2055,6 +2055,7 @@ impl Denetci {
             ("http_gönder", [Metin, Metin]) => Metin,
             ("çık", [Sayi]) => Bos,
             ("hata_ver", [Metin]) => Bos,
+            ("titret", [Sayi]) | ("paylaş", [Metin]) | ("bildirim_gönder", [Metin, Metin]) => Bos,
             ("boş_mu", [Model(_)]) => Mantik,
             _ if arayuz::oge(ad).is_some() => {
                 return Err(Hata::yeni(

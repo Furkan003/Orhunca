@@ -46,6 +46,14 @@ const WASM_EKLERI: &[(&str, usize, bool)] = &[
 /// çizim sırasında öğe ağacını kurar. Değerler bellekteki metinlerin adresidir.
 const UI_ISLEVLERI: &[(&str, usize)] = &[("ac", 1), ("ozellik", 2), ("olay", 2), ("kapat", 0)];
 
+/// Telefon komutları (`mb` modülü; JavaScript Android/iOS kabuğuna ya da tarayıcıya iletir):
+/// Orhunca adı, içe aktarma adı, parametre sayısı (i64).
+const MOBIL_ISLEVLERI: &[(&str, &str, usize)] = &[
+    ("titret", "titret", 1),
+    ("paylaş", "paylas", 1),
+    ("bildirim_gönder", "bildirim", 2),
+];
+
 /// Olay işlevlerinin ilk parametresi: çizim anında yakalanan değerlerin listesi.
 const YAKALANANLAR: &str = "‹yakalananlar›";
 
@@ -139,6 +147,7 @@ struct Ortak {
     olay_yuvasi: u32,
     /// `ui` modülünden içe aktarılan işlevler
     ui: HashMap<&'static str, u32>,
+    mobil: HashMap<&'static str, u32>,
     /// Öğenin (konum, olay adı) → olay işlevinin tablodaki sırası
     olay_sirasi: HashMap<(Konum, String), u32>,
     /// JavaScript'ten içe aktarılan `dn.dene(tablodaki sıra, çerçeve) -> kod`
@@ -239,6 +248,7 @@ pub fn uret(p: &Program) -> Result<Vec<u8>, String> {
             .collect(),
         olay_yuvasi: p.durumlar.len() as u32,
         ui: HashMap::new(),
+        mobil: HashMap::new(),
         olay_sirasi: HashMap::new(),
         dene: None,
         govde_tablo_basi: 0,
@@ -283,6 +293,12 @@ pub fn uret(p: &Program) -> Result<Vec<u8>, String> {
             o.ui.insert(ad, sira);
             sira += 1;
         }
+    }
+    for (ad, ithal, n) in MOBIL_ISLEVLERI {
+        let t = o.tur_ekle(&vec![ValType::I64; *n], &[]);
+        ice.import("mb", ithal, EntityType::Function(t));
+        o.mobil.insert(ad, sira);
+        sira += 1;
     }
     if dene_kullanilir {
         let t = o.tur_ekle(&[ValType::I32, ValType::I64], &[ValType::I64]);
@@ -2075,6 +2091,13 @@ impl Uretici<'_> {
                 self.cagri("ohc_http", &d)?
             }
             "çık" => self.cagri("ohc_cik", &d)?,
+            "titret" | "paylaş" | "bildirim_gönder" => {
+                let a: Vec<Arg> = arg.iter().map(Arg::I).collect();
+                self.argumanlar(&a)?;
+                let sira = self.o.mobil[ad];
+                self.e(K::Call(sira));
+                self.sabit(0);
+            }
             "boş_mu" => {
                 self.ifade(&arg[0])?;
                 self.mantik(K::I64Eqz);
@@ -2280,7 +2303,7 @@ mod testler {
         let rt = ozet(crate::derleme::WASM_CALISMA_ZAMANI);
         for (ad, wasm) in ornek_modulleri() {
             for (modul, isim, tur) in ozet(&wasm).ice {
-                if modul == "ui" || modul == "dn" {
+                if modul == "ui" || modul == "dn" || modul == "mb" {
                     // Arayüz ve `dene:` işlevleri JavaScript'ten gelir (orhunca.js).
                     continue;
                 }
