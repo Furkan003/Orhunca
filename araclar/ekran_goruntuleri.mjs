@@ -4,6 +4,7 @@
 // Stüdyo başlatılır, örnek projeler API ile oluşturulur, ekranlar sırayla çekilir.
 import { spawn } from 'child_process';
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'fs';
+import http from 'http';
 import { createRequire } from 'module';
 import os from 'os';
 import path from 'path';
@@ -20,8 +21,33 @@ const orhunca = path.join(kok, 'target/release/orhunca');
 const cikti = path.join(kok, 'docs/ekran');
 const ev = mkdtempSync(path.join(os.tmpdir(), 'orhunca-ekran-'));
 
+// Asistan ekranı için sahte Anthropic API'si (gerçek istek gönderilmez)
+const EK = `
+harfler = {"A": 0, "B": 0, "C": 0, "F": 0}
+her ö için sınıf'tan:
+    h = harf_notu(ö.not)
+    harfler[h] = harfler[h] + 1
+her h için harfler'den:
+    (h + ": " + harfler[h] + " öğrenci")'yi yaz.
+`;
+let tur = 0;
+const sahteApi = http.createServer((istek, yanit) => {
+  istek.resume();
+  istek.on('end', () => {
+    yanit.setHeader('content-type', 'application/json');
+    if (istek.url.startsWith('/v1/models')) return yanit.end(JSON.stringify({ data: [{ id: 'claude', display_name: 'Claude' }] }));
+    const program = NOT_PROGRAMI + EK;
+    tur++;
+    const arac = (ad, girdi) => ({ type: 'tool_use', id: 'a' + tur, name: ad, input: girdi });
+    const icerik = tur === 1 ? [{ type: 'text', text: 'Her harf notundan kaç öğrenci olduğunu sayan bir bölüm ekleyip deneyeyim.' }, arac('kodu_calistir', { kod: program })]
+      : tur === 2 ? [arac('dosyayi_degistir', { icerik: program, aciklama: 'Harf notu sayımı eklendi' })]
+      : [{ type: 'text', text: 'Programı çalıştırdım; çıktının sonunda artık her harf notunun kaç öğrencide olduğu görünüyor:\n\n- `harfler` sözlüğü her harf için bir sayaç tutar\n- `harf_notu` işlevini yeniden kullandım, böylece kurallar tek yerde kalıyor\n\nDeğişikliği **Uygula** ile dosyanıza yazabilirsiniz.' }];
+    yanit.end(JSON.stringify({ stop_reason: tur < 3 ? 'tool_use' : 'end_turn', content: icerik }));
+  });
+}).listen(0);
+
 const studyo = spawn(orhunca, ['stüdyo', '--tarayıcı-açma', '--kapı', '0'], {
-  env: { ...process.env, HOME: ev, USERPROFILE: ev, APPDATA: ev, XDG_CONFIG_HOME: path.join(ev, '.config'), USER: 'Ayşe' },
+  env: { ...process.env, HOME: ev, USERPROFILE: ev, APPDATA: ev, XDG_CONFIG_HOME: path.join(ev, '.config'), USER: 'Ayşe', ORHUNCA_ASISTAN_ADRESI: 'http://127.0.0.1:' + sahteApi.address().port },
   stdio: ['ignore', 'pipe', 'inherit'],
 });
 const adres = await new Promise((tamam) => {
@@ -50,9 +76,7 @@ const olustur = async (sablon, ad, ornek = true) => {
   return path.join(projeler, ad);
 };
 const konsol = await olustur('konsol', 'not_hesaplama', false);
-writeFileSync(
-  path.join(konsol, 'ana.ohc'),
-  `# Sınıfın not ortalaması ve harf notları
+const NOT_PROGRAMI = `# Sınıfın not ortalaması ve harf notları
 model Öğrenci:
     ad: metin
     not: sayı
@@ -78,8 +102,8 @@ her ö için sınıf'tan:
     (ö.ad + ": " + ö.not + " (" + harf_notu(ö.not) + ")")'yi yaz.
 
 ("Ortalama: " + toplam_not / uzunluk(sınıf))'yı yaz.
-`,
-);
+`;
+writeFileSync(path.join(konsol, 'ana.ohc'), NOT_PROGRAMI);
 const arayuz = await olustur('arayuz', 'sinif_defteri', false);
 writeFileSync(path.join(arayuz, 'uygulama.ohc'), readFileSync(path.join(kok, 'örnekler/arayüz/sınıf_defteri.ohc')));
 const web = await olustur('web_sitesi', 'okul_sitesi', true);
@@ -167,7 +191,18 @@ await sayfa.locator('text=Değişkenler').first().click().catch(() => {});
 await sayfa.waitForTimeout(600);
 await cek('dersler');
 
+// Yapay zekâ asistanı
+await api('/api/asistan/ayar', { anahtar: 'sk-ant-ornek', model: 'claude' });
+await ac(path.join(konsol, 'ana.ohc'));
+await sayfa.click('[title="Yapay zekâ asistanı"]');
+await sayfa.fill('#asistanGirdi', 'Her harf notundan kaç öğrenci olduğunu da yazdırabilir miyiz?');
+await sayfa.press('#asistanGirdi', 'Enter');
+await sayfa.waitForSelector('[data-e="asistanUygula"]', { timeout: 30000 });
+await sayfa.waitForTimeout(400);
+await cek('asistan');
+
 await tarayici.close();
+sahteApi.close();
 await api('/api/kapat', {}).catch(() => {});
 studyo.kill();
 rmSync(ev, { recursive: true, force: true });

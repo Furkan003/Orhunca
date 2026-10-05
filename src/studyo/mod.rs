@@ -7,6 +7,7 @@
 //! derleyiciye erişmesi engellenir.
 
 mod api;
+mod asistan;
 mod calisma;
 mod depo;
 mod http;

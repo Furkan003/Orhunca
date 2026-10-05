@@ -55,6 +55,8 @@ orhunca çalıştır oyun.ohc --hedef web              # derler ve Node.js ile �
 - **Dil sunucusu (LSP):** `orhunca dil-sunucusu` — hatalar ve yazım uyarıları, üzerine gelince açıklama
   (yerleşik işlevler, değişken tipleri), tamamlama, tanıma gitme, belge simgeleri, biçimlendirme.
   LSP destekleyen her düzenleyiciyle (VS Code, Neovim, Helix, Zed…) çalışır.
+- **Yapay zekâ ajanları (MCP):** `orhunca mcp` aracılığıyla rehber, denetle, çalıştır ve biçimlendir
+  araçları sunulur. Ayrıntılar: [yapay-zeka.md](yapay-zeka.md).
 - **VS Code eklentisi:** [editors/vscode](../editors/vscode) — `.ohc` ve `.ohchtml` için sözdizimi renklendirme ve dil sunucusu istemcisi.
   `cd editors/vscode && npm install && npx @vscode/vsce package` ile `.vsix` oluşturulur.
 

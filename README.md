@@ -187,6 +187,22 @@ satır çalışmasını sınıfta izleyin.
 <tr>
 <td valign="top">
 
+**Yapay zekâ** — [rehber](docs/yapay-zeka.md)
+
+Stüdyo'daki asistan kendi API anahtarınızla çalışır: soruları yanıtlar, kod yazar, yazdığı kodu
+denetleyip çalıştırır; değişikliği siz onaylarsınız. Claude Code, Cursor gibi ajanlar
+`orhunca mcp` sunucusuna bağlanıp Orhunca kodu yazabilir. Okullar asistanı tek ayarla kapatabilir.
+
+</td>
+<td valign="top">
+
+<img src="docs/ekran/asistan.png" alt="Stüdyo'da yapay zekâ asistanı">
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
 **Dersler** — [sitede oku](https://furkan003.github.io/Orhunca/dersler/)
 
 İlk programdan web'e 13 ders. Her alıştırma Stüdyo'da çalıştırılıp çıktısıyla denetlenir.
@@ -212,6 +228,7 @@ ifadeler), CSV, JSON, HTTP istekleri; resmi `istatistik` ve `geometri` paketleri
 | [Dil rehberi](docs/dil-rehberi.md) | Söz dizimi, hâl ekleri, modeller, web, standart kütüphane |
 | [Arayüz dili](docs/arayuz.md) | `durum`, `arayüz:`, öğeler ve olaylar; masaüstüne paketleme |
 | [Orhunca Stüdyo](docs/studyo.md) | Geliştirme ortamı, hata ayıklayıcı, canlı önizleme |
+| [Yapay zekâ](docs/yapay-zeka.md) | Stüdyo asistanı; Claude Code, Cursor gibi ajanları `orhunca mcp` ile bağlamak |
 | [Paketler](docs/paketler.md) | Paket dizini, `orhunca paket`, kendi paketinizi yayımlamak |
 | [Geliştirme](docs/gelistirme.md) | Kaynaktan derleme, mimari, öz-barındırma, VS Code eklentisi |
 | [Yol haritası](PLAN.md) | Tamamlanan aşamalar ve sıradakiler |

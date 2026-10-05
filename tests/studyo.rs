@@ -20,6 +20,10 @@ impl Drop for Sunucu {
 }
 
 fn baslat(ad: &str) -> Sunucu {
+    baslat_ortamli(ad, &[])
+}
+
+fn baslat_ortamli(ad: &str, ortam: &[(&str, &str)]) -> Sunucu {
     let ev = std::env::temp_dir().join(format!("orhunca-studyo-test-{ad}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&ev);
     std::fs::create_dir_all(&ev).unwrap();
@@ -30,6 +34,7 @@ fn baslat(ad: &str) -> Sunucu {
         .env("APPDATA", &ev)
         .env("XDG_CONFIG_HOME", ev.join(".config"))
         .env("USER", "deneme")
+        .envs(ortam.iter().copied())
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -477,4 +482,138 @@ fn temalar() {
     assert_eq!(r["tamam"], true, "{r}");
     let (_, g) = s.istek("GET", "/api/temalar", None, true);
     assert!(!g.contains("Gök Mavi"), "{g}");
+}
+
+/// Sahte Anthropic API'si: istekleri kaydeder, sırayla hazır yanıtlar verir.
+fn sahte_api(
+    yanitlar: Vec<(u16, serde_json::Value)>,
+) -> (String, std::sync::mpsc::Receiver<String>) {
+    let d = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let adres = format!("http://{}", d.local_addr().unwrap());
+    let (gonder, al) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let mut yanitlar = yanitlar.into_iter();
+        for a in d.incoming() {
+            let Ok(mut a) = a else { continue };
+            let mut r = BufReader::new(a.try_clone().unwrap());
+            let mut istek = String::new();
+            let mut uzunluk = 0;
+            loop {
+                let mut s = String::new();
+                if r.read_line(&mut s).unwrap_or(0) == 0 || s == "\r\n" {
+                    break;
+                }
+                if let Some(u) = s.to_lowercase().strip_prefix("content-length:") {
+                    uzunluk = u.trim().parse().unwrap();
+                }
+                istek.push_str(&s);
+            }
+            let mut govde = vec![0; uzunluk];
+            r.read_exact(&mut govde).unwrap();
+            istek.push_str(&String::from_utf8_lossy(&govde));
+            gonder.send(istek).unwrap();
+            let (kod, y) = yanitlar.next().unwrap_or((500, serde_json::json!({})));
+            let y = y.to_string();
+            let _ = write!(
+                a,
+                "HTTP/1.1 {kod} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{y}",
+                y.len()
+            );
+        }
+    });
+    (adres, al)
+}
+
+#[test]
+fn yapay_zeka_asistani() {
+    use serde_json::json;
+    let arac = |kimlik: &str, ad: &str, girdi: serde_json::Value| json!({ "type": "tool_use", "id": kimlik, "name": ad, "input": girdi });
+    let (adres, istekler) = sahte_api(vec![
+        (
+            200,
+            json!({ "data": [{ "id": "deneme-model", "display_name": "Deneme" }] }),
+        ),
+        // Model uyarlanır düşünmeyi tanımıyor: alanlar olmadan yeniden denenmeli
+        (
+            400,
+            json!({ "type": "error", "error": { "type": "invalid_request_error", "message": "thinking desteklenmiyor" } }),
+        ),
+        (
+            200,
+            json!({ "stop_reason": "tool_use", "content": [
+            { "type": "text", "text": "Önce deneyeyim." },
+            arac("t1", "kodu_calistir", json!({ "kod": "(6 * 7)'yi yaz.\n" })),
+        ] }),
+        ),
+        (
+            200,
+            json!({ "stop_reason": "tool_use", "content": [
+            arac("t2", "dosyayi_degistir", json!({ "icerik": "(6 * 7)'yi yaz.\n", "aciklama": "çarpım" })),
+        ] }),
+        ),
+        (
+            200,
+            json!({ "stop_reason": "end_turn", "content": [{ "type": "text", "text": "Hazır." }] }),
+        ),
+    ]);
+    let s = baslat_ortamli("asistan", &[("ORHUNCA_ASISTAN_ADRESI", &adres)]);
+    let (_, g) = s.istek("GET", "/api/asistan", None, true);
+    assert!(g.contains("\"anahtar_var\":false"), "{g}");
+    let r = s.api(
+        "/api/asistan/sor",
+        json!({ "mesajlar": [{ "rol": "kullanici", "metin": "merhaba" }] }),
+    );
+    assert!(r["hata"].as_str().unwrap().contains("anahtar"), "{r}");
+
+    let r = s.api(
+        "/api/asistan/ayar",
+        json!({ "anahtar": "sk-deneme-12345678" }),
+    );
+    assert_eq!(r["anahtar_var"], true, "{r}");
+    assert!(
+        !r.to_string().contains("sk-deneme"),
+        "anahtar arayüze gönderilmemeli: {r}"
+    );
+    let (_, g) = s.istek("GET", "/api/asistan/modeller", None, true);
+    assert!(g.contains("deneme-model"), "{g}");
+    let ilk = istekler.recv().unwrap();
+    assert!(ilk.contains("x-api-key: sk-deneme-12345678"), "{ilk}");
+    s.api("/api/asistan/ayar", json!({ "model": "deneme-model" }));
+
+    let r = s.api(
+        "/api/asistan/sor",
+        json!({
+            "mesajlar": [{ "rol": "kullanici", "metin": "6 ile 7'yi çarp" }],
+            "dosya": "ana.ohc", "icerik": "# boş\n",
+        }),
+    );
+    assert_eq!(r["yanit"], "Önce deneyeyim.\n\nHazır.", "{r}");
+    assert_eq!(r["oneri"]["icerik"], "(6 * 7)'yi yaz.\n", "{r}");
+    assert!(
+        r["adimlar"][0]["sonuc"].as_str().unwrap().contains("42"),
+        "{r}"
+    );
+
+    let reddedilen = istekler.recv().unwrap();
+    assert!(
+        reddedilen.contains("\"thinking\"") && reddedilen.contains("acik_dosya"),
+        "{reddedilen}"
+    );
+    let yeniden = istekler.recv().unwrap();
+    assert!(
+        !yeniden.contains("\"thinking\"") && yeniden.contains("deneme-model"),
+        "{yeniden}"
+    );
+    let ucuncu = istekler.recv().unwrap();
+    assert!(
+        ucuncu.contains("tool_result") && ucuncu.contains("42"),
+        "{ucuncu}"
+    );
+
+    // Okul ayarı: yönetici kapatabilir
+    let k = baslat_ortamli("asistan-kapali", &[("ORHUNCA_YAPAY_ZEKA", "kapali")]);
+    let (_, g) = k.istek("GET", "/api/asistan", None, true);
+    assert!(g.contains("\"kapali\":true"), "{g}");
+    let r = k.api("/api/asistan/ayar", json!({ "anahtar": "x" }));
+    assert!(r["hata"].is_string(), "{r}");
 }

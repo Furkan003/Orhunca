@@ -1,0 +1,17 @@
+# Orhunca
+
+> Orhunca, Türkçe dil bilgisine dayanan, derlenen bir programlama dilidir (.ohc dosyaları). Cümleler hâl ekleriyle kurulur: `5'i sayılara ekle.`, `"Merhaba"'yı yaz.`, `eğer x 10'dan büyükse:`. Konsol programları, arayüz uygulamaları, web siteleri ve API'ler yazılabilir. Derleyici ve araçlar MIT lisanslıdır.
+
+Orhunca kodu yazan bir ajan için: önce llms-full.txt dosyasındaki dil rehberini okuyun. Yazdığınız kodu `orhunca denetle dosya.ohc` ile denetleyin, `orhunca çalıştır dosya.ohc` ile çalıştırın. MCP destekleyen araçlar `orhunca mcp` sunucusuna bağlanabilir.
+
+## Belgeler
+
+- [Dil rehberi (tamamı, tek dosya)](https://furkan003.github.io/Orhunca/llms-full.txt): söz dizimi, hâl ekleri, standart kütüphane, modeller, web, arayüz dili
+- [Yapay zekâ ile Orhunca](https://github.com/Furkan003/Orhunca/blob/HEAD/docs/yapay-zeka.md): MCP sunucusu ve Stüdyo asistanı
+- [Dersler](https://furkan003.github.io/Orhunca/dersler/): adım adım Türkçe dersler
+- [Örnek programlar](https://github.com/Furkan003/Orhunca/tree/HEAD/%C3%B6rnekler)
+
+## İsteğe bağlı
+
+- [Kaynak kodu](https://github.com/Furkan003/Orhunca)
+- [Tarayıcıda dene](https://furkan003.github.io/Orhunca/dene.html)

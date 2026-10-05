@@ -217,6 +217,31 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
   gönderim zaman aşımı, bağlantı ve oturum sınırları. Stüdyo: `..` reddi, başlık sınırı, zaman aşımı.
 - Sonsuz özyineleme yerelde ve tarayıcıda yakalanabilir çalışma hatası.
 
+## Aşama 11 – Yayına hazırlık
+
+### 11a – Otomatik güncelleme
+- `orhunca güncelle [--denetle]` ve Stüdyo'da yeni sürüm bildirimi: GitHub Releases'ten indirme,
+  SHA256SUMS ile doğrulama, kurulum türüne göre (NSIS, .deb, .rpm, AppImage, .dmg, komut) kurma.
+  Okullar `ORHUNCA_GUNCELLEME=kapali` ile kapatabilir.
+
+### 11b – ARM
+- Cranelift ARM64 kod üretimi; Linux aarch64 sürümü (Raspberry Pi 4/5, ARM dizüstüler; programlar
+  sistemdeki C derleyicisiyle bağlanır), CI'da ARM işi.
+
+### 11c – Topluluk
+- MIT lisansı, katkı rehberi, davranış kuralları, güvenlik politikası, hata/öneri şablonları,
+  yeni README ve ekran görüntüleri.
+
+### 11e – Temalar
+- Stüdyo'nun bütün renkleri, yazı tipleri, ölçeği; resim/GIF/video arka plan; `.ohctema` dosyasıyla
+  dışa/içe aktarma; `temalar/` topluluk galerisi.
+
+### 11f – Yapay zekâ
+- `orhunca mcp`: MCP sunucusu (rehber, denetle, çalıştır, biçimlendir); `llms.txt`, `llms-full.txt`.
+- Stüdyo asistanı: kullanıcının kendi Anthropic API anahtarıyla; model API'nin listesinden seçilir,
+  asistan kodu kendisi denetleyip çalıştırır, dosya değişikliğini öneri olarak verir.
+  Okullar `ORHUNCA_YAPAY_ZEKA=kapali` ile kapatabilir. Bkz. [docs/yapay-zeka.md](docs/yapay-zeka.md).
+
 ## Henüz yapılmayanlar
 
 - Çalışma zamanının çekirdeği (bellek ve çöp toplayıcı, listeler, sözlükler, dosyalar, ağ, JSON,

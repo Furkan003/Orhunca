@@ -718,3 +718,27 @@ details.tema-grup summary { cursor: pointer; }
 .gorunum label.dugme { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; align-self: flex-start; }
 .gorunum textarea { width: 100%; resize: vertical; font-size: 12.5px; }
 @media (max-width: 760px) { .gorunum { grid-template-columns: 1fr; } }
+
+/* Yapay zekâ asistanı */
+.asistan-panel { overflow: hidden; }
+.asistan-mesajlar { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 10px; min-height: 0; padding-right: 2px; }
+.asistan-mesaj { line-height: 1.5; display: flex; flex-direction: column; gap: 6px; }
+.asistan-mesaj.kullanici { align-self: flex-end; max-width: 88%; background: var(--vurgu-12); border: 1px solid var(--dugme-kenar); padding: 7px 10px; border-radius: 10px 10px 2px 10px; white-space: pre-wrap; }
+.asistan-metin p { margin: 0 0 6px; }
+.asistan-metin ul { margin: 0 0 6px; padding-left: 18px; }
+.asistan-metin h3 { font-size: 13.5px; margin: 6px 0; }
+.asistan-metin code { font-family: var(--mono); font-size: 12px; background: var(--dugme); padding: 1px 4px; border-radius: 4px; }
+.asistan-kod { font-family: var(--mono); font-size: 12px; background: var(--dugme); border: 1px solid var(--dugme-kenar); border-radius: 8px; padding: 8px 10px; margin: 0 0 6px; overflow: auto; max-height: 320px; white-space: pre; font-variant-ligatures: none; }
+.asistan-oneri .asistan-kod { max-height: 200px; }
+.asistan-adim { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--soluk3); }
+.asistan-adim .simge { font-size: 15px; }
+.asistan-oneri { border: 1px solid var(--vurgu); border-radius: 10px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.asistan-oneri-baslik { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12.5px; }
+.asistan-oneri .dugme.kucuk { padding: 5px 12px; font-size: 12.5px; display: flex; align-items: center; gap: 6px; }
+.asistan-oneri .dugme .simge { font-size: 16px; }
+.asistan-girdi { display: flex; gap: 6px; align-items: flex-end; }
+.asistan-girdi textarea.metin-girdi { flex: 1; height: auto; min-height: 64px; resize: vertical; padding: 8px 10px; font-family: inherit; line-height: 1.4; }
+.asistan-girdi .kare-dugme { width: 36px; height: 36px; font-size: 20px; }
+.asistan-girdi .kare-dugme.birincil { background: var(--vurgu); color: var(--vurgu-koyu); }
+.asistan-tanitim { display: flex; gap: 10px; align-items: flex-start; line-height: 1.5; }
+.asistan-tanitim > .simge { font-size: 26px; color: var(--vurgu); }

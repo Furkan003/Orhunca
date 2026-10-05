@@ -15,6 +15,7 @@ Kullanım:
   orhunca paketle [dosya.ohc] [-o çıktı] [--hedef linux|windows]
   orhunca biçimlendir [dosya.ohc ...] [--denetle]
   orhunca dil-sunucusu        (düzenleyiciler için LSP, stdin/stdout)
+  orhunca mcp                 (yapay zekâ ajanları için MCP sunucusu, stdin/stdout)
   orhunca yeni <proje_adı> [--şablon konsol|web_sitesi|tam_yigin|web_api|...]
   orhunca paket ara [kelime] | ekle <ad | git-adresi>[#etiket] | yükle | güncelle | kaldır <ad> | listele
   orhunca stüdyo [--kapı 7313] [--tarayıcı-açma]
@@ -55,6 +56,7 @@ fn ana() -> ExitCode {
         "stüdyo" | "studyo" => studyo::calistir(kalan).map(|_| ExitCode::SUCCESS),
         "biçimlendir" | "bicimlendir" => bicimlendir_komutu(kalan),
         "dil-sunucusu" | "lsp" => dil_sunucusu::calistir().map(|_| ExitCode::SUCCESS),
+        "mcp" => orhunca::mcp::calistir().map(|_| ExitCode::SUCCESS),
         "paket" => paket::komut(kalan).map(|_| ExitCode::SUCCESS),
         "güncelle" | "guncelle" | "update" => {
             orhunca::guncelleme::komut(kalan).map(|_| ExitCode::SUCCESS)

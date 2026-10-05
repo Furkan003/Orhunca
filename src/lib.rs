@@ -4,6 +4,7 @@
 //! bu kütüphaneyi kullanır.
 
 pub mod agac;
+pub mod ajan;
 pub mod arayuz;
 pub mod ayristirici;
 pub mod baglayici;
@@ -16,6 +17,7 @@ pub mod ekler;
 pub mod etkilesim;
 pub mod guncelleme;
 pub mod hata;
+pub mod mcp;
 pub mod on_kutuphane;
 pub mod oneriler;
 pub mod paket;

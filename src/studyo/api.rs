@@ -1,7 +1,7 @@
 //! Stüdyo arayüzünün çağırdığı JSON uç noktaları.
 
 use super::http::{Istek, Yanit};
-use super::{calisma, depo, sablonlar, temalar};
+use super::{asistan, calisma, depo, sablonlar, temalar};
 use crate::{agac, derleme};
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
@@ -68,6 +68,19 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
     match (istek.yontem.as_str(), istek.yol.as_str()) {
         ("GET", "/api/durum") => durum(),
         ("GET", "/api/guncelleme") => guncelleme_denetle(),
+        ("GET", "/api/asistan") => Yanit::json(&asistan::durum()),
+        ("POST", "/api/asistan/ayar") => match asistan::ayar_kaydet(&g) {
+            Ok(d) => Yanit::json(&d),
+            Err(e) => hata(e),
+        },
+        ("GET", "/api/asistan/modeller") => match asistan::modeller() {
+            Ok(d) => Yanit::json(&d),
+            Err(e) => hata(e),
+        },
+        ("POST", "/api/asistan/sor") => match asistan::sor(&g) {
+            Ok(d) => Yanit::json(&d),
+            Err(e) => hata(e),
+        },
         ("GET", "/api/temalar") => Yanit::json(&temalar::liste()),
         ("GET", "/api/tema") => match temalar::oku(istek.sorgu("kimlik")) {
             Ok(t) => Yanit::json(&json!({ "tema": t })),

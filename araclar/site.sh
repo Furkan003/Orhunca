@@ -22,6 +22,7 @@ if command -v rsvg-convert >/dev/null 2>&1; then
     rsvg-convert -w 1200 docs/marka/paylasim.svg -o "$CIKTI/marka/paylasim.png"
 fi
 cp docs/ekran/*.png "$CIKTI/ekran/"
+{ cat docs/ajan-girisi.md; echo; cat docs/dil-rehberi.md; echo; cat docs/arayuz.md; } > "$CIKTI/llms-full.txt"
 cp kurulum/kur.sh kurulum/kur.ps1 "$CIKTI/"
 python3 araclar/site_ornekleri.py > "$CIKTI/ornekler.json"
 python3 araclar/dersler.py "$CIKTI/dersler"

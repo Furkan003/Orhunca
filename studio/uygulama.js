@@ -78,6 +78,9 @@
     yavasHiz: ayarOku('yavasHiz', 700),
     acilis: ayarOku('acilis', true),
     guncellemeDenetle: ayarOku('guncellemeDenetle', true), guncelleme: null, guncellemeDurumu: '',
+    // Yapay zekâ asistanı (kullanıcının kendi API anahtarıyla)
+    asistan: { durum: null, mesajlar: [], bekliyor: false, modeller: null, hata: '', girdi: '', anahtar: '', istek: 0 },
+    asistanGoster: ayarOku('asistanGoster', true),
     // Özel tema: seçilen temanın kopyası (arka plan resmi olmadan; resim sunucudan yüklenir)
     ozelTema: ayarOku('temaOnbellek', null), temaKimlik: ayarOku('temaKimlik', null),
     temaTaslak: null, temalarim: [], galeri: null, galeriHatasi: '',
@@ -571,6 +574,7 @@
           <div class="tema-secim">${[['koyu', 'Koyu'], ['acik', 'Açık'], ['sistem', 'Sistem']].map(([t, ad]) => `<span class="${!D.ozelTema && D.tema === t ? 'secili' : ''}" data-e="temaSec" data-a="${t}">${ad}</span>`).join('')}</div></div>
         <div class="secenek" data-e="gorunumModal"><div class="esnek"><div class="secenek-ad">Görünüm ve temalar</div><div class="secenek-alt">${D.ozelTema ? 'Etkin tema: ' + kac(D.ozelTema.ad) + ' · ' : ''}Renkler, yazı tipleri, arka plan resmi ya da GIF; temaları paylaşın.</div></div>${S('palette')}</div>
         <div class="secenek" data-e="guncellemeDenetleDegistir"><div class="esnek"><div class="secenek-ad">Güncellemeleri denetle</div><div class="secenek-alt">Açılışta yeni sürüm olup olmadığına bakılır (GitHub'a tek bir istek; başka veri gönderilmez).</div></div><div class="anahtar ${D.guncellemeDenetle ? 'acik' : ''}"><div></div></div></div>
+        ${D.asistan.durum?.kapali ? '' : `<div class="secenek" data-e="asistanGosterDegistir"><div class="esnek"><div class="secenek-ad">Yapay zekâ asistanı</div><div class="secenek-alt">Kenar çubuğunda asistan simgesi gösterilir. Kendi Anthropic API anahtarınızla çalışır.</div></div><div class="anahtar ${D.asistanGoster ? 'acik' : ''}"><div></div></div></div>`}
         <div class="secenek" data-e="acilisDegistir"><div class="esnek"><div class="secenek-ad">Açılış animasyonu</div><div class="secenek-alt">Stüdyo açılırken Orhunca logosu canlandırılır.</div></div><div class="anahtar ${D.acilis ? 'acik' : ''}"><div></div></div></div>`,
         `<div class="dugme birincil" data-e="modalKapat">Tamam</div>`);
     }
@@ -717,6 +721,7 @@
 
   function cizEtkinlik() {
     const ogeler = [['gezgin', 'description', 'Gezgin'], ['ara', 'search', 'Ara'], ['yapi', 'account_tree', 'Yapı'], ['calistir', 'play_circle', 'Çalıştır'], ['dersler', 'school', 'Dersler'], ['eklentiler', 'extension', 'Paketler']];
+    if (asistanAcik()) ogeler.push(['asistan', 'smart_toy', 'Yapay zekâ asistanı']);
     $('#etkinlik').innerHTML = ogeler.map(([id, simge, ad]) => `<span class="simge ${D.yanPanel === id ? 'etkin' : ''}" title="${ad}" data-e="yanPanelSec" data-a="${id}">${simge}</span>`).join('')
       + `<div style="flex:1"></div><span class="simge" title="Başlangıç ekranı" data-e="baslangicaDon">home</span><span class="simge" title="Ayarlar" data-e="ayarlarModal">settings</span>`;
   }
@@ -731,7 +736,7 @@
 
   function cizYanPanel() {
     const kap = $('#yanPanel');
-    kap.classList.toggle('genis', D.yanPanel === 'dersler');
+    kap.classList.toggle('genis', D.yanPanel === 'dersler' || D.yanPanel === 'asistan');
     const baslik = (ad, ek = '') => `<div class="panel-baslik"><span style="flex:1">${ad}</span>${ek}</div>`;
     if (D.yanPanel === 'gezgin') {
       const satirlar = gorunurAgac().map(g => {
@@ -761,6 +766,10 @@
       });
       kap.innerHTML = baslik('YAPI') + `<div class="panel-ic">${ogeler.map(([t, ad, n]) => `<div class="yapi-oge" data-e="satiraGit" data-a="${n}"><span class="tur">${t}</span><span class="${t === 'fiil' || t === 'işlev' ? 'f' : t === 'sabit' ? 't' : 's'}">${kac(ad)}</span><span class="satir-no">${n}</span></div>`).join('')
         || '<div class="panel-not">Bu dosyada işlev, fiil ya da sabit tanımı yok.</div>'}</div>`;
+    } else if (D.yanPanel === 'asistan') {
+      kap.innerHTML = baslik('ASİSTAN', D.asistan.mesajlar.length ? `<span class="simge" title="Yeni konuşma" data-e="asistanYeni">add_comment</span>` : '') + asistanPaneli();
+      const l = $('#asistanMesajlar'); if (l) l.scrollTop = l.scrollHeight;
+      kap.querySelectorAll('pre[data-orhunca]').forEach(p => { p.innerHTML = p.textContent.split('\n').map(x => vurgula(x, 'ohc')).join('\n'); });
     } else if (D.yanPanel === 'dersler') {
       kap.innerHTML = baslik('DERSLER') + `<div class="panel-ic ders-panel">${dersPaneli()}</div>`;
       kap.querySelectorAll('pre[data-orhunca]').forEach(p => { p.innerHTML = p.textContent.split('\n').map(x => vurgula(x, 'ohc')).join('\n'); });
@@ -815,6 +824,61 @@
     return DERSLER;
   }
   const dersTamam = () => ayarOku('derslerTamam', {});
+  // =====================================================================
+  // Yapay zekâ asistanı
+  // =====================================================================
+  const asistanAcik = () => D.asistanGoster && D.asistan.durum && !D.asistan.durum.kapali;
+
+  async function asistanDurumuYukle() {
+    D.asistan.durum = await api('/api/asistan').catch(() => null);
+    if (D.ekran === 'duzenleyici') guncelle('etkinlik');
+  }
+
+  /** Asistan yanıtı: basit Markdown ve kod blokları. */
+  function mdAsistan(md) {
+    return md.split(/```/).map((parca, i) => {
+      if (i % 2 === 0) return mdBasit(parca);
+      const dil = (parca.match(/^[^\n]*/)[0] || '').trim().toLowerCase();
+      const kod = parca.replace(/^[^\n]*\n/, '').replace(/\n$/, '');
+      const orhunca = !dil || dil === 'orhunca' || dil === 'ohc';
+      return `<pre class="asistan-kod" ${orhunca ? 'data-orhunca' : ''}>${kac(kod)}</pre>`;
+    }).join('');
+  }
+
+  function asistanPaneli() {
+    const A = D.asistan, d = A.durum || {};
+    if (!d.anahtar_var) {
+      return `<div class="panel-ic">
+        <div class="asistan-tanitim">${S('auto_awesome')}<div><b>Kodlama asistanı</b><br>Sorularınızı yanıtlar, kod yazar; yazdığı kodu kendisi denetleyip çalıştırır. Dosyanızdaki değişiklikleri siz onaylarsınız.</div></div>
+        <div class="alan" style="gap:6px"><label style="font-size:12px">Anthropic API anahtarı</label><input id="asistanAnahtar" data-g="asistanAnahtar" type="password" class="metin-girdi" placeholder="sk-ant-…" value="${kac(A.anahtar)}" autocomplete="off" spellcheck="false"></div>
+        <div class="panel-dugme birincil" data-e="asistanAnahtarKaydet">${S('key')}Bağlan</div>
+        ${A.hata ? `<div class="panel-not" style="color:var(--hata)">${kac(A.hata)}</div>` : ''}
+        <div class="panel-not" style="font-size:12px">Anahtarı <span class="mono">console.anthropic.com</span> adresinden alabilirsiniz. Anahtar yalnızca bu bilgisayarda saklanır; kullanım ücreti kendi hesabınıza yansır. Claude Code gibi başka bir ajan kullanmak isterseniz <span class="mono">orhunca mcp</span> komutuna bağlayabilirsiniz.</div>
+      </div>`;
+    }
+    const modeller = A.modeller || (d.model ? [{ kimlik: d.model, ad: d.model }] : []);
+    const secim = `<div class="yan-yana" style="gap:6px"><select class="metin-girdi" data-g="asistanModel" style="flex:1" title="Model">
+        ${d.model ? '' : '<option value="">Model seçin…</option>'}
+        ${modeller.map(m => `<option value="${kac(m.kimlik)}" ${m.kimlik === d.model ? 'selected' : ''}>${kac(m.ad)}</option>`).join('')}
+      </select><span class="kare-dugme simge" title="Model listesini yenile" data-e="asistanModelleriYukle" style="width:32px;height:32px;font-size:18px">refresh</span><span class="kare-dugme simge" title="Anahtarı kaldır (…${kac(d.anahtar_sonu || '')})" data-e="asistanAnahtarSil" style="width:32px;height:32px;font-size:18px">key_off</span></div>`;
+    const mesajlar = A.mesajlar.map((m, i) => m.rol === 'kullanici'
+      ? `<div class="asistan-mesaj kullanici">${kac(m.metin)}</div>`
+      : `<div class="asistan-mesaj">
+          ${(m.adimlar || []).map(a => `<div class="asistan-adim">${S(a.ad === 'kodu_calistir' ? 'play_arrow' : a.ad === 'kodu_denetle' ? 'task_alt' : 'edit_document')}${a.ad === 'kodu_calistir' ? 'Kodu çalıştırdı' : a.ad === 'kodu_denetle' ? 'Kodu denetledi' : 'Değişiklik önerdi'}</div>`).join('')}
+          <div class="asistan-metin">${mdAsistan(m.metin || '')}</div>
+          ${m.oneri ? `<div class="asistan-oneri"><div class="asistan-oneri-baslik">${S('edit_document')}<span class="esnek">${kac(m.oneri.aciklama || 'Dosya için öneri')}</span></div>
+            <pre class="asistan-kod" data-orhunca>${kac(m.oneri.icerik)}</pre>
+            <div class="yan-yana" style="gap:6px">${m.uygulandi ? `<span class="panel-not">${S('check')} Uygulandı</span>` : `<div class="dugme birincil kucuk" data-e="asistanUygula" data-a="${i}">${S('done')}Uygula</div>`}<div class="dugme kucuk" data-e="asistanKopyala" data-a="${i}">${S('content_copy')}Kopyala</div></div></div>` : ''}
+        </div>`).join('');
+    return `<div class="panel-ic asistan-panel">${secim}
+      <div class="asistan-mesajlar" id="asistanMesajlar">${mesajlar || `<div class="panel-not">Açık dosyanız soruyla birlikte gönderilir. Örnek: <i>“Bu programa bir not ortalaması hesaplayan fiil ekle”</i> ya da <i>“Bu hata ne demek?”</i></div>`}
+        ${A.bekliyor ? '<div class="asistan-mesaj"><div class="donen kucuk"></div> Düşünüyor…</div>' : ''}
+        ${A.hata ? `<div class="panel-not" style="color:var(--hata)">${kac(A.hata)}</div>` : ''}</div>
+      <div class="asistan-girdi"><textarea id="asistanGirdi" data-g="asistanGirdi" class="metin-girdi" rows="3" placeholder="Bir şey sorun ya da isteyin… (Enter: gönder, Shift+Enter: yeni satır)" ${A.bekliyor ? 'disabled' : ''}>${kac(A.girdi)}</textarea>
+        ${A.bekliyor ? `<span class="kare-dugme simge" title="Durdur" data-e="asistanDurdur">stop_circle</span>` : `<span class="kare-dugme simge birincil" title="Gönder" data-e="asistanGonder">send</span>`}</div>
+    </div>`;
+  }
+
   function dersPaneli() {
     if (!DERSLER) { dersleriYukle().then(() => cizYanPanel()); return '<div class="panel-not">Yükleniyor…</div>'; }
     const tamam = dersTamam();
@@ -1699,6 +1763,7 @@
       D.yuklendi = true;
       setTimeout(guncellemeyiDenetle, 4000);
       temaResminiYukle();
+      asistanDurumuYukle();
     } catch (e) {
       $('#uygulama').innerHTML = `<div class="pencere"><div class="tam-ekran-mesaj"><div class="gokturk">${GOKTURK}</div><div>${kac(e.message)}</div><div>Terminalde <code>orhunca stüdyo</code> ile yeniden açın.</div></div></div>`;
       throw e;
@@ -1991,6 +2056,66 @@
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
     },
+    async asistanAnahtarKaydet() {
+      const a = D.asistan;
+      if (!a.anahtar.trim()) return;
+      const r = await api('/api/asistan/ayar', { anahtar: a.anahtar.trim() });
+      if (r.hata) { a.hata = r.hata; return cizYanPanel(); }
+      a.durum = r; a.anahtar = ''; a.hata = '';
+      await EYLEM.asistanModelleriYukle();
+    },
+    async asistanAnahtarSil() {
+      if (!confirm('API anahtarı bu bilgisayardan silinsin mi?')) return;
+      D.asistan.durum = await api('/api/asistan/ayar', { anahtar: '' });
+      D.asistan.modeller = null;
+      cizYanPanel();
+    },
+    async asistanModelleriYukle() {
+      const a = D.asistan;
+      const r = await api('/api/asistan/modeller');
+      if (r.hata) { a.hata = r.hata; return cizYanPanel(); }
+      a.modeller = r.modeller; a.hata = '';
+      // İlk kurulumda listenin başındaki (en yeni) model seçilir.
+      if (!a.durum.model && a.modeller.length) a.durum = await api('/api/asistan/ayar', { model: a.modeller[0].kimlik });
+      cizYanPanel();
+    },
+    async asistanGonder() {
+      const a = D.asistan, metin = a.girdi.trim();
+      if (!metin || a.bekliyor) return;
+      a.mesajlar.push({ rol: 'kullanici', metin });
+      a.girdi = ''; a.hata = ''; a.bekliyor = true;
+      const istek = ++a.istek;
+      cizYanPanel();
+      const s = etkinSekme();
+      const govde = { mesajlar: a.mesajlar.map(m => ({ rol: m.rol, metin: m.metin + (m.oneri ? '\n\n[Önerilen dosya içeriği:]\n' + m.oneri.icerik : '') })) };
+      if (s && !s.ikili) { govde.dosya = s.yol; govde.icerik = s.icerik; a.mesajlar.at(-1).dosya = s.yol; }
+      const r = await api('/api/asistan/sor', govde).catch(e => ({ hata: e.message }));
+      if (istek !== a.istek) return;
+      a.bekliyor = false;
+      if (r.hata) { a.hata = r.hata; a.mesajlar.pop(); a.girdi = metin; }
+      else a.mesajlar.push({ rol: 'asistan', metin: r.yanit, adimlar: r.adimlar, oneri: r.oneri, dosya: s?.yol });
+      if (D.yanPanel === 'asistan') { cizYanPanel(); $('#asistanGirdi')?.focus(); }
+    },
+    asistanDurdur() { const a = D.asistan; a.istek++; a.bekliyor = false; const son = a.mesajlar.pop(); a.girdi = son?.metin || ''; cizYanPanel(); },
+    asistanYeni() { const a = D.asistan; a.istek++; a.mesajlar = []; a.bekliyor = false; a.hata = ''; cizYanPanel(); },
+    async asistanUygula(i) {
+      const m = D.asistan.mesajlar[+i];
+      if (!m?.oneri) return;
+      if (m.dosya && m.dosya !== D.etkin) await dosyaAc(m.dosya);
+      const ta = $('#kodAlani');
+      if (!ta) return bildir('Önce bir dosya açın.', true);
+      ta.focus(); ta.select();
+      metinEkle(ta, m.oneri.icerik);
+      imleciGuncelle();
+      m.uygulandi = true;
+      cizYanPanel();
+      bildir('Değişiklik uygulandı (Ctrl+Z ile geri alabilirsiniz).');
+    },
+    asistanKopyala(i) {
+      const m = D.asistan.mesajlar[+i];
+      navigator.clipboard?.writeText(m?.oneri?.icerik || '').then(() => bildir('Kopyalandı.'), () => bildir('Kopyalanamadı.', true));
+    },
+    asistanGosterDegistir() { D.asistanGoster = !D.asistanGoster; ayarYaz('asistanGoster', D.asistanGoster); if (!D.asistanGoster && D.yanPanel === 'asistan') D.yanPanel = 'gezgin'; katmanlariCiz(); if (D.ekran === 'duzenleyici') guncelle('etkinlik', 'yan'); },
     guncellemeDenetleDegistir() { D.guncellemeDenetle = !D.guncellemeDenetle; ayarYaz('guncellemeDenetle', D.guncellemeDenetle); katmanlariCiz(); },
     yeniSurumModal() { D.menu = null; D.modal = { tur: 'yeniSurum' }; katmanlariCiz(); },
     async guncellemeyiKur() {
@@ -2008,7 +2133,7 @@
       if (e.target.closest('.acilir-menu')) return;
       D.menu = D.menu === ad ? null : ad; guncelle('baslik');
     },
-    yanPanelSec(p) { D.yanPanel = p; guncelle('etkinlik', 'yan'); if (p === 'ara') $('#araMetin')?.focus(); if (p === 'eklentiler') paketleriYukle(); },
+    yanPanelSec(p) { D.yanPanel = p; guncelle('etkinlik', 'yan'); if (p === 'ara') $('#araMetin')?.focus(); if (p === 'eklentiler') paketleriYukle(); if (p === 'asistan' && D.asistan.durum?.anahtar_var && !D.asistan.modeller) EYLEM.asistanModelleriYukle(); },
     paketleriYenile() { paketleriYukle(); },
     paketEkle() { if (D.paketKaynagi.trim()) paketIslemi('/api/paket/ekle', { kaynak: D.paketKaynagi.trim() }, `Paket ekleniyor: ${D.paketKaynagi.trim()}`); },
     paketYukle() { paketIslemi('/api/paket/yukle', { guncelle: false }, 'Paketler yükleniyor…'); },
@@ -2268,6 +2393,9 @@
     yeniDosyaAdi(v) { D.modal.ad = v; },
     argumanlar(v) { D.argumanlar = v; },
     paketKaynagi(v) { D.paketKaynagi = v; },
+    asistanGirdi(v) { D.asistan.girdi = v; },
+    asistanAnahtar(v) { D.asistan.anahtar = v; },
+    async asistanModel(v) { if (!v) return; D.asistan.durum = await api('/api/asistan/ayar', { model: v }); cizYanPanel(); },
     araMetin(v) {
       D.araMetin = v;
       clearTimeout(GIRDI._a);
@@ -2337,6 +2465,8 @@
     if (e.target.id === 'klasorYolu' && e.key === 'Enter') { klasorYukle(e.target.value); return; }
     if (e.target.id === 'klonUrl' && e.key === 'Enter') { EYLEM.klonla(); return; }
     if (e.target.id === 'paketKaynagi' && e.key === 'Enter') { EYLEM.paketEkle(); return; }
+    if (e.target.id === 'asistanGirdi' && e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); EYLEM.asistanGonder(); return; }
+    if (e.target.id === 'asistanAnahtar' && e.key === 'Enter') { EYLEM.asistanAnahtarKaydet(); return; }
     if (e.target.id === 'yeniDosyaAdi' && e.key === 'Enter') { EYLEM.yeniDosyaOlustur(); return; }
     if (e.target.id === 'projeAdi' && e.key === 'Enter') { EYLEM.olustur(); return; }
     if (e.key === 'Escape') {
