@@ -11,7 +11,7 @@ name = "orhunca"
 path = "src/main.rs"
 
 [dependencies]
-cranelift-codegen = "0.136"
+cranelift-codegen = { version = "0.136", features = ["x86", "arm64"] }
 cranelift-frontend = "0.136"
 cranelift-module = "0.136"
 cranelift-object = "0.136"
