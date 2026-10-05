@@ -1,0 +1,22 @@
+name: Öneri
+description: Yeni bir özellik, ders, kütüphane işlevi ya da iyileştirme önerin
+labels: ["öneri"]
+body:
+  - type: textarea
+    id: sorun
+    attributes:
+      label: Hangi sorunu çözüyor?
+      description: "Örnek: Derste öğrencilere ... göstermek istiyorum ama ..."
+    validations:
+      required: true
+  - type: textarea
+    id: oneri
+    attributes:
+      label: Önerdiğiniz çözüm
+      description: Orhunca kodunda nasıl görünürdü? Stüdyo'da nasıl çalışırdı?
+    validations:
+      required: true
+  - type: textarea
+    id: ek
+    attributes:
+      label: Ek bilgi

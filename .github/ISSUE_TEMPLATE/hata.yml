@@ -1,0 +1,46 @@
+name: Hata bildirimi
+description: Orhunca, Stüdyo ya da kurulumda bir şey beklendiği gibi çalışmıyor
+labels: ["hata"]
+body:
+  - type: markdown
+    attributes:
+      value: Bildirdiğiniz için teşekkürler! Hatayı ne kadar açık anlatırsanız o kadar hızlı düzeltilir.
+  - type: textarea
+    id: ne
+    attributes:
+      label: Ne oldu?
+      description: Ne yapmaya çalıştınız, ne bekliyordunuz, ne oldu?
+    validations:
+      required: true
+  - type: textarea
+    id: kod
+    attributes:
+      label: Hatayı gösteren program
+      description: Mümkünse hatayı gösteren en kısa Orhunca programı.
+      render: orhunca
+  - type: textarea
+    id: cikti
+    attributes:
+      label: Hata mesajı ya da çıktı
+      render: text
+  - type: input
+    id: surum
+    attributes:
+      label: Orhunca sürümü
+      description: "`orhunca sürüm` komutunun çıktısı ya da Stüdyo'da Yardım → Hakkında"
+      placeholder: "0.6.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: sistem
+    attributes:
+      label: İşletim sistemi
+      options:
+        - Windows 10/11
+        - Pardus
+        - Ubuntu / Debian
+        - Diğer Linux
+        - macOS
+        - Tarayıcıda deneme sayfası
+    validations:
+      required: true
