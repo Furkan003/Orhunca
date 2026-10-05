@@ -15,6 +15,7 @@ Kullanım:
   orhunca paketle [dosya.ohc] [-o çıktı] [--hedef linux|windows|macos|android|ios]
   orhunca biçimlendir [dosya.ohc ...] [--denetle]
   orhunca dil-sunucusu        (düzenleyiciler için LSP, stdin/stdout)
+  orhunca çevir [dosya.ohc] [--dil python|javascript]   (programın Python/JS karşılığı)
   orhunca mcp                 (yapay zekâ ajanları için MCP sunucusu, stdin/stdout)
   orhunca yeni <proje_adı> [--şablon konsol|web_sitesi|tam_yigin|web_api|...]
   orhunca paket ara [kelime] | ekle <ad | git-adresi>[#etiket] | yükle | güncelle | kaldır <ad> | listele
@@ -59,6 +60,7 @@ fn ana() -> ExitCode {
         "biçimlendir" | "bicimlendir" => bicimlendir_komutu(kalan),
         "dil-sunucusu" | "lsp" => dil_sunucusu::calistir().map(|_| ExitCode::SUCCESS),
         "mcp" => orhunca::mcp::calistir().map(|_| ExitCode::SUCCESS),
+        "çevir" | "cevir" => cevir_komutu(kalan).map(|_| ExitCode::SUCCESS),
         "paket" => paket::komut(kalan).map(|_| ExitCode::SUCCESS),
         "güncelle" | "guncelle" | "update" => {
             orhunca::guncelleme::komut(kalan).map(|_| ExitCode::SUCCESS)
@@ -162,6 +164,32 @@ fn denetle_komutu(args: &[String]) -> Result<(), String> {
     uyarilari_yaz(&s.dosya);
     derleme::yukle(&s.dosya).map_err(|h| h.metin)?;
     println!("{}: hata yok", s.dosya.display());
+    Ok(())
+}
+
+fn cevir_komutu(args: &[String]) -> Result<(), String> {
+    let mut dil = orhunca::cevirici::Dil::Python;
+    let mut kalan = Vec::new();
+    let mut i = 0;
+    while i < args.len() {
+        if args[i] == "--dil" {
+            let d = args
+                .get(i + 1)
+                .ok_or("--dil için bir dil verin (python ya da javascript)")?;
+            dil = orhunca::cevirici::Dil::coz(d)
+                .ok_or_else(|| format!("bilinmeyen dil '{d}' (python ya da javascript)"))?;
+            i += 2;
+        } else {
+            kalan.push(args[i].clone());
+            i += 1;
+        }
+    }
+    let s = secenekleri_oku(&kalan)?;
+    let p = derleme::yukle(&s.dosya).map_err(|h| h.metin)?;
+    print!(
+        "{}",
+        orhunca::cevirici::metin(&orhunca::cevirici::cevir(&p, dil))
+    );
     Ok(())
 }
 

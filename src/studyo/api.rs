@@ -130,6 +130,7 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
             dosya_yeni(metin(&g, "yol"), g["klasor"].as_bool() == Some(true))
         }
         ("POST", "/api/denetle") => denetle(metin(&g, "dosya"), &g["acik"]),
+        ("POST", "/api/cevir") => cevir(metin(&g, "dosya"), metin(&g, "icerik"), metin(&g, "dil")),
         ("POST", "/api/calistir") => calistir(&g),
         ("POST", "/api/tarayicida_ac") => {
             // Yalnızca bu bilgisayardaki sunucuların adresleri (canlı önizleme) açılır.
@@ -801,6 +802,30 @@ fn teshis_json(h: &derleme::DerlemeHatasi) -> Value {
 }
 
 /// `acik`: düzenleyicide açık, kaydedilmemiş dosyalar {tam yol: içerik}
+/// Açık dosyanın (kaydedilmemiş hâliyle) Python ya da JavaScript karşılığı.
+fn cevir(dosya: &str, icerik: &str, dil: &str) -> Yanit {
+    let p = Path::new(dosya);
+    if !izinli_mi(p) {
+        return Yanit::hata(403, "bu dosyaya erişim yok");
+    }
+    let Some(dil) = crate::cevirici::Dil::coz(dil) else {
+        return hata("bilinmeyen dil");
+    };
+    let mut ortulu = std::collections::HashMap::new();
+    if let Ok(tam) = std::fs::canonicalize(p) {
+        ortulu.insert(tam, icerik.to_string());
+    }
+    match derleme::yukle_ortulu(p, &ortulu) {
+        Ok(program) => Yanit::json(&json!({
+            "satirlar": crate::cevirici::cevir(&program, dil)
+                .into_iter()
+                .map(|s| json!({ "k": s.kaynak, "m": s.metin }))
+                .collect::<Vec<_>>()
+        })),
+        Err(h) => hata(format!("Önce programdaki hataları düzeltin:\n{}", h.metin)),
+    }
+}
+
 fn denetle(dosya: &str, acik: &Value) -> Yanit {
     let p = Path::new(dosya);
     if !izinli_mi(p) {

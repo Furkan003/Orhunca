@@ -67,6 +67,16 @@ Sunucu yalnızca `127.0.0.1` üzerinden erişilebilir ve her oturumda rastgele b
 başka web sitelerinin dosyalarınıza ya da derleyiciye erişmesi engellenir. Tasarım kaynağı:
 [docs/tasarim/](tasarim/).
 
+## Başka dillerde (Python ve JavaScript)
+
+*Görünüm → Python karşılığını göster* (ya da Çalıştır panelindeki düğme), açık programın Python ya
+da JavaScript karşılığını satır satır eşleşmiş olarak yan yana gösterir. Orhunca ile başlayan
+öğrenci aynı kavramların başka dillerde nasıl yazıldığını görür. Komut satırında:
+`orhunca çevir dosya.ohc --dil python` (ya da `--dil javascript`).
+
+Arayüz bölümleri, web yolları ve model kayıt işlemleri Orhunca'ya özeldir; çeviride bunlar için
+açıklama yazılır.
+
 ## Yapay zekâ asistanı
 
 Sağ üstteki **Asistan** düğmesi (<kbd>Ctrl+I</kbd>), kendi Anthropic API anahtarınızla çalışan bir

@@ -293,7 +293,7 @@
     { ad: 'Dosya', ogeler: [['Yeni dosya…', '', 'yeniDosyaModal'], ['Yeni klasör…', '', 'yeniKlasorModal'], '-', ['Kaydet', 'Ctrl+S', 'kaydet'], ['Tümünü kaydet', 'Ctrl+Alt+S', 'tumunuKaydet'], '-', ['Başlangıç ekranı', '', 'baslangicaDon'], ['Projeyi kapat', '', 'projeyiKapat'], '-', ["Stüdyo'yu kapat", '', 'studyoyuKapat']] },
     { ad: 'Düzen', ogeler: [['Geri al', 'Ctrl+Z', 'geriAl'], ['Yinele', 'Ctrl+Y', 'yinele'], '-', ['Kes', 'Ctrl+X', 'kes'], ['Kopyala', 'Ctrl+C', 'kopyala'], ['Yapıştır', 'Ctrl+V', 'yapistir'], '-', ['Satırı yorum yap', 'Ctrl+/', 'yorumYap'], ['Biçimlendir', 'Ctrl+⇧+F', 'bicimlendir']] },
     { ad: 'Seçim', ogeler: [['Tümünü seç', 'Ctrl+A', 'tumunuSec'], ['Satırı seç', 'Ctrl+L', 'satiriSec'], ['Satırı çoğalt', 'Ctrl+⇧+D', 'satiriCogalt']] },
-    { ad: 'Görünüm', ogeler: [['Gezgin', '', 'panelGezgin'], ['Ara', '', 'panelAra'], ['Yapı', '', 'panelYapi'], ['Çalıştır', '', 'panelCalistir'], '-', ['Alt paneli göster/gizle', 'Ctrl+J', 'altPanelAcKapa'], ['Yapay zekâ asistanı', 'Ctrl+I', 'asistanAcKapa'], '-', ['Yazıyı büyüt', 'Ctrl+=', 'yaziBuyut'], ['Yazıyı küçült', 'Ctrl+-', 'yaziKucult']] },
+    { ad: 'Görünüm', ogeler: [['Gezgin', '', 'panelGezgin'], ['Ara', '', 'panelAra'], ['Yapı', '', 'panelYapi'], ['Çalıştır', '', 'panelCalistir'], '-', ['Alt paneli göster/gizle', 'Ctrl+J', 'altPanelAcKapa'], ['Yapay zekâ asistanı', 'Ctrl+I', 'asistanAcKapa'], '-', ['Python karşılığını göster', '', 'ceviriPython'], ['JavaScript karşılığını göster', '', 'ceviriJs'], '-', ['Yazıyı büyüt', 'Ctrl+=', 'yaziBuyut'], ['Yazıyı küçült', 'Ctrl+-', 'yaziKucult']] },
     { ad: 'Çalıştır', ogeler: [['Çalıştır', 'F5', 'calistir'], ['Hata ayıkla', 'F6', 'ayikla'], ['Adım adım göster', '', 'yavasCalistir'], ['Durdur', '⇧+F5', 'durdur'], ['Denetle', 'F7', 'denetleKomut'], '-', ['Kesme noktası ekle/kaldır', 'F9', 'kesmeImlec'], ['Devam', 'F5', 'ayDevam'], ['Üstünden adım', 'F10', 'ayUstunden'], ['İçine adım', 'F11', 'ayAdim'], ['Dışına adım', '⇧+F11', 'ayCik'], '-', ['Canlı önizlemeyi göster/gizle', '', 'onizlemeAcKapa'], ['Önizlemeyi tarayıcıda aç', '', 'onizlemeTarayici'], '-', ['Linux için derle', '', 'derleLinux'], ['Windows için derle', '', 'derleWindows'], ['Web için derle (WebAssembly)', '', 'derleWeb'], '-', ['Masaüstü uygulaması (Linux)', '', 'paketleLinux'], ['Masaüstü uygulaması (Windows)', '', 'paketleWindows'], ['Telefon uygulaması (Android)', '', 'paketleAndroid'], ['Telefon uygulaması (iPhone)', '', 'paketleIos']] },
     { ad: 'Terminal', ogeler: [['Terminali temizle', '', 'terminalTemizle'], ['Sorunları göster', '', 'altSorunlar'], ['Çıktıyı göster', '', 'altCikti']] },
     { ad: 'Yardım', ogeler: [["Orhunca'yı öğren", '', 'ogrenAc'], ['Klavye kısayolları', '', 'kisayollarModal'], ['Sürüm notları', '', 'guncellemeModal'], '-', ['Hakkında', '', 'hakkindaModal']] },
@@ -580,6 +580,7 @@
         `<div class="dugme birincil" data-e="modalKapat">Tamam</div>`);
     }
     if (m.tur === 'gorunum') return cizGorunum(kabuk);
+    if (m.tur === 'ceviri') return cizCeviri(kabuk);
     if (m.tur === 'yeniSurum') {
       const g = D.guncelleme || {};
       const durum = D.guncellemeDurumu;
@@ -780,6 +781,7 @@
         ${D.calisma?.ayikla ? ayiklamaPaneli() : ''}
         <div class="alan" style="gap:6px"><label style="font-size:12px">Program argümanları</label><input id="argumanlar" data-g="argumanlar" class="metin-girdi" placeholder="ör. bir iki" value="${kac(D.argumanlar)}" spellcheck="false"></div>
         <div class="panel-dugme" data-e="denetleKomut">${S('task_alt')}Denetle (F7)</div>
+        <div class="panel-dugme" data-e="ceviriPython">${S('translate')}Python / JavaScript karşılığı</div>
         <div class="ince-ayrac"></div>
         <div class="panel-not">Dağıtım için derle (proje/cikti/)</div>
         <div class="panel-dugme" data-e="derleLinux">${S('terminal')}Linux için derle</div>
@@ -1818,6 +1820,51 @@
     if (D.modal?.tur === 'gorunum') katmanlariCiz();
   }
 
+  const PY_ANAHTAR = new Set(['def', 'return', 'if', 'elif', 'else', 'for', 'in', 'while', 'import', 'from', 'class', 'try', 'except', 'as', 'and', 'or', 'not', 'is', 'True', 'False', 'None', 'pass', 'break', 'continue', 'raise', 'lambda', 'with']);
+  const PY_SOZCUK = /(#.*$)|("(?:[^"\\]|\\.)*"?|'(?:[^'\\]|\\.)*'?)|(\b\d+(?:\.\d+)?\b)|([\p{L}_][\p{L}\p{N}_]*)|(\s+)|(.)/gu;
+  function vurgulaPy(satir) {
+    let html = '', m;
+    const R = new RegExp(PY_SOZCUK.source, 'gu');
+    while ((m = R.exec(satir))) {
+      const t = m[0];
+      let c = m[1] ? 'c' : m[2] ? 's' : m[3] ? 'n' : '';
+      if (m[4]) c = PY_ANAHTAR.has(t) ? 'k' : satir.slice(R.lastIndex).trimStart()[0] === '(' ? 'f' : '';
+      html += sarmala(c, t);
+    }
+    return html;
+  }
+
+  /** Orhunca kodu ve Python/JavaScript karşılığı yan yana, satır satır eşleşmiş. */
+  function cizCeviri(kabuk) {
+    const m = D.modal;
+    const vurgulaDil = m.dil === 'python' ? vurgulaPy : vurgulaJs;
+    let govde;
+    if (m.yukleniyor) govde = '<div class="bos-durum"><div class="donen kucuk" style="margin:auto"></div></div>';
+    else if (m.hata) govde = `<div class="ceviri-hata">${kac(m.hata)}</div>`;
+    else {
+      const gruplar = [];
+      for (const x of m.satirlar) {
+        const son = gruplar.at(-1);
+        if (son && son.k === x.k) son.m.push(x.m); else gruplar.push({ k: x.k, m: [x.m] });
+      }
+      const gosterilen = new Set();
+      const satirlar = gruplar.map(g => {
+        let sol = '';
+        if (g.k && !gosterilen.has(g.k)) {
+          gosterilen.add(g.k);
+          sol = `<span class="no">${g.k}</span>${vurgula(m.kaynak[g.k - 1] || '', 'ohc')}`;
+        }
+        return `<div class="ceviri-satir ${sol ? '' : 'devam'}"><div class="ceviri-sol">${sol}</div><div class="ceviri-sag">${g.m.map(vurgulaDil).join('\n')}</div></div>`;
+      }).join('');
+      govde = `<div class="ceviri"><div class="ceviri-ust"><span>Orhunca</span><span>${m.dil === 'python' ? 'Python' : 'JavaScript'}</span></div><div class="ceviri-liste">${satirlar}</div></div>`;
+    }
+    const sekme = (d, ad) => `<span class="${m.dil === d ? 'secili' : ''}" data-e="ceviriDil" data-a="${d}">${ad}</span>`;
+    const alt = `<div class="tema-secim">${sekme('python', 'Python')}${sekme('javascript', 'JavaScript')}</div>
+      <div class="panel-not" style="flex:1;font-size:12px;margin:0 12px">Aynı program başka bir dilde. Kavramlar aynı, yalnızca yazılış değişir.</div>
+      <div class="dugme" data-e="ceviriKopyala">${S('content_copy')} Kopyala</div><div class="dugme birincil" data-e="modalKapat">Tamam</div>`;
+    return kabuk(`${S('translate')} Başka dillerde`, govde, alt).replace('class="modal"', 'class="modal genis"');
+  }
+
   function cizGorunum(kabuk) {
     const T = window.OrhuncaTema, t = D.temaTaslak, m = D.modal;
     const renkKutulari = (r) => ['arka', 'pencere', 'vurgu', 'sz-anahtar', 'sz-metin', 'sz-islev'].map(a => `<i style="background:${kac(r?.[a] || 'transparent')}"></i>`).join('');
@@ -2147,6 +2194,23 @@
       cizAsistan(); $('#asistanGirdi')?.focus();
     },
     asistanDurdur() { const a = D.asistan; a.istek++; a.bekliyor = false; const son = a.mesajlar.pop(); a.girdi = son?.metin || ''; cizAsistan(); },
+    async ceviri(dil = 'python') {
+      const s = etkinSekme();
+      if (!s || s.ikili || uzanti(s.yol) !== 'ohc') return bildir('Önce bir Orhunca (.ohc) dosyası açın.', true);
+      D.modal = { tur: 'ceviri', dil, yukleniyor: true, kaynak: s.icerik.split('\n') };
+      katmanlariCiz();
+      const r = await api('/api/cevir', { dosya: tamYol(s.yol), icerik: s.icerik, dil }).catch(e => ({ hata: e.message }));
+      if (D.modal?.tur !== 'ceviri') return;
+      Object.assign(D.modal, { yukleniyor: false, hata: r.hata || '', satirlar: r.satirlar || [] });
+      katmanlariCiz();
+    },
+    ceviriDil(d) { EYLEM.ceviri(d); },
+    ceviriPython() { EYLEM.ceviri('python'); },
+    ceviriJs() { EYLEM.ceviri('javascript'); },
+    ceviriKopyala() {
+      const m = D.modal;
+      navigator.clipboard?.writeText((m.satirlar || []).map(x => x.m).join('\n') + '\n').then(() => bildir('Kopyalandı.'), () => bildir('Kopyalanamadı.', true));
+    },
     asistanHazir(metin) { D.asistan.girdi = metin; EYLEM.asistanGonder(); },
     asistanYeni() { const a = D.asistan; a.istek++; a.mesajlar = []; a.bekliyor = false; a.hata = ''; cizAsistan(); },
     async asistanUygula(i) {

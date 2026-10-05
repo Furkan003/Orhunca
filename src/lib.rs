@@ -10,6 +10,7 @@ pub mod arayuz;
 pub mod ayristirici;
 pub mod baglayici;
 pub mod bicimlendirici;
+pub mod cevirici;
 pub mod denetci;
 pub mod derleme;
 pub mod dil_sunucusu;

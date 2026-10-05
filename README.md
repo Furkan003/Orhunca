@@ -63,7 +63,7 @@ işlevler, veri yapıları, web ve arayüz.
 <td width="33%" valign="top">
 
 **Anlaşılır hata mesajları**<br>
-Satır ve sütunu gösteren Türkçe mesajlar; `print(...)` gibi başka dillerden gelen alışkanlıklara Orhunca karşılığı, yanlış yazılmış adlara "bunu mu demek istediniz?".
+Satır ve sütunu gösteren Türkçe mesajlar; `print(...)` gibi başka dillerden gelen alışkanlıklara Orhunca karşılığı, yanlış yazılmış adlara "bunu mu demek istediniz?". Programın Python ve JavaScript karşılığını yan yana görüp başka dillere geçin.
 
 </td>
 <td width="33%" valign="top">

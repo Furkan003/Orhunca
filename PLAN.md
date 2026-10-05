@@ -256,6 +256,10 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 ### 12c – Telefon komutları
 - `titret`, `paylaş`, `bildirim_gönder` (Android/iOS köprüsü; tarayıcıda Web API'leri).
 
+### 12d – Başka dillerde
+- `orhunca çevir --dil python|javascript` ve Stüdyo'da yan yana görünüm (satır satır eşleşmiş).
+  Örneklerin Python/JS karşılıkları çalıştırılıp çıktıları sınanır.
+
 ## Henüz yapılmayanlar
 
 - Çalışma zamanının çekirdeği (bellek ve çöp toplayıcı, listeler, sözlükler, dosyalar, ağ, JSON,

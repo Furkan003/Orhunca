@@ -755,3 +755,17 @@ details.tema-grup summary { cursor: pointer; }
 .asistan-hazir { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--dugme-kenar); border-radius: 8px; cursor: pointer; font-size: 12.5px; }
 .asistan-hazir:hover { background: var(--dugme-hover); border-color: var(--vurgu); }
 .asistan-hazir .simge { font-size: 15px; color: var(--vurgu); }
+
+/* Başka dillerde (çeviri) */
+.ceviri { flex: 1; display: flex; flex-direction: column; min-height: 0; width: 100%; }
+.ceviri-ust { display: grid; grid-template-columns: 1fr 1fr; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--soluk2); padding: 0 0 8px; }
+.ceviri-ust span:last-child { padding-left: 16px; }
+.ceviri-liste { flex: 1; overflow: auto; border: 1px solid var(--dugme-kenar); border-radius: 10px; background: var(--koyu); font-family: var(--mono); font-size: 13px; line-height: 1.6; font-variant-ligatures: none; }
+.ceviri-satir { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--cizgi); }
+.ceviri-satir.devam { border-top-color: transparent; }
+.ceviri-satir:first-child { border-top: 0; }
+.ceviri-satir:hover { background: var(--vurgu-07); }
+.ceviri-sol, .ceviri-sag { padding: 2px 12px; white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+.ceviri-sag { border-left: 1px solid var(--cizgi); padding-left: 16px; }
+.ceviri-sol .no { display: inline-block; width: 28px; color: var(--soluk3); user-select: none; }
+.ceviri-hata { white-space: pre-wrap; font-family: var(--mono); font-size: 12.5px; color: var(--hata); }
