@@ -260,6 +260,11 @@ web sitesinde de okunabilir.
 değişkenler güncellenir; sınıfta göstermek için), Ayarlar'da **açık tema** (projektör için), klavyeyle
 tam kullanım ve ekran okuyucu desteği.
 
+**Güncelleme:** Stüdyo açılışta yeni sürüm olup olmadığına bakar; varsa başlangıç ekranından tek
+tıkla güncellenir (dosya SHA-256 ile doğrulanır). Komut satırında: `orhunca güncelle`. Okul
+yöneticileri denetimi `ORHUNCA_GUNCELLEME=kapali` ortam değişkeniyle kapatabilir; Ayarlar'dan da
+kapatılabilir.
+
 **Etkileşim (REPL):** `orhunca etkileşim` satır satır deneme ortamı açar: `3 + 4` yazınca `7`,
 tanımlar ve atamalar oturumda kalır, `:yardım`, `:liste`, `:sil`, `:çık`.
 

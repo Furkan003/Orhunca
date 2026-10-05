@@ -77,6 +77,7 @@
     yazarkenDenetle: ayarOku('yazarkenDenetle', true),
     yavasHiz: ayarOku('yavasHiz', 700),
     acilis: ayarOku('acilis', true),
+    guncellemeDenetle: ayarOku('guncellemeDenetle', true), guncelleme: null, guncellemeDurumu: '',
     // 'koyu', 'acik' ya da 'sistem' (işletim sisteminin ayarı)
     tema: ayarOku('tema', 'koyu'),
   };
@@ -336,7 +337,9 @@
         <div class="islem" data-e="dersleriAc">${S('school')}<div class="esnek"><div class="islem-ad">Derslerle öğren</div><div class="islem-alt">13 ders, otomatik denetlenen alıştırmalar</div></div></div>
         <div class="islem" data-e="git" data-a="ogren">${S('menu_book')}<div class="esnek"><div class="islem-ad">Başvuru rehberi</div><div class="islem-alt">Anahtar kelimeler, hâl ekleri, kütüphane</div></div></div>
         <div style="flex:1"></div>
-        <div class="guncelleme" data-e="guncellemeModal">${S('new_releases')}<div class="esnek"><div class="guncelleme-ad">Orhunca 0.6</div><div class="guncelleme-alt">Dersler, hata ayıklayıcı, adım adım gösterim, açık tema ve masaüstü paketleme.</div></div>${S('chevron_right')}</div>
+        ${D.guncelleme?.yeni
+          ? `<div class="guncelleme yeni" data-e="yeniSurumModal">${S('cloud_download')}<div class="esnek"><div class="guncelleme-ad">Orhunca ${kac(D.guncelleme.surum)} hazır</div><div class="guncelleme-alt">Yeni sürümü görmek ve tek tıkla güncellemek için tıklayın.</div></div>${S('chevron_right')}</div>`
+          : `<div class="guncelleme" data-e="guncellemeModal">${S('new_releases')}<div class="esnek"><div class="guncelleme-ad">Orhunca ${kac(D.bilgi?.surum || '')}</div><div class="guncelleme-alt">Dersler, tablo ve grafikler, tarih ve desen işlevleri, paket dizini.</div></div>${S('chevron_right')}</div>`}
       </div>
     </div>`;
   }
@@ -540,11 +543,22 @@
         <div class="secenek" data-e="yazarkenDenetleDegistir"><div class="esnek"><div class="secenek-ad">Yazarken denetle</div><div class="secenek-alt">Hatalar siz yazarken altı çizili gösterilir.</div></div><div class="anahtar ${D.yazarkenDenetle ? 'acik' : ''}"><div></div></div></div>
         <div class="secenek" style="cursor:default"><div class="esnek"><div class="secenek-ad">Tema</div><div class="secenek-alt">Sınıfta projektör için açık tema önerilir.</div></div>
           <div class="tema-secim">${[['koyu', 'Koyu'], ['acik', 'Açık'], ['sistem', 'Sistem']].map(([t, ad]) => `<span class="${D.tema === t ? 'secili' : ''}" data-e="temaSec" data-a="${t}">${ad}</span>`).join('')}</div></div>
+        <div class="secenek" data-e="guncellemeDenetleDegistir"><div class="esnek"><div class="secenek-ad">Güncellemeleri denetle</div><div class="secenek-alt">Açılışta yeni sürüm olup olmadığına bakılır (GitHub'a tek bir istek; başka veri gönderilmez).</div></div><div class="anahtar ${D.guncellemeDenetle ? 'acik' : ''}"><div></div></div></div>
         <div class="secenek" data-e="acilisDegistir"><div class="esnek"><div class="secenek-ad">Açılış animasyonu</div><div class="secenek-alt">Stüdyo açılırken Orhunca logosu canlandırılır.</div></div><div class="anahtar ${D.acilis ? 'acik' : ''}"><div></div></div></div>`,
         `<div class="dugme birincil" data-e="modalKapat">Tamam</div>`);
     }
+    if (m.tur === 'yeniSurum') {
+      const g = D.guncelleme || {};
+      const durum = D.guncellemeDurumu;
+      return kabuk(`Orhunca ${kac(g.surum || '')}`, `
+        <div class="secenek-alt" style="margin-bottom:12px">Kurulu sürüm: ${kac(g.simdiki || '')}. Dosya indirildikten sonra SHA-256 ile doğrulanır.</div>
+        <div class="surum-notu md">${mdBasit(g.notlar || '')}</div>
+        ${durum ? `<div class="guncelleme-durum">${durum === 'indiriliyor' ? '<div class="donen kucuk"></div> İndiriliyor ve doğrulanıyor…' : kac(durum)}</div>` : ''}`,
+        `<div class="dugme" data-e="modalKapat">Daha sonra</div><div class="dugme birincil ${durum === 'indiriliyor' ? 'pasif' : ''}" data-e="guncellemeyiKur">${S('cloud_download')}Şimdi güncelle</div>`);
+    }
     if (m.tur === 'guncelleme') {
       return kabuk('Sürüm notları', `
+        <div class="surum-notu"><h3>0.6 · Ekim 2026</h3><ul><li>Dersler paneli: 13 ders ve otomatik denetlenen alıştırmalar</li><li>Arayüz öğeleri: <code>tablo</code>, <code>grafik</code>, <code>sekmeler</code>, <code>iletişim_kutusu</code></li><li>Kütüphane: tarih, desenler, CSV, <code>json_al</code>, <code>http_al</code></li><li>Paket dizini: <code>orhunca paket ara</code>; istatistik ve geometri paketleri</li><li>Açık tema, tamamlama, adım adım gösterim, otomatik güncelleme</li></ul></div>
         <div class="surum-notu"><h3>0.5 · Ekim 2026</h3><ul><li>Türkçe arayüz dili: <code>durum</code>, <code>arayüz:</code>, <code>düğme("Ekle") tıklanınca:</code>, <code>giriş(ad)</code>, <code>bileşen</code></li><li>WebAssembly: <code>--hedef web</code> ile tarayıcıda çalışan tek dosyalık sayfa</li><li>Stüdyo: Arayüz Uygulaması şablonu ve canlı önizlemede çalışan uygulamalar</li><li>Öz-barındırmanın ilk adımı: Orhunca ile yazılmış sözcük çözümleyici</li><li>Tipi yazılmış değişkenler: <code>işler: liste&lt;metin&gt; = []</code>; <code>kod()</code> ve <code>karakter()</code></li></ul></div>
         <div class="surum-notu"><h3>0.4</h3><ul><li>Modeller: <code>model Ürün:</code>, alan kuralları ve Türkçe doğrulama mesajları</li><li>Kalıcı kayıtlar: <code>ürün'ü kaydet.</code>, <code>Ürün.hepsi()</code>, <code>Ürün.bul(3)</code></li><li>Web sunucusu: <code>al "/ürünler":</code>, formlar, JSON API, statik dosyalar</li><li><code>.ohchtml</code> görünümleri: <code>@model</code>, <code>@düzen</code>, <code>@eğer</code>, <code>@her</code></li><li>Stüdyo: web şablonları ve kaydedince yenilenen canlı önizleme</li></ul></div>
         <div class="surum-notu"><h3>0.3</h3><ul><li>Standart kütüphane: metin, liste, dosya, matematik ve zaman işlevleri</li><li><code>sözlük</code> tipi: <code>{"elma": 5}</code></li><li><code>kullan "dosya.ohc"</code> ile birden fazla dosya, <code>sabit</code> tanımları</li><li>Tamsayı taşması denetimi, Türkçe hata açıklamaları</li><li>Orhunca Stüdyo</li></ul></div>
@@ -1655,10 +1669,37 @@
       D.yerlesikler = yerlesikler.yerlesikler || [];
       D.konum = bilgi.varsayilan_konum;
       D.yuklendi = true;
+      setTimeout(guncellemeyiDenetle, 4000);
     } catch (e) {
       $('#uygulama').innerHTML = `<div class="pencere"><div class="tam-ekran-mesaj"><div class="gokturk">${GOKTURK}</div><div>${kac(e.message)}</div><div>Terminalde <code>orhunca stüdyo</code> ile yeniden açın.</div></div></div>`;
       throw e;
     }
+  }
+
+  /** Yeni sürüm denetimi: sessizdir, hata olursa bir şey göstermez. */
+  async function guncellemeyiDenetle() {
+    if (!D.guncellemeDenetle) return;
+    const r = await api('/api/guncelleme').catch(() => null);
+    if (!r || r.hata || r.kapali || !r.yeni) return;
+    D.guncelleme = r;
+    bildir(`Orhunca ${r.surum} çıktı — güncellemek için başlangıç ekranına bakın.`);
+    if (D.ekran === 'baslangic') ciz();
+  }
+
+  /** Sürüm notları için küçük Markdown: başlık, liste, kalın, kod, tablo satırları düz yazı. */
+  function mdBasit(md) {
+    const satir = t => kac(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`([^`]+)`/g, '<code>$1</code>');
+    let html = '', liste = false;
+    for (const l of md.split(/\r?\n/)) {
+      const m = l.match(/^\s*[-*]\s+(.*)/);
+      if (m) { if (!liste) { html += '<ul>'; liste = true; } html += `<li>${satir(m[1])}</li>`; continue; }
+      if (liste) { html += '</ul>'; liste = false; }
+      const b = l.match(/^#{1,4}\s+(.*)/);
+      if (b) html += `<h3>${satir(b[1])}</h3>`;
+      else if (/^\|?\s*-{3}/.test(l)) continue;
+      else if (l.trim()) html += `<p>${satir(l.replace(/^\||\|$/g, '').replace(/\|/g, ' · '))}</p>`;
+    }
+    return html + (liste ? '</ul>' : '');
   }
 
   async function projeleriYenile() {
@@ -1787,6 +1828,15 @@
     yaziBuyut() { D.yaziBoyutu = Math.min(20, D.yaziBoyutu + 1); ayarYaz('yaziBoyutu', D.yaziBoyutu); yaziDegisti(); },
     yaziKucult() { D.yaziBoyutu = Math.max(11, D.yaziBoyutu - 1); ayarYaz('yaziBoyutu', D.yaziBoyutu); yaziDegisti(); },
     temaSec(t) { D.tema = t; ayarYaz('tema', t); temaUygula(); katmanlariCiz(); },
+    guncellemeDenetleDegistir() { D.guncellemeDenetle = !D.guncellemeDenetle; ayarYaz('guncellemeDenetle', D.guncellemeDenetle); katmanlariCiz(); },
+    yeniSurumModal() { D.menu = null; D.modal = { tur: 'yeniSurum' }; katmanlariCiz(); },
+    async guncellemeyiKur() {
+      if (D.guncellemeDurumu === 'indiriliyor') return;
+      D.guncellemeDurumu = 'indiriliyor'; katmanlariCiz();
+      const r = await api('/api/guncelleme/kur', { masaustu: !!window.__TAURI__ }).catch(e => ({ hata: e.message }));
+      D.guncellemeDurumu = r.hata ? 'Güncellenemedi: ' + r.hata : r.mesaj;
+      katmanlariCiz();
+    },
     acilisDegistir() { D.acilis = !D.acilis; ayarYaz('acilis', D.acilis); katmanlariCiz(); },
     yazarkenDenetleDegistir() { D.yazarkenDenetle = !D.yazarkenDenetle; ayarYaz('yazarkenDenetle', D.yazarkenDenetle); katmanlariCiz(); },
 

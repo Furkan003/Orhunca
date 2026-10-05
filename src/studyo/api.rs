@@ -67,6 +67,8 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
     let g = govde(istek);
     match (istek.yontem.as_str(), istek.yol.as_str()) {
         ("GET", "/api/durum") => durum(),
+        ("GET", "/api/guncelleme") => guncelleme_denetle(),
+        ("POST", "/api/guncelleme/kur") => guncelleme_kur(g["masaustu"].as_bool() == Some(true)),
         ("GET", "/api/projeler") => projeler(),
         ("GET", "/api/sablonlar") => sablon_listesi(),
         ("GET", "/api/yerlesikler") => yerlesikler(),
@@ -163,6 +165,50 @@ fn durum() -> Yanit {
         "varsayilan_konum": konum.to_string_lossy(),
         "mingw": windows_baglayici_var(),
     }))
+}
+
+/// Yeni sürüm var mı? (Yönetici `ORHUNCA_GUNCELLEME=kapali` ile kapatabilir.)
+fn guncelleme_denetle() -> Yanit {
+    use crate::guncelleme as g;
+    if g::kapali_mi() {
+        return Yanit::json(&json!({ "kapali": true }));
+    }
+    match g::son_surum() {
+        Ok(s) => Yanit::json(&json!({
+            "yeni": g::daha_yeni(&s.surum, crate::SURUM),
+            "surum": s.surum,
+            "simdiki": crate::SURUM,
+            "notlar": s.notlar,
+            "sayfa": s.sayfa,
+        })),
+        Err(e) => hata(e),
+    }
+}
+
+/// Uygun dosyayı indirir, doğrular ve kurar. Kurulum başladıysa Stüdyo kapanır.
+fn guncelleme_kur(masaustu: bool) -> Yanit {
+    use crate::guncelleme as g;
+    if g::kapali_mi() {
+        return hata("güncellemeler yönetici tarafından kapatılmış");
+    }
+    let sonuc = g::son_surum().and_then(|s| {
+        let k = g::kurulum_turu(masaustu);
+        let dosya = g::indir(&s, &g::varlik_adi(&k))?;
+        g::kur(&k, &dosya)
+    });
+    match sonuc {
+        Ok((mesaj, kapan)) => {
+            if kapan {
+                std::thread::spawn(|| {
+                    std::thread::sleep(Duration::from_millis(1500));
+                    calisma::hepsini_durdur();
+                    std::process::exit(0);
+                });
+            }
+            Yanit::json(&json!({ "mesaj": mesaj, "kapaniyor": kapan }))
+        }
+        Err(e) => hata(e),
+    }
 }
 
 fn windows_baglayici_var() -> bool {

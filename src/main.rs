@@ -18,6 +18,7 @@ Kullanım:
   orhunca yeni <proje_adı> [--şablon konsol|web_sitesi|tam_yigin|web_api|...]
   orhunca paket ara [kelime] | ekle <ad | git-adresi>[#etiket] | yükle | güncelle | kaldır <ad> | listele
   orhunca stüdyo [--kapı 7313] [--tarayıcı-açma]
+  orhunca güncelle [--denetle]
   orhunca sürüm
 
 Dosya verilmezse geçerli klasördeki .ohcproj dosyasının giriş dosyası kullanılır.
@@ -55,6 +56,9 @@ fn ana() -> ExitCode {
         "biçimlendir" | "bicimlendir" => bicimlendir_komutu(kalan),
         "dil-sunucusu" | "lsp" => dil_sunucusu::calistir().map(|_| ExitCode::SUCCESS),
         "paket" => paket::komut(kalan).map(|_| ExitCode::SUCCESS),
+        "güncelle" | "guncelle" | "update" => {
+            orhunca::guncelleme::komut(kalan).map(|_| ExitCode::SUCCESS)
+        }
         "sürüm" | "surum" | "--version" | "-V" => {
             println!("orhunca {SURUM}");
             Ok(ExitCode::SUCCESS)

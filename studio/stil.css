@@ -661,3 +661,7 @@ h1, h2 { margin: 0; }
 .ders-sonuc.kotu { background: oklch(0.65 0.16 25 / 0.12); color: var(--hata); }
 .ders-sonuc pre { color: var(--yazi2); }
 .ders-gorev summary { cursor: pointer; color: var(--soluk); font-size: 12.5px; margin-top: 4px; }
+
+.guncelleme.yeni{border-color:var(--vurgu);background:color-mix(in srgb,var(--vurgu) 12%,transparent)}
+.guncelleme-durum{display:flex;align-items:center;gap:8px;margin-top:12px;padding:10px 12px;border-radius:8px;background:var(--yuzey2,rgba(127,127,127,.12));font-size:13px}
+.surum-notu.md h3{margin:14px 0 6px}.surum-notu.md p{margin:6px 0;font-size:13px}
