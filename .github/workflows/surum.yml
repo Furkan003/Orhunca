@@ -14,11 +14,17 @@ name: Sürüm
 # `v*` etiketinde GitHub sürümü yayımlanır; dallarda (ilgili dosyalar değişince) yalnızca
 # derlenir ve sınanır.
 # Kurulum dosyaları (macOS dakikası 10 kat sayılır) yalnızca sürüm etiketinde
-# (git tag v0.6.0 && git push origin v0.6.0) ya da elle (Actions → Sürüm → Run workflow).
+# (git tag v0.6.0 && git push origin v0.6.0) ya da elle (Actions → Sürüm → Run workflow;
+# "surum" alanına v0.6.0 yazılırsa etiket oluşturulup sürüm yayımlanır).
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      surum:
+        description: "Yayımlanacak sürüm (ör. v0.6.0). Boş bırakılırsa yalnızca derlenip sınanır."
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -237,7 +243,8 @@ jobs:
           path: orhunca-vscode.vsix
 
   yayinla:
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Etiket gönderilince ya da elle çalıştırırken sürüm adı verilince (etiket o zaman oluşturulur)
+    if: startsWith(github.ref, 'refs/tags/v') || startsWith(inputs.surum, 'v')
     needs: [komut, studyo, vscode]
     runs-on: ubuntu-latest
     steps:
@@ -255,12 +262,17 @@ jobs:
           (cd yayin && sha256sum * > SHA256SUMS.txt)
           ls -la yayin
       - name: Sürüm notları
+        env:
+          SURUM: ${{ inputs.surum || github.ref_name }}
         run: |
-          surum="${GITHUB_REF_NAME}"
+          surum="$SURUM"
+          echo "$surum" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' || { echo "geçersiz sürüm adı: $surum"; exit 1; }
           dosya="docs/surumler/${surum}.md"
           if [ -f "$dosya" ]; then cp "$dosya" notlar.md; else echo "Orhunca $surum" > notlar.md; fi
       - uses: softprops/action-gh-release@v2
         with:
-          name: Orhunca ${{ github.ref_name }}
+          name: Orhunca ${{ inputs.surum || github.ref_name }}
+          tag_name: ${{ inputs.surum || github.ref_name }}
+          target_commitish: ${{ github.sha }}
           body_path: notlar.md
           files: yayin/*
