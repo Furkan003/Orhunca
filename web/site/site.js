@@ -86,4 +86,112 @@
       });
     })
     .catch(() => {});
+  // ---------------------------------------------------------------------
+  // Görsel etkiler (azaltılmış hareket tercihine uyulur)
+  // ---------------------------------------------------------------------
+  const azHareket = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const kac = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  // Kaydırınca beliren bölümler
+  if (!azHareket && 'IntersectionObserver' in window) {
+    document.documentElement.classList.add('belirme');
+    const izle = new IntersectionObserver((girdiler) => {
+      girdiler.forEach((g) => {
+        if (!g.isIntersecting) return;
+        // Aynı satırdaki kartlar sırayla belirir
+        const kardesler = [...g.target.parentElement.children].filter((x) => x.classList.contains('belir'));
+        g.target.style.transitionDelay = Math.min(kardesler.indexOf(g.target), 5) * 70 + 'ms';
+        g.target.classList.add('gorundu');
+        izle.unobserve(g.target);
+      });
+    }, { rootMargin: '0px 0px -8% 0px' });
+    $$('.belir').forEach((e) => izle.observe(e));
+  }
+
+  // Giriş: kod yazılıyormuş gibi görünür, ardından çıktı gelir
+  const kod = document.getElementById('girisKod');
+  const cikti = document.getElementById('girisCikti');
+  if (kod && cikti && window.OrhuncaVurgu && !azHareket) {
+    const tam = kod.textContent;
+    const ciktiSatirlar = cikti.innerHTML.split('\n');
+    kod.style.minHeight = kod.offsetHeight + 'px';
+    cikti.style.minHeight = cikti.offsetHeight + 'px';
+    cikti.innerHTML = '';
+    let i = 0;
+    const yaz = () => {
+      // Girinti ve satır sonları tek adımda; diğer karakterler tek tek
+      do { i++; } while (i < tam.length && (tam[i - 1] === ' ' && tam[i] === ' '));
+      kod.innerHTML = window.OrhuncaVurgu.vurgula(tam.slice(0, i)) + '<span class="imlec"></span>';
+      if (i < tam.length) setTimeout(yaz, tam[i - 1] === '\n' ? 90 : 12 + Math.random() * 18);
+      else setTimeout(calistir, 500);
+    };
+    const calistir = () => {
+      kod.innerHTML = window.OrhuncaVurgu.vurgula(tam);
+      document.querySelector('.calistir-rozet')?.classList.add('basildi');
+      ciktiSatirlar.forEach((s, n) => setTimeout(() => {
+        cikti.innerHTML = ciktiSatirlar.slice(0, n + 1).join('\n');
+      }, 250 + n * 380));
+    };
+    kod.innerHTML = '<span class="imlec"></span>';
+    setTimeout(yaz, 600);
+  }
+
+  // Hâl ekleri: örnek cümleler
+  const CUMLELER = [
+    { parcalar: [['5', "'i", 'b'], ['sayılar', 'a', 'y'], ['ekle', '.', 'f']], aciklama: '<b>Neyi?</b> 5\'i · <b>nereye?</b> sayılara · <b>ne yap?</b> ekle. Listenin sonuna 5 eklenir.' },
+    { parcalar: [['sayılar', 'a', 'y'], ['5', "'i", 'b'], ['ekle', '.', 'f']], aciklama: 'Sıra önemsiz: görevi ekler anlattığı için bu da aynı cümle.' },
+    { parcalar: [['5', "'i", 'b'], ['sayılar', 'dan', 'a'], ['çıkar', '.', 'f']], aciklama: '<b>Nereden?</b> Ayrılma hâli (-dan, -den) kaynağı gösterir: 5 listeden çıkarılır.' },
+    { parcalar: [['"Ayşe"', "'yi", 'b'], ['selamla', '.', 'f']], aciklama: 'Kendi fiillerini de tanımlarsın: <code>fiil (kişi: metin)\'yi selamla:</code>' },
+    { parcalar: [['eğer x', '', 'k'], ['10', "'dan", 'a'], ['büyük', 'se:', 'f']], aciklama: 'Koşullar da Türkçe: <b>10\'dan büyükse</b>. Simgelerle de yazabilirsin: <code>eğer x > 10 ise:</code>' },
+  ];
+  const HAL = { b: ['Neyi?', 'belirtme'], y: ['Nereye?', 'yönelme'], a: ['Nereden?', 'ayrılma'], f: ['Ne yap?', 'yüklem'], k: ['', ''] };
+  const cumle = document.getElementById('cumle');
+  if (cumle) {
+    const aciklama = document.getElementById('cumleAciklama');
+    const noktalar = document.getElementById('cumleNoktalar');
+    let sira = 0, zaman = null;
+    noktalar.innerHTML = CUMLELER.map((_, n) => `<button role="tab" aria-label="Örnek ${n + 1}" data-n="${n}"></button>`).join('');
+    const goster = (n) => {
+      sira = n;
+      const c = CUMLELER[n];
+      cumle.classList.remove('yeni'); void cumle.offsetWidth; cumle.classList.add('yeni');
+      cumle.innerHTML = c.parcalar.map(([kok, ek, tur], j) => `<span class="parca hal-${tur}" style="animation-delay:${j * 90}ms">
+        <span class="parca-metin"><span class="kok">${kac(kok)}</span><span class="ek">${kac(ek)}</span></span>
+        ${HAL[tur][0] ? `<span class="parca-etiket"><b>${HAL[tur][0]}</b>${HAL[tur][1]}</span>` : '<span class="parca-etiket"></span>'}</span>`).join('');
+      aciklama.innerHTML = c.aciklama;
+      $$('button', noktalar).forEach((b, j) => b.setAttribute('aria-selected', String(j === n)));
+    };
+    const ileri = () => goster((sira + 1) % CUMLELER.length);
+    const baslat = () => { if (!azHareket) { clearInterval(zaman); zaman = setInterval(ileri, 4200); } };
+    noktalar.addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { goster(+b.dataset.n); baslat(); } });
+    document.getElementById('cumleKart').addEventListener('mouseenter', () => clearInterval(zaman));
+    document.getElementById('cumleKart').addEventListener('mouseleave', baslat);
+    goster(0); baslat();
+  }
+
+  // Stüdyo vitrini
+  const resim = document.getElementById('vitrinResim');
+  if (resim) {
+    const sekmeler = $$('[data-vitrin]');
+    let zaman = null, kullanici = false;
+    const sec = (d) => {
+      sekmeler.forEach((x) => x.setAttribute('aria-selected', String(x === d)));
+      resim.classList.add('soluk');
+      const yeni = new Image();
+      yeni.src = 'ekran/' + d.dataset.vitrin + '.png';
+      const bitir = () => { resim.src = yeni.src; resim.alt = 'Orhunca Stüdyo: ' + d.querySelector('b').textContent; resim.classList.remove('soluk'); };
+      yeni.decode ? yeni.decode().then(bitir, bitir) : (yeni.onload = bitir);
+    };
+    sekmeler.forEach((d) => d.addEventListener('click', () => { kullanici = true; clearInterval(zaman); sec(d); }));
+    // Görünürken kendiliğinden ilerler; kullanıcı seçince durur
+    if (!azHareket && 'IntersectionObserver' in window) {
+      new IntersectionObserver(([g]) => {
+        clearInterval(zaman);
+        if (g.isIntersecting && !kullanici) zaman = setInterval(() => {
+          const n = sekmeler.findIndex((x) => x.getAttribute('aria-selected') === 'true');
+          sec(sekmeler[(n + 1) % sekmeler.length]);
+        }, 4500);
+      }, { threshold: 0.4 }).observe(resim);
+    }
+  }
 })();

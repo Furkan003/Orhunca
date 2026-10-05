@@ -15,47 +15,49 @@
 <link rel="stylesheet" href="stil.css">
 </head>
 <body>
-<a class="gorunmez" href="#icerik">İçeriğe geç</a>
 <header class="ust">
   <div class="kap">
     <a class="marka" href="./"><img src="marka/logo.svg" alt="">orhunca</a>
     <nav class="gezinti" id="gezinti" aria-label="Ana menü">
       <a href="#ozellikler">Özellikler</a>
       <a href="#ornekler">Örnekler</a>
-      <a href="#okullar">Okullar için</a>
+      <a href="#studyo">Stüdyo</a>
       <a href="dersler/">Dersler</a>
       <a href="dene.html">Tarayıcıda dene</a>
-      <a href="#indir">İndir</a>
     </nav>
     <span class="bosluk"></span>
     <a class="github" href="https://github.com/Furkan003/Orhunca"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a>
+    <a class="dugme kucuk birincil ust-indir" href="#indir">İndir</a>
     <button class="menu-dugme" aria-label="Menü" aria-controls="gezinti" aria-expanded="false" id="menuDugme">☰</button>
   </div>
 </header>
 
 <main id="icerik">
 <section class="giris">
-  <div class="kap">
-    <div>
-      <span class="rozet"><span class="nokta"></span><span id="surumRozet">Ücretsiz · Türkçe · çevrimdışı</span></span>
+  <div class="isik isik-1"></div><div class="isik isik-2"></div>
+  <div class="kap giris-ust">
+    <div class="giris-metin">
+      <span class="rozet"><span class="nokta"></span><span id="surumRozet">Ücretsiz · açık kaynak · Türkçe</span></span>
       <h1>Türkçe düşün,<br><em>Türkçe kodla.</em></h1>
-      <p class="ozet">Orhunca, Türkçenin hâl ekleriyle yazılan gerçek bir programlama dilidir. Konsol programlarından
-        masaüstü uygulamalarına ve web sitelerine kadar her şeyi, ana dilinde öğren ve üret.</p>
+      <p class="ozet">Orhunca, Türkçenin hâl ekleriyle yazılan, makine koduna derlenen gerçek bir programlama dili.
+        Konsol programlarından masaüstü uygulamalarına ve web sitelerine kadar her şeyi kendi dilinde yaz.</p>
       <div class="eylemler">
         <a class="dugme birincil" href="#indir" id="girisIndir">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 21h16"/></svg>
-          <span>Orhunca Stüdyo'yu indir<span class="alt" id="girisIndirAlt">Windows, Linux (Pardus), macOS</span></span>
+          <span>Orhunca Stüdyo'yu indir<span class="alt" id="girisIndirAlt">Windows, Linux, macOS</span></span>
         </a>
         <a class="dugme" href="dene.html">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4l12 8-12 8V4z"/></svg>
           <span>Tarayıcıda dene<span class="alt">Kurulum gerekmez</span></span>
         </a>
       </div>
-      <p class="kucuk-not">Hesap yok, internet gerekmez, reklam yok. Windows, Linux, Pardus ve macOS'ta çalışır.</p>
+      <ul class="giris-ozellik">
+        <li>Hesap ve reklam yok</li><li>Çevrimdışı çalışır</li><li>Windows · Linux · macOS · ARM</li>
+      </ul>
     </div>
-    <div class="kod-kart" aria-label="Örnek Orhunca programı">
-      <div class="baslik"><i></i><i></i><i></i><span>notlar.ohc</span></div>
-<pre data-orhunca># Sınıfın not ortalaması
+    <div class="kod-kart canli" aria-label="Örnek Orhunca programı">
+      <div class="baslik"><i></i><i></i><i></i><span>notlar.ohc</span><span class="calistir-rozet">▶ Çalıştır</span></div>
+<pre data-orhunca id="girisKod"># Not ortalaması
 notlar = [85, 92, 78, 64, 99]
 toplam = 0
 
@@ -66,51 +68,89 @@ ortalama = toplam / uzunluk(notlar)
 ("Ortalama: " + ortalama)'yı yaz.
 
 eğer ortalama 80'den büyükse:
-    "Sınıf çok başarılı!"'yı yaz.</pre>
-      <div class="cikti"><b>$</b> orhunca çalıştır notlar.ohc
+    "Harika bir sonuç!"'yu yaz.</pre>
+      <div class="cikti" id="girisCikti"><b>$</b> orhunca çalıştır notlar.ohc
 Ortalama: 83.6
-Sınıf çok başarılı!</div>
+Harika bir sonuç!</div>
+    </div>
+  </div>
+  <div class="kap">
+    <div class="sayilar belir">
+      <div><b>100%</b><span>Türkçe söz dizimi ve hata mesajları</span></div>
+      <div><b>13</b><span>adım adım, alıştırmalı ders</span></div>
+      <div><b>0 ₺</b><span>sonsuza kadar ücretsiz, MIT lisanslı</span></div>
+      <div><b>~ms</b><span>derleme; tek dosyalık hızlı programlar</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="bolum" id="haller">
+  <div class="kap hal-kap">
+    <div class="bolum-baslik belir">
+      <span class="ust-yazi">Dilin kalbi</span>
+      <h2>Kod, bir Türkçe cümle gibi okunur.</h2>
+      <p>Başka dillerde parametrelerin sırasını ezberlersin. Orhunca'da görevi <b>hâl ekleri</b> anlatır: neyi, nereye, nereden. Sırayı istediğin gibi kurabilirsin.</p>
+    </div>
+    <div class="cumle-kart belir" id="cumleKart" aria-live="polite">
+      <div class="cumle" id="cumle"></div>
+      <div class="cumle-aciklama" id="cumleAciklama"></div>
+      <div class="cumle-noktalar" id="cumleNoktalar" role="tablist" aria-label="Örnek cümleler"></div>
     </div>
   </div>
 </section>
 
 <section class="bolum" id="ozellikler">
   <div class="kap">
-    <div class="bolum-baslik">
+    <div class="bolum-baslik belir">
       <span class="ust-yazi">Neden Orhunca</span>
-      <h2>Programlamayı ana dilinde öğren, gerçek yazılımlar üret.</h2>
+      <h2>Ana dilinde öğren, gerçek yazılımlar üret.</h2>
       <p>Orhunca bir oyuncak dil değil: derlenen, hızlı çalışan, hata ayıklayıcısı ve paket yöneticisi olan eksiksiz bir dil. Ama ilk satırı yazmak için İngilizce bilmek gerekmez.</p>
     </div>
     <div class="izgara">
-      <div class="kart">
+      <div class="kart belir">
         <div class="simge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5h16v2M9 19h6M12 5v14"/></svg></div>
         <h3>Türkçe söz dizimi</h3>
         <p>Komutlar cümle gibi okunur: <code>"Ayşe"'yi selamla.</code> Hâl ekleri parametrelerin görevini anlatır; ünlü uyumunu biçimlendirici düzeltir.</p>
       </div>
-      <div class="kart">
+      <div class="kart belir">
         <div class="simge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 13l2 2-2 2M13 17h3"/></svg></div>
         <h3>Orhunca Stüdyo</h3>
         <p>Renklendirmeli düzenleyici, yazarken hata gösterimi, tek tuşla çalıştırma, kesme noktalı hata ayıklayıcı ve canlı önizleme. Tamamen Türkçe.</p>
       </div>
-      <div class="kart">
+      <div class="kart belir">
         <div class="simge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
         <h3>Anlaşılır hata mesajları</h3>
         <p>Hatalar Türkçe ve satırı gösterir; nasıl düzeltileceğini önerir. Başka dillerden gelen alışkanlıkları tanır ve Orhunca karşılığını söyler.</p>
       </div>
-      <div class="kart">
+      <div class="kart belir">
         <div class="simge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 9h8M8 13h5"/><circle cx="16.5" cy="15.5" r="1.5"/></svg></div>
         <h3>Arayüz uygulamaları</h3>
         <p><code>düğme("Ekle") tıklanınca:</code> — düğmeli, listeli uygulamalar Türkçe yazılır ve tek komutla kendi penceresinde açılan masaüstü uygulamasına dönüşür.</p>
       </div>
-      <div class="kart">
+      <div class="kart belir">
         <div class="simge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg></div>
         <h3>Web ve veriler</h3>
         <p>Web sunucusu, sayfa şablonları ve kalıcı modeller dilin içinde. Tarih hesapları, desenler, CSV, JSON ve HTTP istekleri hazır; istatistik ve geometri paketleri tek komutla eklenir.</p>
       </div>
-      <div class="kart">
+      <div class="kart belir">
         <div class="simge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/></svg></div>
         <h3>Hızlı ve bağımsız</h3>
         <p>Programlar makine koduna derlenir; derleme milisaniyeler sürer. C derleyicisi ya da ek kurulum gerekmez, çıkan program tek dosyadır.</p>
+      </div>
+      <div class="kart belir">
+        <div class="simge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8L12 3z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15z"/></svg></div>
+        <h3>Yapay zekâ asistanı</h3>
+        <p>Stüdyo'daki asistan soruları Türkçe yanıtlar, kod yazar, yazdığını kendisi denetleyip çalıştırır. Claude Code ve Cursor gibi ajanlar <code>orhunca mcp</code> ile bağlanır.</p>
+      </div>
+      <div class="kart belir">
+        <div class="simge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="8" cy="10" r="1.3"/><circle cx="12" cy="7.5" r="1.3"/><circle cx="16" cy="10" r="1.3"/><path d="M12 21c-1.5 0-2-1-2-2s1-2 2-2h1.5a3.5 3.5 0 003.5-3.5"/></svg></div>
+        <h3>Senin tarzın</h3>
+        <p>Renkler, yazı tipleri, hatta GIF ya da video arka plan. Temanı tek dosya olarak dışa aktar, toplulukla paylaş.</p>
+      </div>
+      <div class="kart belir">
+        <div class="simge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l-6-6 6-6M15 6l6 6-6 6"/></svg></div>
+        <h3>Açık kaynak</h3>
+        <p>MIT lisanslı; herkes ücretsiz kullanır, inceler ve geliştirir. Derleyiciden Stüdyo'ya kadar bütün kod GitHub'da.</p>
       </div>
     </div>
   </div>
@@ -118,7 +158,7 @@ Sınıf çok başarılı!</div>
 
 <section class="bolum" id="ornekler">
   <div class="kap">
-    <div class="bolum-baslik">
+    <div class="bolum-baslik belir">
       <span class="ust-yazi">Örnekler</span>
       <h2>Okuması kolay, yazması keyifli.</h2>
     </div>
@@ -179,36 +219,54 @@ sun(3000)</pre>
   </div>
 </section>
 
-<section class="bolum">
+
+<section class="bolum" id="studyo">
   <div class="kap">
-    <div class="bolum-baslik">
+    <div class="bolum-baslik belir">
       <span class="ust-yazi">Orhunca Stüdyo</span>
-      <h2>Öğrenmek için tasarlanmış bir geliştirme ortamı.</h2>
-      <p>Proje sihirbazı, şablonlar, terminal, hata ayıklayıcı ve canlı önizleme tek pencerede. Kurulumla birlikte gelir; internet gerektirmez.</p>
+      <h2>Her şey tek pencerede.</h2>
+      <p>Düzenleyici, terminal, hata ayıklayıcı, canlı önizleme, dersler ve yapay zekâ asistanı. Kurulumla birlikte gelir, internet gerektirmez.</p>
     </div>
-    <div class="ekran"><img src="ekran/duzenleyici.png" alt="Orhunca Stüdyo düzenleyicisi" loading="lazy" width="1400" height="850"></div>
-    <div class="ekran-alt">
-      <figure><div class="ekran"><img src="ekran/hata-ayiklama.png" alt="Hata ayıklayıcı" loading="lazy"></div><figcaption>Kesme noktaları, adım adım yürütme, değişkenler</figcaption></figure>
-      <figure><div class="ekran"><img src="ekran/canli-onizleme.png" alt="Canlı önizleme" loading="lazy"></div><figcaption>Web projelerinde canlı önizleme</figcaption></figure>
-      <figure><div class="ekran"><img src="ekran/yeni-proje.png" alt="Yeni proje sihirbazı" loading="lazy"></div><figcaption>Şablonlarla hızlı başlangıç</figcaption></figure>
+    <div class="vitrin belir">
+      <div class="vitrin-sekmeler" role="tablist" aria-label="Stüdyo ekranları">
+        <button role="tab" aria-selected="true" data-vitrin="duzenleyici"><b>Düzenleyici</b><span>Renklendirme, tamamlama, tek tuşla çalıştırma</span></button>
+        <button role="tab" aria-selected="false" data-vitrin="asistan"><b>Yapay zekâ asistanı</b><span>Sağ panelde; kodu yazar, dener, sen onaylarsın</span></button>
+        <button role="tab" aria-selected="false" data-vitrin="temalar"><b>Temalar</b><span>Renkler, yazı tipleri, GIF arka plan, paylaşım</span></button>
+        <button role="tab" aria-selected="false" data-vitrin="hata-ayiklama"><b>Hata ayıklayıcı</b><span>Kesme noktaları, değişkenler, adım adım</span></button>
+        <button role="tab" aria-selected="false" data-vitrin="canli-onizleme"><b>Canlı önizleme</b><span>Web ve arayüz projeleri, kaydedince yenilenir</span></button>
+        <button role="tab" aria-selected="false" data-vitrin="dersler"><b>Dersler</b><span>Stüdyo'nun içinde, denetlenen alıştırmalar</span></button>
+      </div>
+      <div class="ekran vitrin-ekran"><div class="pencere-cubuk"><i></i><i></i><i></i></div><img id="vitrinResim" src="ekran/duzenleyici.png" alt="Orhunca Stüdyo düzenleyicisi" width="1360" height="860"></div>
     </div>
   </div>
 </section>
 
-<section class="bolum" id="okullar">
-  <div class="kap okul">
-    <div class="bolum-baslik" style="margin:0">
-      <span class="ust-yazi">Okullar ve öğretmenler için</span>
-      <h2>Sınıfta kullanılmaya hazır.</h2>
-      <p>Bilişim teknolojileri derslerinden kodlama kulüplerine kadar: öğrenci ilk günden çalışan programlar yazar, öğretmen kavramlara odaklanır.</p>
+<section class="bolum" id="kimler">
+  <div class="kap">
+    <div class="bolum-baslik belir">
+      <span class="ust-yazi">Kimler için</span>
+      <h2>İlk satırından ilk uygulamasına kadar herkes için.</h2>
     </div>
-    <ul class="liste-isaretli">
-      <li><span><b>Toplu kurulum.</b> Windows için <code>.msi</code> (Grup İlkesi / Intune ile dağıtılabilir), Pardus ve diğer Debian tabanlı sistemler için <code>.deb</code>.</span></li>
-      <li><span><b>Çevrimdışı ve gizlilik dostu.</b> Hesap, internet bağlantısı ya da veri toplama yok; her şey öğrencinin bilgisayarında.</span></li>
-      <li><span><b>Türkçe dersler.</b> Adım adım dersler ve Stüdyo'nun içinde görevli alıştırmalar.</span></li>
-      <li><span><b>Paylaşılabilir örnekler.</b> Tarayıcıda deneme sayfasında yazılan kod tek bağlantıyla paylaşılır; kurulum gerekmez.</span></li>
-      <li><span><b>Gerçek beceriler.</b> Değişkenler, döngüler, işlevler, modeller, web ve arayüz — kavramlar her dile taşınır.</span></li>
-    </ul>
+    <div class="kimler">
+      <div class="kim belir">
+        <span class="kim-etiket">Yeni başlayanlar</span>
+        <h3>İngilizce engeli olmadan öğren.</h3>
+        <p>Komutlar cümle gibi okunur, hatalar Türkçe anlatılır ve nasıl düzeltileceği söylenir. 13 ders seni ilk programdan web sitesine götürür.</p>
+        <a href="dersler/">Derslere başla →</a>
+      </div>
+      <div class="kim belir">
+        <span class="kim-etiket">Öğretmenler ve okullar</span>
+        <h3>Sınıfta kullanmaya hazır.</h3>
+        <p>Toplu kurulum için MSI ve .deb, Pardus desteği, hesap ve veri toplama yok. Yapay zekâ ve güncellemeler tek ayarla kapatılabilir.</p>
+        <a href="https://github.com/Furkan003/Orhunca/blob/HEAD/docs/yapay-zeka.md">Yönetici ayarları →</a>
+      </div>
+      <div class="kim belir">
+        <span class="kim-etiket">Geliştiriciler</span>
+        <h3>Gerçek bir derleyici, açık kaynak.</h3>
+        <p>Cranelift ile makine kodu, WebAssembly, paket yöneticisi, dil sunucusu (LSP), VS Code eklentisi ve MCP sunucusu. Katkılara açık.</p>
+        <a href="https://github.com/Furkan003/Orhunca">GitHub'da incele →</a>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -235,7 +293,7 @@ sun(3000)</pre>
         <div class="ek-baglantilar"><a href="dene.html">Önce tarayıcıda dene</a><a href="dersler/">Dersler</a></div>
       </div>
       <div class="dosyalar">
-        <a class="dosya" data-dosya="Orhunca-Studyo-Windows.msi" href="#"><span class="tur">.msi</span><span class="ad"><b>Kurumsal kurulum (MSI)</b><span>Okul laboratuvarları: Grup İlkesi, Intune, sessiz kurulum</span></span><span class="boyut"></span></a>
+        <a class="dosya" data-dosya="Orhunca-Studyo-Windows.msi" href="#"><span class="tur">.msi</span><span class="ad"><b>Kurumsal kurulum (MSI)</b><span>Toplu kurulum: Grup İlkesi, Intune, sessiz kurulum</span></span><span class="boyut"></span></a>
         <a class="dosya" data-dosya="orhunca-windows-x86_64.zip" href="#"><span class="tur">.zip</span><span class="ad"><b>Yalnızca orhunca komutu</b><span>Kurulumsuz; terminalden kullanım</span></span><span class="boyut"></span></a>
         <a class="dosya" data-dosya="orhunca-vscode.vsix" href="#"><span class="tur">.vsix</span><span class="ad"><b>VS Code eklentisi</b><span>Renklendirme, hata gösterimi, otomatik tamamlama</span></span><span class="boyut"></span></a>
         <div class="komut-kutu"><span class="istem">PS&gt;</span><code>irm https://furkan003.github.io/Orhunca/kur.ps1 | iex</code><button class="kopyala">Kopyala</button></div>
@@ -281,7 +339,8 @@ sun(3000)</pre>
 </section>
 
 <section class="kapanis">
-  <div class="kap">
+  <div class="kap belir">
+    <div class="gokturk-serit" title="Türk (Göktürk alfabesiyle)">𐱅𐰇𐰼𐰜</div>
     <img class="logo-buyuk" src="marka/logo.svg" alt="">
     <h2>İlk programın bir dakika uzağında.</h2>
     <p>Kurulum yapmadan tarayıcıda dene ya da Stüdyo'yu indirip derslere başla.</p>
@@ -295,14 +354,13 @@ sun(3000)</pre>
 
 <footer class="alt">
   <div class="kap">
-    <div>© Orhunca geliştiricileri · Türkiye'de geliştirildi</div>
-    <nav>
-      <a href="dersler/">Dersler</a>
-      <a href="dene.html">Tarayıcıda dene</a>
-      <a href="https://github.com/Furkan003/Orhunca">GitHub</a>
-      <a href="https://github.com/Furkan003/Orhunca/issues">Hata bildir</a>
-      <a href="https://github.com/Furkan003/Orhunca/releases">Sürümler</a>
-    </nav>
+    <div class="alt-marka">
+      <a class="marka" href="./"><img src="marka/logo.svg" alt="">orhunca</a>
+      <p>Türkçenin hâl ekleriyle yazılan programlama dili.<br>MIT lisanslı · Türkiye'de geliştirildi.</p>
+    </div>
+    <nav aria-label="Öğren"><b>Öğren</b><a href="dersler/">Dersler</a><a href="dene.html">Tarayıcıda dene</a><a href="https://github.com/Furkan003/Orhunca/blob/HEAD/docs/dil-rehberi.md">Dil rehberi</a><a href="https://github.com/Furkan003/Orhunca/blob/HEAD/docs/yapay-zeka.md">Yapay zekâ</a></nav>
+    <nav aria-label="İndir"><b>İndir</b><a href="#indir">Orhunca Stüdyo</a><a href="https://github.com/Furkan003/Orhunca/releases">Sürümler</a><a href="https://github.com/Furkan003/Orhunca/tree/HEAD/temalar">Temalar</a></nav>
+    <nav aria-label="Topluluk"><b>Topluluk</b><a href="https://github.com/Furkan003/Orhunca">GitHub</a><a href="https://github.com/Furkan003/Orhunca/issues">Hata bildir</a><a href="https://github.com/Furkan003/Orhunca/blob/HEAD/CONTRIBUTING.md">Katkı rehberi</a></nav>
   </div>
 </footer>
 <script src="vurgula.js"></script>
