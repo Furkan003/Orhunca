@@ -69,8 +69,8 @@ başka web sitelerinin dosyalarınıza ya da derleyiciye erişmesi engellenir. T
 
 ## Yapay zekâ asistanı
 
-Kenar çubuğundaki asistan simgesi, kendi Anthropic API anahtarınızla çalışan bir sohbet paneli
-açar. Asistan açık dosyanızı görür, yazdığı kodu denetleyip çalıştırır ve dosya değişikliğini
+Sağ üstteki **Asistan** düğmesi (<kbd>Ctrl+I</kbd>), kendi Anthropic API anahtarınızla çalışan bir
+sohbet panelini sağda açar. Asistan açık dosyanızı görür, yazdığı kodu denetleyip çalıştırır ve dosya değişikliğini
 öneri olarak gösterir; **Uygula** ile yazılır. Ayrıntılar ve okullar için kapatma ayarı:
 [Yapay zekâ ile Orhunca](yapay-zeka.md).
 

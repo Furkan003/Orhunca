@@ -10,7 +10,9 @@ Orhunca'yı yapay zekâ ile iki yoldan kullanabilirsiniz:
 
 ## Stüdyo asistanı
 
-Kenar çubuğundaki <kbd>🤖</kbd> simgesine tıklayın ve Anthropic API anahtarınızı girin. Anahtarı
+Sağ üstteki **Asistan** düğmesine tıklayın (ya da <kbd>Ctrl+I</kbd>); asistan, Cursor'daki gibi
+sağda bir sohbet paneli olarak açılır. Panelin genişliği sol kenarından sürüklenerek ayarlanır.
+İlk açılışta Anthropic API anahtarınızı girin. Anahtarı
 [console.anthropic.com](https://console.anthropic.com) adresinden alabilirsiniz.
 
 - **Model seçimi.** Hesabınızın kullanabildiği modeller listelenir; ilk kurulumda en yenisi seçilir.

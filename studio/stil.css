@@ -742,3 +742,16 @@ details.tema-grup summary { cursor: pointer; }
 .asistan-girdi .kare-dugme.birincil { background: var(--vurgu); color: var(--vurgu-koyu); }
 .asistan-tanitim { display: flex; gap: 10px; align-items: flex-start; line-height: 1.5; }
 .asistan-tanitim > .simge { font-size: 26px; color: var(--vurgu); }
+.asistan-kap { width: clamp(320px, 28vw, 440px); flex-shrink: 0; border-left: 1px solid var(--cizgi); background: var(--koyu); display: flex; flex-direction: column; min-height: 0; position: relative; }
+.asistan-kap.gizli { display: none; }
+.asistan-kap .panel-ic { min-height: 0; }
+.asistan-tutamac { position: absolute; left: -3px; top: 0; bottom: 0; width: 6px; cursor: col-resize; z-index: 2; }
+.asistan-tutamac:hover { background: var(--vurgu-17); }
+.baslik-asistan { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; margin-right: 10px; border-radius: 7px; border: 1px solid var(--dugme-kenar); font-size: 12.5px; cursor: pointer; color: var(--yazi2); }
+.baslik-asistan .simge { font-size: 16px; color: var(--vurgu); }
+.baslik-asistan:hover { background: var(--dugme-hover); }
+.baslik-asistan.acik { background: var(--vurgu-12); border-color: var(--vurgu); color: var(--yazi); }
+.asistan-oneriler { display: flex; flex-direction: column; gap: 6px; }
+.asistan-hazir { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--dugme-kenar); border-radius: 8px; cursor: pointer; font-size: 12.5px; }
+.asistan-hazir:hover { background: var(--dugme-hover); border-color: var(--vurgu); }
+.asistan-hazir .simge { font-size: 15px; color: var(--vurgu); }

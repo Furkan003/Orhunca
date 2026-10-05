@@ -80,7 +80,7 @@
     guncellemeDenetle: ayarOku('guncellemeDenetle', true), guncelleme: null, guncellemeDurumu: '',
     // Yapay zekâ asistanı (kullanıcının kendi API anahtarıyla)
     asistan: { durum: null, mesajlar: [], bekliyor: false, modeller: null, hata: '', girdi: '', anahtar: '', istek: 0 },
-    asistanGoster: ayarOku('asistanGoster', true),
+    asistanGoster: ayarOku('asistanGoster', true), asistanPaneliAcik: ayarOku('asistanPaneliAcik', false),
     // Özel tema: seçilen temanın kopyası (arka plan resmi olmadan; resim sunucudan yüklenir)
     ozelTema: ayarOku('temaOnbellek', null), temaKimlik: ayarOku('temaKimlik', null),
     temaTaslak: null, temalarim: [], galeri: null, galeriHatasi: '',
@@ -293,7 +293,7 @@
     { ad: 'Dosya', ogeler: [['Yeni dosya…', '', 'yeniDosyaModal'], ['Yeni klasör…', '', 'yeniKlasorModal'], '-', ['Kaydet', 'Ctrl+S', 'kaydet'], ['Tümünü kaydet', 'Ctrl+Alt+S', 'tumunuKaydet'], '-', ['Başlangıç ekranı', '', 'baslangicaDon'], ['Projeyi kapat', '', 'projeyiKapat'], '-', ["Stüdyo'yu kapat", '', 'studyoyuKapat']] },
     { ad: 'Düzen', ogeler: [['Geri al', 'Ctrl+Z', 'geriAl'], ['Yinele', 'Ctrl+Y', 'yinele'], '-', ['Kes', 'Ctrl+X', 'kes'], ['Kopyala', 'Ctrl+C', 'kopyala'], ['Yapıştır', 'Ctrl+V', 'yapistir'], '-', ['Satırı yorum yap', 'Ctrl+/', 'yorumYap'], ['Biçimlendir', 'Ctrl+⇧+F', 'bicimlendir']] },
     { ad: 'Seçim', ogeler: [['Tümünü seç', 'Ctrl+A', 'tumunuSec'], ['Satırı seç', 'Ctrl+L', 'satiriSec'], ['Satırı çoğalt', 'Ctrl+⇧+D', 'satiriCogalt']] },
-    { ad: 'Görünüm', ogeler: [['Gezgin', '', 'panelGezgin'], ['Ara', '', 'panelAra'], ['Yapı', '', 'panelYapi'], ['Çalıştır', '', 'panelCalistir'], '-', ['Alt paneli göster/gizle', 'Ctrl+J', 'altPanelAcKapa'], '-', ['Yazıyı büyüt', 'Ctrl+=', 'yaziBuyut'], ['Yazıyı küçült', 'Ctrl+-', 'yaziKucult']] },
+    { ad: 'Görünüm', ogeler: [['Gezgin', '', 'panelGezgin'], ['Ara', '', 'panelAra'], ['Yapı', '', 'panelYapi'], ['Çalıştır', '', 'panelCalistir'], '-', ['Alt paneli göster/gizle', 'Ctrl+J', 'altPanelAcKapa'], ['Yapay zekâ asistanı', 'Ctrl+I', 'asistanAcKapa'], '-', ['Yazıyı büyüt', 'Ctrl+=', 'yaziBuyut'], ['Yazıyı küçült', 'Ctrl+-', 'yaziKucult']] },
     { ad: 'Çalıştır', ogeler: [['Çalıştır', 'F5', 'calistir'], ['Hata ayıkla', 'F6', 'ayikla'], ['Adım adım göster', '', 'yavasCalistir'], ['Durdur', '⇧+F5', 'durdur'], ['Denetle', 'F7', 'denetleKomut'], '-', ['Kesme noktası ekle/kaldır', 'F9', 'kesmeImlec'], ['Devam', 'F5', 'ayDevam'], ['Üstünden adım', 'F10', 'ayUstunden'], ['İçine adım', 'F11', 'ayAdim'], ['Dışına adım', '⇧+F11', 'ayCik'], '-', ['Canlı önizlemeyi göster/gizle', '', 'onizlemeAcKapa'], ['Önizlemeyi tarayıcıda aç', '', 'onizlemeTarayici'], '-', ['Linux için derle', '', 'derleLinux'], ['Windows için derle', '', 'derleWindows'], ['Web için derle (WebAssembly)', '', 'derleWeb'], '-', ['Masaüstü uygulaması (Linux)', '', 'paketleLinux'], ['Masaüstü uygulaması (Windows)', '', 'paketleWindows']] },
     { ad: 'Terminal', ogeler: [['Terminali temizle', '', 'terminalTemizle'], ['Sorunları göster', '', 'altSorunlar'], ['Çıktıyı göster', '', 'altCikti']] },
     { ad: 'Yardım', ogeler: [["Orhunca'yı öğren", '', 'ogrenAc'], ['Klavye kısayolları', '', 'kisayollarModal'], ['Sürüm notları', '', 'guncellemeModal'], '-', ['Hakkında', '', 'hakkindaModal']] },
@@ -316,6 +316,7 @@
       ${duz ? `<div class="menuler">${MENULER.map(m => `<span class="menu-baslik ${D.menu === m.ad ? 'acik' : ''}" data-e="menuAc" data-a="${m.ad}">${m.ad}${D.menu === m.ad ? cizAcilir(m) : ''}</span>`).join('')}</div>
       <div class="pencere-adi"${tasi}>${kac(D.proje.ad)} — Orhunca</div>` : ''}
       <div style="flex:1;align-self:stretch"${tasi}></div>
+      ${duz && asistanAcik() ? `<div class="baslik-asistan ${D.asistanPaneliAcik ? 'acik' : ''}" data-e="asistanAcKapa" title="Yapay zekâ asistanı (Ctrl+I)">${S('auto_awesome')}<span>Asistan</span></div>` : ''}
       ${TAURI ? `<div class="pencere-dugmeleri"><span class="simge" data-e="pencereKucult">remove</span><span class="simge" style="font-size:16px" data-e="pencereBuyut">crop_square</span><span class="simge kapat" data-e="pencereKapat">close</span></div>` : ''}
     </div>`;
   }
@@ -693,6 +694,7 @@
               <div class="alt-panel" id="altPanel"></div>
             </div>
             <div class="onizleme gizli" id="onizleme"></div>
+            <div class="asistan-kap gizli" id="asistanKap"></div>
           </div>
           <div class="durum-cubugu" id="durumCubugu"></div>
         </div></div><div id="katman"></div></div>`;
@@ -716,13 +718,14 @@
     if (p('alt')) cizAltPanel();
     if (p('durum')) cizDurum();
     if (p('onizleme')) cizOnizleme();
+    if (p('asistan')) cizAsistan();
     if (p('katman') || hepsi) katmanlariCiz();
   }
 
   function cizEtkinlik() {
     const ogeler = [['gezgin', 'description', 'Gezgin'], ['ara', 'search', 'Ara'], ['yapi', 'account_tree', 'Yapı'], ['calistir', 'play_circle', 'Çalıştır'], ['dersler', 'school', 'Dersler'], ['eklentiler', 'extension', 'Paketler']];
-    if (asistanAcik()) ogeler.push(['asistan', 'smart_toy', 'Yapay zekâ asistanı']);
     $('#etkinlik').innerHTML = ogeler.map(([id, simge, ad]) => `<span class="simge ${D.yanPanel === id ? 'etkin' : ''}" title="${ad}" data-e="yanPanelSec" data-a="${id}">${simge}</span>`).join('')
+      + (asistanAcik() ? `<span class="simge ${D.asistanPaneliAcik ? 'etkin' : ''}" title="Yapay zekâ asistanı (Ctrl+I)" data-e="asistanAcKapa">smart_toy</span>` : '')
       + `<div style="flex:1"></div><span class="simge" title="Başlangıç ekranı" data-e="baslangicaDon">home</span><span class="simge" title="Ayarlar" data-e="ayarlarModal">settings</span>`;
   }
 
@@ -736,7 +739,7 @@
 
   function cizYanPanel() {
     const kap = $('#yanPanel');
-    kap.classList.toggle('genis', D.yanPanel === 'dersler' || D.yanPanel === 'asistan');
+    kap.classList.toggle('genis', D.yanPanel === 'dersler');
     const baslik = (ad, ek = '') => `<div class="panel-baslik"><span style="flex:1">${ad}</span>${ek}</div>`;
     if (D.yanPanel === 'gezgin') {
       const satirlar = gorunurAgac().map(g => {
@@ -766,10 +769,6 @@
       });
       kap.innerHTML = baslik('YAPI') + `<div class="panel-ic">${ogeler.map(([t, ad, n]) => `<div class="yapi-oge" data-e="satiraGit" data-a="${n}"><span class="tur">${t}</span><span class="${t === 'fiil' || t === 'işlev' ? 'f' : t === 'sabit' ? 't' : 's'}">${kac(ad)}</span><span class="satir-no">${n}</span></div>`).join('')
         || '<div class="panel-not">Bu dosyada işlev, fiil ya da sabit tanımı yok.</div>'}</div>`;
-    } else if (D.yanPanel === 'asistan') {
-      kap.innerHTML = baslik('ASİSTAN', D.asistan.mesajlar.length ? `<span class="simge" title="Yeni konuşma" data-e="asistanYeni">add_comment</span>` : '') + asistanPaneli();
-      const l = $('#asistanMesajlar'); if (l) l.scrollTop = l.scrollHeight;
-      kap.querySelectorAll('pre[data-orhunca]').forEach(p => { p.innerHTML = p.textContent.split('\n').map(x => vurgula(x, 'ohc')).join('\n'); });
     } else if (D.yanPanel === 'dersler') {
       kap.innerHTML = baslik('DERSLER') + `<div class="panel-ic ders-panel">${dersPaneli()}</div>`;
       kap.querySelectorAll('pre[data-orhunca]').forEach(p => { p.innerHTML = p.textContent.split('\n').map(x => vurgula(x, 'ohc')).join('\n'); });
@@ -831,7 +830,7 @@
 
   async function asistanDurumuYukle() {
     D.asistan.durum = await api('/api/asistan').catch(() => null);
-    if (D.ekran === 'duzenleyici') guncelle('etkinlik');
+    if (D.ekran === 'duzenleyici') guncelle('baslik', 'etkinlik', 'asistan');
   }
 
   /** Asistan yanıtı: basit Markdown ve kod blokları. */
@@ -843,6 +842,25 @@
       const orhunca = !dil || dil === 'orhunca' || dil === 'ohc';
       return `<pre class="asistan-kod" ${orhunca ? 'data-orhunca' : ''}>${kac(kod)}</pre>`;
     }).join('');
+  }
+
+  /** Sağdaki asistan paneli (Cursor'daki gibi). */
+  function cizAsistan() {
+    const kap = $('#asistanKap');
+    if (!kap) return;
+    const acik = asistanAcik() && D.asistanPaneliAcik;
+    kap.classList.toggle('gizli', !acik);
+    if (!acik) { kap.innerHTML = ''; return; }
+    const odak = document.activeElement?.id === 'asistanGirdi';
+    const g = ayarOku('asistanGenisligi', 0);
+    if (g) kap.style.width = g + 'px';
+    kap.innerHTML = `<div class="asistan-tutamac" title="Genişliği değiştirmek için sürükleyin"></div>
+      <div class="panel-baslik"><span style="flex:1">${S('auto_awesome', '', 'font-size:16px;color:var(--vurgu);margin-right:6px;vertical-align:-3px')}ASİSTAN</span>
+        ${D.asistan.mesajlar.length ? `<span class="simge" title="Yeni konuşma" data-e="asistanYeni" style="margin-right:6px">add_comment</span>` : ''}
+        <span class="simge" title="Kapat (Ctrl+I)" data-e="asistanAcKapa">close</span></div>` + asistanPaneli();
+    const l = $('#asistanMesajlar'); if (l) l.scrollTop = l.scrollHeight;
+    kap.querySelectorAll('pre[data-orhunca]').forEach(p => { p.innerHTML = p.textContent.split('\n').map(x => vurgula(x, 'ohc')).join('\n'); });
+    if (odak) $('#asistanGirdi')?.focus();
   }
 
   function asistanPaneli() {
@@ -871,7 +889,8 @@
             <div class="yan-yana" style="gap:6px">${m.uygulandi ? `<span class="panel-not">${S('check')} Uygulandı</span>` : `<div class="dugme birincil kucuk" data-e="asistanUygula" data-a="${i}">${S('done')}Uygula</div>`}<div class="dugme kucuk" data-e="asistanKopyala" data-a="${i}">${S('content_copy')}Kopyala</div></div></div>` : ''}
         </div>`).join('');
     return `<div class="panel-ic asistan-panel">${secim}
-      <div class="asistan-mesajlar" id="asistanMesajlar">${mesajlar || `<div class="panel-not">Açık dosyanız soruyla birlikte gönderilir. Örnek: <i>“Bu programa bir not ortalaması hesaplayan fiil ekle”</i> ya da <i>“Bu hata ne demek?”</i></div>`}
+      <div class="asistan-mesajlar" id="asistanMesajlar">${mesajlar || `<div class="panel-not">Açık dosyanız soruyla birlikte gönderilir.</div>
+        <div class="asistan-oneriler">${(D.sorunlar.length ? ['Bu hatayı açıkla ve düzelt'] : []).concat(['Bu kodu adım adım açıkla', 'Koda yorum satırları ekle', 'Bana bu konuda bir alıştırma ver']).map(o => `<div class="asistan-hazir" data-e="asistanHazir" data-a="${kac(o)}">${S('auto_awesome')}${kac(o)}</div>`).join('')}</div>`}
         ${A.bekliyor ? '<div class="asistan-mesaj"><div class="donen kucuk"></div> Düşünüyor…</div>' : ''}
         ${A.hata ? `<div class="panel-not" style="color:var(--hata)">${kac(A.hata)}</div>` : ''}</div>
       <div class="asistan-girdi"><textarea id="asistanGirdi" data-g="asistanGirdi" class="metin-girdi" rows="3" placeholder="Bir şey sorun ya da isteyin… (Enter: gönder, Shift+Enter: yeni satır)" ${A.bekliyor ? 'disabled' : ''}>${kac(A.girdi)}</textarea>
@@ -1476,6 +1495,26 @@
     document.addEventListener('mouseup', birak);
   });
 
+  // Asistan panelinin sol kenarı sürüklenerek genişletilir.
+  document.addEventListener('mousedown', e => {
+    if (!e.target.classList?.contains('asistan-tutamac')) return;
+    e.preventDefault();
+    const panel = $('#asistanKap'), c = $('#onizlemeCerceve');
+    if (c) c.style.pointerEvents = 'none';
+    const tasi = h => {
+      const sag = window.innerWidth - panel.getBoundingClientRect().right;
+      panel.style.width = Math.round(Math.max(300, Math.min(window.innerWidth - h.clientX - sag, window.innerWidth * 0.6))) + 'px';
+    };
+    const birak = () => {
+      document.removeEventListener('mousemove', tasi);
+      document.removeEventListener('mouseup', birak);
+      if (c) c.style.pointerEvents = '';
+      ayarYaz('asistanGenisligi', panel.getBoundingClientRect().width);
+    };
+    document.addEventListener('mousemove', tasi);
+    document.addEventListener('mouseup', birak);
+  });
+
   window.addEventListener('message', e => {
     const c = $('#onizlemeCerceve');
     if (!c || e.source !== c.contentWindow || e.data?.orhunca !== 'adres' || !D.onizleme) return;
@@ -2056,11 +2095,20 @@
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
     },
+    asistanAcKapa() {
+      if (!asistanAcik()) return;
+      D.asistanPaneliAcik = !D.asistanPaneliAcik; ayarYaz('asistanPaneliAcik', D.asistanPaneliAcik);
+      guncelle('baslik', 'etkinlik', 'asistan');
+      if (D.asistanPaneliAcik) {
+        if (D.asistan.durum?.anahtar_var && !D.asistan.modeller) EYLEM.asistanModelleriYukle();
+        ($('#asistanGirdi') || $('#asistanAnahtar'))?.focus();
+      } else $('#kodAlani')?.focus();
+    },
     async asistanAnahtarKaydet() {
       const a = D.asistan;
       if (!a.anahtar.trim()) return;
       const r = await api('/api/asistan/ayar', { anahtar: a.anahtar.trim() });
-      if (r.hata) { a.hata = r.hata; return cizYanPanel(); }
+      if (r.hata) { a.hata = r.hata; return cizAsistan(); }
       a.durum = r; a.anahtar = ''; a.hata = '';
       await EYLEM.asistanModelleriYukle();
     },
@@ -2068,16 +2116,16 @@
       if (!confirm('API anahtarı bu bilgisayardan silinsin mi?')) return;
       D.asistan.durum = await api('/api/asistan/ayar', { anahtar: '' });
       D.asistan.modeller = null;
-      cizYanPanel();
+      cizAsistan();
     },
     async asistanModelleriYukle() {
       const a = D.asistan;
       const r = await api('/api/asistan/modeller');
-      if (r.hata) { a.hata = r.hata; return cizYanPanel(); }
+      if (r.hata) { a.hata = r.hata; return cizAsistan(); }
       a.modeller = r.modeller; a.hata = '';
       // İlk kurulumda listenin başındaki (en yeni) model seçilir.
       if (!a.durum.model && a.modeller.length) a.durum = await api('/api/asistan/ayar', { model: a.modeller[0].kimlik });
-      cizYanPanel();
+      cizAsistan();
     },
     async asistanGonder() {
       const a = D.asistan, metin = a.girdi.trim();
@@ -2085,7 +2133,7 @@
       a.mesajlar.push({ rol: 'kullanici', metin });
       a.girdi = ''; a.hata = ''; a.bekliyor = true;
       const istek = ++a.istek;
-      cizYanPanel();
+      cizAsistan();
       const s = etkinSekme();
       const govde = { mesajlar: a.mesajlar.map(m => ({ rol: m.rol, metin: m.metin + (m.oneri ? '\n\n[Önerilen dosya içeriği:]\n' + m.oneri.icerik : '') })) };
       if (s && !s.ikili) { govde.dosya = s.yol; govde.icerik = s.icerik; a.mesajlar.at(-1).dosya = s.yol; }
@@ -2094,10 +2142,11 @@
       a.bekliyor = false;
       if (r.hata) { a.hata = r.hata; a.mesajlar.pop(); a.girdi = metin; }
       else a.mesajlar.push({ rol: 'asistan', metin: r.yanit, adimlar: r.adimlar, oneri: r.oneri, dosya: s?.yol });
-      if (D.yanPanel === 'asistan') { cizYanPanel(); $('#asistanGirdi')?.focus(); }
+      cizAsistan(); $('#asistanGirdi')?.focus();
     },
-    asistanDurdur() { const a = D.asistan; a.istek++; a.bekliyor = false; const son = a.mesajlar.pop(); a.girdi = son?.metin || ''; cizYanPanel(); },
-    asistanYeni() { const a = D.asistan; a.istek++; a.mesajlar = []; a.bekliyor = false; a.hata = ''; cizYanPanel(); },
+    asistanDurdur() { const a = D.asistan; a.istek++; a.bekliyor = false; const son = a.mesajlar.pop(); a.girdi = son?.metin || ''; cizAsistan(); },
+    asistanHazir(metin) { D.asistan.girdi = metin; EYLEM.asistanGonder(); },
+    asistanYeni() { const a = D.asistan; a.istek++; a.mesajlar = []; a.bekliyor = false; a.hata = ''; cizAsistan(); },
     async asistanUygula(i) {
       const m = D.asistan.mesajlar[+i];
       if (!m?.oneri) return;
@@ -2108,14 +2157,14 @@
       metinEkle(ta, m.oneri.icerik);
       imleciGuncelle();
       m.uygulandi = true;
-      cizYanPanel();
+      cizAsistan();
       bildir('Değişiklik uygulandı (Ctrl+Z ile geri alabilirsiniz).');
     },
     asistanKopyala(i) {
       const m = D.asistan.mesajlar[+i];
       navigator.clipboard?.writeText(m?.oneri?.icerik || '').then(() => bildir('Kopyalandı.'), () => bildir('Kopyalanamadı.', true));
     },
-    asistanGosterDegistir() { D.asistanGoster = !D.asistanGoster; ayarYaz('asistanGoster', D.asistanGoster); if (!D.asistanGoster && D.yanPanel === 'asistan') D.yanPanel = 'gezgin'; katmanlariCiz(); if (D.ekran === 'duzenleyici') guncelle('etkinlik', 'yan'); },
+    asistanGosterDegistir() { D.asistanGoster = !D.asistanGoster; ayarYaz('asistanGoster', D.asistanGoster); katmanlariCiz(); if (D.ekran === 'duzenleyici') guncelle('baslik', 'etkinlik', 'asistan'); },
     guncellemeDenetleDegistir() { D.guncellemeDenetle = !D.guncellemeDenetle; ayarYaz('guncellemeDenetle', D.guncellemeDenetle); katmanlariCiz(); },
     yeniSurumModal() { D.menu = null; D.modal = { tur: 'yeniSurum' }; katmanlariCiz(); },
     async guncellemeyiKur() {
@@ -2133,7 +2182,7 @@
       if (e.target.closest('.acilir-menu')) return;
       D.menu = D.menu === ad ? null : ad; guncelle('baslik');
     },
-    yanPanelSec(p) { D.yanPanel = p; guncelle('etkinlik', 'yan'); if (p === 'ara') $('#araMetin')?.focus(); if (p === 'eklentiler') paketleriYukle(); if (p === 'asistan' && D.asistan.durum?.anahtar_var && !D.asistan.modeller) EYLEM.asistanModelleriYukle(); },
+    yanPanelSec(p) { D.yanPanel = p; guncelle('etkinlik', 'yan'); if (p === 'ara') $('#araMetin')?.focus(); if (p === 'eklentiler') paketleriYukle(); },
     paketleriYenile() { paketleriYukle(); },
     paketEkle() { if (D.paketKaynagi.trim()) paketIslemi('/api/paket/ekle', { kaynak: D.paketKaynagi.trim() }, `Paket ekleniyor: ${D.paketKaynagi.trim()}`); },
     paketYukle() { paketIslemi('/api/paket/yukle', { guncelle: false }, 'Paketler yükleniyor…'); },
@@ -2395,7 +2444,7 @@
     paketKaynagi(v) { D.paketKaynagi = v; },
     asistanGirdi(v) { D.asistan.girdi = v; },
     asistanAnahtar(v) { D.asistan.anahtar = v; },
-    async asistanModel(v) { if (!v) return; D.asistan.durum = await api('/api/asistan/ayar', { model: v }); cizYanPanel(); },
+    async asistanModel(v) { if (!v) return; D.asistan.durum = await api('/api/asistan/ayar', { model: v }); cizAsistan(); },
     araMetin(v) {
       D.araMetin = v;
       clearTimeout(GIRDI._a);
@@ -2484,6 +2533,7 @@
       if (ctrl && e.altKey && (e.key === 's' || e.key === 'S')) { e.preventDefault(); tumunuKaydet({ yenile: true }); return; }
       if (ctrl && (e.key === 's' || e.key === 'S')) { e.preventDefault(); kaydet(); return; }
       if (ctrl && (e.key === 'j' || e.key === 'J')) { e.preventDefault(); EYLEM.altPanelAcKapa(); return; }
+      if (ctrl && !e.shiftKey && (e.key === 'i' || e.key === 'I')) { e.preventDefault(); EYLEM.asistanAcKapa(); return; }
       if (ctrl && e.shiftKey && (e.key === 'F' || e.key === 'f')) { e.preventDefault(); EYLEM.bicimlendir(); return; }
       if (ctrl && (e.key === '=' || e.key === '+')) { e.preventDefault(); EYLEM.yaziBuyut(); return; }
       if (ctrl && e.key === '-') { e.preventDefault(); EYLEM.yaziKucult(); return; }

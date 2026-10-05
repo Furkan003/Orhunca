@@ -194,7 +194,7 @@ await cek('dersler');
 // Yapay zekâ asistanı
 await api('/api/asistan/ayar', { anahtar: 'sk-ant-ornek', model: 'claude' });
 await ac(path.join(konsol, 'ana.ohc'));
-await sayfa.click('[title="Yapay zekâ asistanı"]');
+await sayfa.click('.baslik-asistan');
 await sayfa.fill('#asistanGirdi', 'Her harf notundan kaç öğrenci olduğunu da yazdırabilir miyiz?');
 await sayfa.press('#asistanGirdi', 'Enter');
 await sayfa.waitForSelector('[data-e="asistanUygula"]', { timeout: 30000 });
