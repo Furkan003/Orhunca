@@ -1,0 +1,44 @@
+{
+  "surum": 1,
+  "temalar": [
+    {
+      "ad": "Göktürk Gecesi",
+      "yazar": "Orhunca",
+      "dosya": "gokturk-gecesi.ohctema",
+      "renkler": {
+        "arka": "#0b1020",
+        "pencere": "#10162a",
+        "vurgu": "#d4af37",
+        "sz-anahtar": "#d4af37",
+        "sz-metin": "#e59866",
+        "sz-islev": "#7fb3ff"
+      }
+    },
+    {
+      "ad": "Deniz",
+      "yazar": "Orhunca",
+      "dosya": "deniz.ohctema",
+      "renkler": {
+        "arka": "#dcebf5",
+        "pencere": "#f7fbfe",
+        "vurgu": "#0077b6",
+        "sz-anahtar": "#0077b6",
+        "sz-metin": "#c1121f",
+        "sz-islev": "#7b2cbf"
+      }
+    },
+    {
+      "ad": "Eski Terminal",
+      "yazar": "Orhunca",
+      "dosya": "terminal.ohctema",
+      "renkler": {
+        "arka": "#000000",
+        "pencere": "#030803",
+        "vurgu": "#33ff66",
+        "sz-anahtar": "#b8ffcb",
+        "sz-metin": "#ffd166",
+        "sz-islev": "#66ffcc"
+      }
+    }
+  ]
+}

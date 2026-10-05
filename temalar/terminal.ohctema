@@ -1,0 +1,39 @@
+{
+  "orhunca_tema": 1,
+  "ad": "Eski Terminal",
+  "yazar": "Orhunca",
+  "taban": "koyu",
+  "renkler": {
+    "arka": "#000000",
+    "pencere": "#030803",
+    "koyu": "#020602",
+    "koyu2": "#020602",
+    "kart": "#061006",
+    "girdi": "#071207",
+    "dugme": "#0a180a",
+    "hover": "#0c1e0c",
+    "cizgi": "#0f2a0f",
+    "yazi": "#33ff66",
+    "yazi2": "#2ee65c",
+    "soluk": "#22b84a",
+    "cok-soluk": "#157a31",
+    "vurgu": "#33ff66",
+    "vurgu-koyu": "#001a06",
+    "hata": "#ff5f56",
+    "basari": "#33ff66",
+    "sari": "#ffd166",
+    "sz-duz": "#33ff66",
+    "sz-anahtar": "#b8ffcb",
+    "sz-islev": "#66ffcc",
+    "sz-metin": "#ffd166",
+    "sz-sayi": "#9cff57",
+    "sz-tip": "#57ffd2",
+    "sz-ek": "#8affb0",
+    "sz-yorum": "#1f8f3d"
+  },
+  "yazi": {
+    "arayuz": "JetBrains Mono",
+    "kod": "JetBrains Mono"
+  },
+  "kose": 0
+}

@@ -11,6 +11,7 @@ mod calisma;
 mod depo;
 mod http;
 pub mod sablonlar;
+mod temalar;
 
 use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hasher};

@@ -78,13 +78,39 @@
     yavasHiz: ayarOku('yavasHiz', 700),
     acilis: ayarOku('acilis', true),
     guncellemeDenetle: ayarOku('guncellemeDenetle', true), guncelleme: null, guncellemeDurumu: '',
+    // Özel tema: seçilen temanın kopyası (arka plan resmi olmadan; resim sunucudan yüklenir)
+    ozelTema: ayarOku('temaOnbellek', null), temaKimlik: ayarOku('temaKimlik', null),
+    temaTaslak: null, temalarim: [], galeri: null, galeriHatasi: '',
     // 'koyu', 'acik' ya da 'sistem' (işletim sisteminin ayarı)
     tema: ayarOku('tema', 'koyu'),
   };
 
   function temaUygula() {
+    const T = window.OrhuncaTema;
+    if (D.temaTaslak) return T.uygula(D.temaTaslak);
+    if (D.ozelTema) return T.uygula(D.ozelTema);
     const acik = D.tema === 'acik' || (D.tema === 'sistem' && matchMedia('(prefers-color-scheme: light)').matches);
-    document.documentElement.dataset.tema = acik ? 'acik' : 'koyu';
+    T.uygula({ taban: acik ? 'acik' : 'koyu', renkler: {}, yazi: {} });
+  }
+
+  /** Seçilen temayı kalıcı yapar; resimli temanın resmi önbelleğe yazılmaz. */
+  function temayiSec(tema, kimlik) {
+    D.ozelTema = tema;
+    D.temaKimlik = kimlik || null;
+    const onbellek = tema && tema.arka_plan ? { ...tema, arka_plan: { ...tema.arka_plan, kaynak: undefined }, resimli: true } : tema;
+    ayarYaz('temaOnbellek', onbellek);
+    ayarYaz('temaKimlik', D.temaKimlik);
+    if (tema?.yazi?.kod_boyut) { D.yaziBoyutu = tema.yazi.kod_boyut; ayarYaz('yaziBoyutu', D.yaziBoyutu); }
+    temaUygula();
+  }
+
+  /** Açılışta: önbellekteki tema resimliyse resmi sunucudan alınır. */
+  async function temaResminiYukle() {
+    if (!D.ozelTema?.resimli || !D.temaKimlik) return;
+    const r = await api('/api/tema?' + sorgu({ kimlik: D.temaKimlik })).catch(() => null);
+    if (r?.tema) {
+      try { D.ozelTema = window.OrhuncaTema.dogrula(r.tema); D.ozelTema.resimli = true; temaUygula(); } catch { /* bozuk */ }
+    }
   }
   temaUygula();
   matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', temaUygula);
@@ -542,11 +568,13 @@
           <div class="kare-dugme simge" style="width:32px;height:32px;font-size:18px" data-e="yaziKucult">remove</div><span class="mono" style="width:32px;text-align:center">${D.yaziBoyutu}</span><div class="kare-dugme simge" style="width:32px;height:32px;font-size:18px" data-e="yaziBuyut">add</div></div>
         <div class="secenek" data-e="yazarkenDenetleDegistir"><div class="esnek"><div class="secenek-ad">Yazarken denetle</div><div class="secenek-alt">Hatalar siz yazarken altı çizili gösterilir.</div></div><div class="anahtar ${D.yazarkenDenetle ? 'acik' : ''}"><div></div></div></div>
         <div class="secenek" style="cursor:default"><div class="esnek"><div class="secenek-ad">Tema</div><div class="secenek-alt">Sınıfta projektör için açık tema önerilir.</div></div>
-          <div class="tema-secim">${[['koyu', 'Koyu'], ['acik', 'Açık'], ['sistem', 'Sistem']].map(([t, ad]) => `<span class="${D.tema === t ? 'secili' : ''}" data-e="temaSec" data-a="${t}">${ad}</span>`).join('')}</div></div>
+          <div class="tema-secim">${[['koyu', 'Koyu'], ['acik', 'Açık'], ['sistem', 'Sistem']].map(([t, ad]) => `<span class="${!D.ozelTema && D.tema === t ? 'secili' : ''}" data-e="temaSec" data-a="${t}">${ad}</span>`).join('')}</div></div>
+        <div class="secenek" data-e="gorunumModal"><div class="esnek"><div class="secenek-ad">Görünüm ve temalar</div><div class="secenek-alt">${D.ozelTema ? 'Etkin tema: ' + kac(D.ozelTema.ad) + ' · ' : ''}Renkler, yazı tipleri, arka plan resmi ya da GIF; temaları paylaşın.</div></div>${S('palette')}</div>
         <div class="secenek" data-e="guncellemeDenetleDegistir"><div class="esnek"><div class="secenek-ad">Güncellemeleri denetle</div><div class="secenek-alt">Açılışta yeni sürüm olup olmadığına bakılır (GitHub'a tek bir istek; başka veri gönderilmez).</div></div><div class="anahtar ${D.guncellemeDenetle ? 'acik' : ''}"><div></div></div></div>
         <div class="secenek" data-e="acilisDegistir"><div class="esnek"><div class="secenek-ad">Açılış animasyonu</div><div class="secenek-alt">Stüdyo açılırken Orhunca logosu canlandırılır.</div></div><div class="anahtar ${D.acilis ? 'acik' : ''}"><div></div></div></div>`,
         `<div class="dugme birincil" data-e="modalKapat">Tamam</div>`);
     }
+    if (m.tur === 'gorunum') return cizGorunum(kabuk);
     if (m.tur === 'yeniSurum') {
       const g = D.guncelleme || {};
       const durum = D.guncellemeDurumu;
@@ -1670,10 +1698,64 @@
       D.konum = bilgi.varsayilan_konum;
       D.yuklendi = true;
       setTimeout(guncellemeyiDenetle, 4000);
+      temaResminiYukle();
     } catch (e) {
       $('#uygulama').innerHTML = `<div class="pencere"><div class="tam-ekran-mesaj"><div class="gokturk">${GOKTURK}</div><div>${kac(e.message)}</div><div>Terminalde <code>orhunca stüdyo</code> ile yeniden açın.</div></div></div>`;
       throw e;
     }
+  }
+
+  async function galeriyiYukle() {
+    D.galeriHatasi = '';
+    const r = await api('/api/tema/galeri').catch(e => ({ hata: e.message }));
+    if (r.hata) D.galeriHatasi = r.hata; else D.galeri = r.temalar || [];
+    if (D.modal?.tur === 'gorunum') katmanlariCiz();
+  }
+
+  function cizGorunum(kabuk) {
+    const T = window.OrhuncaTema, t = D.temaTaslak, m = D.modal;
+    const renkKutulari = (r) => ['arka', 'pencere', 'vurgu', 'sz-anahtar', 'sz-metin', 'sz-islev'].map(a => `<i style="background:${kac(r?.[a] || 'transparent')}"></i>`).join('');
+    const kart = (ad, alt, renkler, eylem, arg, ek = '') => `<div class="tema-kart" data-e="${eylem}" data-a="${kac(arg)}"><div class="tema-ornek">${renkKutulari(renkler)}</div><div class="esnek"><div class="tema-kart-ad">${kac(ad)}</div><div class="tema-kart-alt">${kac(alt)}</div></div>${ek}</div>`;
+    let liste;
+    if (m.sekme === 'hazir') liste = T.HAZIR.map((h, i) => kart(h.ad, h.taban === 'acik' ? 'Açık' : 'Koyu', { ...{ arka: h.taban === 'acik' ? '#e9e8e3' : '#0a0c0f', pencere: h.taban === 'acik' ? '#fff' : '#13161b', vurgu: h.taban === 'acik' ? '#0b8a83' : '#45d3c9' }, ...h.renkler }, 'temaHazir', i)).join('');
+    else if (m.sekme === 'benim') liste = D.temalarim.map(x => kart(x.tema.ad, (x.resimli ? 'Arka plan resimli · ' : '') + (x.tema.yazar || ''), x.tema.renkler, 'temaBenim', x.kimlik, `<span class="simge sil" title="Sil" data-e="temaSil" data-a="${kac(x.kimlik)}">delete</span>`)).join('') || '<div class="panel-not">Henüz kaydettiğiniz tema yok. Bir temayı düzenleyip <b>Kaydet ve uygula</b>’ya basın.</div>';
+    else liste = D.galeriHatasi ? `<div class="panel-not">Galeriye ulaşılamadı: ${kac(D.galeriHatasi)}</div>` : D.galeri ? (D.galeri.map(g => kart(g.ad, g.yazar ? 'Hazırlayan: ' + g.yazar : '', g.renkler, 'temaGaleriden', g.dosya)).join('') || '<div class="panel-not">Galeri boş.</div>') : '<div class="panel-not"><div class="donen kucuk"></div> Galeri yükleniyor…</div>';
+
+    const gruplar = {};
+    for (const [ad, etiket, grup] of T.DEGISKENLER) (gruplar[grup] ||= []).push([ad, etiket]);
+    const renkler = Object.entries(gruplar).map(([g, l]) => `<div class="tema-grup"><h4>${g}</h4><div class="tema-renkler">${l.map(([ad, et]) => `<label class="tema-renk"><input type="color" data-g="temaRenk" data-ad="${ad}" value="${T.onaltilik(t.renkler[ad] || '#000000')}"><span>${et}</span></label>`).join('')}</div></div>`).join('');
+    const y = t.yazi || {};
+    const secim = (ad, liste, deger) => `<input class="metin-girdi" list="liste-${ad}" data-g="temaYazi" data-ad="${ad}" value="${kac(deger || '')}" placeholder="Varsayılan"><datalist id="liste-${ad}">${liste.map(x => `<option value="${kac(x)}">`).join('')}</datalist>`;
+    const kaydirici = (g, ad, deger, min, max, birim) => `<label class="tema-kaydirici"><span>${{ olcek: 'Arayüz ölçeği', saydamlik: 'Panel saydamlığı', bulaniklik: 'Resim bulanıklığı', karartma: 'Resmi karart' }[ad] || ad}</span><input type="range" min="${min}" max="${max}" data-g="${g}" data-ad="${ad}" value="${deger}"><b id="tema-${ad}-deger">${deger}</b>${birim}</label>`;
+    const a = t.arka_plan;
+    const govde = `<div class="gorunum">
+      <div class="gorunum-sol">
+        <div class="tema-secim">${[['hazir', 'Hazır'], ['benim', 'Temalarım'], ['galeri', 'Topluluk']].map(([k, ad]) => `<span class="${m.sekme === k ? 'secili' : ''}" data-e="gorunumSekme" data-a="${k}">${ad}</span>`).join('')}</div>
+        <div class="tema-liste">${liste}</div>
+        <label class="dugme tema-ice">${S('upload_file')}İçe aktar (.ohctema)<input type="file" accept=".ohctema,application/json" data-g="temaIceAktar" hidden></label>
+      </div>
+      <div class="gorunum-sag">
+        <div class="tema-satir"><label>Ad<input class="metin-girdi" data-g="temaAd" value="${kac(t.ad || '')}" maxlength="60"></label><label>Hazırlayan<input class="metin-girdi" data-g="temaYazar" value="${kac(t.yazar || '')}" maxlength="60"></label>
+          <label>Taban<select class="metin-girdi" data-g="temaTaban"><option value="koyu" ${t.taban !== 'acik' ? 'selected' : ''}>Koyu</option><option value="acik" ${t.taban === 'acik' ? 'selected' : ''}>Açık</option></select></label></div>
+        ${renkler}
+        <div class="tema-grup"><h4>Yazı ve biçim</h4>
+          <div class="tema-satir"><label>Arayüz yazı tipi${secim('arayuz', T.ARAYUZ_YAZI, y.arayuz)}</label><label>Kod yazı tipi${secim('kod', T.KOD_YAZI, y.kod)}</label></div>
+          ${kaydirici('temaYazi', 'olcek', y.olcek || 100, 70, 150, '%')}
+          <label class="tema-kaydirici"><span>Köşe yuvarlaklığı</span><input type="range" min="0" max="20" data-g="temaKose" value="${t.kose ?? 8}"><b></b></label>
+        </div>
+        <div class="tema-grup"><h4>Arka plan</h4>
+          ${a ? `<div class="tema-arka-onizleme">${a.tur === 'video' ? `<video src="${a.kaynak}" muted autoplay loop></video>` : `<img src="${a.kaynak}" alt="">`}<div class="esnek">
+              <label>Yerleşim<select class="metin-girdi" data-g="temaArka" data-ad="konum">${[['kapla', 'Ekranı kapla'], ['sigdir', 'Sığdır'], ['doseme', 'Döşe'], ['ortala', 'Ortala']].map(([k, ad]) => `<option value="${k}" ${a.konum === k ? 'selected' : ''}>${ad}</option>`).join('')}</select></label>
+              <div class="dugme" data-e="temaArkaPlanKaldir">${S('delete')}Kaldır</div></div></div>
+            ${kaydirici('temaArka', 'saydamlik', a.saydamlik, 20, 100, '%')}${kaydirici('temaArka', 'bulaniklik', a.bulaniklik, 0, 30, 'px')}${kaydirici('temaArka', 'karartma', a.karartma, 0, 90, '%')}`
+          : '<div class="panel-not">Resim, hareketli GIF ya da kısa bir video (en çok 22 MB) arka plan olabilir; paneller saydamlaşır.</div>'}
+          <label class="dugme">${S('image')}${a ? 'Başka dosya seç' : 'Resim, GIF ya da video seç'}<input type="file" accept="image/*,video/mp4,video/webm" data-g="temaDosya" hidden></label>
+        </div>
+        <details class="tema-grup"><summary>Gelişmiş: özel CSS</summary><textarea class="metin-girdi mono" rows="6" data-g="temaCss" spellcheck="false" placeholder=".kod-alani { letter-spacing: .02em; }">${kac(t.ozel_css || '')}</textarea>
+          <div class="panel-not" style="font-size:12px">Paylaşılan temalarda dış adres yükleyen kurallar (@import, http) çalışmaz.</div></details>
+      </div></div>`;
+    const alt = `<div class="dugme" data-e="temaVarsayilan">Varsayılana dön</div><div class="dugme" data-e="temaDisaAktar">${S('download')}Dışa aktar</div><div style="flex:1"></div><div class="dugme" data-e="gorunumKapat">Vazgeç</div><div class="dugme birincil" data-e="temaKaydet">Kaydet ve uygula</div>`;
+    return kabuk('Görünüm ve temalar', govde, alt).replace('class="modal"', 'class="modal genis"').replace('data-e="modalKapat"', 'data-e="gorunumKapat"').replace('class="ortu" data-e="modalDis"', 'class="ortu saydam" data-e="hic"');
   }
 
   /** Yeni sürüm denetimi: sessizdir, hata olursa bir şey göstermez. */
@@ -1827,7 +1909,88 @@
     },
     yaziBuyut() { D.yaziBoyutu = Math.min(20, D.yaziBoyutu + 1); ayarYaz('yaziBoyutu', D.yaziBoyutu); yaziDegisti(); },
     yaziKucult() { D.yaziBoyutu = Math.max(11, D.yaziBoyutu - 1); ayarYaz('yaziBoyutu', D.yaziBoyutu); yaziDegisti(); },
-    temaSec(t) { D.tema = t; ayarYaz('tema', t); temaUygula(); katmanlariCiz(); },
+    temaSec(t) { D.tema = t; ayarYaz('tema', t); temayiSec(null, null); katmanlariCiz(); },
+    async gorunumModal() {
+      D.menu = null;
+      const T = window.OrhuncaTema;
+      const taban = D.ozelTema || T.HAZIR[document.documentElement.dataset.tema === 'acik' ? 1 : 0];
+      D.temaTaslak = JSON.parse(JSON.stringify(taban));
+      if (D.temaTaslak.resimli && D.ozelTema?.arka_plan?.kaynak) D.temaTaslak.arka_plan = { ...D.ozelTema.arka_plan };
+      if (!D.temaTaslak.arka_plan?.kaynak) D.temaTaslak.arka_plan = null;
+      D.temaTaslak.renkler = T.hesaplanan(D.temaTaslak);
+      D.modal = { tur: 'gorunum', sekme: 'hazir' };
+      katmanlariCiz();
+      const r = await api('/api/temalar').catch(() => ({}));
+      D.temalarim = r.temalar || [];
+      if (D.modal?.tur === 'gorunum') katmanlariCiz();
+    },
+    gorunumSekme(s) {
+      D.modal.sekme = s; katmanlariCiz();
+      if (s === 'galeri' && !D.galeri) galeriyiYukle();
+    },
+    temaHazir(i) {
+      const T = window.OrhuncaTema;
+      D.temaTaslak = JSON.parse(JSON.stringify(T.HAZIR[+i]));
+      D.temaKimlikTaslak = null;
+      temaUygula();
+      D.temaTaslak.renkler = T.hesaplanan(D.temaTaslak);
+      katmanlariCiz();
+    },
+    async temaBenim(kimlik) {
+      const r = await api('/api/tema?' + sorgu({ kimlik })).catch(e => ({ hata: e.message }));
+      if (r.hata) return bildir(r.hata, true);
+      try { D.temaTaslak = window.OrhuncaTema.dogrula(r.tema); } catch (e) { return bildir(e.message, true); }
+      D.temaKimlikTaslak = kimlik;
+      temaUygula(); D.temaTaslak.renkler = window.OrhuncaTema.hesaplanan(D.temaTaslak); katmanlariCiz();
+    },
+    async temaSil(kimlik) {
+      if (!confirm('Bu tema silinsin mi?')) return;
+      await api('/api/tema/sil', { kimlik }).catch(() => null);
+      if (D.temaKimlik === kimlik) temayiSec(null, null);
+      const r = await api('/api/temalar').catch(() => ({}));
+      D.temalarim = r.temalar || [];
+      katmanlariCiz();
+    },
+    async temaGaleriden(dosya) {
+      const r = await api('/api/tema/galeriden', { dosya }).catch(e => ({ hata: e.message }));
+      if (r.hata) return bildir(r.hata, true);
+      try { D.temaTaslak = window.OrhuncaTema.dogrula(r.tema); } catch (e) { return bildir(e.message, true); }
+      D.temaKimlikTaslak = null;
+      temaUygula(); D.temaTaslak.renkler = window.OrhuncaTema.hesaplanan(D.temaTaslak); katmanlariCiz();
+      bildir(`“${D.temaTaslak.ad}” önizlemede; beğendiyseniz Kaydet ve uygula'ya basın.`);
+    },
+    temaArkaPlanKaldir() { D.temaTaslak.arka_plan = null; temaUygula(); katmanlariCiz(); },
+    temaVarsayilan() { D.temaTaslak = null; D.modal = null; temayiSec(null, null); katmanlariCiz(); bildir('Varsayılan görünüme dönüldü.'); },
+    gorunumKapat() { D.temaTaslak = null; D.modal = null; temaUygula(); katmanlariCiz(); },
+    async temaKaydet() {
+      const T = window.OrhuncaTema;
+      let t;
+      try { t = T.dogrula(D.temaTaslak); } catch (e) { return bildir(e.message, true); }
+      const hazirMi = T.HAZIR.some(h => h.ad === t.ad);
+      const r = hazirMi && !t.arka_plan && !Object.keys(D.temaTaslak._degisti || {}).length
+        ? { kimlik: null }
+        : await api('/api/tema/kaydet', { kimlik: D.temaKimlikTaslak || undefined, tema: t }).catch(e => ({ hata: e.message }));
+      if (r.hata) return bildir(r.hata, true);
+      D.temaTaslak = null; D.modal = null;
+      temayiSec(t, r.kimlik);
+      katmanlariCiz();
+      if (D.ekran === 'duzenleyici') cizKod();
+      bildir(`“${t.ad}” uygulandı.`);
+    },
+    async temaDisaAktar() {
+      const T = window.OrhuncaTema;
+      let t;
+      try { t = T.dogrula(D.temaTaslak); } catch (e) { return bildir(e.message, true); }
+      if (window.__TAURI__) {
+        const r = await api('/api/tema/disa_aktar', { tema: t }).catch(e => ({ hata: e.message }));
+        return r.hata ? bildir(r.hata, true) : bildir('Kaydedildi: ' + r.yol);
+      }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(t, null, 2)], { type: 'application/json' }));
+      a.download = (t.ad || 'tema').replace(/[^\p{L}\p{N} _-]/gu, '') + '.ohctema';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    },
     guncellemeDenetleDegistir() { D.guncellemeDenetle = !D.guncellemeDenetle; ayarYaz('guncellemeDenetle', D.guncellemeDenetle); katmanlariCiz(); },
     yeniSurumModal() { D.menu = null; D.modal = { tur: 'yeniSurum' }; katmanlariCiz(); },
     async guncellemeyiKur() {
@@ -2058,6 +2221,42 @@
   }
 
   const GIRDI = {
+    temaRenk(v, el) { D.temaTaslak.renkler[el.dataset.ad] = v; (D.temaTaslak._degisti ||= {})[el.dataset.ad] = 1; temaUygula(); },
+    temaAd(v) { D.temaTaslak.ad = v; },
+    temaYazar(v) { D.temaTaslak.yazar = v; },
+    temaTaban(v) { D.temaTaslak.taban = v; temaUygula(); },
+    temaYazi(v, el) { (D.temaTaslak.yazi ||= {})[el.dataset.ad] = el.type === 'range' ? +v : v; temaUygula(); const e = $('#tema-' + el.dataset.ad + '-deger'); if (e) e.textContent = v; },
+    temaKose(v) { D.temaTaslak.kose = +v; temaUygula(); },
+    temaArka(v, el) {
+      const a = D.temaTaslak.arka_plan; if (!a) return;
+      a[el.dataset.ad] = el.type === 'range' ? +v : v; temaUygula();
+      const e = $('#tema-' + el.dataset.ad + '-deger'); if (e) e.textContent = v;
+    },
+    temaCss(v) { D.temaTaslak.ozel_css = v; clearTimeout(GIRDI._css); GIRDI._css = setTimeout(temaUygula, 300); },
+    temaDosya(_, el) {
+      const f = el.files?.[0]; if (!f) return;
+      if (f.size > 22 * 1024 * 1024) return bildir('Dosya çok büyük (en çok 22 MB). Daha küçük bir resim ya da GIF seçin.', true);
+      const r = new FileReader();
+      r.onload = () => {
+        D.temaTaslak.arka_plan = { kaynak: r.result, tur: f.type.startsWith('video') ? 'video' : 'resim', konum: 'kapla', saydamlik: 82, bulaniklik: 0, karartma: 25 };
+        temaUygula(); katmanlariCiz();
+      };
+      r.readAsDataURL(f);
+    },
+    temaIceAktar(_, el) {
+      const f = el.files?.[0]; if (!f) return;
+      const r = new FileReader();
+      r.onload = () => {
+        try {
+          D.temaTaslak = window.OrhuncaTema.dogrula(JSON.parse(r.result));
+          D.temaTaslak.renkler = window.OrhuncaTema.hesaplanan(D.temaTaslak);
+          D.temaKimlikTaslak = null;
+          temaUygula(); katmanlariCiz();
+          bildir(`“${D.temaTaslak.ad}” içe aktarıldı; kalıcı yapmak için Kaydet ve uygula.`);
+        } catch (e) { bildir('Tema okunamadı: ' + e.message, true); }
+      };
+      r.readAsText(f);
+    },
     yavasHiz(v) { D.yavasHiz = +v; ayarYaz('yavasHiz', D.yavasHiz); },
     q(v) { D.q = v; ciz(); },
     tq(v) { D.tq = v; ciz(); },

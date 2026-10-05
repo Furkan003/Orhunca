@@ -1,7 +1,7 @@
 //! Stüdyo arayüzünün çağırdığı JSON uç noktaları.
 
 use super::http::{Istek, Yanit};
-use super::{calisma, depo, sablonlar};
+use super::{calisma, depo, sablonlar, temalar};
 use crate::{agac, derleme};
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
@@ -68,6 +68,31 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
     match (istek.yontem.as_str(), istek.yol.as_str()) {
         ("GET", "/api/durum") => durum(),
         ("GET", "/api/guncelleme") => guncelleme_denetle(),
+        ("GET", "/api/temalar") => Yanit::json(&temalar::liste()),
+        ("GET", "/api/tema") => match temalar::oku(istek.sorgu("kimlik")) {
+            Ok(t) => Yanit::json(&json!({ "tema": t })),
+            Err(e) => hata(e),
+        },
+        ("POST", "/api/tema/kaydet") => match temalar::kaydet(g["kimlik"].as_str(), &g["tema"]) {
+            Ok(k) => Yanit::json(&json!({ "kimlik": k })),
+            Err(e) => hata(e),
+        },
+        ("POST", "/api/tema/sil") => match temalar::sil(metin(&g, "kimlik")) {
+            Ok(()) => Yanit::json(&json!({ "tamam": true })),
+            Err(e) => hata(e),
+        },
+        ("POST", "/api/tema/disa_aktar") => match temalar::disa_aktar(&g["tema"]) {
+            Ok(yol) => Yanit::json(&json!({ "yol": yol })),
+            Err(e) => hata(e),
+        },
+        ("GET", "/api/tema/galeri") => match temalar::galeri() {
+            Ok(d) => Yanit::json(&d),
+            Err(e) => hata(e),
+        },
+        ("POST", "/api/tema/galeriden") => match temalar::galeriden(metin(&g, "dosya")) {
+            Ok(t) => Yanit::json(&json!({ "tema": t })),
+            Err(e) => hata(e),
+        },
         ("POST", "/api/guncelleme/kur") => guncelleme_kur(g["masaustu"].as_bool() == Some(true)),
         ("GET", "/api/projeler") => projeler(),
         ("GET", "/api/sablonlar") => sablon_listesi(),

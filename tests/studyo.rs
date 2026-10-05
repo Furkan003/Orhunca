@@ -443,3 +443,38 @@ fn hata_ayiklayici() {
     assert_eq!(d["kod"], 1);
     assert!(cikti.contains("14"), "{cikti}");
 }
+
+#[test]
+fn temalar() {
+    let s = baslat("temalar");
+    let tema = serde_json::json!({
+        "orhunca_tema": 1, "ad": "Gök Mavi", "taban": "koyu",
+        "renkler": { "vurgu": "#3399ff" }, "yazi": {}
+    });
+    let r = s.api("/api/tema/kaydet", serde_json::json!({ "tema": tema }));
+    let kimlik = r["kimlik"]
+        .as_str()
+        .unwrap_or_else(|| panic!("{r}"))
+        .to_string();
+    assert!(kimlik.starts_with("gok-mavi-"), "{kimlik}");
+    let (_, g) = s.istek("GET", "/api/temalar", None, true);
+    assert!(g.contains("Gök Mavi"), "{g}");
+    let (_, g) = s.istek("GET", &format!("/api/tema?kimlik={kimlik}"), None, true);
+    assert!(g.contains("#3399ff"), "{g}");
+    // Tema olmayan dosya ve galeride klasör dışına çıkan ad reddedilir
+    let r = s.api(
+        "/api/tema/kaydet",
+        serde_json::json!({ "tema": { "ad": "x" } }),
+    );
+    assert!(r["hata"].is_string(), "{r}");
+    for dosya in ["../../etc/passwd", "../x.ohctema", "a/b.ohctema"] {
+        let r = s.api("/api/tema/galeriden", serde_json::json!({ "dosya": dosya }));
+        assert!(r["hata"].is_string(), "{dosya}: {r}");
+    }
+    let (_, g) = s.istek("GET", "/api/tema?kimlik=..%2F..%2Fstudyo", None, true);
+    assert!(g.contains("geçersiz"), "{g}");
+    let r = s.api("/api/tema/sil", serde_json::json!({ "kimlik": kimlik }));
+    assert_eq!(r["tamam"], true, "{r}");
+    let (_, g) = s.istek("GET", "/api/temalar", None, true);
+    assert!(!g.contains("Gök Mavi"), "{g}");
+}

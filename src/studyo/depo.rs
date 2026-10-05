@@ -12,7 +12,12 @@ pub fn ev_klasoru() -> PathBuf {
 }
 
 fn ayar_dosyasi() -> PathBuf {
-    let kok = if cfg!(windows) {
+    ayar_klasoru().join("studyo.json")
+}
+
+/// Stüdyo'nun ayar klasörü (temalar da buradadır).
+pub fn ayar_klasoru() -> PathBuf {
+    if cfg!(windows) {
         std::env::var_os("APPDATA")
             .map(PathBuf::from)
             .unwrap_or_else(ev_klasoru)
@@ -22,8 +27,7 @@ fn ayar_dosyasi() -> PathBuf {
             .map(PathBuf::from)
             .unwrap_or_else(|| ev_klasoru().join(".config"))
             .join("orhunca")
-    };
-    kok.join("studyo.json")
+    }
 }
 
 pub fn simdi() -> u64 {

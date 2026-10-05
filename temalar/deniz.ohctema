@@ -1,0 +1,32 @@
+{
+  "orhunca_tema": 1,
+  "ad": "Deniz",
+  "yazar": "Orhunca",
+  "taban": "acik",
+  "renkler": {
+    "arka": "#dcebf5",
+    "pencere": "#f7fbfe",
+    "koyu": "#e9f3fa",
+    "koyu2": "#e6f0f8",
+    "kart": "#ffffff",
+    "girdi": "#eef5fb",
+    "dugme": "#e8f1f8",
+    "hover": "#dfeaf4",
+    "cizgi": "#cfdfeb",
+    "yazi": "#0f2a3d",
+    "yazi2": "#22445c",
+    "soluk": "#4f6b80",
+    "cok-soluk": "#94aabb",
+    "vurgu": "#0077b6",
+    "vurgu-koyu": "#ffffff",
+    "sz-duz": "#0f2a3d",
+    "sz-anahtar": "#0077b6",
+    "sz-islev": "#7b2cbf",
+    "sz-metin": "#c1121f",
+    "sz-sayi": "#2a9d8f",
+    "sz-tip": "#e76f51",
+    "sz-ek": "#0096c7",
+    "sz-yorum": "#8aa1b1"
+  },
+  "yazi": {}
+}

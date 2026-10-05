@@ -69,7 +69,7 @@ Satır ve sütunu gösteren Türkçe mesajlar; `print(...)` gibi başka dillerde
 <td width="33%" valign="top">
 
 **Orhunca Stüdyo**<br>
-Dersler ve otomatik denetlenen alıştırmalar, hata ayıklayıcı, adım adım gösterim, tamamlama, açık tema; internet gerekmez.
+Dersler ve otomatik denetlenen alıştırmalar, hata ayıklayıcı, adım adım gösterim, tamamlama; renkleri, yazı tiplerini ve GIF arka planı değiştirilebilen, paylaşılabilen temalar.
 
 </td>
 </tr>

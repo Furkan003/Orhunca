@@ -66,3 +66,24 @@ uygulamasıdır (`cd masaustu && cargo run --release`; kurulum dosyaları için 
 Sunucu yalnızca `127.0.0.1` üzerinden erişilebilir ve her oturumda rastgele bir anahtar üretir;
 başka web sitelerinin dosyalarınıza ya da derleyiciye erişmesi engellenir. Tasarım kaynağı:
 [docs/tasarim/](tasarim/).
+
+## Görünüm ve temalar
+
+*Ayarlar → Görünüm ve temalar* Stüdyo'nun her rengini, yazı tiplerini, arayüz ölçeğini ve köşe
+yuvarlaklığını değiştirir; değişiklikler anında görünür.
+
+- **Hazır temalar:** Orhunca Koyu ve Açık, Gece Mavisi, Mor Gece, Kuzey, Orman, Gün Batımı, Kâğıt,
+  Yüksek Karşıtlık (az gören öğrenciler ve projektör için).
+- **Arka plan:** resim, hareketli GIF ya da kısa video (MP4/WebM, en çok 22 MB). Panellerin
+  saydamlığı, resmin bulanıklığı ve karartması ayarlanır.
+- **Kod renkleri:** anahtar kelimeler, işlevler, metinler, sayılar, tipler, hâl ekleri, yorumlar.
+- **Paylaşma:** *Dışa aktar* temayı (arka plan resmiyle birlikte) tek bir `.ohctema` dosyasına
+  yazar; alan kişi *İçe aktar* ile açar. *Topluluk* sekmesi depodaki [temalar/](../temalar)
+  galerisini gösterir; kendi temanızı oraya bir çekme isteğiyle ekleyebilirsiniz.
+- **Gelişmiş:** özel CSS. Paylaşılan temalar dış adres yükleyemez (`@import`, `http` adresleri).
+
+Kaydedilen temalar ayar klasöründedir (Linux `~/.config/orhunca/temalar`, Windows
+`%APPDATA%\Orhunca\temalar`).
+
+![Görünüm ve temalar](ekran/temalar.png)
+

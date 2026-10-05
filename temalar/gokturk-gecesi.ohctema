@@ -1,0 +1,40 @@
+{
+  "orhunca_tema": 1,
+  "ad": "Göktürk Gecesi",
+  "yazar": "Orhunca",
+  "taban": "koyu",
+  "renkler": {
+    "arka": "#0b1020",
+    "pencere": "#10162a",
+    "koyu": "#0d1324",
+    "koyu2": "#0e1426",
+    "kart": "#141b33",
+    "girdi": "#161e38",
+    "dugme": "#1a2340",
+    "hover": "#1c2545",
+    "cizgi": "#222c4d",
+    "yazi": "#efe6cf",
+    "yazi2": "#ddd2b6",
+    "soluk": "#a89f88",
+    "cok-soluk": "#5d5a52",
+    "vurgu": "#d4af37",
+    "vurgu-koyu": "#1a1405",
+    "sz-duz": "#e6dcc2",
+    "sz-anahtar": "#d4af37",
+    "sz-islev": "#7fb3ff",
+    "sz-metin": "#e59866",
+    "sz-sayi": "#a3d977",
+    "sz-tip": "#76d7c4",
+    "sz-ek": "#c39bd3",
+    "sz-yorum": "#5f6b86"
+  },
+  "yazi": {},
+  "arka_plan": {
+    "kaynak": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjAiIGhlaWdodD0iMTIwIiB2aWV3Qm94PSIwIDAgMTIwIDEyMCI+PHJlY3Qgd2lkdGg9IjEyMCIgaGVpZ2h0PSIxMjAiIGZpbGw9IiMwYjEwMjAiLz48ZyBmaWxsPSJub25lIiBzdHJva2U9IiNjOWEyMjciIHN0cm9rZS1vcGFjaXR5PSIuMTAiIHN0cm9rZS13aWR0aD0iMiI+PHBhdGggZD0iTTIwIDMwdjIwbDEwLTEwek04MCA3MHYyMGwxMC0xMHoiLz48cGF0aCBkPSJNNjAgMTVoMTRNNjAgMjJoMTRNMzAgODVoMTRNMzAgOTJoMTQiLz48L2c+PGNpcmNsZSBjeD0iOTgiIGN5PSIyMiIgcj0iMiIgZmlsbD0iI2M5YTIyNyIgZmlsbC1vcGFjaXR5PSIuMjUiLz48Y2lyY2xlIGN4PSIxNCIgY3k9IjEwNCIgcj0iMS41IiBmaWxsPSIjYzlhMjI3IiBmaWxsLW9wYWNpdHk9Ii4yIi8+PC9zdmc+",
+    "tur": "resim",
+    "konum": "doseme",
+    "saydamlik": 88,
+    "bulaniklik": 0,
+    "karartma": 0
+  }
+}
