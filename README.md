@@ -11,7 +11,7 @@
 
 <p align="center">
   Türkçenin hâl ekleriyle yazılan, makine koduna derlenen bir programlama dili<br>
-  ve okullar için ücretsiz, Türkçe geliştirme ortamı.
+  ve herkes için ücretsiz, Türkçe geliştirme ortamı.
 </p>
 
 <p align="center">
