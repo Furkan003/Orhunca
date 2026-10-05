@@ -260,6 +260,11 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 - `orhunca çevir --dil python|javascript` ve Stüdyo'da yan yana görünüm (satır satır eşleşmiş).
   Örneklerin Python/JS karşılıkları çalıştırılıp çıktıları sınanır.
 
+### 12e – 2B oyunlar
+- `oyun_alanı(g, y) her_karede:` (requestAnimationFrame), çizim (`temizle`, `dikdörtgen`, `daire`,
+  `çizgi`, `yazı_çiz`, `resim_çiz`), giriş (`tuş_basılı`, `fare_x/y`, `fare_basılı`; dokunma),
+  `ses`. Stüdyo'da "2B Oyun" şablonu; örnek: örnekler/oyunlar/top_yakala.ohc.
+
 ## Henüz yapılmayanlar
 
 - Çalışma zamanının çekirdeği (bellek ve çöp toplayıcı, listeler, sözlükler, dosyalar, ağ, JSON,

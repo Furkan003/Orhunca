@@ -410,6 +410,62 @@ pub const YERLESIKLER: &[Yerlesik] = &[
         "bildirim_gönder(başlık, metin)",
         "Telefonda bildirim gösterir; ilk seferde izin istenir."
     ),
+    // Oyun (oyun_alanı(...) her_karede: bloğunda çizer; bilgisayar programında etkisizdir)
+    y!(
+        "temizle",
+        "temizle(renk)",
+        "Oyun alanını verilen renge boyar: temizle(\"#101820\")."
+    ),
+    y!(
+        "dikdörtgen",
+        "dikdörtgen(x, y, genişlik, yükseklik, renk)",
+        "Dolu dikdörtgen çizer. (0, 0) sol üst köşedir."
+    ),
+    y!(
+        "daire",
+        "daire(x, y, yarıçap, renk)",
+        "Merkezi (x, y) olan dolu daire çizer."
+    ),
+    y!(
+        "çizgi",
+        "çizgi(x1, y1, x2, y2, renk)",
+        "İki nokta arasına çizgi çizer."
+    ),
+    y!(
+        "yazı_çiz",
+        "yazı_çiz(metin, x, y, renk) · yazı_çiz(metin, x, y, renk, boyut)",
+        "Oyun alanına yazı yazar (boyut piksel; varsayılan 16)."
+    ),
+    y!(
+        "resim_çiz",
+        "resim_çiz(adres, x, y, genişlik, yükseklik)",
+        "Resim çizer: \"oyuncu.png\" (statik dosya) ya da bir internet adresi."
+    ),
+    y!(
+        "ses",
+        "ses(frekans, süre)",
+        "Verilen frekansta (Hz) ve sürede (saniye) kısa bir ses çalar: ses(440, 0.1)."
+    ),
+    y!(
+        "tuş_basılı",
+        "tuş_basılı(tuş) → mantık",
+        "Tuş şu an basılı mı: \"sol\", \"sağ\", \"yukarı\", \"aşağı\", \"boşluk\", \"enter\", \"a\" ... \"z\", \"0\" ... \"9\"."
+    ),
+    y!(
+        "fare_x",
+        "fare_x() → sayı",
+        "Farenin (ya da parmağın) oyun alanındaki x konumu."
+    ),
+    y!(
+        "fare_y",
+        "fare_y() → sayı",
+        "Farenin (ya da parmağın) oyun alanındaki y konumu."
+    ),
+    y!(
+        "fare_basılı",
+        "fare_basılı() → mantık",
+        "Fare düğmesi basılı ya da ekrana dokunuluyor mu?"
+    ),
 ];
 
 pub fn bul(ad: &str) -> Option<&'static Yerlesik> {

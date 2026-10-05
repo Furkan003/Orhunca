@@ -201,11 +201,22 @@ pub const SABLONLAR: &[Sablon] = &[
         dosyalar: &["uygulama.ohc", "{ad}.ohcproj", "BENİOKU.md"],
         giris: "uygulama.ohc",
     },
+    Sablon {
+        kimlik: "oyun",
+        ad: "2B Oyun",
+        aciklama: "Klavye, fare ve dokunmayla oynanan bir oyun: çizim, hareket, puan ve ses.",
+        simge: "sports_esports",
+        kategoriler: &["Oyun", "Masaüstü"],
+        etiketler: &["Orhunca", "WebAssembly", "Oyun", "Telefon"],
+        yakinda: None,
+        dosyalar: &["oyun.ohc", "{ad}.ohcproj", "BENİOKU.md"],
+        giris: "oyun.ohc",
+    },
 ];
 
 /// Türkçe arayüz diliyle yazılan (WebAssembly'ye derlenen) proje şablonu mu?
 pub fn arayuz_mu(s: &Sablon) -> bool {
-    s.kimlik == "arayuz"
+    matches!(s.kimlik, "arayuz" | "oyun")
 }
 
 pub fn bul(kimlik: &str) -> Option<&'static Sablon> {
@@ -259,6 +270,27 @@ pub fn icerik(sablon: &Sablon, dosya: &str, ad: &str, ornek: bool) -> String {
         );
     }
     match (sablon.kimlik, dosya, ornek) {
+        ("oyun", "oyun.ohc", true) => {
+            include_str!("../../örnekler/oyunlar/top_yakala.ohc").replace("Top Yakala", ad)
+        }
+        ("oyun", "oyun.ohc", false) => format!(
+            "# {ad}: ok tuşlarıyla daireyi hareket ettirin\n\
+             durum x = 240.0\n\
+             durum y = 160.0\n\
+             \n\
+             arayüz:\n    \
+                 oyun_alanı(480, 320) her_karede:\n        \
+                     eğer tuş_basılı(\"sol\") ise:\n            \
+                         x -= 4\n        \
+                     eğer tuş_basılı(\"sağ\") ise:\n            \
+                         x += 4\n        \
+                     eğer tuş_basılı(\"yukarı\") ise:\n            \
+                         y -= 4\n        \
+                     eğer tuş_basılı(\"aşağı\") ise:\n            \
+                         y += 4\n        \
+                     temizle(\"#101820\")\n        \
+                     daire(x, y, 20, \"turuncu\")\n"
+        ),
         ("konsol", "ana.ohc", true) => format!(
             "# {ad} — Orhunca konsol uygulaması\n\
              # Çalıştırmak için F5'e basın ya da terminalde: orhunca çalıştır\n\

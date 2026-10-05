@@ -2056,6 +2056,41 @@ impl Denetci {
             ("çık", [Sayi]) => Bos,
             ("hata_ver", [Metin]) => Bos,
             ("titret", [Sayi]) | ("paylaş", [Metin]) | ("bildirim_gönder", [Metin, Metin]) => Bos,
+            // Oyun: konumlar ve boyutlar ondalık olarak gönderilir
+            ("temizle", [Metin]) => Bos,
+            ("dikdörtgen" | "çizgi", [a, b, c, d, Metin])
+                if [a, b, c, d].iter().all(|t| t.sayisal()) =>
+            {
+                (0..4).for_each(|i| genislet(&mut arg[i], &Ondalik));
+                Bos
+            }
+            ("daire", [a, b, c, Metin]) if [a, b, c].iter().all(|t| t.sayisal()) => {
+                (0..3).for_each(|i| genislet(&mut arg[i], &Ondalik));
+                Bos
+            }
+            ("yazı_çiz", [x, a, b, Metin]) if *x != Bos && a.sayisal() && b.sayisal() => {
+                (1..3).for_each(|i| genislet(&mut arg[i], &Ondalik));
+                Bos
+            }
+            ("yazı_çiz", [x, a, b, Metin, c])
+                if *x != Bos && [a, b, c].iter().all(|t| t.sayisal()) =>
+            {
+                (1..3).for_each(|i| genislet(&mut arg[i], &Ondalik));
+                genislet(&mut arg[4], &Ondalik);
+                Bos
+            }
+            ("resim_çiz", [Metin, a, b, c, d]) if [a, b, c, d].iter().all(|t| t.sayisal()) => {
+                (1..5).for_each(|i| genislet(&mut arg[i], &Ondalik));
+                Bos
+            }
+            ("ses", [a, b]) if a.sayisal() && b.sayisal() => {
+                genislet(&mut arg[0], &Ondalik);
+                genislet(&mut arg[1], &Ondalik);
+                Bos
+            }
+            ("tuş_basılı", [Metin]) => Mantik,
+            ("fare_x" | "fare_y", []) => Sayi,
+            ("fare_basılı", []) => Mantik,
             ("boş_mu", [Model(_)]) => Mantik,
             _ if arayuz::oge(ad).is_some() => {
                 return Err(Hata::yeni(

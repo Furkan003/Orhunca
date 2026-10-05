@@ -366,6 +366,41 @@
       },
     };
 
+    // Oyun komutları: sayılar ondalık (i64 içinde f64 bitleri) gelir
+    const ondalikGorunum = new DataView(new ArrayBuffer(8));
+    const od = (b) => {
+      ondalikGorunum.setBigInt64(0, BigInt.asIntN(64, b));
+      return ondalikGorunum.getFloat64(0);
+    };
+    const oy = {
+      temizle: (r) => OYUN.liste.push(['temizle', metin(Number(r))]),
+      dikdortgen: (x, y, g, h, r) => OYUN.liste.push(['dikdortgen', od(x), od(y), od(g), od(h), metin(Number(r))]),
+      daire: (x, y, r, renk) => OYUN.liste.push(['daire', od(x), od(y), od(r), metin(Number(renk))]),
+      cizgi: (a, b, c, d, r) => OYUN.liste.push(['cizgi', od(a), od(b), od(c), od(d), metin(Number(r))]),
+      yazi: (m, x, y, r, b) => OYUN.liste.push(['yazi', metin(Number(m)), od(x), od(y), metin(Number(r)), od(b)]),
+      resim: (a, x, y, g, h) => OYUN.liste.push(['resim', metin(Number(a)), od(x), od(y), od(g), od(h)]),
+      ses(frekans, sure) {
+        const S = kok.AudioContext || kok.webkitAudioContext;
+        if (!S) return;
+        try {
+          const ac = (OYUN.ses ||= new S());
+          const o = ac.createOscillator(), g = ac.createGain();
+          o.type = 'square';
+          o.frequency.value = od(frekans);
+          const t = ac.currentTime, s = Math.max(0.01, Math.min(od(sure), 5));
+          g.gain.setValueAtTime(0.12, t);
+          g.gain.exponentialRampToValueAtTime(0.001, t + s);
+          o.connect(g).connect(ac.destination);
+          o.start(t);
+          o.stop(t + s);
+        } catch { /* ses kapalı */ }
+      },
+      tus: (p) => (OYUN.tuslar.has(metin(Number(p)).toLocaleLowerCase('tr')) ? 1n : 0n),
+      fare_x: () => BigInt(OYUN.fare.x),
+      fare_y: () => BigInt(OYUN.fare.y),
+      fare_basili: () => (OYUN.fare.basili ? 1n : 0n),
+    };
+
     const ui = {
       ac(p) {
         const d = { tur: metin(p), oz: {}, olay: {}, cocuk: [] };
@@ -386,7 +421,7 @@
     const rtOrnek = await ornekle(s.calismaZamani, { js });
     rt = rtOrnek.exports;
     bellek = rt.memory;
-    const prog = await ornekle(s.program, { rt, ui, dn, mb });
+    const prog = await ornekle(s.program, { rt, ui, dn, mb, oy });
 
     /** Çalışma hatasını yazar ve çıkış kodunu verir; başka hataları fırlatır. */
     const hataKodu = (h) => {
@@ -544,6 +579,76 @@
   /* Arayüz: öğe ağacını DOM'a çizme                                          */
   /* ---------------------------------------------------------------------- */
 
+  /* ---------------------------------------------------------------------- */
+  /* Oyun: oyun_alanı öğesi ve çizim komutları                                */
+  /* ---------------------------------------------------------------------- */
+
+  const OYUN = { liste: [], tuslar: new Set(), fare: { x: 0, y: 0, basili: false }, resimler: new Map(), ses: null };
+  const TUS_ADLARI = { ArrowLeft: 'sol', ArrowRight: 'sağ', ArrowUp: 'yukarı', ArrowDown: 'aşağı', ' ': 'boşluk', Enter: 'enter', Escape: 'esc', Shift: 'shift', Control: 'ctrl' };
+  const tusAdi = (e) => TUS_ADLARI[e.key] || e.key.toLocaleLowerCase('tr');
+  let tuslarDinleniyor = false;
+  function tuslariDinle(pencere) {
+    if (tuslarDinleniyor || !pencere) return;
+    tuslarDinleniyor = true;
+    pencere.addEventListener('keydown', (e) => {
+      const hedef = e.target && e.target.tagName;
+      if (hedef === 'INPUT' || hedef === 'TEXTAREA' || hedef === 'SELECT') return;
+      const ad = tusAdi(e);
+      OYUN.tuslar.add(ad);
+      // Ok tuşları ve boşluk sayfayı kaydırmasın
+      if (['sol', 'sağ', 'yukarı', 'aşağı', 'boşluk'].includes(ad)) e.preventDefault();
+    });
+    pencere.addEventListener('keyup', (e) => OYUN.tuslar.delete(tusAdi(e)));
+    pencere.addEventListener('blur', () => OYUN.tuslar.clear());
+  }
+
+  function oyunBoya(tuval, liste) {
+    const c = tuval.getContext('2d');
+    const renk = (r) => RENKLER[r] || r;
+    for (const k of liste) {
+      switch (k[0]) {
+        case 'temizle':
+          c.fillStyle = renk(k[1]);
+          c.fillRect(0, 0, tuval.width, tuval.height);
+          break;
+        case 'dikdortgen':
+          c.fillStyle = renk(k[5]);
+          c.fillRect(k[1], k[2], k[3], k[4]);
+          break;
+        case 'daire':
+          c.fillStyle = renk(k[4]);
+          c.beginPath();
+          c.arc(k[1], k[2], Math.max(0, k[3]), 0, Math.PI * 2);
+          c.fill();
+          break;
+        case 'cizgi':
+          c.strokeStyle = renk(k[5]);
+          c.lineWidth = 2;
+          c.beginPath();
+          c.moveTo(k[1], k[2]);
+          c.lineTo(k[3], k[4]);
+          c.stroke();
+          break;
+        case 'yazi':
+          c.fillStyle = renk(k[4]);
+          c.font = `600 ${k[5]}px system-ui, sans-serif`;
+          c.textBaseline = 'top';
+          c.fillText(k[1], k[2], k[3]);
+          break;
+        case 'resim': {
+          let r = OYUN.resimler.get(k[1]);
+          if (!r && typeof Image === 'function') {
+            r = new Image();
+            r.src = k[1];
+            OYUN.resimler.set(k[1], r);
+          }
+          if (r && r.complete && r.naturalWidth) c.drawImage(r, k[2], k[3], k[4], k[5]);
+          break;
+        }
+      }
+    }
+  }
+
   const ETIKETLER = {
     'başlık': ['h1', 'baslik'],
     'alt_başlık': ['h2', 'alt-baslik'],
@@ -569,6 +674,7 @@
     'kutu': ['div', 'kutu'],
     'ızgara': ['div', 'izgara'],
     'zamanlayıcı': ['span', 'zamanlayici'],
+    'oyun_alanı': ['canvas', 'oyun'],
   };
   const KAPSAYICI = { 'satır': 1, 'sütun': 1, 'kart': 1, 'kutu': 1, 'ızgara': 1, 'iletişim_kutusu': 1 };
   const YAZILI = { 'başlık': 1, 'alt_başlık': 1, 'yazı': 1, 'düğme': 1, 'bağlantı': 1 };
@@ -588,6 +694,7 @@
 @media (prefers-color-scheme:dark){.ohc-uygulama{--ohc-yazi:#e6e9ee;--ohc-soluk:#9aa3b2;--ohc-pano:#171b21;--ohc-arka:#0f1216;--ohc-kenar:#2a3039;--ohc-vurgu:#3fd0c6;--ohc-vurgu-yazi:#071a19}}
 .ohc-uygulama *{box-sizing:border-box}
 .ohc-uygulama [hidden]{display:none!important}
+.ohc-oyun{display:block;max-width:100%;height:auto;border-radius:12px;background:#000;touch-action:none;outline:none;align-self:center;image-rendering:auto}
 .ohc-baslik{font-size:30px;line-height:1.2;margin:0;font-weight:700;letter-spacing:-.01em}
 .ohc-alt-baslik{font-size:20px;margin:6px 0 0;font-weight:600}
 .ohc-yazi{margin:0}
@@ -883,6 +990,35 @@
         el.rel = 'noopener';
       } else if (v.tur === 'zamanlayıcı') {
         el.hidden = true;
+      } else if (v.tur === 'oyun_alanı') {
+        tuslariDinle(belge.defaultView);
+        el.tabIndex = 0;
+        const konum = (e) => {
+          const k = el.getBoundingClientRect();
+          OYUN.fare.x = Math.round(((e.clientX - k.left) * el.width) / (k.width || 1));
+          OYUN.fare.y = Math.round(((e.clientY - k.top) * el.height) / (k.height || 1));
+        };
+        el.addEventListener('pointerdown', (e) => {
+          konum(e);
+          OYUN.fare.basili = true;
+          el.focus({ preventScroll: true });
+          try { el.setPointerCapture(e.pointerId); } catch { /* eski tarayıcı */ }
+        });
+        el.addEventListener('pointermove', konum);
+        el.addEventListener('pointerup', () => { OYUN.fare.basili = false; });
+        el.addEventListener('pointercancel', () => { OYUN.fare.basili = false; });
+        // Oyun döngüsü: her karede `her_karede:` bloğu çalışır, çizimler boyanır
+        const dongu = () => {
+          if (!el.isConnected) return;
+          const no = el.__olay['her_karede'];
+          if (no != null) {
+            OYUN.liste = [];
+            if (tetikle(no, null)) return;
+            oyunBoya(el, OYUN.liste);
+          }
+          (belge.defaultView || globalThis).requestAnimationFrame(dongu);
+        };
+        (belge.defaultView || globalThis).requestAnimationFrame(dongu);
       } else if (v.tur === 'sekmeler') {
         el.setAttribute('role', 'tablist');
         el.addEventListener('click', (e) => {
@@ -1059,6 +1195,12 @@
             el.__oncekiOdak.focus();
           }
           el.__acik = acik;
+          break;
+        }
+        case 'oyun_alanı': {
+          const g = parseInt(o['genişlik'] || '480', 10), y = parseInt(o['yükseklik'] || '320', 10);
+          if (el.width !== g) el.width = g;
+          if (el.height !== y) el.height = y;
           break;
         }
         case 'zamanlayıcı': {

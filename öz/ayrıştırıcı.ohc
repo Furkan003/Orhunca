@@ -145,14 +145,14 @@ işlev temel_yerleşikler() -> liste<metin>:
 
 # Standart kütüphanenin tamamı (src/yerlesik.rs): model adı olamazlar.
 işlev standart_kütüphane() -> liste<metin>:
-    döndür ["uzunluk", "metin", "sayı", "ondalık", "yuvarla", "sayı_mı", "ondalık_mı", "büyük_harf", "küçük_harf", "kırp", "parça", "böl", "birleştir", "içerir", "bul", "değiştir", "başlar", "biter", "tekrarla", "harfler", "kodlar", "kodlardan", "kod", "karakter", "satırlar", "sil", "ters", "karıştır", "kopya", "en_büyük", "en_küçük", "toplam", "anahtarlar", "değerler", "dosya_oku", "dosyaya_yaz", "dosyaya_ekle", "dosya_var", "dosya_sil", "dosya_taşı", "karekök", "üs", "mutlak", "sinüs", "kosinüs", "tanjant", "logaritma", "rastgele", "zaman", "tarih", "bugün", "saat", "gün_ekle", "gün_farkı", "haftanın_günü", "tarih_yazısı", "eşleşir", "desen_bul", "eşleşmeler", "desen_değiştir", "desen_böl", "csv_oku", "csv_yaz", "bekle", "oku", "argümanlar", "ortam", "çık", "boş_mu", "hata_ver", "http_al", "http_gönder", "json", "json_al", "kaçır", "para", "url_kodla", "görünüm", "yanıt", "yönlendir", "json_yanıtı", "sun", "titret", "paylaş", "bildirim_gönder"]
+    döndür ["uzunluk", "metin", "sayı", "ondalık", "yuvarla", "sayı_mı", "ondalık_mı", "büyük_harf", "küçük_harf", "kırp", "parça", "böl", "birleştir", "içerir", "bul", "değiştir", "başlar", "biter", "tekrarla", "harfler", "kodlar", "kodlardan", "kod", "karakter", "satırlar", "sil", "ters", "karıştır", "kopya", "en_büyük", "en_küçük", "toplam", "anahtarlar", "değerler", "dosya_oku", "dosyaya_yaz", "dosyaya_ekle", "dosya_var", "dosya_sil", "dosya_taşı", "karekök", "üs", "mutlak", "sinüs", "kosinüs", "tanjant", "logaritma", "rastgele", "zaman", "tarih", "bugün", "saat", "gün_ekle", "gün_farkı", "haftanın_günü", "tarih_yazısı", "eşleşir", "desen_bul", "eşleşmeler", "desen_değiştir", "desen_böl", "csv_oku", "csv_yaz", "bekle", "oku", "argümanlar", "ortam", "çık", "boş_mu", "hata_ver", "http_al", "http_gönder", "json", "json_al", "kaçır", "para", "url_kodla", "görünüm", "yanıt", "yönlendir", "json_yanıtı", "sun", "titret", "paylaş", "bildirim_gönder", "temizle", "dikdörtgen", "daire", "çizgi", "yazı_çiz", "resim_çiz", "ses", "tuş_basılı", "fare_x", "fare_y", "fare_basılı"]
 
 # Arayüz öğeleri ve olayları (src/arayuz.rs)
 işlev arayüz_öğeleri() -> liste<metin>:
-    döndür ["başlık", "alt_başlık", "yazı", "düğme", "bağlantı", "resim", "ayraç", "boşluk", "giriş", "metin_alanı", "onay_kutusu", "seçim", "kaydırıcı", "ilerleme", "tablo", "grafik", "sekmeler", "iletişim_kutusu", "satır", "sütun", "kart", "kutu", "ızgara", "zamanlayıcı"]
+    döndür ["başlık", "alt_başlık", "yazı", "düğme", "bağlantı", "resim", "ayraç", "boşluk", "giriş", "metin_alanı", "onay_kutusu", "seçim", "kaydırıcı", "ilerleme", "tablo", "grafik", "sekmeler", "iletişim_kutusu", "satır", "sütun", "kart", "kutu", "ızgara", "zamanlayıcı", "oyun_alanı"]
 
 işlev arayüz_olayları() -> liste<metin>:
-    döndür ["tıklanınca", "değişince", "gönderilince", "çalınca"]
+    döndür ["tıklanınca", "değişince", "gönderilince", "çalınca", "her_karede"]
 
 # Web çatısının yerleşik modelleri: her programa eklenir.
 işlev yerleşik_modeller() -> metin:
@@ -870,7 +870,7 @@ işlev öğe(a: Ayrıştırıcı) -> Deyim:
     eğer bak(a).tür == "Kelime" ise:
         ok = bak(a)
         eğer değil içerir(arayüz_olayları(), ok.değer) ise:
-            hata_s(a, ok, "'" + ok.değer + "' bir olay değil", "olaylar: tıklanınca, değişince, gönderilince, çalınca")
+            hata_s(a, ok, "'" + ok.değer + "' bir olay değil", "olaylar: tıklanınca, değişince, gönderilince, çalınca, her_karede")
         ilerle(a)
         # Olay bloğu sıradan koddur: içinde öğe yazılmaz.
         a.arayüz_içinde = yanlış

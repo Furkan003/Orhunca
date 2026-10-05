@@ -909,7 +909,7 @@ impl Ayristirici {
         if let Tok::Kelime(k) = self.bak().clone() {
             if !crate::arayuz::olay_mi(&k) {
                 return Err(Hata::yeni(self.konum(), format!("'{k}' bir olay değil"))
-                    .ipucu("olaylar: tıklanınca, değişince, gönderilince, çalınca"));
+                    .ipucu("olaylar: tıklanınca, değişince, gönderilince, çalınca, her_karede"));
             }
             let ok = self.konum();
             self.ilerle();

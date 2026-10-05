@@ -46,6 +46,22 @@ const WASM_EKLERI: &[(&str, usize, bool)] = &[
 /// çizim sırasında öğe ağacını kurar. Değerler bellekteki metinlerin adresidir.
 const UI_ISLEVLERI: &[(&str, usize)] = &[("ac", 1), ("ozellik", 2), ("olay", 2), ("kapat", 0)];
 
+/// Oyun komutları (`oy` modülü; JavaScript oyun alanına çizer): Orhunca adı,
+/// içe aktarma adı, parametre sayısı (i64), değer döndürür mü.
+const OYUN_ISLEVLERI: &[(&str, &str, usize, bool)] = &[
+    ("temizle", "temizle", 1, false),
+    ("dikdörtgen", "dikdortgen", 5, false),
+    ("daire", "daire", 4, false),
+    ("çizgi", "cizgi", 5, false),
+    ("yazı_çiz", "yazi", 5, false),
+    ("resim_çiz", "resim", 5, false),
+    ("ses", "ses", 2, false),
+    ("tuş_basılı", "tus", 1, true),
+    ("fare_x", "fare_x", 0, true),
+    ("fare_y", "fare_y", 0, true),
+    ("fare_basılı", "fare_basili", 0, true),
+];
+
 /// Telefon komutları (`mb` modülü; JavaScript Android/iOS kabuğuna ya da tarayıcıya iletir):
 /// Orhunca adı, içe aktarma adı, parametre sayısı (i64).
 const MOBIL_ISLEVLERI: &[(&str, &str, usize)] = &[
@@ -299,6 +315,15 @@ pub fn uret(p: &Program) -> Result<Vec<u8>, String> {
         ice.import("mb", ithal, EntityType::Function(t));
         o.mobil.insert(ad, sira);
         sira += 1;
+    }
+    if arayuz_var {
+        for (ad, ithal, n, doner) in OYUN_ISLEVLERI {
+            let donus: &[ValType] = if *doner { &[ValType::I64] } else { &[] };
+            let t = o.tur_ekle(&vec![ValType::I64; *n], donus);
+            ice.import("oy", ithal, EntityType::Function(t));
+            o.mobil.insert(ad, sira);
+            sira += 1;
+        }
     }
     if dene_kullanilir {
         let t = o.tur_ekle(&[ValType::I32, ValType::I64], &[ValType::I64]);
@@ -2098,6 +2123,24 @@ impl Uretici<'_> {
                 self.e(K::Call(sira));
                 self.sabit(0);
             }
+            "temizle" | "dikdörtgen" | "daire" | "çizgi" | "yazı_çiz" | "resim_çiz" | "ses"
+            | "tuş_basılı" | "fare_x" | "fare_y" | "fare_basılı" => {
+                let Some(&sira) = self.o.mobil.get(ad) else {
+                    return Err(format!(
+                        "'{ad}' yalnızca arayüz programlarında (oyun_alanı) kullanılabilir"
+                    ));
+                };
+                let mut a: Vec<Arg> = arg.iter().map(Arg::I).collect();
+                // yazı_çiz'in boyutu verilmezse 16 piksel (ondalık)
+                if ad == "yazı_çiz" && a.len() == 4 {
+                    a.push(Arg::S(16f64.to_bits() as i64));
+                }
+                self.argumanlar(&a)?;
+                self.e(K::Call(sira));
+                if !OYUN_ISLEVLERI.iter().any(|(o, _, _, d)| *o == ad && *d) {
+                    self.sabit(0);
+                }
+            }
             "boş_mu" => {
                 self.ifade(&arg[0])?;
                 self.mantik(K::I64Eqz);
@@ -2303,7 +2346,7 @@ mod testler {
         let rt = ozet(crate::derleme::WASM_CALISMA_ZAMANI);
         for (ad, wasm) in ornek_modulleri() {
             for (modul, isim, tur) in ozet(&wasm).ice {
-                if modul == "ui" || modul == "dn" || modul == "mb" {
+                if modul == "ui" || modul == "dn" || modul == "mb" || modul == "oy" {
                     // Arayüz ve `dene:` işlevleri JavaScript'ten gelir (orhunca.js).
                     continue;
                 }

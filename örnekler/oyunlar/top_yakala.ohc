@@ -1,0 +1,47 @@
+# Top Yakala: düşen topları sepetle yakala. Sol/sağ ok tuşları ya da fare/parmak.
+durum sepet_x = 200.0
+durum top_x = 240.0
+durum top_y = 0.0
+durum hız = 3.0
+durum puan = 0
+durum can = 3
+
+arayüz:
+    başlık("Top Yakala")
+    oyun_alanı(480, 360) her_karede:
+        eğer tuş_basılı("sol") ise:
+            sepet_x -= 6
+        eğer tuş_basılı("sağ") ise:
+            sepet_x += 6
+        eğer fare_basılı() ise:
+            sepet_x = fare_x() - 40
+        sepet_x = en_büyük(0.0, en_küçük(sepet_x, 400.0))
+
+        eğer can 0'dan büyükse:
+            top_y += hız
+        # Yakalandı mı?
+        eğer top_y > 320 ve top_x > sepet_x ve top_x < sepet_x + 80 ise:
+            puan += 1
+            hız += 0.4
+            ses(660, 0.08)
+            top_y = 0.0
+            top_x = rastgele(20, 460) * 1.0
+        değilse eğer top_y > 360 ise:
+            can -= 1
+            ses(160, 0.25)
+            top_y = 0.0
+            top_x = rastgele(20, 460) * 1.0
+
+        # Çizim
+        temizle("#101820")
+        daire(top_x, top_y, 12, "turuncu")
+        dikdörtgen(sepet_x, 330, 80, 14, "turkuaz")
+        yazı_çiz("Puan: " + puan, 12, 12, "beyaz")
+        yazı_çiz("Can: " + can, 400, 12, "pembe")
+        eğer can 0'a eşitse:
+            yazı_çiz("Oyun bitti!", 150, 150, "sarı", 36)
+    düğme("Yeniden başla") tıklanınca:
+        puan = 0
+        can = 3
+        hız = 3.0
+        top_y = 0.0

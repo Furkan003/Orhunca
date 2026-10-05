@@ -55,6 +55,10 @@ pub const OLAYLAR: &[(&str, &str)] = &[
     ),
     ("gönderilince", "giriş kutusunda Enter'a basılınca"),
     ("çalınca", "zamanlayıcının süresi her dolduğunda"),
+    (
+        "her_karede",
+        "oyun alanında saniyede yaklaşık 60 kez (oyun döngüsü)",
+    ),
 ];
 
 const TIK: &[&str] = &["tıklanınca"];
@@ -280,6 +284,15 @@ pub const OGELER: &[OgeTanimi] = &[
         olaylar: &["çalınca"],
         aciklama: "Görünmez; her `süre` saniyede bir `çalınca:` bloğunu çalıştırır",
         ornek: "zamanlayıcı(1) çalınca:",
+    },
+    OgeTanimi {
+        ad: "oyun_alanı",
+        degerler: &[("genişlik", Sayi), ("yükseklik", Sayi)],
+        zorunlu: 2,
+        kapsayici: false,
+        olaylar: &["her_karede", "tıklanınca"],
+        aciklama: "Oyunlar için çizim alanı: `her_karede:` bloğu saniyede yaklaşık 60 kez çalışır; içinde daire, dikdörtgen, yazı_çiz ... ile çizilir",
+        ornek: "oyun_alanı(480, 320) her_karede:",
     },
 ];
 

@@ -228,6 +228,7 @@ ifadeler), CSV, JSON, HTTP istekleri; resmi `istatistik` ve `geometri` paketleri
 | [Dil rehberi](docs/dil-rehberi.md) | Söz dizimi, hâl ekleri, modeller, web, standart kütüphane |
 | [Arayüz dili](docs/arayuz.md) | `durum`, `arayüz:`, öğeler ve olaylar; masaüstüne paketleme |
 | [Orhunca Stüdyo](docs/studyo.md) | Geliştirme ortamı, hata ayıklayıcı, canlı önizleme |
+| [Oyun yapmak](docs/oyun.md) | `oyun_alanı`, çizim, klavye, fare ve dokunma, ses |
 | [Telefon uygulamaları](docs/mobil.md) | Android (.apk) ve iPhone/iPad; `titret`, `paylaş`, `bildirim_gönder` |
 | [Yapay zekâ](docs/yapay-zeka.md) | Stüdyo asistanı; Claude Code, Cursor gibi ajanları `orhunca mcp` ile bağlamak |
 | [Paketler](docs/paketler.md) | Paket dizini, `orhunca paket`, kendi paketinizi yayımlamak |

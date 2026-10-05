@@ -84,3 +84,8 @@ derleyici hazır kabukları içinde taşır, ek bir araç gerekmez.
 Arayüz programları Android ve iPhone uygulamasına da dönüşür:
 `orhunca paketle uygulama.ohc --hedef android` (ya da `--hedef ios`). Telefona özel
 komutlar `titret`, `paylaş` ve `bildirim_gönder`'dir. Ayrıntılar: [Telefon uygulamaları](mobil.md).
+
+### Oyunlar
+
+`oyun_alanı(480, 320) her_karede:` saniyede yaklaşık 60 kez çalışan bir çizim alanıdır; içinde
+`daire`, `dikdörtgen`, `yazı_çiz`, `tuş_basılı` ... kullanılır. Ayrıntılar: [Oyun yapmak](oyun.md).
