@@ -1,5 +1,5 @@
 # Orhunca'yı (orhunca komutu) Windows'a kurar; yönetici izni gerekmez.
-#   irm https://furkan003.github.io/orhunca/kur.ps1 | iex
+#   irm https://furkan003.github.io/Orhunca/kur.ps1 | iex
 # Kurulum yeri: %LOCALAPPDATA%\Orhunca; kullanıcının PATH'ine eklenir.
 # Stüdyo dahil tam kurulum için sitedeki "Windows kurulum dosyası"nı kullanın.
 $ErrorActionPreference = 'Stop'

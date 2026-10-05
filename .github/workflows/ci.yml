@@ -34,6 +34,29 @@ jobs:
         run: cargo run -- biçimlendir --denetle örnekler öz runtime/ön_kütüphane.ohc
       - name: Stüdyo ders verisi güncel (dersler/*.md → studio/dersler.json)
         run: python3 araclar/dersler.py --studyo && git diff --exit-code studio/dersler.json
+  arm:
+    # 64 bit ARM Linux (Raspberry Pi 4/5, ARM dizüstüler): hazır çalıştırıcı yok, programlar
+    # sistemdeki C derleyicisiyle bağlanır. Örnekler derlenip çıktıları denetlenir.
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build
+      - name: Örnekler (ARM, sistem C derleyicisi)
+        shell: bash
+        run: |
+          d=$(mktemp -d); hata=0
+          for f in örnekler/*.ohc; do
+            ad=$(basename "$f" .ohc)
+            [ -f "örnekler/$ad.beklenen" ] || continue
+            if ! target/debug/orhunca çalıştır "$f" < /dev/null > "$d/$ad.cikti" 2>&1 || ! diff -q <(tr -d '\r' < "örnekler/$ad.beklenen") "$d/$ad.cikti" >/dev/null; then
+              echo "✗ $ad"; diff <(tr -d '\r' < "örnekler/$ad.beklenen") "$d/$ad.cikti" | head -20; hata=1
+            else
+              echo "✓ $ad"
+            fi
+          done
+          exit $hata
+      - run: cargo test --test ornekler --test hata_mesajlari --test dersler --test bulanik --test guncelleme --lib
   wasm:
     # Çalışma zamanını kaynaktan WebAssembly'ye derler ve WebAssembly testlerini onunla çalıştırır
     # (depodaki runtime/wasm/orhunca_rt.wasm'ın kaynakla tutarlı olduğunu da gösterir).

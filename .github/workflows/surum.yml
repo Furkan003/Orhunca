@@ -4,6 +4,8 @@ name: Sürüm
 #            orhunca-windows-x86_64.zip
 #   Linux:   orhunca-studyo_amd64.deb, Orhunca-Studyo-Linux.AppImage, orhunca-studyo.x86_64.rpm,
 #            orhunca-linux-x86_64.tar.gz
+#   Linux ARM (Raspberry Pi 4/5, ARM dizüstüler): orhunca-studyo_arm64.deb,
+#            orhunca-studyo.aarch64.rpm, orhunca-linux-aarch64.tar.gz
 #   macOS:   Orhunca-Studyo-macOS.dmg (Apple işlemcili ve Intel), orhunca-macos.tar.gz
 #   VS Code: orhunca-vscode.vsix
 # Stüdyo kurulumları `orhunca` komutunu da içerir (Windows'ta PATH'e eklenir, Linux'ta
@@ -52,6 +54,8 @@ jobs:
         include:
           - os: ubuntu-22.04
             ad: linux-x86_64
+          - os: ubuntu-22.04-arm
+            ad: linux-aarch64
           - os: windows-latest
             ad: windows-x86_64
           - os: macos-latest
@@ -83,8 +87,9 @@ jobs:
           else
             # glibc 2.17'ye karşı: eski Pardus/Ubuntu/Debian sürümlerinde de çalışır
             pip install ziglang cargo-zigbuild
-            cargo zigbuild --release --target x86_64-unknown-linux-gnu.2.17
-            cp target/x86_64-unknown-linux-gnu/release/orhunca paket/
+            mimari=$([ "${{ matrix.ad }}" = linux-aarch64 ] && echo aarch64 || echo x86_64)
+            cargo zigbuild --release --target $mimari-unknown-linux-gnu.2.17
+            cp target/$mimari-unknown-linux-gnu/release/orhunca paket/
             strip paket/orhunca
           fi
       - name: Sına
@@ -120,6 +125,9 @@ jobs:
           - os: ubuntu-22.04
             ad: linux-x86_64
             uclu: x86_64-unknown-linux-gnu
+          - os: ubuntu-22.04-arm
+            ad: linux-aarch64
+            uclu: aarch64-unknown-linux-gnu
           - os: windows-latest
             ad: windows-x86_64
             uclu: x86_64-pc-windows-msvc
@@ -165,6 +173,7 @@ jobs:
         run: |
           hedef=""
           [ "${{ matrix.ad }}" = macos ] && hedef="--target universal-apple-darwin"
+          [ "${{ matrix.ad }}" = linux-aarch64 ] && hedef="--bundles deb,rpm"
           npx --yes @tauri-apps/cli@^2 build --verbose --config tauri.surum.conf.json $hedef
       - name: Dosyaları adlandır
         shell: bash
@@ -178,6 +187,11 @@ jobs:
               cp $k/release/bundle/rpm/*.rpm cikti/orhunca-studyo.x86_64.rpm
               # .deb orhunca komutunu da kurar
               dpkg -c cikti/orhunca-studyo_amd64.deb > icerik.txt && grep "usr/bin/orhunca$" icerik.txt
+              ;;
+            linux-aarch64)
+              cp $k/release/bundle/deb/*.deb cikti/orhunca-studyo_arm64.deb
+              cp $k/release/bundle/rpm/*.rpm cikti/orhunca-studyo.aarch64.rpm
+              dpkg -c cikti/orhunca-studyo_arm64.deb > icerik.txt && grep "usr/bin/orhunca$" icerik.txt
               ;;
             windows-x86_64)
               cp $k/release/bundle/nsis/*.exe cikti/Orhunca-Studyo-Windows-Kurulum.exe

@@ -1,6 +1,6 @@
 #!/bin/sh
-# Orhunca'yı (orhunca komutu) kurar: Linux x86-64 ve macOS.
-#   curl -fsSL https://furkan003.github.io/orhunca/kur.sh | sh
+# Orhunca'yı (orhunca komutu) kurar: Linux (x86-64, ARM64) ve macOS.
+#   curl -fsSL https://furkan003.github.io/Orhunca/kur.sh | sh
 # Kurulum yeri: ~/.local/bin (ORHUNCA_KURULUM ile değiştirilebilir). Yönetici izni gerekmez.
 set -eu
 DEPO="Furkan003/Orhunca"
@@ -8,10 +8,15 @@ HEDEF="${ORHUNCA_KURULUM:-$HOME/.local/bin}"
 
 case "$(uname -s)" in
     Linux)
-        [ "$(uname -m)" = "x86_64" ] || { echo "Orhunca şimdilik Linux'ta yalnızca x86-64 işlemcilerde çalışır." >&2; exit 1; }
-        DOSYA="orhunca-linux-x86_64.tar.gz" ;;
+        case "$(uname -m)" in
+            x86_64 | amd64) DOSYA="orhunca-linux-x86_64.tar.gz" ;;
+            aarch64 | arm64)
+                DOSYA="orhunca-linux-aarch64.tar.gz"
+                command -v cc >/dev/null 2>&1 || echo "Not: ARM'da programları derlemek için bir C derleyicisi gerekir (sudo apt install gcc)." >&2 ;;
+            *) echo "Bu işlemci desteklenmiyor: $(uname -m) (x86-64 ve ARM64 desteklenir)." >&2; exit 1 ;;
+        esac ;;
     Darwin) DOSYA="orhunca-macos.tar.gz" ;;
-    *) echo "Bu sistem desteklenmiyor: $(uname -s). Windows için: irm https://furkan003.github.io/orhunca/kur.ps1 | iex" >&2; exit 1 ;;
+    *) echo "Bu sistem desteklenmiyor: $(uname -s). Windows için: irm https://furkan003.github.io/Orhunca/kur.ps1 | iex" >&2; exit 1 ;;
 esac
 
 ADRES="https://github.com/$DEPO/releases/latest/download/$DOSYA"

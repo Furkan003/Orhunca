@@ -169,6 +169,7 @@ pub fn varlik_adi(k: &Kurulum) -> String {
         Kurulum::WindowsKurulum => "Orhunca-Studyo-Windows-Kurulum.exe".into(),
         Kurulum::Deb if cfg!(target_arch = "aarch64") => "orhunca-studyo_arm64.deb".into(),
         Kurulum::Deb => "orhunca-studyo_amd64.deb".into(),
+        Kurulum::Rpm if cfg!(target_arch = "aarch64") => "orhunca-studyo.aarch64.rpm".into(),
         Kurulum::Rpm => "orhunca-studyo.x86_64.rpm".into(),
         Kurulum::AppImage(_) => "Orhunca-Studyo-Linux.AppImage".into(),
         Kurulum::MacDmg => "Orhunca-Studyo-macOS.dmg".into(),
