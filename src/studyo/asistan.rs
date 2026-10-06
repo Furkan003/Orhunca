@@ -579,6 +579,15 @@ fn sohbet_modeli_mi(kimlik: &str) -> bool {
         "aqa",
         "guard",
         "rerank",
+        // OpenAI'ın yalnızca Responses API'siyle ya da eski tamamlama uç noktasıyla çalışanlar
+        "codex",
+        "o1-pro",
+        "o3-pro",
+        "gpt-5-pro",
+        "deep-research",
+        "search",
+        "computer-use",
+        "turbo-instruct",
     ]
     .iter()
     .any(|x| k.contains(x))
@@ -1093,6 +1102,11 @@ mod sinamalar {
         assert!(sohbet_modeli_mi("qwen2.5-coder:7b"));
         assert!(!sohbet_modeli_mi("text-embedding-3-small"));
         assert!(!sohbet_modeli_mi("nomic-embed-text:latest"));
+        assert!(!sohbet_modeli_mi("gpt-5-codex"));
+        assert!(!sohbet_modeli_mi("o3-pro"));
+        assert!(sohbet_modeli_mi("gemini-2.5-pro"));
+        assert!(sohbet_modeli_mi("qwen2.5-coder-7b-instruct"));
+        assert!(!sohbet_modeli_mi("gpt-3.5-turbo-instruct"));
     }
 
     #[test]

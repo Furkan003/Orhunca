@@ -1,6 +1,6 @@
 [package]
 name = "orhunca"
-version = "0.7.0"
+version = "0.7.1"
 edition = "2021"
 license = "MIT"
 description = "Orhunca: Türkçe tabanlı programlama dili ve derleyicisi"
