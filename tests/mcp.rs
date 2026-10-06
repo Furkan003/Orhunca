@@ -53,9 +53,10 @@ fn mcp_sunucusu() {
         cagir(6, "orhunca_rehber", json!({})),
         json!({ "jsonrpc": "2.0", "id": 7, "method": "resources/read", "params": { "uri": "orhunca://rehber" } }),
         json!({ "jsonrpc": "2.0", "id": 8, "method": "yok" }),
+        cagir(9, "orhunca_rehber", json!({ "bolum": "oyunlar" })),
     ]);
     // Bildirime yanıt verilmez
-    assert_eq!(y.len(), 8, "{y:?}");
+    assert_eq!(y.len(), 9, "{y:?}");
     assert_eq!(y[0]["result"]["serverInfo"]["name"], "orhunca");
     let araclar: Vec<&str> = y[1]["result"]["tools"]
         .as_array()
@@ -88,4 +89,5 @@ fn mcp_sunucusu() {
         .unwrap()
         .contains("arayüz"));
     assert_eq!(y[7]["error"]["code"], -32601);
+    assert!(metin(8).contains("her_karede"), "{}", metin(8));
 }

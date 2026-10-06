@@ -26,7 +26,8 @@ içeriğinin tamamını dosyayi_degistir ile öner; değişikliği kullanıcı o
 yazılır. Kullanıcı yalnızca bir soru sorduysa dosyayı değiştirme; kısa örneklerle yanıtla. \
 Kullanıcı bir alıştırmayı kendisi çözmeye çalışıyorsa çözümü hemen verme; ipucuyla yol göster.
 
-Aşağıda Orhunca'nın dil rehberi var.";
+Aşağıda Orhunca'nın kısa rehberi var. Bir konuda (standart kütüphane, modeller, web, arayüz \
+öğeleri, oyunlar…) emin değilsen rehber_oku ile ilgili bölümü oku; tahmin yürütme.";
 
 /// Araç kullanamayan modeller için sistem iletisinin başına eklenir.
 const ARACSIZ: &str = "\
@@ -674,6 +675,15 @@ fn arac_tanimlari() -> Vec<(&'static str, &'static str, Value)> {
             }),
         ),
         (
+            "rehber_oku",
+            "Orhunca rehberinin bir bölümünü döndürür (bölüm adları kısa rehberin sonunda). Tam rehber için 'hepsi'.",
+            json!({
+                "type": "object",
+                "properties": { "bolum": { "type": "string", "description": "Bölüm adı, ör. 'Standart kütüphane', 'Modeller', 'Oyunlar'" } },
+                "required": ["bolum"]
+            }),
+        ),
+        (
             "dosyayi_degistir",
             "Kullanıcının açık dosyası için yeni içerik önerir. Dosyanın yeni içeriğinin TAMAMINI verin. Kullanıcı öneriyi görür ve onaylarsa dosyaya yazılır.",
             json!({
@@ -717,6 +727,10 @@ fn arac_yurut(ad: &str, g: &Value, oneri: &mut Option<Value>) -> (String, bool) 
             Ok(c) => (c.metin(), false),
             Err(e) => (e, true),
         },
+        "rehber_oku" => (
+            ajan::rehber_bolumu(g["bolum"].as_str().unwrap_or("")),
+            false,
+        ),
         "dosyayi_degistir" => match g["icerik"].as_str() {
             Some(i) => {
                 *oneri =
@@ -849,7 +863,7 @@ pub fn sor(g: &Value) -> Result<Value, String> {
     }
     if sonuc.metinler.is_empty() && sonuc.oneri.is_none() {
         sonuc.metinler.push(if b.s.yerel {
-            "(Model boş yanıt verdi. Küçük yerel modeller uzun dil rehberinde zorlanabilir; \
+            "(Model boş yanıt verdi. Küçük yerel modeller bu işte zorlanabilir; \
              daha büyük bir model deneyin, ör. qwen2.5-coder:7b.)"
                 .into()
         } else {
@@ -877,7 +891,7 @@ fn anthropic_sor(
         .collect();
     let sistem = json!([{
         "type": "text",
-        "text": format!("{SISTEM}\n\n{}", ajan::rehber()),
+        "text": format!("{SISTEM}\n\n{}", ajan::kisa_rehber()),
         "cache_control": { "type": "ephemeral" }
     }]);
     let mut uyumlu = false;
@@ -954,7 +968,7 @@ fn openai_sor(
     } else {
         "/chat/completions"
     };
-    let rehber = ajan::rehber();
+    let rehber = ajan::kisa_rehber();
     let sistem = |aracsiz: bool| {
         json!({
             "role": "system",

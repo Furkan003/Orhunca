@@ -909,6 +909,8 @@
     </div>`;
   }
 
+  const ADIMLAR = { kodu_calistir: ['play_arrow', 'Kodu çalıştırdı'], kodu_denetle: ['task_alt', 'Kodu denetledi'], rehber_oku: ['menu_book', 'Rehbere baktı'], dosyayi_degistir: ['edit_document', 'Değişiklik önerdi'] };
+
   function asistanPaneli() {
     const A = D.asistan, d = A.durum || {};
     if (!d.hazir || A.ayarAcik) return asistanKurulum();
@@ -923,7 +925,7 @@
     const mesajlar = A.mesajlar.map((m, i) => m.rol === 'kullanici'
       ? `<div class="asistan-mesaj kullanici">${kac(m.metin)}</div>`
       : `<div class="asistan-mesaj">
-          ${(m.adimlar || []).map(a => `<div class="asistan-adim">${S(a.ad === 'kodu_calistir' ? 'play_arrow' : a.ad === 'kodu_denetle' ? 'task_alt' : 'edit_document')}${a.ad === 'kodu_calistir' ? 'Kodu çalıştırdı' : a.ad === 'kodu_denetle' ? 'Kodu denetledi' : 'Değişiklik önerdi'}</div>`).join('')}
+          ${(m.adimlar || []).map(a => { const [simge, ad] = ADIMLAR[a.ad] || ADIMLAR.dosyayi_degistir; return `<div class="asistan-adim">${S(simge)}${ad}</div>`; }).join('')}
           <div class="asistan-metin">${mdAsistan(m.metin || '', i)}</div>
           ${m.aracsiz ? `<div class="asistan-adim" title="Araç kullanabilen bir model seçerseniz asistan kodu kendisi denetler ve çalıştırır.">${S('info')}Bu model araç kullanamıyor; kodu kendisi denetleyemedi.</div>` : ''}
           ${m.oneri ? `<div class="asistan-oneri"><div class="asistan-oneri-baslik">${S('edit_document')}<span class="esnek">${kac(m.oneri.aciklama || 'Dosya için öneri')}</span></div>

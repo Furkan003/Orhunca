@@ -13,7 +13,8 @@ const PROTOKOL: &str = "2025-06-18";
 const REHBER_ADRESI: &str = "orhunca://rehber";
 
 const TALIMAT: &str = "Orhunca, Türkçe dil bilgisine dayanan bir programlama dilidir (.ohc). \
-Kod yazmadan önce orhunca_rehber aracıyla dil rehberini okuyun. Yazdığınız her kodu \
+Kod yazmadan önce orhunca_rehber aracıyla kısa rehberi okuyun; emin olmadığınız konuda \
+aynı araçla ilgili bölümü (bolum) okuyun. Yazdığınız her kodu \
 orhunca_denetle ile denetleyin, orhunca_calistir ile çalıştırıp çıktısına bakın.";
 
 fn araclar() -> Value {
@@ -31,8 +32,10 @@ fn araclar() -> Value {
         {
             "name": "orhunca_rehber",
             "title": "Orhunca dil rehberi",
-            "description": "Orhunca'nın söz dizimini, hâl eklerini ve standart kütüphanesini anlatan rehberi döndürür. Orhunca kodu yazmadan önce bir kez okuyun.",
-            "inputSchema": { "type": "object", "properties": {} },
+            "description": "Orhunca rehberini döndürür. Bölüm verilmezse dilin özünü ve bölüm adlarını içeren kısa rehberi verir (Orhunca kodu yazmadan önce bir kez okuyun). 'bolum' ile tek bir bölüm (ör. 'Standart kütüphane', 'Modeller', 'Oyunlar'), 'hepsi' ile tam rehber alınır.",
+            "inputSchema": { "type": "object", "properties": {
+                "bolum": { "type": "string", "description": "İsteğe bağlı bölüm adı ya da 'hepsi'" }
+            } },
             "annotations": { "readOnlyHint": true }
         },
         {
@@ -69,7 +72,10 @@ fn arac_cagir(ad: &str, g: &Value) -> Result<String, String> {
     let kod = g["kod"].as_str();
     let dosya = g["dosya"].as_str().map(Path::new);
     match ad {
-        "orhunca_rehber" => Ok(ajan::rehber()),
+        "orhunca_rehber" => Ok(match g["bolum"].as_str().filter(|b| !b.trim().is_empty()) {
+            Some(b) => ajan::rehber_bolumu(b),
+            None => ajan::kisa_rehber(),
+        }),
         "orhunca_denetle" => ajan::denetle(kod, dosya),
         "orhunca_calistir" => {
             let sure = g["sure"].as_f64().unwrap_or(10.0).clamp(1.0, 60.0);

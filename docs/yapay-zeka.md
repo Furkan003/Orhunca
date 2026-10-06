@@ -43,6 +43,9 @@ yaparken yeniden girmeniz gerekmez. Panelin üstündeki sağlayıcı adına tık
 - **Araç kullanamayan modeller.** Bazı (çoğunlukla küçük ya da eski) modeller araç çağıramaz. Asistan
   bunu kendiliğinden anlar ve düz sohbete geçer; bu durumda kodu denetleyip çalıştıramaz, kodu bir
   kod bloğunda verir. En iyi sonuç için araç destekleyen bir model seçin.
+- **Az belirteç.** Asistan her istekte tam rehber (~7.400 belirteç) yerine kısa bir özet (~1.400)
+  gönderir; model ayrıntı gerektiğinde rehberin yalnızca ilgili bölümünü okur. Uzun program
+  çıktıları modele kırpılarak gönderilir.
 - **Yeni başlayanlar için.** Asistan Türkçe ve sade anlatır. Bir alıştırmayı çözmeye çalışan
   kullanıcıya cevabı hemen vermez, ipucuyla yol gösterir.
 - **Anahtar ve ücret.** Anahtarlar yalnızca bu bilgisayarda saklanır (`~/.config/orhunca/asistan.json`,
@@ -102,7 +105,7 @@ başlatır. Sunucu stdin/stdout üzerinden konuşur. Sunduğu araçlar:
 
 | Araç | Ne yapar |
 |---|---|
-| `orhunca_rehber` | Dil rehberini döndürür: söz dizimi, hâl ekleri, standart kütüphane, arayüz dili |
+| `orhunca_rehber` | Kısa rehberi (dilin özü, ~1.400 belirteç) döndürür; `bolum` ile tek bir bölüm (ör. `Modeller`), `hepsi` ile tam rehber |
 | `orhunca_denetle` | Kodu derler; Türkçe hata mesajlarını, satır numarasını ve ipucunu ya da "Hata yok."u döndürür |
 | `orhunca_calistir` | Programı süre sınırıyla çalıştırır; girdi verilebilir ve çıktı döndürülür |
 | `orhunca_bicimlendir` | Kodu standart biçime getirir |

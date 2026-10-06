@@ -19,6 +19,98 @@ pub fn rehber() -> String {
     )
 }
 
+/// Her istekte gönderilen kısa rehber: dilin özü (docs/ajan-ozeti.md) ve ayrıntılı
+/// bölümlerin adları. Tam rehber yaklaşık 7 bin belirteç tutar; özet bunun dörtte biri
+/// kadardır. Ajan emin olmadığı konuda `rehber_bolumu` ile ilgili bölümü okur.
+pub fn kisa_rehber() -> String {
+    let adlar: Vec<String> = bolumler().into_iter().map(|(b, _)| b).collect();
+    format!(
+        "{}\nRehberin bölümleri: {}.\n",
+        include_str!("../docs/ajan-ozeti.md").trim_end(),
+        adlar.join(", ")
+    )
+}
+
+/// Tam rehberin bölümleri (başlık, metin): dil rehberinin ve arayüz rehberinin `###` başlıkları.
+pub fn bolumler() -> Vec<(String, String)> {
+    let mut l: Vec<(String, String)> = Vec::new();
+    let mut ekle = |belge: &str, ilk: Option<&str>| {
+        let mut baslik = ilk.map(String::from);
+        let mut metin = String::new();
+        for satir in belge.lines() {
+            if let Some(b) = satir.strip_prefix("### ") {
+                if let Some(onceki) = baslik.take() {
+                    l.push((onceki, metin.trim().to_string()));
+                }
+                baslik = Some(b.trim().to_string());
+                metin.clear();
+            } else if baslik.is_some() && !satir.starts_with("# ") && !satir.starts_with("[←") {
+                metin.push_str(satir);
+                metin.push('\n');
+            }
+        }
+        if let Some(b) = baslik {
+            l.push((b, metin.trim().to_string()));
+        }
+    };
+    ekle(include_str!("../docs/dil-rehberi.md"), None);
+    ekle(include_str!("../docs/arayuz.md"), Some("Arayüz dili"));
+    // Tam rehberde olmayan ama ajanların sık ihtiyaç duyduğu belgeler
+    ekle(include_str!("../docs/oyun.md"), Some("Oyun yapmak"));
+    ekle(
+        include_str!("../docs/mobil.md"),
+        Some("Telefon uygulamaları"),
+    );
+    l
+}
+
+fn kucuk(m: &str) -> String {
+    m.chars()
+        .map(|c| match c {
+            'I' => 'ı',
+            'İ' => 'i',
+            c => c.to_lowercase().next().unwrap_or(c),
+        })
+        .collect()
+}
+
+/// Adı (ya da adının bir parçası) verilen bölümü döndürür; "hepsi" tam rehberi verir.
+/// Bulunamazsa bölüm adlarını listeler.
+pub fn rehber_bolumu(ad: &str) -> String {
+    let aranan = kucuk(ad.trim());
+    if aranan.is_empty() || aranan == "hepsi" || aranan == "tamamı" {
+        return rehber();
+    }
+    let l = bolumler();
+    let bulunan: Vec<String> = l
+        .iter()
+        .filter(|(b, _)| kucuk(b).contains(&aranan) || aranan.contains(&kucuk(b)))
+        .map(|(b, m)| format!("### {b}\n\n{m}"))
+        .collect();
+    if bulunan.is_empty() {
+        let adlar: Vec<&str> = l.iter().map(|(b, _)| b.as_str()).collect();
+        return format!(
+            "'{ad}' adlı bölüm yok. Bölümler: {}. Tam rehber için: hepsi",
+            adlar.join(", ")
+        );
+    }
+    bulunan.join("\n\n")
+}
+
+/// Ajana giden uzun metinleri kırpar: başı ve sonu kalır (hata çoğu zaman sondadır).
+pub fn kirp(m: &str, en_cok: usize) -> String {
+    let n = m.chars().count();
+    if n <= en_cok {
+        return m.to_string();
+    }
+    let bas: String = m.chars().take(en_cok * 2 / 3).collect();
+    let son: String = m.chars().skip(n - en_cok / 3).collect();
+    format!(
+        "{bas}\n… ({} karakter atlandı) …\n{son}",
+        n - bas.chars().count() - son.chars().count()
+    )
+}
+
 /// Kaynağı denetler: derleme hatası varsa onu, yoksa yazım uyarılarını döndürür.
 /// `dosya` verilirse (çok dosyalı projeler için) o dosya denetlenir.
 pub fn denetle(kod: Option<&str>, dosya: Option<&Path>) -> Result<String, String> {
@@ -72,14 +164,18 @@ impl Calisma {
             ));
         }
         m.push_str("Çıktı:\n");
-        m.push_str(if self.cikti.is_empty() {
-            "(boş)"
+        // Uzun çıktı ajanın belirteçlerini boşa harcamasın diye kırpılır.
+        m.push_str(&if self.cikti.is_empty() {
+            "(boş)".into()
         } else {
-            &self.cikti
+            kirp(&self.cikti, EN_COK_AJAN_CIKTISI)
         });
         m
     }
 }
+
+/// Ajana gösterilen çıktının en fazla bu kadar karakteri gönderilir.
+const EN_COK_AJAN_CIKTISI: usize = 6000;
 
 /// Çıktının en fazla bu kadar baytı tutulur.
 const EN_COK_CIKTI: usize = 32 * 1024;
@@ -264,5 +360,58 @@ mod testler {
         .unwrap();
         assert!(s.zaman_asimi);
         assert!(rehber().contains("Hâl ekleri"));
+    }
+}
+
+#[cfg(test)]
+mod sinamalar_rehber {
+    use super::*;
+
+    #[test]
+    fn kisa_rehber_kisadir_ve_bolumleri_listeler() {
+        let k = kisa_rehber();
+        assert!(
+            k.len() * 3 < rehber().len(),
+            "{} / {}",
+            k.len(),
+            rehber().len()
+        );
+        for (b, m) in bolumler() {
+            assert!(k.contains(&b), "{b}");
+            assert!(!m.is_empty(), "{b} boş");
+        }
+    }
+
+    #[test]
+    fn bolum_aranir() {
+        assert!(rehber_bolumu("modeller").contains("zorunlu"));
+        assert!(rehber_bolumu("STANDART kütüphane").contains("büyük_harf"));
+        assert!(rehber_bolumu("oyun").contains("oyun_alanı"));
+        assert!(rehber_bolumu("yok-böyle").contains("Bölümler:"));
+        assert_eq!(rehber_bolumu("hepsi"), rehber());
+    }
+
+    #[test]
+    fn ozetteki_kod_derlenir() {
+        let ozet = include_str!("../docs/ajan-ozeti.md");
+        let kod: String = ozet
+            .split("```orhunca\n")
+            .skip(1)
+            .map(|p| p.split("```").next().unwrap_or(""))
+            .collect();
+        assert!(!kod.is_empty());
+        let s = denetle(Some(&kod), None).unwrap();
+        assert!(s.starts_with("Hata yok"), "{s}");
+    }
+
+    #[test]
+    fn uzun_cikti_kirpilir() {
+        let m: String = (0..5000).map(|i| format!("{i}\n")).collect();
+        let k = kirp(&m, 600);
+        assert!(
+            k.len() < 800 && k.starts_with("0\n") && k.ends_with("4999\n"),
+            "{k}"
+        );
+        assert_eq!(kirp("kısa", 600), "kısa");
     }
 }
