@@ -189,8 +189,8 @@ satır çalışmasını sınıfta izleyin.
 
 **Yapay zekâ** — [rehber](docs/yapay-zeka.md)
 
-Stüdyo'daki asistan kendi API anahtarınızla çalışır: soruları yanıtlar, kod yazar, yazdığı kodu
-denetleyip çalıştırır; değişikliği siz onaylarsınız. Claude Code, Cursor gibi ajanlar
+Stüdyo'daki asistan Claude, GPT, Gemini gibi bulut modelleriyle ya da Ollama, LM Studio gibi yerel modellerle çalışır: soruları yanıtlar, kod yazar, yazdığı kodu
+denetleyip çalıştırır; değişikliği siz onaylarsınız. Claude Code, Codex, Gemini CLI, Cursor gibi ajanlar
 `orhunca mcp` sunucusuna bağlanıp Orhunca kodu yazabilir. Okullar asistanı tek ayarla kapatabilir.
 
 </td>
@@ -230,7 +230,7 @@ ifadeler), CSV, JSON, HTTP istekleri; resmi `istatistik` ve `geometri` paketleri
 | [Orhunca Stüdyo](docs/studyo.md) | Geliştirme ortamı, hata ayıklayıcı, canlı önizleme |
 | [Oyun yapmak](docs/oyun.md) | `oyun_alanı`, çizim, klavye, fare ve dokunma, ses |
 | [Telefon uygulamaları](docs/mobil.md) | Android (.apk) ve iPhone/iPad; `titret`, `paylaş`, `bildirim_gönder` |
-| [Yapay zekâ](docs/yapay-zeka.md) | Stüdyo asistanı; Claude Code, Cursor gibi ajanları `orhunca mcp` ile bağlamak |
+| [Yapay zekâ](docs/yapay-zeka.md) | Stüdyo asistanı (bulut ve yerel modeller); Claude Code, Codex, Cursor gibi ajanları `orhunca mcp` ile bağlamak |
 | [Paketler](docs/paketler.md) | Paket dizini, `orhunca paket`, kendi paketinizi yayımlamak |
 | [Geliştirme](docs/gelistirme.md) | Kaynaktan derleme, mimari, öz-barındırma, VS Code eklentisi |
 | [Yol haritası](PLAN.md) | Tamamlanan aşamalar ve sıradakiler |

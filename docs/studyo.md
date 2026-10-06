@@ -79,7 +79,7 @@ açıklama yazılır.
 
 ## Yapay zekâ asistanı
 
-Sağ üstteki **Asistan** düğmesi (<kbd>Ctrl+I</kbd>), kendi Anthropic API anahtarınızla çalışan bir
+Sağ üstteki **Asistan** düğmesi (<kbd>Ctrl+I</kbd>), Claude, GPT, Gemini ya da yerel modellerle (Ollama, LM Studio) çalışan bir
 sohbet panelini sağda açar. Asistan açık dosyanızı görür, yazdığı kodu denetleyip çalıştırır ve dosya değişikliğini
 öneri olarak gösterir; **Uygula** ile yazılır. Ayrıntılar ve okullar için kapatma ayarı:
 [Yapay zekâ ile Orhunca](yapay-zeka.md).

@@ -9,6 +9,15 @@
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 
 fn main() {
+    // `orhunca-studyo mcp`: yapay zekâ ajanları (Claude Code, Cursor…) yalnızca masaüstü
+    // uygulaması kurulu olsa da Orhunca'nın MCP sunucusuna bağlanabilsin.
+    if std::env::args().nth(1).as_deref() == Some("mcp") {
+        if let Err(e) = orhunca::mcp::calistir() {
+            eprintln!("{e}");
+            std::process::exit(1);
+        }
+        return;
+    }
     // Dosya ilişkilendirmesi: çift tıklanan .ohc dosyası ya da klasör ilk argümandır.
     let acilacak = std::env::args_os()
         .skip(1)

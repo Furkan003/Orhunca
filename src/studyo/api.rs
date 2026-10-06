@@ -81,6 +81,10 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
             Ok(d) => Yanit::json(&d),
             Err(e) => hata(e),
         },
+        ("GET", "/api/ajan") => Yanit::json(&json!({
+            "komut": asistan::mcp_komutu(),
+            "talimat": asistan::ajan_talimati(),
+        })),
         ("GET", "/api/temalar") => Yanit::json(&temalar::liste()),
         ("GET", "/api/tema") => match temalar::oku(istek.sorgu("kimlik")) {
             Ok(t) => Yanit::json(&json!({ "tema": t })),
@@ -133,9 +137,13 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
         ("POST", "/api/cevir") => cevir(metin(&g, "dosya"), metin(&g, "icerik"), metin(&g, "dil")),
         ("POST", "/api/calistir") => calistir(&g),
         ("POST", "/api/tarayicida_ac") => {
-            // Yalnızca bu bilgisayardaki sunucuların adresleri (canlı önizleme) açılır.
+            // Yalnızca bu bilgisayardaki sunucuların adresleri (canlı önizleme) ve yapay zekâ
+            // sağlayıcılarının anahtar/kurulum sayfaları açılır.
             let adres = metin(&g, "adres");
-            if !adres.starts_with("http://localhost:") && !adres.starts_with("http://127.0.0.1:") {
+            if !adres.starts_with("http://localhost:")
+                && !adres.starts_with("http://127.0.0.1:")
+                && !asistan::sayfa_mi(adres)
+            {
                 return Yanit::hata(403, "yalnızca yerel adresler açılabilir");
             }
             super::tarayicida_ac(adres);

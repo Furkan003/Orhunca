@@ -238,8 +238,13 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
 
 ### 11f – Yapay zekâ
 - `orhunca mcp`: MCP sunucusu (rehber, denetle, çalıştır, biçimlendir); `llms.txt`, `llms-full.txt`.
-- Stüdyo asistanı: kullanıcının kendi Anthropic API anahtarıyla; model API'nin listesinden seçilir,
-  asistan kodu kendisi denetleyip çalıştırır, dosya değişikliğini öneri olarak verir.
+- Stüdyo asistanı: Anthropic, OpenAI, Gemini, OpenRouter, Groq, Mistral, DeepSeek, xAI ve yerel
+  modeller (Ollama'nın kendi API'si, LM Studio ve OpenAI uyumlu her sunucu); model sağlayıcının
+  listesinden seçilir ya da elle yazılır. Asistan kodu kendisi denetleyip çalıştırır, dosya
+  değişikliğini öneri olarak verir; araç kullanamayan modellerle düz sohbete geçer.
+- "Kendi ajanınızı bağlayın": Claude Code, Codex, Gemini CLI, Cursor, VS Code, Claude Desktop,
+  Windsurf, Cline, Continue, Zed, OpenCode için hazır MCP yapılandırması; projeye AGENTS.md.
+  Masaüstü uygulaması da `orhunca-studyo mcp` olarak MCP sunucusu çalıştırır.
   Okullar `ORHUNCA_YAPAY_ZEKA=kapali` ile kapatabilir. Bkz. [docs/yapay-zeka.md](docs/yapay-zeka.md).
 
 ## Aşama 12 – Telefon, çeviri, oyun

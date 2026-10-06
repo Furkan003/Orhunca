@@ -617,3 +617,134 @@ fn yapay_zeka_asistani() {
     let r = k.api("/api/asistan/ayar", json!({ "anahtar": "x" }));
     assert!(r["hata"].is_string(), "{r}");
 }
+
+#[test]
+fn yapay_zeka_baska_saglayicilar() {
+    use serde_json::json;
+    let (adres, istekler) = sahte_api(vec![
+        // LM Studio (OpenAI uyumlu): model listesi, araç çağrısı, son yanıt
+        (
+            200,
+            json!({ "data": [
+                { "id": "text-embedding-nomic", "created": 1 },
+                { "id": "qwen2.5-coder-7b", "created": 2 },
+            ] }),
+        ),
+        (
+            200,
+            json!({ "choices": [{ "finish_reason": "tool_calls", "message": {
+                "role": "assistant", "content": null,
+                "tool_calls": [{ "id": "c1", "type": "function", "function": {
+                    "name": "kodu_calistir", "arguments": "{\"kod\":\"(6 * 7)'yi yaz.\\n\"}"
+                } }]
+            } }] }),
+        ),
+        (
+            200,
+            json!({ "choices": [{ "finish_reason": "stop", "message": {
+                "role": "assistant", "content": "<think>hesap</think>Sonuç 42."
+            } }] }),
+        ),
+        // Ollama: model araç kullanamıyor, düz sohbete geçilmeli
+        (
+            400,
+            json!({ "error": "registry.ollama.ai/library/gemma:2b does not support tools" }),
+        ),
+        (
+            200,
+            json!({ "done_reason": "stop", "message": {
+                "role": "assistant", "content": "```orhunca\n\"Merhaba\"'yı yaz.\n```"
+            } }),
+        ),
+        // OpenAI: anahtar Authorization başlığıyla gider
+        (200, json!({ "data": [{ "id": "gpt-deneme" }] })),
+    ]);
+    let s = baslat_ortamli("asistan-saglayici", &[("ORHUNCA_ASISTAN_ADRESI", &adres)]);
+    let r = s.api("/api/asistan/ayar", json!({ "saglayici": "lmstudio" }));
+    assert_eq!(r["saglayici"], "lmstudio", "{r}");
+    assert_eq!(
+        r["hazir"], true,
+        "yerel sağlayıcı anahtarsız hazır olmalı: {r}"
+    );
+    let (_, g) = s.istek("GET", "/api/asistan/modeller", None, true);
+    assert!(
+        g.contains("qwen2.5-coder-7b") && !g.contains("embedding"),
+        "{g}"
+    );
+    let ilk = istekler.recv().unwrap();
+    assert!(ilk.starts_with("GET /models"), "{ilk}");
+    assert!(!ilk.to_lowercase().contains("authorization"), "{ilk}");
+
+    s.api("/api/asistan/ayar", json!({ "model": "qwen2.5-coder-7b" }));
+    let r = s.api(
+        "/api/asistan/sor",
+        json!({ "mesajlar": [{ "rol": "kullanici", "metin": "6 ile 7'yi çarp" }] }),
+    );
+    assert_eq!(r["yanit"], "Sonuç 42.", "{r}");
+    assert_eq!(r["aracsiz"], false, "{r}");
+    assert!(
+        r["adimlar"][0]["sonuc"].as_str().unwrap().contains("42"),
+        "{r}"
+    );
+    let birinci = istekler.recv().unwrap();
+    assert!(
+        birinci.starts_with("POST /chat/completions")
+            && birinci.contains("\"tools\"")
+            && birinci.contains("\"role\":\"system\""),
+        "{birinci}"
+    );
+    let ikinci = istekler.recv().unwrap();
+    assert!(
+        ikinci.contains("\"tool_call_id\":\"c1\"") && ikinci.contains("42"),
+        "{ikinci}"
+    );
+
+    s.api(
+        "/api/asistan/ayar",
+        json!({ "saglayici": "ollama", "model": "gemma:2b" }),
+    );
+    let r = s.api(
+        "/api/asistan/sor",
+        json!({ "mesajlar": [{ "rol": "kullanici", "metin": "merhaba yaz" }] }),
+    );
+    assert_eq!(r["aracsiz"], true, "{r}");
+    assert!(r["yanit"].as_str().unwrap().contains("```orhunca"), "{r}");
+    let reddedilen = istekler.recv().unwrap();
+    assert!(
+        reddedilen.starts_with("POST /api/chat")
+            && reddedilen.contains("num_ctx")
+            && reddedilen.contains("\"tools\""),
+        "{reddedilen}"
+    );
+    let yeniden = istekler.recv().unwrap();
+    assert!(
+        !yeniden.contains("\"tools\"") && yeniden.contains("araçların yok"),
+        "{yeniden}"
+    );
+
+    // Anahtar gereken sağlayıcı anahtarsız hazır değildir; anahtar Bearer olarak gider.
+    let r = s.api("/api/asistan/ayar", json!({ "saglayici": "openai" }));
+    assert_eq!(r["hazir"], false, "{r}");
+    let r = s.api(
+        "/api/asistan/ayar",
+        json!({ "anahtar": "sk-openai-12345678" }),
+    );
+    assert!(!r.to_string().contains("sk-openai"), "{r}");
+    let (_, g) = s.istek("GET", "/api/asistan/modeller", None, true);
+    assert!(g.contains("gpt-deneme"), "{g}");
+    let son = istekler.recv().unwrap();
+    assert!(
+        son.contains("Authorization: Bearer sk-openai-12345678"),
+        "{son}"
+    );
+    // Sağlayıcıların ayarları birbirinden ayrı tutulur.
+    let lm = r["saglayicilar"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["kimlik"] == "lmstudio")
+        .unwrap();
+    assert_eq!(lm["model"], "qwen2.5-coder-7b", "{lm}");
+    let r = s.api("/api/asistan/ayar", json!({ "adres": "file:///etc" }));
+    assert!(r["hata"].is_string(), "{r}");
+}
