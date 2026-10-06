@@ -19,7 +19,6 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 const BOLUM: &str = "bağımlılıklar";
 pub const KILIT_DOSYASI: &str = "orhunca.kilit";
@@ -217,7 +216,7 @@ fn klasoru_kopyala(kaynak: &Path, hedef: &Path) -> std::io::Result<()> {
 }
 
 fn git(args: &[&str], klasor: Option<&Path>) -> Result<String, String> {
-    let mut k = Command::new("git");
+    let mut k = crate::komut("git");
     k.args(args);
     if let Some(d) = klasor {
         k.current_dir(d);
@@ -359,7 +358,7 @@ pub const DIZIN_ADRESI: &str =
 pub fn dizin() -> Result<Vec<DizinPaketi>, String> {
     let yer = std::env::var("ORHUNCA_PAKET_DIZINI").unwrap_or_else(|_| DIZIN_ADRESI.into());
     let metin = if yer.starts_with("https://") || yer.starts_with("http://") {
-        let c = Command::new("curl")
+        let c = crate::komut("curl")
             .args([
                 "-sSfL",
                 "--max-time",

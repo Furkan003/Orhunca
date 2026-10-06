@@ -5,7 +5,6 @@ use super::{asistan, calisma, depo, sablonlar, temalar};
 use crate::{agac, derleme};
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -262,7 +261,7 @@ fn windows_baglayici_var() -> bool {
     if cfg!(windows) {
         return true;
     }
-    Command::new("x86_64-w64-mingw32-gcc")
+    crate::komut("x86_64-w64-mingw32-gcc")
         .arg("--version")
         .output()
         .map(|o| o.status.success())
@@ -394,7 +393,7 @@ fn sinirli_calistir(
     sure: Duration,
 ) -> Result<(String, String), String> {
     use std::io::{Read, Write};
-    let mut c = Command::new(program)
+    let mut c = crate::komut(program)
         .current_dir(klasor)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
@@ -532,14 +531,14 @@ fn proje_olustur(g: &Value) -> Yanit {
         }
         let _ = std::fs::write(kok.join(".gitignore"), yoksay);
         // Türkçe dal adı; eski Git sürümleri --initial-branch bilmez.
-        let git = Command::new("git")
+        let git = crate::komut("git")
             .args(["init", "-q", "--initial-branch=ana"])
             .current_dir(&kok)
             .output()
             .ok()
             .filter(|o| o.status.success())
             .or_else(|| {
-                Command::new("git")
+                crate::komut("git")
                     .args(["init", "-q"])
                     .current_dir(&kok)
                     .output()
@@ -620,7 +619,7 @@ fn proje_klonla(url: &str, konum: &str) -> Yanit {
         return hata(format!("'{}' zaten var.", hedef.display()));
     }
     let _ = std::fs::create_dir_all(konum);
-    let sonuc = Command::new("git")
+    let sonuc = crate::komut("git")
         .args(["clone", "--depth", "1", "--", url])
         .arg(&hedef)
         .output();

@@ -12,7 +12,7 @@ use crate::ajan;
 use serde_json::{json, Value};
 use std::io::Write;
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::time::Duration;
 
 const SISTEM: &str = "\
@@ -471,7 +471,7 @@ impl Baglanti {
     /// sadeleştirip yeniden deneyebilir).
     fn istek(&self, yol: &str, govde: Option<&Value>) -> Result<Value, String> {
         let gecici = crate::derleme::gecici_klasor("asistan")?;
-        let mut komut = Command::new("curl");
+        let mut komut = crate::komut("curl");
         komut
             .args(["-sS", "--connect-timeout", "15", "--max-time", "900"])
             .args(["-w", "\n%{http_code}"])

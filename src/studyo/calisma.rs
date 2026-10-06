@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
-use std::process::{Child, ChildStdin, Command, Stdio};
+use std::process::{Child, ChildStdin, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
@@ -267,7 +267,7 @@ pub fn baslat(
         let kapi = a.dinleyici.local_addr().map_err(|e| e.to_string())?.port();
         ortam.push(("ORHUNCA_AYIKLA", kapi.to_string()));
     }
-    let mut cocuk = Command::new(program)
+    let mut cocuk = crate::komut(program)
         .args(argumanlar)
         .envs(ortam.iter().map(|(a, d)| (*a, d.as_str())))
         .current_dir(klasor)

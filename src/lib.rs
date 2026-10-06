@@ -37,3 +37,17 @@ pub const SURUM: &str = env!("CARGO_PKG_VERSION");
 /// Derleyiciyi çalıştıran iş parçacıklarının yığın boyutu. Ayrıştırıcı ve denetçi
 /// özyinelemelidir; ayristirici'deki derinlik sınırları bu boyutla güvenlidir.
 pub const YIGIN: usize = 256 * 1024 * 1024;
+
+/// Alt süreç komutu. Windows'ta masaüstü Stüdyo'nun (konsolu olmayan bir pencere
+/// uygulaması) başlattığı her konsol programı için boş bir siyah pencere açılır; çıktı
+/// Stüdyo'ya aktarıldığından o pencere boş kalır. CREATE_NO_WINDOW bunu önler.
+pub fn komut(program: impl AsRef<std::ffi::OsStr>) -> std::process::Command {
+    #[allow(unused_mut)]
+    let mut c = std::process::Command::new(program);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        c.creation_flags(0x0800_0000);
+    }
+    c
+}

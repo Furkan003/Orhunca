@@ -19,7 +19,6 @@ use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hasher};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 mod gomulu {
     include!(concat!(env!("OUT_DIR"), "/studio_dosyalari.rs"));
@@ -46,11 +45,11 @@ fn bilgi(metin: &str) {
 
 pub fn tarayicida_ac(adres: &str) {
     let sonuc = if cfg!(windows) {
-        Command::new("cmd").args(["/C", "start", "", adres]).spawn()
+        crate::komut("cmd").args(["/C", "start", "", adres]).spawn()
     } else if cfg!(target_os = "macos") {
-        Command::new("open").arg(adres).spawn()
+        crate::komut("open").arg(adres).spawn()
     } else {
-        Command::new("xdg-open").arg(adres).spawn()
+        crate::komut("xdg-open").arg(adres).spawn()
     };
     if sonuc.is_err() {
         bilgi("Tarayıcı açılamadı; adresi kendiniz açın.");

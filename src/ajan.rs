@@ -5,7 +5,7 @@
 use crate::{bicimlendirici, derleme};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::time::{Duration, Instant};
 
 /// Ajanlara verilen dil rehberi: kısa bir giriş (docs/ajan-girisi.md), ardından
@@ -235,7 +235,7 @@ fn calistir_yol(yol: &Path, girdi: &str, sure: Duration) -> Result<Calisma, Stri
         return Ok(hatali(h.metin));
     }
     let calisma_klasoru = yol.parent().filter(|p| !p.as_os_str().is_empty());
-    let mut komut = Command::new(&cikti);
+    let mut komut = crate::komut(&cikti);
     komut
         .current_dir(calisma_klasoru.unwrap_or(&klasor))
         .stdin(Stdio::piped())

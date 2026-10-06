@@ -143,7 +143,7 @@ pub fn disa_aktar(t: &Value) -> Result<String, String> {
 }
 
 fn indir(adres: &str) -> Result<Vec<u8>, String> {
-    let c = std::process::Command::new("curl")
+    let c = crate::komut("curl")
         .args([
             "-sSfL",
             "--max-time",

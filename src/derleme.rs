@@ -5,7 +5,6 @@ use crate::baglayici;
 use crate::{agac, ayristirici, denetci, hata, sablon, sozcuk, uretici, wasm_uretici};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use target_lexicon::Triple;
@@ -314,7 +313,7 @@ fn derle_secenekli(
             "cc".into()
         }
     });
-    let mut komut = Command::new(&baglayici);
+    let mut komut = crate::komut(&baglayici);
     komut
         .arg("-O2")
         .arg("-o")

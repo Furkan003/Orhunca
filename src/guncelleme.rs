@@ -11,7 +11,6 @@
 //! Stüdyo Ayarlar → Güncellemeler.
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 pub const DEPO: &str = "Furkan003/Orhunca";
 
@@ -40,7 +39,7 @@ pub struct Surum {
 }
 
 fn curl(args: &[&str]) -> Result<Vec<u8>, String> {
-    let c = Command::new("curl")
+    let c = crate::komut("curl")
         .args(["-sSfL", "--proto", "=https,http", "-A", "Orhunca"])
         .args(args)
         .output()
@@ -308,7 +307,7 @@ pub fn indir(s: &Surum, ad: &str) -> Result<PathBuf, String> {
 /// kapanmalı (kurulum başladı ya da dosyası değişti).
 pub fn kur(k: &Kurulum, dosya: &Path) -> Result<(String, bool), String> {
     let ac = |komut: &str, args: &[&Path]| -> Result<(), String> {
-        Command::new(komut)
+        crate::komut(komut)
             .args(args)
             .spawn()
             .map(|_| ())
@@ -345,7 +344,7 @@ pub fn kur(k: &Kurulum, dosya: &Path) -> Result<(String, bool), String> {
             let klasor = dosya.parent().unwrap_or(Path::new(".")).join("acilan");
             let _ = std::fs::remove_dir_all(&klasor);
             std::fs::create_dir_all(&klasor).map_err(|e| e.to_string())?;
-            let c = Command::new("tar")
+            let c = crate::komut("tar")
                 .arg("-xf")
                 .arg(dosya)
                 .arg("-C")

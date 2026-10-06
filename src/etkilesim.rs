@@ -8,7 +8,6 @@
 use crate::{bicimlendirici, derleme, ekler::Hal};
 use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 const YARDIM: &str = "\
 Orhunca etkileşim — yazdığınız her satır hemen çalışır.
@@ -76,7 +75,7 @@ impl Oturum {
         if let Err(h) = derleme::derle(&dosya, &program, None) {
             return Sonuc::Derleme(h.metin);
         }
-        match Command::new(&program).current_dir(&self.klasor).output() {
+        match crate::komut(&program).current_dir(&self.klasor).output() {
             Ok(c) => Sonuc::Tamam {
                 cikti: String::from_utf8_lossy(&c.stdout).into_owned(),
                 hata: String::from_utf8_lossy(&c.stderr).into_owned(),
