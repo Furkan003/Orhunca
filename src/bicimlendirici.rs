@@ -525,14 +525,20 @@ pub fn bicimlendir(kaynak: &str) -> String {
             continue;
         }
         if govde.starts_with('#') {
-            // Yorum satırları bir sonraki kodun girintisine uyar; burada yalnızca ölçeklenir.
-            let duzey = yigin
-                .iter()
-                .filter(|g| **g < girinti)
-                .count()
-                .saturating_sub(1)
-                + usize::from(yigin.contains(&girinti) && girinti > 0);
-            let duzey = if girinti == 0 { 0 } else { duzey.max(1) };
+            // Yorumun düzeyi kendi girintisinden: bilinen bir düzeyse o, en derin düzeyden
+            // de derinse (ör. yeni açılan bloğun ilk satırı) bir içerisi, arada kalıyorsa
+            // bir üstteki düzey. Yığın değişmez; yorum blok yapısını etkilemez.
+            let duzey = if let Some(i) = yigin.iter().position(|g| *g == girinti) {
+                i
+            } else if girinti > *yigin.last().unwrap() {
+                yigin.len()
+            } else {
+                yigin
+                    .iter()
+                    .filter(|g| **g < girinti)
+                    .count()
+                    .saturating_sub(1)
+            };
             cikti.push(format!("{}{}", "    ".repeat(duzey), govde));
             continue;
         }
@@ -577,6 +583,23 @@ mod testler {
 
     fn uyari_var(k: &str) -> bool {
         !uyarilar(k).is_empty()
+    }
+
+    #[test]
+    fn blogun_ilk_satirindaki_yorum_girintisini_korur() {
+        // Hata #70: yeni açılan bloğun ilk satırı yorumsa başlığın düzeyine kayıyordu.
+        let k = "eğer a ise:\n    eğer b ise:\n        x = 1\n    değilse:\n        # ilk\n        x = 2\n\
+                 arayüz:\n    düğme(\"A\") tıklanınca:\n        # olay\n        x = 3\n\
+                 işlev f():\n    # gövde\n    döndür 1\n";
+        assert_eq!(bicimlendir(k), k);
+        // Bloğun sonundaki yorum yerinde kalır; sonraki koşula ait yorum onunla hizalanır.
+        let k = "eğer a ise:\n    x = 1\n    # son not\n# değilse için\ndeğilse:\n    x = 2\n";
+        assert_eq!(bicimlendir(k), k);
+        // Sekme ve 2 boşluk 4 boşluğa çevrilir.
+        assert_eq!(
+            bicimlendir("eğer a ise:\n  # y\n  x = 1\n"),
+            "eğer a ise:\n    # y\n    x = 1\n"
+        );
     }
 
     #[test]
