@@ -303,7 +303,7 @@
     { ad: 'Görünüm', ogeler: [['Gezgin', '', 'panelGezgin'], ['Ara', '', 'panelAra'], ['Yapı', '', 'panelYapi'], ['Çalıştır', '', 'panelCalistir'], '-', ['Alt paneli göster/gizle', 'Ctrl+J', 'altPanelAcKapa'], ['Yapay zekâ asistanı', 'Ctrl+I', 'asistanAcKapa'], '-', ['Python karşılığını göster', '', 'ceviriPython'], ['JavaScript karşılığını göster', '', 'ceviriJs'], '-', ['Yazıyı büyüt', 'Ctrl+=', 'yaziBuyut'], ['Yazıyı küçült', 'Ctrl+-', 'yaziKucult']] },
     { ad: 'Çalıştır', ogeler: [['Çalıştır', 'F5', 'calistir'], ['Hata ayıkla', 'F6', 'ayikla'], ['Adım adım göster', '', 'yavasCalistir'], ['Durdur', '⇧+F5', 'durdur'], ['Denetle', 'F7', 'denetleKomut'], '-', ['Kesme noktası ekle/kaldır', 'F9', 'kesmeImlec'], ['Devam', 'F5', 'ayDevam'], ['Üstünden adım', 'F10', 'ayUstunden'], ['İçine adım', 'F11', 'ayAdim'], ['Dışına adım', '⇧+F11', 'ayCik'], '-', ['Canlı önizlemeyi göster/gizle', '', 'onizlemeAcKapa'], ['Önizlemeyi tarayıcıda aç', '', 'onizlemeTarayici'], '-', ['Linux için derle', '', 'derleLinux'], ['Windows için derle', '', 'derleWindows'], ['Web için derle (WebAssembly)', '', 'derleWeb'], '-', ['Masaüstü uygulaması (Linux)', '', 'paketleLinux'], ['Masaüstü uygulaması (Windows)', '', 'paketleWindows'], ['Telefon uygulaması (Android)', '', 'paketleAndroid'], ['Telefon uygulaması (iPhone)', '', 'paketleIos']] },
     { ad: 'Terminal', ogeler: [['Terminali temizle', '', 'terminalTemizle'], ['Sorunları göster', '', 'altSorunlar'], ['Çıktıyı göster', '', 'altCikti']] },
-    { ad: 'Yardım', ogeler: [["Orhunca'yı öğren", '', 'ogrenAc'], ['Klavye kısayolları', '', 'kisayollarModal'], ['Sürüm notları', '', 'guncellemeModal'], '-', ['Hakkında', '', 'hakkindaModal']] },
+    { ad: 'Yardım', ogeler: [["Orhunca'yı öğren", '', 'ogrenAc'], ['Klavye kısayolları', '', 'kisayollarModal'], ['Sürüm notları', '', 'guncellemeModal'], '-', ['Hata bildir…', '', 'hataBildirModal'], ['Hakkında', '', 'hakkindaModal']] },
   ];
 
   function cizAcilir(m) {
@@ -615,6 +615,17 @@
     if (m.tur === 'kisayollar') {
       const k = [['Çalıştır', 'F5'], ['Hata ayıkla', 'F6'], ['Durdur', '⇧+F5'], ['Denetle', 'F7'], ['Kesme noktası', 'F9'], ['Üstünden / içine adım', 'F10 / F11'], ['Kaydet', 'Ctrl+S'], ['Tümünü kaydet', 'Ctrl+Alt+S'], ['Satırı yorum yap', 'Ctrl+/'], ['Biçimlendir', 'Ctrl+⇧+F'], ['Satırı çoğalt', 'Ctrl+⇧+D'], ['Alt paneli göster/gizle', 'Ctrl+J'], ['Girinti / geri girinti', 'Tab / ⇧+Tab'], ['Projelerde ara', 'Alt+S'], ['Yeni proje', 'Ctrl+⇧+N']];
       return kabuk('Klavye kısayolları', `<div class="kisayol-listesi">${k.map(([a, b]) => `<span>${a}</span><span>${b}</span>`).join('')}</div>`, `<div class="dugme birincil" data-e="modalKapat">Kapat</div>`);
+    }
+    if (m.tur === 'hataBildir') {
+      const kutu = (a, ad, alt, pasif) => `<div class="secenek ${pasif ? 'pasif' : ''}" data-e="hataBildirSec" data-a="${a}"><div class="esnek"><div class="secenek-ad">${ad}</div><div class="secenek-alt">${alt}</div></div><div class="anahtar ${m[a] && !pasif ? 'acik' : ''}"><div></div></div></div>`;
+      const sonHata = hataBildirSonHata();
+      return kabuk(`${S('bug_report')} Hata bildir`, `
+        <div class="alan" style="gap:6px"><label style="font-size:12.5px">Ne oldu? Ne yapmaya çalıştınız, ne bekliyordunuz?</label>
+          <textarea class="metin-girdi" data-g="hataBildirNe" rows="5" style="height:auto;resize:vertical;font-family:inherit;line-height:1.45" placeholder="Örnek: Çalıştır'a basınca program açılıyor ama çıktı görünmüyor.">${kac(m.ne || '')}</textarea></div>
+        ${kutu('kod', 'Açık dosyanın kodunu ekle', etkinSekme() && !etkinSekme().ikili ? kac(etkinSekme().yol) + ' (ilk 3000 karakter)' : 'Açık dosya yok', !(etkinSekme() && !etkinSekme().ikili))}
+        ${kutu('cikti', 'Son hata mesajını ekle', sonHata ? kac(sonHata.split('\n')[0].slice(0, 90)) : 'Hata mesajı yok', !sonHata)}
+        <div class="panel-not" style="font-size:12px;margin-top:8px">Eklenecek: Orhunca ${kac(D.bilgi.surum)} · ${kac(D.bilgi.isletim)}. Hiçbir şey kendiliğinden gönderilmez: GitHub'da hazır doldurulmuş bir sayfa açılır, göz atıp siz gönderirsiniz (GitHub hesabı gerekir). Kodunuzda kişisel bilgi varsa eklemeyin.</div>`,
+        `<div class="dugme" data-e="modalKapat">Vazgeç</div><div class="dugme birincil" data-e="hataBildirGonder">${S('open_in_new')}GitHub'da aç</div>`);
     }
     if (m.tur === 'hakkinda') {
       return kabuk('Hakkında', `<div style="display:flex;gap:16px;align-items:center"><div class="logo-kutu" style="width:48px;height:48px"><img src="simge.svg" alt=""></div>
@@ -2002,6 +2013,29 @@
        <div class="dugme" data-e="modalKapat">Kapat</div><div class="dugme birincil ${m.icerik === null ? 'pasif' : ''}" data-e="gecmisGeriYukle">${S('restore')}Bu hâle dön</div>`).replace('class="modal"', 'class="modal genis"');
   }
 
+  /** Terminaldeki son hata (derleme ya da çalışma hatası) ya da sorunlar panelindeki ilk hata. */
+  function hataBildirSonHata() {
+    const hatalar = D.terminal.filter(t => t.c === 'err').map(t => t.t);
+    if (hatalar.length) return hatalar.slice(-6).join('\n');
+    const h = D.sorunlar[0];
+    return h ? `${h.dosya || ''}:${h.satir}:${h.sutun}: ${h.mesaj}` : '';
+  }
+
+  /** GitHub hata formunun alanlarını adresle doldurur (alan kimlikleri: .github/ISSUE_TEMPLATE/hata.yml). */
+  function hataBildirAdresi(m) {
+    const sistem = { windows: 'Windows 10/11', macos: 'macOS' }[D.bilgi.isletim] || 'Diğer Linux';
+    const alan = { template: 'hata.yml', surum: D.bilgi.surum, sistem, ne: (m.ne || '').trim() || '(açıklama yazılmadı)' };
+    const s = etkinSekme();
+    if (m.kod && s && !s.ikili) alan.kod = s.icerik.slice(0, 3000);
+    const h = hataBildirSonHata();
+    if (m.cikti && h) alan.cikti = h.slice(0, 2000);
+    alan.title = 'Hata: ' + alan.ne.split('\n')[0].slice(0, 70);
+    const adres = () => 'https://github.com/Furkan003/Orhunca/issues/new?' + new URLSearchParams(alan).toString();
+    // Adres çok uzunsa (tarayıcı sınırı) kod kısaltılır.
+    while (adres().length > 7500 && alan.kod) alan.kod = alan.kod.slice(0, Math.floor(alan.kod.length * 0.7));
+    return adres();
+  }
+
   function cizCeviri(kabuk) {
     const m = D.modal;
     const vurgulaDil = m.dil === 'python' ? vurgulaPy : vurgulaJs;
@@ -2444,6 +2478,15 @@
       navigator.clipboard?.writeText(m?.oneri?.icerik || '').then(() => bildir('Kopyalandı.'), () => bildir('Kopyalanamadı.', true));
     },
     asistanGosterDegistir() { D.asistanGoster = !D.asistanGoster; ayarYaz('asistanGoster', D.asistanGoster); katmanlariCiz(); if (D.ekran === 'duzenleyici') guncelle('baslik', 'etkinlik', 'asistan'); },
+    hataBildirModal() { D.menu = null; D.modal = { tur: 'hataBildir', ne: '', kod: true, cikti: true }; katmanlariCiz(); },
+    hataBildirSec(a) { D.modal[a] = !D.modal[a]; katmanlariCiz(); },
+    hataBildirGonder() {
+      const m = D.modal;
+      if (!(m.ne || '').trim()) return bildir('Önce ne olduğunu kısaca yazın.', true);
+      EYLEM.disAdresAc(hataBildirAdresi(m));
+      D.modal = null; katmanlariCiz();
+      bildir('GitHub sayfası açıldı; göz atıp "Submit new issue" ile gönderin. Teşekkürler!');
+    },
     otomatikKaydetDegistir() { D.otomatikKaydet = !D.otomatikKaydet; ayarYaz('otomatikKaydet', D.otomatikKaydet); katmanlariCiz(); },
     async gecmisModal() {
       const s = etkinSekme();
@@ -2760,6 +2803,7 @@
     asistanGirdi(v) { D.asistan.girdi = v; },
     asistanAnahtar(v) { D.asistan.anahtar = v; },
     asistanAdres(v) { D.asistan.adres = v; },
+    hataBildirNe(v) { if (D.modal) D.modal.ne = v; },
     async asistanModel(v) {
       if (v === '__elle__') {
         v = (prompt('Model adı (ör. qwen2.5-coder:7b, gpt-4.1, anthropic/claude-sonnet-4):', D.asistan.durum?.model || '') || '').trim();

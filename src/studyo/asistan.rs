@@ -195,12 +195,14 @@ fn saglayici(kimlik: &str) -> Option<&'static Saglayici> {
     SAGLAYICILAR.iter().find(|s| s.kimlik == kimlik)
 }
 
-/// Stüdyo'nun dış bağlantı olarak açabileceği sağlayıcı sayfaları ve belgeler.
+/// Stüdyo'nun dış bağlantı olarak açabileceği sayfalar: sağlayıcılar, belgeler, hata bildirimi.
 pub fn sayfa_mi(adres: &str) -> bool {
     adres == BELGE
         || SAGLAYICILAR
             .iter()
             .any(|s| !s.sayfa.is_empty() && s.sayfa == adres)
+        // Stüdyo'nun "Hata bildir" penceresi (hazır doldurulmuş GitHub hata formu)
+        || adres.starts_with("https://github.com/Furkan003/Orhunca/issues/new?")
 }
 
 const BELGE: &str = "https://github.com/furkan003/Orhunca/blob/HEAD/docs/yapay-zeka.md";
