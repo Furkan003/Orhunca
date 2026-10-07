@@ -107,7 +107,8 @@ Düğmeler, tablolar, grafikler ve sekmelerle uygulamalar; oturumlu web siteleri
 Stüdyo kurulumları `orhunca` komutunu da kurar ve yeni sürümleri kendisi bildirir. Kurulum
 dosyaları henüz imzalı değildir: Windows'ta "Bilinmeyen yayımcı" uyarısında *Ek bilgi → Yine de
 çalıştır*, macOS'ta ilk açılışta *sağ tık → Aç*. Kurmadan denemek için:
-**[tarayıcıda dene](https://furkan003.github.io/Orhunca/dene.html)**.
+**[tarayıcıda dene](https://furkan003.github.io/Orhunca/dene.html)**. Bu sayfa telefona ve tablete
+uygulama olarak kurulur ve internetsiz çalışır ([telefonda kod yazmak](docs/mobil.md#telefonda-ve-tablette-kod-yazmak)).
 
 ## Hızlı başlangıç
 

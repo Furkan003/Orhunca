@@ -15,6 +15,20 @@ arayüz:
         titret(30)
 ```
 
+## Telefonda ve tablette kod yazmak
+
+Kod yazmak için bilgisayar gerekmez: [tarayıcıda dene](https://furkan003.github.io/Orhunca/dene.html)
+sayfası telefonda ve tablette de çalışır ve uygulama olarak kurulabilir.
+
+- **Kurulum.** Android'de (Chrome) **Programlarım → Uygulama olarak kur** ya da tarayıcı menüsünden
+  *Ana ekrana ekle*. iPhone/iPad'de (Safari) *Paylaş → Ana Ekrana Ekle*.
+- **İnternetsiz.** Sayfa bir kez açıldıktan sonra derleyici cihazda saklanır; internet olmadan da
+  kod yazılıp çalıştırılır. Programlar hiçbir yere gönderilmez.
+- **Sembol çubuğu.** Kod yazarken klavyenin üstünde telefon klavyesinde zor bulunan işaretler
+  (`'`, `:`, `"`, parantezler, girinti) ve Türkçe harfler (ç, ğ, ı, ö, ş, ü) çıkar. ▶ ile çalıştırılır.
+- **Programlarım.** Yazdıklarınız cihazda kendiliğinden kaydedilir. Birden çok program tutulabilir,
+  adlandırılabilir, `.ohc` dosyası olarak indirilip bilgisayardaki Stüdyo'da açılabilir.
+
 ## Android
 
 ```sh

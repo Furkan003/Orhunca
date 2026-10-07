@@ -28,7 +28,7 @@
       ta.dispatchEvent(new Event('input'));
     }
   }
-  ta.addEventListener('input', () => { hataSatiri = 0; ciz(); ayarYaz('kod', ta.value); });
+  ta.addEventListener('input', () => { hataSatiri = 0; ciz(); kaydetmeyiPlanla(); });
   ta.addEventListener('keydown', (e) => {
     const bas = ta.selectionStart;
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); calistir(); return; }
@@ -55,6 +55,227 @@
   });
   addEventListener('resize', ciz);
 
+  // ---------------------------------------------------------------- Programlarım
+  // Programlar bu cihazda, tarayıcıda saklanır: [{ ad, kod, tarih }]. Açık programın adı ayrıca
+  // tutulur; yazılan her şey kısa bir gecikmeyle açık programa kaydedilir.
+  let programlar = [];
+  try { programlar = JSON.parse(ayarOku('programlar') || '[]'); } catch { programlar = []; }
+  if (!Array.isArray(programlar)) programlar = [];
+  let acikAd = ayarOku('acik') || null;
+  const acikProgram = () => programlar.find((p) => p.ad === acikAd);
+  function programlariYaz() {
+    ayarYaz('programlar', JSON.stringify(programlar));
+    ayarYaz('acik', acikAd || '');
+    $('.baslik-yazi').textContent = acikAd || 'Tarayıcıda dene';
+  }
+  function bosAd(taban) {
+    let ad = taban;
+    for (let i = 2; programlar.some((p) => p.ad === ad); i++) ad = `${taban} (${i})`;
+    return ad;
+  }
+  let kayitZamani = null;
+  function programKaydet() {
+    clearTimeout(kayitZamani);
+    kayitZamani = null;
+    let p = acikProgram();
+    if (!p) {
+      acikAd = bosAd('Programım');
+      p = { ad: acikAd, kod: '' };
+      programlar.unshift(p);
+    }
+    p.kod = ta.value;
+    p.tarih = Date.now();
+    programlariYaz();
+  }
+  function kaydetmeyiPlanla() {
+    clearTimeout(kayitZamani);
+    kayitZamani = setTimeout(programKaydet, 400);
+  }
+  addEventListener('pagehide', () => { if (kayitZamani) programKaydet(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && kayitZamani) programKaydet(); });
+  function editoreYukle(kod) {
+    durdur();
+    cikti.textContent = '';
+    bilgi.textContent = '';
+    ta.value = kod;
+    hataSatiri = 0;
+    ciz();
+    ta.setSelectionRange(0, 0);
+  }
+  function programAc(ad) {
+    if (kayitZamani) programKaydet();
+    const p = programlar.find((x) => x.ad === ad);
+    if (!p) return;
+    acikAd = ad;
+    editoreYukle(p.kod);
+    programlariYaz();
+    $('#ornekler').value = '';
+  }
+  // Örnek, paylaşılan bağlantı ya da açılan dosya yeni bir program olarak açılır; kullanıcının
+  // yazdıkları üzerine yazılmaz. Aynı adlı ve aynı içerikli program varsa ona geçilir.
+  function yeniProgramOlarakAc(taban, kod) {
+    if (kayitZamani) programKaydet();
+    const ayni = programlar.find((p) => (p.ad === taban || p.ad.startsWith(taban + ' (')) && p.kod === kod);
+    if (ayni) { programAc(ayni.ad); return; }
+    acikAd = bosAd(taban);
+    programlar.unshift({ ad: acikAd, kod, tarih: Date.now() });
+    editoreYukle(kod);
+    programlariYaz();
+  }
+
+  const pencere = $('#programlar');
+  const tarihMetni = (t) => (t ? new Date(t).toLocaleString('tr-TR', { dateStyle: 'medium', timeStyle: 'short' }) : '');
+  function listeyiCiz() {
+    const l = $('#programListesi');
+    l.replaceChildren();
+    if (!programlar.length) {
+      const li = document.createElement('li');
+      li.innerHTML = '<span class="ad">Henüz kayıtlı program yok. Yazmaya başlayınca kaydedilir.</span>';
+      l.appendChild(li);
+      return;
+    }
+    for (const p of programlar) {
+      const li = document.createElement('li');
+      li.classList.toggle('acik', p.ad === acikAd);
+      const ad = document.createElement('button');
+      ad.className = 'ad';
+      ad.textContent = p.ad;
+      const k = document.createElement('small');
+      k.textContent = tarihMetni(p.tarih);
+      ad.appendChild(k);
+      ad.addEventListener('click', () => { programAc(p.ad); pencere.close(); });
+      const adlandir = document.createElement('button');
+      adlandir.className = 'kucuk-dugme';
+      adlandir.textContent = 'Adlandır';
+      adlandir.addEventListener('click', () => {
+        const yeni = (prompt('Programın yeni adı:', p.ad) || '').trim();
+        if (!yeni || yeni === p.ad) return;
+        if (programlar.some((x) => x.ad === yeni)) { alert(`'${yeni}' adlı bir program zaten var.`); return; }
+        if (acikAd === p.ad) acikAd = yeni;
+        p.ad = yeni;
+        programlariYaz();
+        listeyiCiz();
+      });
+      const sil = document.createElement('button');
+      sil.className = 'kucuk-dugme';
+      sil.textContent = 'Sil';
+      sil.addEventListener('click', () => {
+        if (!confirm(`'${p.ad}' silinsin mi? Bu geri alınamaz.`)) return;
+        programlar = programlar.filter((x) => x !== p);
+        if (acikAd === p.ad) {
+          clearTimeout(kayitZamani);
+          kayitZamani = null;
+          acikAd = programlar.length ? programlar[0].ad : null;
+          editoreYukle(programlar.length ? programlar[0].kod : '');
+        }
+        programlariYaz();
+        listeyiCiz();
+      });
+      li.append(ad, adlandir, sil);
+      l.appendChild(li);
+    }
+  }
+  $('#programlarDugme').addEventListener('click', () => {
+    if (kayitZamani) programKaydet();
+    listeyiCiz();
+    pencere.showModal();
+  });
+  $('#programlarKapat').addEventListener('click', () => pencere.close());
+  pencere.addEventListener('click', (e) => { if (e.target === pencere) pencere.close(); });
+  $('#yeniProgram').addEventListener('click', () => {
+    if (kayitZamani) programKaydet();
+    acikAd = bosAd('Programım');
+    programlar.unshift({ ad: acikAd, kod: '', tarih: Date.now() });
+    editoreYukle('');
+    programlariYaz();
+    $('#ornekler').value = '';
+    pencere.close();
+    ta.focus();
+  });
+  $('#programIndir').addEventListener('click', () => {
+    const ad = (acikAd || 'program').replace(/[\\/:*?"<>|]+/g, '_');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([ta.value], { type: 'text/plain;charset=utf-8' }));
+    a.download = ad + '.ohc';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+  $('#programYukle').addEventListener('change', async (e) => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    yeniProgramOlarakAc(f.name.replace(/\.ohc$/i, '') || 'Programım', (await f.text()).replace(/\r\n/g, '\n'));
+    pencere.close();
+  });
+
+  // ---------------------------------------------------------------- Kurulum (çevrimdışı)
+  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+  let kurulumIstegi = null;
+  addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    kurulumIstegi = e;
+    $('#kur').hidden = false;
+  });
+  $('#kur').addEventListener('click', async () => {
+    if (!kurulumIstegi) return;
+    kurulumIstegi.prompt();
+    await kurulumIstegi.userChoice.catch(() => {});
+    kurulumIstegi = null;
+    $('#kur').hidden = true;
+  });
+  const bagimsiz = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  if (!bagimsiz && /iPad|iPhone|iPod/.test(navigator.userAgent + (navigator.maxTouchPoints > 1 ? ' iPad' : ''))) {
+    $('#kurulumBilgi').textContent += ' Ana ekrana uygulama olarak eklemek için: Paylaş → Ana Ekrana Ekle.';
+  }
+
+  // ---------------------------------------------------------------- Sembol çubuğu
+  // Dokunmatik ekranlarda telefon klavyesinde zor bulunan işaretler ve Türkçe harfler.
+  const semboller = $('#semboller');
+  const dokunmatik = matchMedia('(pointer: coarse)');
+  function cubuguKonumla() {
+    const v = window.visualViewport;
+    semboller.style.bottom = v ? Math.max(0, innerHeight - v.height - v.offsetTop) + 'px' : '0';
+  }
+  if (window.visualViewport) {
+    visualViewport.addEventListener('resize', cubuguKonumla);
+    visualViewport.addEventListener('scroll', cubuguKonumla);
+  }
+  let gizlemeZamani = null;
+  ta.addEventListener('focus', () => {
+    clearTimeout(gizlemeZamani);
+    if (!dokunmatik.matches) return;
+    semboller.hidden = false;
+    document.body.classList.add('semboller-acik');
+    cubuguKonumla();
+  });
+  ta.addEventListener('blur', () => {
+    gizlemeZamani = setTimeout(() => {
+      semboller.hidden = true;
+      document.body.classList.remove('semboller-acik');
+    }, 150);
+  });
+  // pointerdown'da odak düzenleyicide kalır, böylece klavye kapanmaz.
+  semboller.addEventListener('pointerdown', (e) => { if (e.target.closest('button')) e.preventDefault(); });
+  semboller.addEventListener('click', (e) => {
+    const d = e.target.closest('button');
+    if (!d) return;
+    if (d.dataset.eylem === 'geri') { ta.focus(); document.execCommand('undo'); return; }
+    if (d.dataset.eylem === 'calistir') { calistir(); return; }
+    ta.focus();
+    const secili = ta.value.slice(ta.selectionStart, ta.selectionEnd);
+    if (d.dataset.kapa) {
+      metinEkle(d.dataset.ekle + secili + d.dataset.kapa);
+      ta.setSelectionRange(ta.selectionEnd - 1, ta.selectionEnd - 1);
+    } else if (/^[)\]}]$/.test(d.dataset.ekle) && !secili && ta.value[ta.selectionStart] === d.dataset.ekle) {
+      // Kendiliğinden eklenen kapanış işaretinin üzerinden geçer.
+      ta.setSelectionRange(ta.selectionStart + 1, ta.selectionStart + 1);
+    } else {
+      metinEkle(d.dataset.ekle);
+    }
+  });
+
   // ---------------------------------------------------------------- Örnekler
   let ornekler = [];
   const secim = $('#ornekler');
@@ -76,10 +297,7 @@
   function ornekAc(kimlik) {
     const o = ornekler.find((x) => x.kimlik === kimlik);
     if (!o) return false;
-    ta.value = o.kod;
-    hataSatiri = 0;
-    ciz();
-    ayarYaz('kod', ta.value);
+    yeniProgramOlarakAc(o.baslik, o.kod);
     secim.value = kimlik;
     return true;
   }
@@ -158,8 +376,14 @@
   $('#durdur').addEventListener('click', () => durdur('\n— Durduruldu.\n'));
   $('#calistir').addEventListener('click', () => calistir());
 
+  const darEkran = matchMedia('(max-width: 860px)');
   async function calistir() {
     durdur();
+    if (darEkran.matches) {
+      // Telefonda klavye kapanır ve sonuç görünür.
+      if (dokunmatik.matches) ta.blur();
+      $('.sag').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
     cikti.textContent = '';
     hataSatiri = 0;
     ciz();
@@ -266,13 +490,26 @@
   (async () => {
     const h = new URLSearchParams(location.hash.slice(1));
     await ornekYukle;
+    // Eski sürümün tek kayıtlı kodu ilk program olur.
+    const eskiKod = ayarOku('kod');
+    if (eskiKod && !programlar.length) {
+      programlar.push({ ad: 'Programım', kod: eskiKod, tarih: Date.now() });
+      acikAd = 'Programım';
+      programlariYaz();
+    }
     if (h.get('kod')) {
-      try { ta.value = await ac(h.get('kod')); } catch { ta.value = ''; }
+      let kod = '';
+      try { kod = await ac(h.get('kod')); } catch { kod = ''; }
+      yeniProgramOlarakAc('Paylaşılan program', kod);
       if (h.get('girdi')) { try { $('#girdi').value = await ac(h.get('girdi')); } catch { /* yok */ } }
     } else if (h.get('ornek') && ornekAc(h.get('ornek'))) {
       // örnek açıldı
+    } else if (acikProgram()) {
+      ta.value = acikProgram().kod;
+      programlariYaz();
     } else {
-      ta.value = ayarOku('kod') || (ornekler.find((o) => o.kimlik === 'merhaba') || { kod: '"Merhaba, dünya!"\'yı yaz.\n' }).kod;
+      acikAd = null;
+      ta.value = (ornekler.find((o) => o.kimlik === 'merhaba') || { kod: '"Merhaba, dünya!"\'yı yaz.\n' }).kod;
     }
     ciz();
     ta.setSelectionRange(0, 0);

@@ -20,7 +20,13 @@ cp -r studio/yazitipleri "$CIKTI/yazitipleri"
 cp docs/marka/*.svg "$CIKTI/marka/"
 if command -v rsvg-convert >/dev/null 2>&1; then
     rsvg-convert -w 1200 docs/marka/paylasim.svg -o "$CIKTI/marka/paylasim.png"
+    # Kurulabilir web uygulamasının (manifest.webmanifest) simgeleri
+    rsvg-convert -w 192 -h 192 docs/marka/simge.svg -o "$CIKTI/marka/simge-192.png"
+    rsvg-convert -w 512 -h 512 docs/marka/simge.svg -o "$CIKTI/marka/simge-512.png"
 fi
+# Çevrimdışı önbelleğin sürümü: her derlemede değişir, eski önbellek silinir.
+SURUM=$(git rev-parse --short HEAD 2>/dev/null || date +%s)-$(date +%s)
+sed -i.yedek "s/__SURUM__/$SURUM/" "$CIKTI/sw.js" && rm -f "$CIKTI/sw.js.yedek"
 cp docs/ekran/*.png "$CIKTI/ekran/"
 { cat docs/ajan-girisi.md; echo; cat docs/dil-rehberi.md; echo; cat docs/arayuz.md; } > "$CIKTI/llms-full.txt"
 cp kurulum/kur.sh kurulum/kur.ps1 "$CIKTI/"

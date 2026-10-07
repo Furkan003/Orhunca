@@ -1,0 +1,19 @@
+{
+  "name": "Orhunca",
+  "short_name": "Orhunca",
+  "description": "Türkçe programlama dili: telefonda, tablette ve bilgisayarda kurulum yapmadan kod yazın ve çalıştırın.",
+  "lang": "tr",
+  "dir": "ltr",
+  "start_url": "dene.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0a0c0f",
+  "theme_color": "#0a0c0f",
+  "categories": ["education", "developer"],
+  "icons": [
+    { "src": "marka/simge-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "marka/simge-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "marka/simge.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

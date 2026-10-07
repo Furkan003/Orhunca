@@ -2,11 +2,16 @@
 <html lang="tr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>Tarayıcıda dene — Orhunca</title>
 <meta name="description" content="Orhunca'yı kurulum yapmadan tarayıcıda deneyin: yazın, çalıştırın, paylaşın.">
 <meta name="theme-color" content="#0a0c0f">
 <link rel="icon" href="marka/logo.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="marka/simge-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Orhunca">
 <link rel="stylesheet" href="yazitipleri/yazitipleri.css">
 <link rel="stylesheet" href="stil.css">
 <style>
@@ -50,13 +55,41 @@
   .bos-durum { padding: 28px 22px; color: var(--soluk); font-size: 14px; }
   .bos-durum kbd { background: var(--pano); border: 1px solid var(--kenar); border-radius: 4px; padding: 1px 6px; font-size: 12px; }
   .bildirim { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--pano); border: 1px solid var(--kenar); color: var(--yazi); padding: 10px 16px; border-radius: 10px; font-size: 14px; box-shadow: var(--golge); z-index: 50; }
+  /* Dokunmatik ekranlarda klavyenin üstünde duran sembol çubuğu */
+  .semboller { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: flex; gap: 4px; padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); overflow-x: auto; background: var(--pano); border-top: 1px solid var(--kenar); scrollbar-width: none; }
+  .semboller::-webkit-scrollbar { display: none; }
+  .semboller button { flex: 0 0 auto; min-width: 40px; height: 40px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--kenar2); background: var(--arka2); color: var(--yazi); font: 500 17px var(--mono); touch-action: manipulation; }
+  .semboller button.harf { font-family: var(--sans); }
+  .semboller button.genis { font: 600 14px var(--sans); }
+  .semboller button:active { background: var(--kenar); }
+  .semboller .ara { flex: 0 0 1px; background: var(--kenar2); margin: 4px 2px; }
+  body.semboller-acik .duzenleyici .kod-ic { padding-bottom: 80px; }
+  dialog.programlar { width: min(520px, calc(100vw - 24px)); max-height: min(640px, calc(100vh - 40px)); padding: 0; border: 1px solid var(--kenar); border-radius: 14px; background: var(--pano); color: var(--yazi); box-shadow: var(--golge); }
+  dialog.programlar::backdrop { background: rgb(0 0 0 / 0.5); }
+  .programlar .ust { display: flex; align-items: center; gap: 8px; padding: 14px 16px; border-bottom: 1px solid var(--kenar2); }
+  .programlar .ust h2 { margin: 0; font-size: 17px; flex: 1; }
+  .programlar .liste { list-style: none; margin: 0; padding: 6px; overflow: auto; max-height: 50vh; }
+  .programlar .liste li { display: flex; align-items: center; gap: 6px; border-radius: 8px; }
+  .programlar .liste li.acik { background: var(--pano2); }
+  .programlar .liste .ad { flex: 1; min-width: 0; text-align: left; background: none; border: 0; color: var(--yazi); font: 15px var(--sans); padding: 12px 10px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .programlar .liste .ad small { display: block; color: var(--soluk2); font-size: 12px; margin-top: 2px; }
+  .programlar .liste .kucuk-dugme { background: none; border: 0; color: var(--soluk); padding: 10px; border-radius: 8px; cursor: pointer; font: 14px var(--sans); }
+  .programlar .liste .kucuk-dugme:hover { color: var(--yazi); background: var(--kenar2); }
+  .programlar .alt { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px 16px; border-top: 1px solid var(--kenar2); }
+  .programlar .alt .dugme { padding: 9px 14px; font-size: 14px; }
+  .programlar .kurulum { padding: 0 16px 14px; color: var(--soluk); font-size: 13.5px; }
   @media (max-width: 860px) {
     body { overflow: auto; height: auto; }
     .ana { grid-template-columns: 1fr; }
     .duzenleyici { height: 52vh; border-right: 0; border-bottom: 1px solid var(--kenar2); }
     .sag { min-height: 60vh; }
     .arac .baslik-yazi, .arac .ayrac, .arac .kbd { display: none; }
-    .arac { flex-wrap: wrap; height: auto; padding: 10px 12px; }
+    .arac { flex-wrap: wrap; height: auto; padding: 10px 12px; gap: 8px; }
+    .arac .marka { font-size: 0; gap: 0; }
+    .arac .bosluk { display: none; }
+    .arac .dugme { padding: 0 12px; }
+    .arac #calistir { margin-left: auto; }
+    .arac select { order: 10; flex: 1 1 100%; max-width: none; }
   }
 </style>
 </head>
@@ -66,6 +99,7 @@
   <span class="ayrac"></span>
   <span class="baslik-yazi">Tarayıcıda dene</span>
   <span class="bosluk"></span>
+  <button class="dugme" id="programlarDugme" title="Kaydettiğiniz programlar">Programlarım</button>
   <label class="gorunmez" for="ornekler">Örnek</label>
   <select id="ornekler" aria-label="Örnek seç"><option value="">Örnek seç…</option></select>
   <button class="dugme" id="paylas" title="Kodu içeren bir bağlantı kopyalar">Paylaş</button>
@@ -95,6 +129,49 @@
     </div>
   </section>
 </main>
+<div class="semboller" id="semboller" hidden aria-label="Semboller">
+  <button data-ekle="    " class="genis" title="Girinti">⇥</button>
+  <button data-ekle="'">'</button>
+  <button data-ekle=":">:</button>
+  <button data-ekle=".">.</button>
+  <button data-ekle='"'>"</button>
+  <button data-ekle="(" data-kapa=")">(</button>
+  <button data-ekle=")">)</button>
+  <button data-ekle="=">=</button>
+  <button data-ekle="+">+</button>
+  <button data-ekle="-">-</button>
+  <button data-ekle="[" data-kapa="]">[</button>
+  <button data-ekle="]">]</button>
+  <button data-ekle="{" data-kapa="}">{</button>
+  <button data-ekle="}">}</button>
+  <button data-ekle="<">&lt;</button>
+  <button data-ekle=">">&gt;</button>
+  <button data-ekle=",">,</button>
+  <button data-ekle="#">#</button>
+  <span class="ara"></span>
+  <button class="harf" data-ekle="ç">ç</button>
+  <button class="harf" data-ekle="ğ">ğ</button>
+  <button class="harf" data-ekle="ı">ı</button>
+  <button class="harf" data-ekle="ö">ö</button>
+  <button class="harf" data-ekle="ş">ş</button>
+  <button class="harf" data-ekle="ü">ü</button>
+  <button class="harf" data-ekle="İ">İ</button>
+  <span class="ara"></span>
+  <button class="genis" data-eylem="geri" title="Geri al">↶</button>
+  <button class="genis" data-eylem="calistir" title="Çalıştır">▶ Çalıştır</button>
+</div>
+<dialog class="programlar" id="programlar" aria-labelledby="programlarBaslik">
+  <div class="ust"><h2 id="programlarBaslik">Programlarım</h2><button class="dugme" id="programlarKapat" aria-label="Kapat">✕</button></div>
+  <ul class="liste" id="programListesi"></ul>
+  <p class="kurulum" id="kurulumBilgi">Programlarınız bu cihazda, tarayıcıda saklanır. İnternet olmadan da açılıp çalıştırılabilir.</p>
+  <div class="alt">
+    <button class="dugme birincil" id="yeniProgram">Yeni program</button>
+    <button class="dugme" id="programIndir" title="Açık programı .ohc dosyası olarak indirir">.ohc indir</button>
+    <label class="dugme" for="programYukle">.ohc aç</label>
+    <input type="file" id="programYukle" accept=".ohc,text/plain" hidden>
+    <button class="dugme" id="kur" hidden>Uygulama olarak kur</button>
+  </div>
+</dialog>
 <script src="vurgula.js"></script>
 <script src="dene.js"></script>
 </body>

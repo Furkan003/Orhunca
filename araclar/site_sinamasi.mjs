@@ -44,4 +44,13 @@ for (const o of ornekler) {
   if (beklenen !== null && beklenen !== cikti) { console.log(`✗ ${o.kimlik}: çıktı farklı (${beklenenYol})\n${cikti}`); hata++; continue; }
   console.log(`✓ ${o.kimlik}`);
 }
+// Kurulabilir web uygulaması: manifest simgeleri ve çevrimdışı önbelleğe alınan dosyalar var mı?
+const manifest = JSON.parse(readFileSync(path.join(site, 'manifest.webmanifest'), 'utf8'));
+const sw = readFileSync(path.join(site, 'sw.js'), 'utf8');
+if (sw.includes('__SURUM__')) { console.log('✗ sw.js: önbellek sürümü yazılmamış'); hata++; }
+const onbellek = JSON.parse(/const DOSYALAR = (\[[^\]]*\])/.exec(sw)[1].replace(/'/g, '"').replace(/,\s*\]/, ']'));
+for (const d of [manifest.start_url, ...manifest.icons.map((i) => i.src), ...onbellek]) {
+  if (!existsSync(path.join(site, d))) { console.log(`✗ çevrimdışı dosya eksik: ${d}`); hata++; }
+}
+console.log(`✓ kurulabilir web uygulaması (${onbellek.length} dosya önbellekte)`);
 process.exit(hata ? 1 : 0);

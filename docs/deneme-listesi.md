@@ -29,6 +29,9 @@ ne yapacağınız ve ne görmeniz gerektiği yazıyor. Beklenmeyen bir şey gör
 - [ ] **Telefon komutları.** `titret(200)`, `paylaş("deneme")`, `bildirim_gönder("Başlık", "Metin")`
       düğmelere bağlanıp telefonda denenmeli.
 - [ ] **Oyun.** 2B Oyun şablonu telefonda açılmalı, dokunma ile oynanabilmeli.
+- [ ] **Telefonda kod yazma.** Telefonda `https://furkan003.github.io/Orhunca/dene.html` açın,
+      ana ekrana ekleyin. Uçak modunda uygulamayı açın; kod yazıp ▶ ile çalıştırın. Sembol çubuğu
+      klavyenin hemen üstünde durmalı; **Programlarım**'da yazdığınız program görünmeli.
 - [ ] **iPhone.** `--hedef ios` ile üretilen proje GitHub'a yüklenince imzasız `.ipa` üretilmeli;
       AltStore/Sideloadly ile kurulabilmeli. (Mac varsa Xcode'da ▶ ile.)
 
