@@ -232,6 +232,7 @@ ifadeler), CSV, JSON, HTTP istekleri; resmi `istatistik` ve `geometri` paketleri
 | [Telefon uygulamaları](docs/mobil.md) | Android (.apk) ve iPhone/iPad; `titret`, `paylaş`, `bildirim_gönder` |
 | [Yapay zekâ](docs/yapay-zeka.md) | Stüdyo asistanı (bulut ve yerel modeller); Claude Code, Codex, Cursor gibi ajanları `orhunca mcp` ile bağlamak |
 | [Geriye uyumluluk](docs/uyumluluk.md) | Güncellemelerde programların bozulmaması, dil sürümü, `orhunca düzelt` |
+| [Deneme listesi](docs/deneme-listesi.md) | Gerçek cihazlarda (Windows, telefon, yapay zekâ) adım adım deneme |
 | [Paketler](docs/paketler.md) | Paket dizini, `orhunca paket`, kendi paketinizi yayımlamak |
 | [Geliştirme](docs/gelistirme.md) | Kaynaktan derleme, mimari, öz-barındırma, VS Code eklentisi |
 | [Yol haritası](PLAN.md) | Tamamlanan aşamalar ve sıradakiler |
