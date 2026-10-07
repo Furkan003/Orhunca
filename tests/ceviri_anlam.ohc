@@ -1,0 +1,36 @@
+# Çeviri anlam sınaması: Python ve JavaScript karşılıkları Orhunca ile aynı çıktıyı vermeli.
+# (Hata raporu B04-B10, B14-B20)
+(büyük_harf("i"))'i yaz.
+(küçük_harf("I"))'i yaz.
+(yuvarla(2.5))'i yaz.
+(yuvarla(-2.5))'i yaz.
+(-5 % 2)'i yaz.
+(uzunluk("aç😀"))'i yaz.
+(parça("aç😀b", 1, 2))'i yaz.
+([doğru, yanlış])'i yaz.
+(bul("a😀ç", "ç"))'i yaz.
+(ondalık("3,5"))'i yaz.
+(böl(" a  b	c ", ""))'i yaz.
+(parça("abcd", -1, 2))'i yaz.
+(değiştir("abc", "", "x"))'i yaz.
+(metin(doğru))'i yaz.
+("değer=" + yanlış)'i yaz.
+(metin(2.0))'i yaz.
+(0.1 + 0.2)'yi yaz.
+(2.0)'yi yaz.
+(1.0 / 3.0)'ü yaz.
+(123456789.0 * 1000000000.0)'ı yaz.
+(1.0 / 1000000.0)'ı yaz.
+(1.0 / 10000.0)'ı yaz.
+(-0.5)'i yaz.
+([1.0, 2.5])'i yaz.
+({"a": doğru})'yu yaz.
+(["x", "y"])'yi yaz.
+({"elma": [1.5, 2.0]})'yı yaz.
+("Toplam: " + 2.0)'yi yaz.
+(yuvarla(3.14159, 2))'yi yaz.
+(yuvarla(-0.5))'i yaz.
+(7 % -3)'ü yaz.
+(büyük_harf("istanbul ılık"))'u yaz.
+(metin(3.5) + "!")'i yaz.
+(uzunluk("çğüş"))'u yaz.

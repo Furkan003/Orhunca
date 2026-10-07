@@ -176,8 +176,8 @@ işlev sözcükle(kaynak: metin) -> liste<Sözcük>:
                             yazı = yazı + "\t"
                         değilse eğer e == "\"" veya e == "\\" ise:
                             yazı = yazı + e
+                        # Bilinmeyen kaçış olduğu gibi kalır: "\d+" desenlerde yazılabilsin.
                         değilse:
-                            # Bilinmeyen kaçış olduğu gibi kalır: "\d+" desenlerde yazılabilsin.
                             yazı = yazı + "\\"
                             i -= 1
                     değilse:

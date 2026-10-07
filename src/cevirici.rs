@@ -50,6 +50,7 @@ pub fn cevir(p: &Program, dil: Dil) -> Vec<Satir> {
             .collect(),
         model_adi: String::new(),
         karsiliksiz: BTreeSet::new(),
+        notlar: BTreeSet::new(),
         alan_varsayilan: Default::default(),
     };
     c.program(p);
@@ -82,6 +83,15 @@ pub fn cevir(p: &Program, dil: Dil) -> Vec<Satir> {
             liste.join(", ")
         )));
         bas.push(s(""));
+    }
+    for n in &c.notlar {
+        let isaret = if dil == Dil::Python { "#" } else { "//" };
+        bas.push(s(&format!("{isaret} Not: {n}")));
+        bas.push(s(""));
+    }
+    // Yardımcılar birbirini kullanabilir (orhunca_metin → orhunca_ondalık_metni).
+    if dil == Dil::JavaScript && c.yardimci.contains("orhunca_metin") {
+        c.yardimci.insert("orhunca_ondalık_metni");
     }
     for y in &c.yardimci {
         for satir in yardimci_kodu(dil, y).lines() {
@@ -127,6 +137,61 @@ fn yardimci_kodu(dil: Dil, ad: &str) -> &'static str {
         }
         (Dil::JavaScript, "rastgele") => {
             "function rastgele(a, b) {\n  return a + Math.floor(Math.random() * (b - a + 1));\n}"
+        }
+        // Orhunca'nın davranışını birebir taklit eden yardımcılar (çeviri aynı sonucu versin)
+        (Dil::Python, "orhunca_metin") => {
+            "def orhunca_metin(x, iç=False):\n    \"\"\"Değeri Orhunca'nın yazdığı gibi metne çevirir: doğru/yanlış, 2.0, [\"a\", 1].\"\"\"\n    if isinstance(x, bool):\n        return \"doğru\" if x else \"yanlış\"\n    if isinstance(x, float):\n        m = f\"{x:.15g}\"\n        return m if any(h in m for h in \".eni\") else m + \".0\"\n    if isinstance(x, str):\n        return f'\"{x}\"' if iç else x\n    if isinstance(x, list):\n        return \"[\" + \", \".join(orhunca_metin(o, True) for o in x) + \"]\"\n    if isinstance(x, dict):\n        return \"{\" + \", \".join(orhunca_metin(a, True) + \": \" + orhunca_metin(d, True) for a, d in x.items()) + \"}\"\n    return str(x)"
+        }
+        (Dil::Python, "orhunca_büyük_harf") => {
+            "def orhunca_büyük_harf(m):\n    # Türkçe: i → İ, ı → I\n    return m.replace(\"i\", \"İ\").replace(\"ı\", \"I\").upper()"
+        }
+        (Dil::Python, "orhunca_küçük_harf") => {
+            "def orhunca_küçük_harf(m):\n    # Türkçe: I → ı, İ → i\n    return m.replace(\"I\", \"ı\").replace(\"İ\", \"i\").lower()"
+        }
+        (Dil::Python, "orhunca_yuvarla") => {
+            "def orhunca_yuvarla(x, basamak=0):\n    # Yarımlar sıfırdan uzağa yuvarlanır: 2.5 → 3, -2.5 → -3 (Python'un round'u çifte yuvarlar)\n    k = 10 ** basamak\n    y = math.floor(abs(x) * k + 0.5) / k\n    y = -y if x < 0 else y\n    return int(y) if basamak == 0 else y"
+        }
+        (Dil::Python, "orhunca_parça") => {
+            "def orhunca_parça(x, baş, uzunluk):\n    baş = max(baş, 0)  # Orhunca'da negatif başlangıç 0 sayılır\n    return x[baş:baş + uzunluk]"
+        }
+        (Dil::Python, "orhunca_böl") => {
+            "def orhunca_böl(m, ayraç):\n    # Boş ayraç: boşluklardan böler\n    return m.split() if ayraç == \"\" else m.split(ayraç)"
+        }
+        (Dil::Python, "orhunca_değiştir") => {
+            "def orhunca_değiştir(m, aranan, yeni):\n    return m if aranan == \"\" else m.replace(aranan, yeni)"
+        }
+        (Dil::Python, "orhunca_ondalık") => {
+            "def orhunca_ondalık(m):\n    d = float(m.strip().replace(\",\", \".\"))  # \"3,5\" de kabul edilir\n    if not math.isfinite(d):\n        raise ValueError(f\"'{m}' bir ondalık sayı değil\")\n    return d"
+        }
+        (Dil::JavaScript, "orhunca_metin") => {
+            "// Değeri Orhunca'nın yazdığı gibi metne çevirir: doğru/yanlış, 2.0, [\"a\", 1]\nfunction orhunca_metin(x, ondalık = false, iç = false) {\n  if (typeof x === \"boolean\") return x ? \"doğru\" : \"yanlış\";\n  if (typeof x === \"number\") return ondalık ? orhunca_ondalık_metni(x) : String(x);\n  if (typeof x === \"string\") return iç ? `\"${x}\"` : x;\n  if (Array.isArray(x)) return \"[\" + x.map(o => orhunca_metin(o, ondalık, true)).join(\", \") + \"]\";\n  if (x && typeof x === \"object\")\n    return \"{\" + Object.entries(x).map(([a, d]) => orhunca_metin(a, false, true) + \": \" + orhunca_metin(d, ondalık, true)).join(\", \") + \"}\";\n  return String(x);\n}"
+        }
+        (Dil::JavaScript, "orhunca_ondalık_metni") => {
+            "// Ondalık sayıyı Orhunca gibi (15 anlamlı basamak) yazar: 2 → \"2.0\", 0.1 + 0.2 → \"0.3\"\nfunction orhunca_ondalık_metni(x) {\n  if (!Number.isFinite(x)) return Number.isNaN(x) ? \"nan\" : x > 0 ? \"inf\" : \"-inf\";\n  if (x === 0) return Object.is(x, -0) ? \"-0.0\" : \"0.0\";\n  const [g, us] = x.toExponential(14).split(\"e\"), u = Number(us);\n  let m = u < -4 || u >= 15\n    ? g.replace(/\\.?0+$/, \"\") + \"e\" + (u < 0 ? \"-\" : \"+\") + String(Math.abs(u)).padStart(2, \"0\")\n    : x.toFixed(14 - u).replace(/(\\.\\d*?)0+$/, \"$1\").replace(/\\.$/, \"\");\n  return /[.eni]/.test(m) ? m : m + \".0\";\n}"
+        }
+        (Dil::JavaScript, "orhunca_yuvarla") => {
+            "// Yarımlar sıfırdan uzağa yuvarlanır: 2.5 → 3, -2.5 → -3\nfunction orhunca_yuvarla(x, basamak = 0) {\n  const k = 10 ** basamak, y = Math.floor(Math.abs(x) * k + 0.5) / k;\n  return x < 0 ? -y : y;\n}"
+        }
+        (Dil::JavaScript, "orhunca_kalan") => {
+            "// Kalanın işareti bölenle aynıdır: -5 % 2 → 1 (JavaScript'in % işleci -1 verir)\nfunction orhunca_kalan(a, b) {\n  const k = a % b;\n  return k !== 0 && (k < 0) !== (b < 0) ? k + b : k;\n}"
+        }
+        (Dil::JavaScript, "orhunca_parça") => {
+            "// Harf harf (emoji tek harf sayılır); negatif başlangıç 0 sayılır\nfunction orhunca_parça(x, baş, uzunluk) {\n  baş = Math.max(baş, 0);\n  return typeof x === \"string\" ? [...x].slice(baş, baş + uzunluk).join(\"\") : x.slice(baş, baş + uzunluk);\n}"
+        }
+        (Dil::JavaScript, "orhunca_bul") => {
+            "// Sıra harf olarak sayılır (emoji tek harf)\nfunction orhunca_bul(x, aranan) {\n  const i = x.indexOf(aranan);\n  return typeof x === \"string\" && i > 0 ? [...x.slice(0, i)].length : i;\n}"
+        }
+        (Dil::JavaScript, "orhunca_ondalık") => {
+            "function orhunca_ondalık(m) {\n  const d = Number(m.trim().replace(\",\", \".\")); // \"3,5\" de kabul edilir\n  if (m.trim() === \"\" || !Number.isFinite(d)) throw new Error(`'${m}' bir ondalık sayı değil`);\n  return d;\n}"
+        }
+        (Dil::JavaScript, "orhunca_sayı") => {
+            "function orhunca_sayı(m) {\n  if (!/^\\s*[-+]?\\d+\\s*$/.test(m)) throw new Error(`'${m}' bir sayı değil`);\n  return parseInt(m, 10);\n}"
+        }
+        (Dil::JavaScript, "orhunca_böl") => {
+            "// Boş ayraç: boşluklardan böler\nfunction orhunca_böl(m, ayraç) {\n  return ayraç === \"\" ? m.split(/\\s+/).filter(p => p !== \"\") : m.split(ayraç);\n}"
+        }
+        (Dil::JavaScript, "orhunca_değiştir") => {
+            "function orhunca_değiştir(m, aranan, yeni) {\n  return aranan === \"\" ? m : m.replaceAll(aranan, yeni);\n}"
         }
         _ => "",
     }
@@ -195,6 +260,8 @@ struct Cevirici {
     girinti: usize,
     ithal: BTreeSet<&'static str>,
     yardimci: BTreeSet<&'static str>,
+    /// Çevirinin başına yazılacak uyarılar (ör. JavaScript'te büyük tamsayı sınırı)
+    notlar: BTreeSet<&'static str>,
     /// JavaScript: tanımlanmış değişkenler (ilk atamada `let`)
     kapsam: Vec<HashSet<String>>,
     kaynak: Option<usize>,
@@ -575,7 +642,11 @@ impl Cevirici {
                 self.yaz(m);
             }
             Deyim::Yaz(e) => {
-                let v = self.ifade(e);
+                let v = if e.tip == Tip::Sayi {
+                    self.ifade(e)
+                } else {
+                    self.metne(e)
+                };
                 if self.py() {
                     self.yaz(format!("print({v})"));
                 } else {
@@ -829,21 +900,18 @@ impl Cevirici {
         }
     }
 
-    /// Metin olmayan değer metne çevrilir (Python'da `"a" + 5` hatadır)
-    fn metne(&mut self, e: &Ifade) -> String {
-        if e.tip.metin_gibi() {
-            self.ifade(e)
-        } else if self.py() {
-            format!("str({})", self.ifade(e))
-        } else {
-            format!("String({})", self.ifade(e))
-        }
-    }
-
     fn ifade_p(&mut self, e: &Ifade) -> (String, u8) {
         let py = self.py();
         match &e.tur {
-            IfadeTuru::Sayi(n) => (n.to_string(), if *n < 0 { 12 } else { P_ATOM }),
+            IfadeTuru::Sayi(n) => {
+                if !py && n.unsigned_abs() > (1u64 << 53) {
+                    self.notlar.insert(
+                        "JavaScript'te 9007199254740992'den (2^53) büyük tamsayılar hassasiyet \
+                         kaybeder; Orhunca 64 bit tamsayı kullanır. Gerekirse BigInt kullanın.",
+                    );
+                }
+                (n.to_string(), if *n < 0 { 12 } else { P_ATOM })
+            }
             IfadeTuru::Ondalik(x) => {
                 let mut m = format!("{x}");
                 if !m.contains(['.', 'e', 'E', 'i', 'N']) {
@@ -958,6 +1026,32 @@ impl Cevirici {
         }
     }
 
+    /// İfadeyi Orhunca'nın yazdığı biçimde metne çevirir (yazdırma ve metin birleştirme):
+    /// metin ve tamsayı olduğu gibi kalır; doğru/yanlış, ondalık, liste ve sözlük yardımcıyla.
+    fn metne(&mut self, e: &Ifade) -> String {
+        match &e.tip {
+            Tip::Metin | Tip::Secenek(_) => self.ifade(e),
+            Tip::Sayi if self.py() => format!("str({})", self.ifade(e)),
+            Tip::Sayi => format!("String({})", self.ifade(e)),
+            Tip::Ondalik if !self.py() => {
+                self.yardimci.insert("orhunca_ondalık_metni");
+                format!("orhunca_ondalık_metni({})", self.ifade(e))
+            }
+            Tip::Model(_) | Tip::Bos | Tip::Bilinmeyen => self.ifade(e),
+            t => {
+                self.yardimci.insert("orhunca_metin");
+                let v = self.ifade(e);
+                if self.py() {
+                    format!("orhunca_metin({v})")
+                } else if ondalik_icerir(t) {
+                    format!("orhunca_metin({v}, true)")
+                } else {
+                    format!("orhunca_metin({v})")
+                }
+            }
+        }
+    }
+
     fn ikili(&mut self, op: IkiliOp, a: &Ifade, b: &Ifade, tip: &Tip) -> (String, u8) {
         use IkiliOp::*;
         let py = self.py();
@@ -977,24 +1071,31 @@ impl Cevirici {
             TamBol => ("//", 10),
             Mod => ("%", 10),
         };
+        if op == Mod && !py {
+            // JavaScript'te kalanın işareti bölünenle aynıdır; Orhunca'da bölenle.
+            self.yardimci.insert("orhunca_kalan");
+            return (
+                format!("orhunca_kalan({}, {})", self.ifade(a), self.ifade(b)),
+                P_ATOM,
+            );
+        }
         if op == TamBol && !py {
             return (
                 format!("Math.floor({} / {})", self.ifade(a), self.oncelikli(b, 11)),
                 P_ATOM,
             );
         }
-        // Metin birleştirme: Python'da diğer taraf metne çevrilmeli
-        if op == Topla && tip.metin_gibi() && py {
-            let sol = if a.tip.metin_gibi() {
-                self.oncelikli(a, p)
-            } else {
-                format!("str({})", self.ifade(a))
+        // Metin birleştirme: diğer taraf Orhunca'nın yazdığı gibi metne çevrilir
+        // (Python'da str() gerekir; doğru/yanlış ve ondalık her iki dilde de farklı yazılır).
+        if op == Topla && tip.metin_gibi() {
+            let taraf = |c: &mut Self, e: &Ifade, p: u8| match (&e.tip, py) {
+                (t, _) if t.metin_gibi() => c.oncelikli(e, p),
+                (Tip::Sayi, true) => format!("str({})", c.ifade(e)),
+                (Tip::Sayi, false) => c.oncelikli(e, p),
+                _ => c.metne(e),
             };
-            let sag = if b.tip.metin_gibi() {
-                self.oncelikli(b, p + 1)
-            } else {
-                format!("str({})", self.ifade(b))
-            };
+            let sol = taraf(self, a, p);
+            let sag = taraf(self, b, p + 1);
             return (format!("{sol} + {sag}"), p);
         }
         // Python'da karşılaştırmalar zincirlenir; iç içe karşılaştırma paranteze alınır
@@ -1043,17 +1144,44 @@ impl Cevirici {
         if py {
             match (ad, a.len()) {
                 ("uzunluk", 1) => atom(format!("len({})", a[0])),
-                ("metin", 1) => atom(format!("str({})", a[0])),
+                ("metin", 1) if t0 == Tip::Sayi => atom(format!("str({})", a[0])),
+                ("metin", 1) if t0.metin_gibi() => (a[0].clone(), self.ifade_p(&arg[0]).1),
+                ("metin", 1) => atom(self.metne(&arg[0])),
                 ("sayı", 1) => atom(format!("int({})", a[0])),
                 ("ondalık", 1) if t0 == Tip::Sayi => (a[0].clone(), self.ifade_p(&arg[0]).1),
-                ("ondalık", 1) => atom(format!("float({}.replace(\",\", \".\"))", alici(self, 0))),
-                ("yuvarla", 1) => atom(format!("round({})", a[0])),
-                ("yuvarla", 2) => atom(format!("round({}, {})", a[0], a[1])),
-                ("büyük_harf", 1) => atom(format!("{}.upper()", alici(self, 0))),
-                ("küçük_harf", 1) => atom(format!("{}.lower()", alici(self, 0))),
+                ("ondalık", 1) => {
+                    ithal(self, "math");
+                    self.yardimci.insert("orhunca_ondalık");
+                    atom(format!("orhunca_ondalık({})", a[0]))
+                }
+                ("yuvarla", 1 | 2) => {
+                    ithal(self, "math");
+                    self.yardimci.insert("orhunca_yuvarla");
+                    atom(format!("orhunca_yuvarla({})", a.join(", ")))
+                }
+                ("büyük_harf", 1) => {
+                    self.yardimci.insert("orhunca_büyük_harf");
+                    atom(format!("orhunca_büyük_harf({})", a[0]))
+                }
+                ("küçük_harf", 1) => {
+                    self.yardimci.insert("orhunca_küçük_harf");
+                    atom(format!("orhunca_küçük_harf({})", a[0]))
+                }
                 ("kırp", 1) => atom(format!("{}.strip()", alici(self, 0))),
-                ("parça", 3) => atom(format!("{}[{}:{} + {}]", alici(self, 0), a[1], a[1], a[2])),
-                ("böl", 2) => atom(format!("{}.split({})", alici(self, 0), a[1])),
+                ("parça", 3) if negatif_olamaz(&arg[1]) => {
+                    atom(format!("{}[{}:{} + {}]", alici(self, 0), a[1], a[1], a[2]))
+                }
+                ("parça", 3) => {
+                    self.yardimci.insert("orhunca_parça");
+                    atom(format!("orhunca_parça({})", a.join(", ")))
+                }
+                ("böl", 2) if bos_olmayan_metin(&arg[1]) => {
+                    atom(format!("{}.split({})", alici(self, 0), a[1]))
+                }
+                ("böl", 2) => {
+                    self.yardimci.insert("orhunca_böl");
+                    atom(format!("orhunca_böl({}, {})", a[0], a[1]))
+                }
                 ("birleştir", 2) => atom(format!(
                     "{}.join({})",
                     self.oncelikli(&arg[1], P_ATOM),
@@ -1075,8 +1203,12 @@ impl Cevirici {
                         atom(format!("bul({}, {})", a[0], a[1]))
                     }
                 }
-                ("değiştir", 3) => {
+                ("değiştir", 3) if bos_olmayan_metin(&arg[1]) => {
                     atom(format!("{}.replace({}, {})", alici(self, 0), a[1], a[2]))
+                }
+                ("değiştir", 3) => {
+                    self.yardimci.insert("orhunca_değiştir");
+                    atom(format!("orhunca_değiştir({})", a.join(", ")))
                 }
                 ("başlar", 2) => atom(format!("{}.startswith({})", alici(self, 0), a[1])),
                 ("biter", 2) => atom(format!("{}.endswith({})", alici(self, 0), a[1])),
@@ -1238,13 +1370,25 @@ impl Cevirici {
             let liste_ya_da_metin = |c: &mut Self, i: usize| c.oncelikli(&arg[i], P_ATOM);
             match (ad, a.len()) {
                 ("uzunluk", 1) if sozluk => atom(format!("Object.keys({}).length", a[0])),
+                // Metinde harf sayısı: emoji gibi karakterler tek harf sayılır (Orhunca gibi).
+                ("uzunluk", 1) if t0 == Tip::Metin => atom(format!("[...{}].length", a[0])),
                 ("uzunluk", 1) => atom(format!("{}.length", alici(self, 0))),
-                ("metin", 1) => atom(format!("String({})", a[0])),
-                ("sayı", 1) => atom(format!("parseInt({})", a[0])),
+                ("metin", 1) if t0 == Tip::Sayi => atom(format!("String({})", a[0])),
+                ("metin", 1) if t0.metin_gibi() => (a[0].clone(), self.ifade_p(&arg[0]).1),
+                ("metin", 1) => atom(self.metne(&arg[0])),
+                ("sayı", 1) => {
+                    self.yardimci.insert("orhunca_sayı");
+                    atom(format!("orhunca_sayı({})", a[0]))
+                }
                 ("ondalık", 1) if t0 == Tip::Sayi => (a[0].clone(), self.ifade_p(&arg[0]).1),
-                ("ondalık", 1) => atom(format!("parseFloat({})", a[0])),
-                ("yuvarla", 1) => atom(format!("Math.round({})", a[0])),
-                ("yuvarla", 2) => atom(format!("Number({}.toFixed({}))", alici(self, 0), a[1])),
+                ("ondalık", 1) => {
+                    self.yardimci.insert("orhunca_ondalık");
+                    atom(format!("orhunca_ondalık({})", a[0]))
+                }
+                ("yuvarla", 1 | 2) => {
+                    self.yardimci.insert("orhunca_yuvarla");
+                    atom(format!("orhunca_yuvarla({})", a.join(", ")))
+                }
                 ("büyük_harf", 1) => {
                     atom(format!("{}.toLocaleUpperCase(\"tr\")", alici(self, 0)))
                 }
@@ -1252,14 +1396,24 @@ impl Cevirici {
                     atom(format!("{}.toLocaleLowerCase(\"tr\")", alici(self, 0)))
                 }
                 ("kırp", 1) => atom(format!("{}.trim()", alici(self, 0))),
-                ("parça", 3) => atom(format!(
+                ("parça", 3) if t0 != Tip::Metin && negatif_olamaz(&arg[1]) => atom(format!(
                     "{}.slice({}, {} + {})",
                     alici(self, 0),
                     a[1],
                     a[1],
                     a[2]
                 )),
-                ("böl", 2) => atom(format!("{}.split({})", alici(self, 0), a[1])),
+                ("parça", 3) => {
+                    self.yardimci.insert("orhunca_parça");
+                    atom(format!("orhunca_parça({})", a.join(", ")))
+                }
+                ("böl", 2) if bos_olmayan_metin(&arg[1]) => {
+                    atom(format!("{}.split({})", alici(self, 0), a[1]))
+                }
+                ("böl", 2) => {
+                    self.yardimci.insert("orhunca_böl");
+                    atom(format!("orhunca_böl({}, {})", a[0], a[1]))
+                }
                 ("birleştir", 2) => atom(format!("{}.join({})", alici(self, 0), a[1])),
                 ("içerir", 2) if sozluk => {
                     (format!("{} in {}", self.oncelikli(&arg[1], 7), a[0]), 6)
@@ -1267,9 +1421,17 @@ impl Cevirici {
                 ("içerir", 2) => {
                     atom(format!("{}.includes({})", liste_ya_da_metin(self, 0), a[1]))
                 }
+                ("bul", 2) if t0 == Tip::Metin => {
+                    self.yardimci.insert("orhunca_bul");
+                    atom(format!("orhunca_bul({}, {})", a[0], a[1]))
+                }
                 ("bul", 2) => atom(format!("{}.indexOf({})", liste_ya_da_metin(self, 0), a[1])),
-                ("değiştir", 3) => {
+                ("değiştir", 3) if bos_olmayan_metin(&arg[1]) => {
                     atom(format!("{}.replaceAll({}, {})", alici(self, 0), a[1], a[2]))
+                }
+                ("değiştir", 3) => {
+                    self.yardimci.insert("orhunca_değiştir");
+                    atom(format!("orhunca_değiştir({})", a.join(", ")))
                 }
                 ("başlar", 2) => atom(format!("{}.startsWith({})", alici(self, 0), a[1])),
                 ("biter", 2) => atom(format!("{}.endsWith({})", alici(self, 0), a[1])),
@@ -1361,6 +1523,27 @@ impl Cevirici {
         }
         (format!("{}({})", self.ad(ad), a.join(", ")), P_ATOM)
     }
+}
+
+/// Değerin (iç içe) ondalık içerip içermediği: JavaScript'te 2.0 ile 2 ayırt edilemediği
+/// için yazdırma yardımcısına bildirilir.
+fn ondalik_icerir(t: &Tip) -> bool {
+    match t {
+        Tip::Ondalik => true,
+        Tip::Liste(o) => ondalik_icerir(o),
+        Tip::Sozluk(_, d) => ondalik_icerir(d),
+        _ => false,
+    }
+}
+
+/// Sıfır ya da pozitif bir tamsayı sabiti mi (parça başlangıcı doğrudan dilimlenebilir).
+fn negatif_olamaz(e: &Ifade) -> bool {
+    matches!(e.tur, IfadeTuru::Sayi(n) if n >= 0)
+}
+
+/// Boş olmayan bir metin sabiti mi (böl/değiştir doğrudan çevrilebilir).
+fn bos_olmayan_metin(e: &Ifade) -> bool {
+    matches!(&e.tur, IfadeTuru::Metin(m) if !m.is_empty())
 }
 
 /// Çift tırnaklı metin sabiti (Python ve JavaScript'te aynı kaçışlar)
