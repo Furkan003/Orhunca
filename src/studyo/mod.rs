@@ -30,7 +30,7 @@ const VARSAYILAN_KAPI: u16 = 7313;
 /// Oturum anahtarı: işletim sisteminin güvenli rastgele sayı üretecinden 32 bayt.
 fn rastgele_anahtar() -> String {
     let mut b = [0u8; 32];
-    if getrandom::getrandom(&mut b).is_err() {
+    if crate::guvenli_rastgele(&mut b).is_err() {
         // Üreteç kullanılamazsa (çok eski sistemler) karma tabanlı yedek.
         for (i, p) in b.chunks_mut(8).enumerate() {
             let mut h = RandomState::new().build_hasher();

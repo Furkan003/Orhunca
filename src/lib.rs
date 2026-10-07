@@ -39,6 +39,20 @@ pub const SURUM: &str = env!("CARGO_PKG_VERSION");
 /// özyinelemelidir; ayristirici'deki derinlik sınırları bu boyutla güvenlidir.
 pub const YIGIN: usize = 256 * 1024 * 1024;
 
+/// İşletim sisteminin güvenli rastgele sayı üretecinden bayt. WebAssembly'de (tarayıcıda
+/// deneme sayfası) böyle bir üreteç yoktur; çağıran yedek yolu kullanır.
+pub fn guvenli_rastgele(b: &mut [u8]) -> Result<(), String> {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        getrandom::getrandom(b).map_err(|e| e.to_string())
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = b;
+        Err("bu ortamda güvenli rastgele sayı üreteci yok".into())
+    }
+}
+
 /// Alt süreç komutu. Windows'ta masaüstü Stüdyo'nun (konsolu olmayan bir pencere
 /// uygulaması) başlattığı her konsol programı için boş bir siyah pencere açılır; çıktı
 /// Stüdyo'ya aktarıldığından o pencere boş kalır. CREATE_NO_WINDOW bunu önler.

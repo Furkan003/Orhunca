@@ -355,7 +355,7 @@ fn imza_anahtari() -> Result<SigningKey, String> {
     }
     let anahtar = loop {
         let mut b = [0u8; 32];
-        getrandom::getrandom(&mut b).map_err(|e| format!("rastgele sayı üretilemedi: {e}"))?;
+        crate::guvenli_rastgele(&mut b).map_err(|e| format!("rastgele sayı üretilemedi: {e}"))?;
         if let Ok(a) = SigningKey::from_slice(&b) {
             break a;
         }
