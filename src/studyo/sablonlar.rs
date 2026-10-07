@@ -227,8 +227,10 @@ pub fn bul(kimlik: &str) -> Option<&'static Sablon> {
 pub fn icerik(sablon: &Sablon, dosya: &str, ad: &str, ornek: bool) -> String {
     if dosya == "{ad}.ohcproj" {
         return format!(
-            "ad = \"{ad}\"\nsürüm = \"0.1.0\"\ngiriş = \"{}\"\nşablon = \"{}\"\n",
-            sablon.giris, sablon.kimlik
+            "ad = \"{ad}\"\nsürüm = \"0.1.0\"\ngiriş = \"{}\"\nşablon = \"{}\"\ndil = \"{}\"\n",
+            sablon.giris,
+            sablon.kimlik,
+            crate::goc::DIL_SURUMU
         );
     }
     if dosya == "BENİOKU.md" && arayuz_mu(sablon) {

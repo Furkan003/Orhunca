@@ -79,6 +79,15 @@ pub fn yukle_ortulu(
     dosya: &Path,
     ortulu: &HashMap<PathBuf, String>,
 ) -> Result<agac::Program, DerlemeHatasi> {
+    // Proje daha yeni bir dil sürümü için yazılmışsa anlaşılmaz hatalar yerine bunu söyle.
+    let klasor = dosya
+        .parent()
+        .filter(|k| !k.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    if let Some(p) = proje_dosyasi(klasor) {
+        crate::goc::surum_denetle(proje_ayari(&p, &["dil"]).as_deref())
+            .map_err(DerlemeHatasi::duz)?;
+    }
     let mut dosyalar: Vec<(String, String)> = Vec::new();
     let mut yollar: Vec<PathBuf> = Vec::new();
     let mut sozcukler = Vec::new();

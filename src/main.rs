@@ -14,6 +14,7 @@ Kullanım:
   orhunca etkileşim           (satır satır deneme: yazdığınız her satır hemen çalışır)
   orhunca paketle [dosya.ohc] [-o çıktı] [--hedef linux|windows|macos|android|ios]
   orhunca biçimlendir [dosya.ohc ...] [--denetle]
+  orhunca düzelt [dosya.ohc ...] [--denetle]   (eskiyen yazımları yenisine çevirir)
   orhunca dil-sunucusu        (düzenleyiciler için LSP, stdin/stdout)
   orhunca çevir [dosya.ohc] [--dil python|javascript]   (programın Python/JS karşılığı)
   orhunca mcp                 (yapay zekâ ajanları için MCP sunucusu, stdin/stdout)
@@ -68,6 +69,7 @@ fn ana() -> ExitCode {
         "yeni" => yeni_komutu(kalan).map(|_| ExitCode::SUCCESS),
         "stüdyo" | "studyo" => studyo::calistir(kalan).map(|_| ExitCode::SUCCESS),
         "biçimlendir" | "bicimlendir" => bicimlendir_komutu(kalan),
+        "düzelt" | "duzelt" => duzelt_komutu(kalan),
         "dil-sunucusu" | "lsp" => dil_sunucusu::calistir().map(|_| ExitCode::SUCCESS),
         "mcp" => orhunca::mcp::calistir().map(|_| ExitCode::SUCCESS),
         "çevir" | "cevir" => cevir_komutu(kalan).map(|_| ExitCode::SUCCESS),
@@ -435,6 +437,57 @@ fn bicimlendir_komutu(args: &[String]) -> Result<ExitCode, String> {
     }
     if degisen == 0 {
         println!("{} dosya zaten düzgün.", dosyalar.len());
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+/// `orhunca düzelt`: eskiyen yazımları (bkz. src/goc.rs) yenisine çevirir.
+fn duzelt_komutu(args: &[String]) -> Result<ExitCode, String> {
+    if let Some(a) = args
+        .iter()
+        .find(|a| a.starts_with('-') && *a != "--denetle")
+    {
+        return Err(format!(
+            "bilinmeyen seçenek '{a}'\nKullanım: orhunca düzelt [dosya.ohc ...] [--denetle]"
+        ));
+    }
+    let denetle = args.iter().any(|a| a == "--denetle");
+    let mut dosyalar: Vec<PathBuf> = Vec::new();
+    for a in args.iter().filter(|a| !a.starts_with('-')) {
+        let p = PathBuf::from(a);
+        if p.is_dir() {
+            ohc_dosyalari(&p, &mut dosyalar);
+        } else {
+            dosyalar.push(p);
+        }
+    }
+    if dosyalar.is_empty() {
+        ohc_dosyalari(Path::new("."), &mut dosyalar);
+    }
+    let mut toplam = 0;
+    for d in &dosyalar {
+        let kaynak =
+            std::fs::read_to_string(d).map_err(|e| format!("'{}' okunamadı: {e}", d.display()))?;
+        let (yeni, n) = orhunca::goc::uygula(&kaynak, orhunca::goc::GOCLER);
+        if n == 0 {
+            continue;
+        }
+        toplam += n;
+        if denetle {
+            println!("{}: {n} eski yazım", d.display());
+        } else {
+            std::fs::write(d, yeni).map_err(|e| format!("'{}' yazılamadı: {e}", d.display()))?;
+            println!("{}: {n} eski yazım güncellendi", d.display());
+        }
+    }
+    if toplam == 0 {
+        println!(
+            "{} dosyada güncellenecek eski yazım yok (dil sürümü {}).",
+            dosyalar.len(),
+            orhunca::goc::DIL_SURUMU
+        );
+    } else if denetle {
+        return Ok(ExitCode::FAILURE);
     }
     Ok(ExitCode::SUCCESS)
 }

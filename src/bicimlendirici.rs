@@ -336,6 +336,18 @@ pub fn uyarilar(kaynak: &str) -> Vec<Uyari> {
     };
     let satirlar: Vec<&str> = kaynak.lines().collect();
     let mut cikti = Vec::new();
+    // Eskiyen yazımlar (geriye uyumluluk: önce uyarı, `orhunca düzelt` ile çevrilir).
+    for (konum, uzunluk, g) in crate::goc::bul(kaynak, crate::goc::GOCLER) {
+        cikti.push(Uyari {
+            konum,
+            uzunluk,
+            mesaj: format!(
+                "'{}' {} sürümünde eskidi; yerine '{}' yazın (orhunca düzelt kendiliğinden çevirir)",
+                g.eski, g.surum, g.yeni
+            ),
+            duzeltme: g.yeni.to_string(),
+        });
+    }
     // "5" + 3 → "53": sayı gibi görünen metin + ile birleştirilir, toplanmaz.
     for w in sozcukler.windows(3) {
         let (sol, op, sag) = (&w[0], &w[1], &w[2]);
