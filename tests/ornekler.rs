@@ -422,3 +422,34 @@ fn bilinmeyen_kacis_oldugu_gibi_kalir() {
     assert!(tamam, "{hata}");
     assert_eq!(cikti, "123\n123\n2\na\tb\n");
 }
+
+#[test]
+fn env_dosyasi_yuklenir() {
+    let klasor = std::env::temp_dir().join(format!("orhunca-env-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&klasor);
+    std::fs::create_dir_all(&klasor).unwrap();
+    std::fs::write(
+        klasor.join(".env"),
+        "# gizli ayarlar\nANAHTAR=sk-123\nexport KAPI = 8080\nMESAJ=\"a # b\"\nYORUMLU=d # açıklama\nONCELIK=dosya\n",
+    )
+    .unwrap();
+    let dosya = klasor.join("p.ohc");
+    std::fs::write(
+        &dosya,
+        "her ad için [\"ANAHTAR\", \"KAPI\", \"MESAJ\", \"YORUMLU\", \"ONCELIK\", \"YOK\"]'dan:\n    (ad + \"=\" + ortam(ad))'yı yaz.\n",
+    )
+    .unwrap();
+    let c = orhunca()
+        .arg("çalıştır")
+        .arg(&dosya)
+        .current_dir(&klasor)
+        .env("ONCELIK", "sistem")
+        .output()
+        .unwrap();
+    assert!(c.status.success(), "{}", String::from_utf8_lossy(&c.stderr));
+    assert_eq!(
+        String::from_utf8_lossy(&c.stdout),
+        "ANAHTAR=sk-123\nKAPI=8080\nMESAJ=a # b\nYORUMLU=d\nONCELIK=sistem\nYOK=\n"
+    );
+    let _ = std::fs::remove_dir_all(&klasor);
+}

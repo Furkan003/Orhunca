@@ -170,6 +170,12 @@ sabit KDV_ORANI = 0.20           # her yerden (işlevlerden de) görülür
 - Programa argüman: `orhunca çalıştır dosya.ohc -- bir iki`
 - Tamsayı taşması çalışma hatası verir; çok büyük değerler için ondalık kullanın.
 - `ORHUNCA_TOHUM=42` rastgele sayıları tekrarlanabilir yapar.
+- **`.env` dosyası:** program başlarken çalıştığı klasördeki `.env` dosyasını okur; `AD=değer`
+  satırları `ortam("AD")` ile alınır (`#` yorum, `export`, tırnaklı değer desteklenir). Bilgisayarda
+  zaten tanımlı değişkenler önceliklidir. API anahtarı ve şifreleri koda değil buraya yazın: Stüdyo'nun
+  yeni projelerdeki `.gitignore` dosyası `.env`'yi Git'e almaz, web sunucusu noktayla başlayan
+  dosyaları dışarı vermez, masaüstü/telefon paketlerine de girmez. `ORHUNCA_KAPI` gibi ayarlar da
+  `.env`'ye yazılabilir.
 
 ### Bellek
 

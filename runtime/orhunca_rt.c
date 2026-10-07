@@ -497,6 +497,48 @@ void ohc_yigin_denetle(int64_t adres) {
 static int (*program_yukle(void))(void);
 #endif
 
+/* Çalışma klasöründeki .env dosyası: AD=değer satırları ortam değişkeni olur. Zaten
+ * tanımlı değişkenler değiştirilmez (sunucunun kendi ayarı önceliklidir). Desteklenen:
+ * boş satır, # yorum, "export AD=…", tırnaklı değer ("…" ya da '…'), satır sonu yorumu. */
+static void env_yukle(void) {
+    FILE *f = fopen(".env", "rb");
+    if (!f) return;
+    char satir[8192];
+    while (fgets(satir, sizeof satir, f)) {
+        char *s = satir;
+        size_t n = strlen(s);
+        while (n && (s[n - 1] == '\n' || s[n - 1] == '\r')) s[--n] = 0;
+        if (!strncmp(s, "\xEF\xBB\xBF", 3)) s += 3; /* UTF-8 BOM */
+        while (*s == ' ' || *s == '\t') s++;
+        if (!*s || *s == '#') continue;
+        if (!strncmp(s, "export ", 7)) s += 7;
+        char *esit = strchr(s, '=');
+        if (!esit) continue;
+        char *ad_son = esit;
+        while (ad_son > s && (ad_son[-1] == ' ' || ad_son[-1] == '\t')) ad_son--;
+        *ad_son = 0;
+        char *d = esit + 1;
+        while (*d == ' ' || *d == '\t') d++;
+        size_t dn = strlen(d);
+        if (dn >= 2 && (d[0] == '"' || d[0] == '\'') && d[dn - 1] == d[0]) {
+            d[dn - 1] = 0;
+            d++;
+        } else {
+            char *yorum = strstr(d, " #");
+            if (yorum) *yorum = 0;
+            dn = strlen(d);
+            while (dn && (d[dn - 1] == ' ' || d[dn - 1] == '\t')) d[--dn] = 0;
+        }
+        if (!*s || getenv(s)) continue;
+#ifdef _WIN32
+        _putenv_s(s, d);
+#else
+        setenv(s, d, 0);
+#endif
+    }
+    fclose(f);
+}
+
 int main(int argc, char **argv) {
     volatile uintptr_t dip = 0;
     yigin_dibi = (uintptr_t *)&dip + 1;
@@ -506,6 +548,7 @@ int main(int argc, char **argv) {
     SetConsoleCP(CP_UTF8);
 #endif
     argumanlari_kaydet(argc, argv);
+    env_yukle();
     baslat();
 #ifdef ORHUNCA_CALISTIRICI
     int kod = program_yukle()();

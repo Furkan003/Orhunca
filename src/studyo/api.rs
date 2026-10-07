@@ -551,7 +551,9 @@ fn proje_olustur(g: &Value) -> Yanit {
     }
     let mut uyari = None;
     if g["git"].as_bool() == Some(true) {
-        let mut yoksay = String::from("# Derleme çıktıları\n/cikti/\n*.exe\n");
+        let mut yoksay = String::from(
+            "# Derleme çıktıları\n/cikti/\n*.exe\n\n# Gizli ayarlar (API anahtarları, şifreler)\n.env\n",
+        );
         if sablonlar::web_mi(sablon) {
             yoksay.push_str("\n# Model kayıtları (yerel deneme verisi)\n/veri/\n");
         }
@@ -685,7 +687,8 @@ fn agac(kok: &str) -> Yanit {
         });
         for g in girdiler {
             let ad = g.file_name().to_string_lossy().into_owned();
-            if ad.starts_with('.') || ad == "cikti" || ad == "target" {
+            // Gizli dosyalar gösterilmez; yalnızca .env (ve .env.örnek) düzenlenebilsin diye görünür.
+            if (ad.starts_with('.') && !ad.starts_with(".env")) || ad == "cikti" || ad == "target" {
                 continue;
             }
             let p = g.path();
