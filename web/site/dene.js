@@ -33,6 +33,9 @@
     const bas = ta.selectionStart;
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); calistir(); return; }
     if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); metinEkle('    '); return; }
+    // Türkçe klavyesi olmayanlar için: Alt+C/G/I/O/S/U → ç ğ ı ö ş ü (Shift ile büyük harf).
+    const harf = { KeyC: 'çÇ', KeyG: 'ğĞ', KeyI: 'ıİ', KeyO: 'öÖ', KeyS: 'şŞ', KeyU: 'üÜ' }[e.code];
+    if (harf && e.altKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); metinEkle(harf[e.shiftKey ? 1 : 0]); return; }
     if (e.key === 'Enter') {
       // Girintiyi korur; ':' ile biten satırdan sonra bir düzey içeri girer.
       e.preventDefault();
@@ -49,7 +52,8 @@
       if (once.length && /^ +$/.test(once) && once.length % 4 === 0) {
         e.preventDefault();
         ta.setSelectionRange(bas - 4, bas);
-        metinEkle('');
+        // insertText('') imleci bir önceki satıra atabiliyor; silme komutu kullanılır.
+        if (!document.execCommand('delete')) metinEkle('');
       }
     }
   });

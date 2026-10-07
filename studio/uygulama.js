@@ -614,7 +614,7 @@
         `<div class="dugme birincil" data-e="modalKapat">Kapat</div>`);
     }
     if (m.tur === 'kisayollar') {
-      const k = [['Çalıştır', 'F5'], ['Hata ayıkla', 'F6'], ['Durdur', '⇧+F5'], ['Denetle', 'F7'], ['Kesme noktası', 'F9'], ['Üstünden / içine adım', 'F10 / F11'], ['Kaydet', 'Ctrl+S'], ['Tümünü kaydet', 'Ctrl+Alt+S'], ['Satırı yorum yap', 'Ctrl+/'], ['Biçimlendir', 'Ctrl+⇧+F'], ['Satırı çoğalt', 'Ctrl+⇧+D'], ['Alt paneli göster/gizle', 'Ctrl+J'], ['Girinti / geri girinti', 'Tab / ⇧+Tab'], ['Projelerde ara', 'Alt+S'], ['Yeni proje', 'Ctrl+⇧+N']];
+      const k = [['Çalıştır', 'F5'], ['Hata ayıkla', 'F6'], ['Durdur', '⇧+F5'], ['Denetle', 'F7'], ['Kesme noktası', 'F9'], ['Üstünden / içine adım', 'F10 / F11'], ['Kaydet', 'Ctrl+S'], ['Tümünü kaydet', 'Ctrl+Alt+S'], ['Satırı yorum yap', 'Ctrl+/'], ['Biçimlendir', 'Ctrl+⇧+F'], ['Satırı çoğalt', 'Ctrl+⇧+D'], ['Alt paneli göster/gizle', 'Ctrl+J'], ['Girinti / geri girinti', 'Tab / ⇧+Tab'], ['Projelerde ara', 'Alt+S'], ['Yeni proje', 'Ctrl+⇧+N'], ['ç ğ ı ö ş ü (Türkçe klavyesi olmayanlar için)', 'Alt+C/G/I/O/S/U'], ['Ç Ğ İ Ö Ş Ü', 'Alt+⇧+C/G/I/O/S/U']];
       return kabuk('Klavye kısayolları', `<div class="kisayol-listesi">${k.map(([a, b]) => `<span>${a}</span><span>${b}</span>`).join('')}</div>`, `<div class="dugme birincil" data-e="modalKapat">Kapat</div>`);
     }
     if (m.tur === 'hataBildir') {
@@ -1273,9 +1273,10 @@
   function duzenleyiciOlaylari(ta) {
     if (olaylarBagli.has(ta)) return;
     olaylarBagli.add(ta);
-    ta.addEventListener('input', () => {
+    ta.addEventListener('input', (e) => {
       const s = etkinSekme();
       if (!s) return;
+      if (turkceHarfleriDuzelt(ta, e)) return;
       const onceKirli = s.icerik !== s.kayitli;
       s.icerik = ta.value;
       if (/^\s*fiil\b/m.test(s.icerik) || kullaniciFiilleri.size) fiilleriTopla();
@@ -1320,6 +1321,13 @@
         return;
       }
       if ((e.ctrlKey || e.metaKey) && e.key === ' ') { e.preventDefault(); tamamlamayiGuncelle(ta, true); return; }
+      // Türkçe klavyesi olmayanlar için: Alt+C/G/I/O/S/U → ç ğ ı ö ş ü (Shift ile büyük harf).
+      // AltGr (Ctrl+Alt) dokunulmaz; Türkçe klavyedeki işaretler ona bağlıdır.
+      if (e.altKey && !e.ctrlKey && !e.metaKey && TURKCE_HARF_TUSLARI[e.code]) {
+        e.preventDefault();
+        metinEkle(ta, TURKCE_HARF_TUSLARI[e.code][e.shiftKey ? 1 : 0]);
+        return;
+      }
       if (e.key === 'Tab') {
         e.preventDefault();
         if (e.shiftKey) satirlariDonustur(ta, sat => sat.map(l => l.replace(/^( {1,4}|\t)/, '')));
@@ -1338,7 +1346,8 @@
         if (once.length > 0 && /^ +$/.test(once) && once.length % 4 === 0) {
           e.preventDefault();
           ta.setSelectionRange(bas - 4, bas);
-          metinEkle(ta, '');
+          // insertText('') imleci bir önceki satıra atabiliyor; silme komutu kullanılır.
+          if (!document.execCommand('delete')) metinEkle(ta, '');
         }
       } else if ((e.ctrlKey || e.metaKey) && e.key === '/') {
         e.preventDefault(); yorumYap();
@@ -1350,6 +1359,49 @@
         ta.setSelectionRange(sb, Math.min(v.length, ss + 1));
       }
     });
+  }
+
+  // ---- Türkçe klavyesi olmayanlar için yardım
+  const TURKCE_HARF_TUSLARI = { KeyC: ['ç', 'Ç'], KeyG: ['ğ', 'Ğ'], KeyI: ['ı', 'İ'], KeyO: ['ö', 'Ö'], KeyS: ['ş', 'Ş'], KeyU: ['ü', 'Ü'] };
+  const ASCII_HARF = { ç: 'c', ğ: 'g', ı: 'i', ö: 'o', ş: 's', ü: 'u', Ç: 'C', Ğ: 'G', İ: 'I', Ö: 'O', Ş: 'S', Ü: 'U' };
+  const asciiYap = (m) => m.replace(/[çğıöşüÇĞİÖŞÜ]/g, (h) => ASCII_HARF[h]);
+  /** Türkçe harfsiz yazılmış anahtar kelime ve yerleşik adları: `eger` → `eğer`. */
+  function asciiKarsiliklar() {
+    const m = new Map();
+    for (const a of [...ANAHTAR_KELIMELER, ...D.yerlesikler.map((y) => y.ad)]) {
+      const k = asciiYap(a);
+      if (k !== a) m.set(k, a);
+    }
+    // ASCII hâli de bir ad olan (iki yazımı da geçerli) kelimeler düzeltilmez.
+    for (const a of [...ANAHTAR_KELIMELER, ...D.yerlesikler.map((y) => y.ad)]) m.delete(a);
+    return m;
+  }
+  /**
+   * Kelimeden sonra boşluk, `:`, `(`, `.`, `,` ya da satır sonu yazılınca Türkçe harfsiz yazılmış
+   * anahtar kelimeyi düzeltir (`eger ` → `eğer `). Dosyada aynı adla tanımlanmış bir isim varsa,
+   * metin ve yorum içindeyse dokunulmaz. Ctrl+Z düzeltmeyi geri alır.
+   */
+  function turkceHarfleriDuzelt(ta, e) {
+    if (e.inputType !== 'insertText' || !e.data || !/^[\s:(.,]/.test(e.data)) return false;
+    if (dilBul(etkinSekme()?.yol || '') !== 'ohc') return false;
+    const v = ta.value, son = ta.selectionStart - e.data.length;
+    if (son < 0 || ta.selectionStart !== ta.selectionEnd) return false;
+    const once = v.slice(v.lastIndexOf('\n', son - 1) + 1, son);
+    const tirnak = (once.replace(/\\./g, '').match(/"/g) || []).length;
+    if (tirnak % 2 === 1 || /#/.test(once.replace(/"(?:[^"\\]|\\.)*"/g, '""'))) return false;
+    const m = /(?:^|[^\p{L}\p{N}_'’])([A-Za-z_][A-Za-z0-9_]*)$/u.exec(once);
+    if (!m) return false;
+    const dogru = asciiKarsiliklar().get(m[1]);
+    if (!dogru) return false;
+    // Kullanıcı bu adı kendisi tanımlamışsa (ör. `icin = 5`) düzeltilmez.
+    const ad = m[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const tanim = new RegExp(`^\\s*${ad}\\s*(:[^=\\n]*)?=(?!=)|(işlev|her|fiil)\\s+${ad}(?![\\p{L}\\p{N}_])`, 'mu');
+    if (tanim.test(v.slice(0, son - m[1].length) + v.slice(son + e.data.length))) return false;
+    const bas = son - m[1].length, imlec = ta.selectionStart;
+    ta.setSelectionRange(bas, son);
+    metinEkle(ta, dogru);
+    ta.setSelectionRange(imlec, imlec);
+    return true;
   }
 
   // ---- Otomatik tamamlama: isimler (anahtar kelimeler, yerleşikler, dosyadaki
@@ -1391,8 +1443,10 @@
     for (const a of ANAHTAR_KELIMELER) adlar.set(a, 'anahtar kelime');
     for (const y of D.yerlesikler) adlar.set(y.ad, y.kullanim);
     for (const m of v.matchAll(KELIME_RE)) if (!adlar.has(m[0]) && m[0].length > 1) adlar.set(m[0], 'isim');
-    const liste = [...adlar].filter(([a]) => a.startsWith(onek) && a !== onek)
-      .sort((a, b) => (a[1] === 'isim' ? 0 : 1) - (b[1] === 'isim' ? 0 : 1) || a[0].length - b[0].length || a[0].localeCompare(b[0], 'tr'))
+    // Türkçe harfsiz yazılan önek de eşleşir: `deg` → `değilse`, `eger` → `eğer`.
+    const asciiOnek = asciiYap(onek);
+    const liste = [...adlar].filter(([a]) => a !== onek && (a.startsWith(onek) || asciiYap(a).startsWith(asciiOnek)))
+      .sort((a, b) => (a[0].startsWith(onek) ? 0 : 1) - (b[0].startsWith(onek) ? 0 : 1) || (a[1] === 'isim' ? 0 : 1) - (b[1] === 'isim' ? 0 : 1) || a[0].length - b[0].length || a[0].localeCompare(b[0], 'tr'))
       .slice(0, 8).map(([ad, ayrinti]) => ({ ad, yazilan: onek, ayrinti, tur: 'isim' }));
     tamamlamaAc(ta, liste, k - onek.length);
   }

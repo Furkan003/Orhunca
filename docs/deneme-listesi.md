@@ -16,6 +16,8 @@ ne yapacağınız ve ne görmeniz gerektiği yazıyor. Beklenmeyen bir şey gör
 - [ ] **Otomatik kaydetme.** Bir şey yazıp 2 saniye bekleyin; sekmedeki "kaydedilmedi" noktası kaybolmalı.
 - [ ] **Yerel geçmiş.** **Dosya → Yerel geçmiş…** açın; bir önceki hâli seçip **Bu hâle dön**'e basın.
 - [ ] **Kod kaybolmuyor.** Bir şey yazın, başlangıç ekranına dönüp aynı projeyi açın; yazdığınız durmalı.
+- [ ] **Türkçe klavye yardımı.** `Alt+S` → `ş`, `Alt+I` → `ı` yazmalı. `eger ` yazınca `eğer `
+      olmalı; Ctrl+Z ile `eger`'e dönmeli.
 - [ ] **Web projesi.** Yeni "Web Sitesi" projesi, F5 → sağda önizleme açılmalı.
 - [ ] **Arayüz uygulaması.** Yeni "Arayüz Uygulaması", F5 → önizlemede düğmeler çalışmalı.
 - [ ] **Masaüstü paketi.** **Çalıştır → Masaüstü uygulaması (Windows)** → oluşan `.exe` açılmalı.

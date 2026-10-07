@@ -59,6 +59,13 @@ web sitesinde de okunabilir.
 değişkenler güncellenir; sınıfta göstermek için), Ayarlar'da **açık tema** (projektör için), klavyeyle
 tam kullanım ve ekran okuyucu desteği.
 
+**Türkçe klavyesi olmayanlar için:** `Alt+C`, `Alt+G`, `Alt+I`, `Alt+O`, `Alt+S`, `Alt+U` tuşları
+ç, ğ, ı, ö, ş, ü yazar (Shift ile büyük harf: Ç Ğ İ Ö Ş Ü). Türkçe harfsiz yazılan anahtar
+kelimeler ve yerleşik işlevler kelime bitince kendiliğinden düzelir (`eger ` → `eğer `,
+`degilse:` → `değilse:`); metinlere, yorumlara ve sizin tanımladığınız isimlere dokunulmaz, Ctrl+Z
+düzeltmeyi geri alır. Tamamlama da harfsiz yazımı tanır: `deg` yazınca `değilse` önerilir. Alt
+kısayolları tarayıcıda deneme sayfasında da çalışır.
+
 **Güncelleme:** Stüdyo açılışta yeni sürüm olup olmadığına bakar; varsa başlangıç ekranından tek
 tıkla güncellenir (dosya SHA-256 ile doğrulanır). Komut satırında: `orhunca güncelle`. Okul
 yöneticileri denetimi `ORHUNCA_GUNCELLEME=kapali` ortam değişkeniyle kapatabilir; Ayarlar'dan da
