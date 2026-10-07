@@ -411,3 +411,14 @@ fn yardim_secenegi_hicbir_sey_degistirmez() {
     );
     let _ = std::fs::remove_dir_all(&klasor);
 }
+
+#[test]
+fn bilinmeyen_kacis_oldugu_gibi_kalir() {
+    // Hata raporu B03: rehberdeki "\d+" gibi desen örnekleri derlenmiyordu.
+    let (tamam, cikti, hata) = calistir(
+        "(desen_bul(\"abc123\", \"\\d+\"))'i yaz.\n(desen_bul(\"abc123\", \"\\\\d+\"))'i yaz.\n\
+         (uzunluk(\"\\q\"))'u yaz.\n\"a\\tb\"'yi yaz.\n",
+    );
+    assert!(tamam, "{hata}");
+    assert_eq!(cikti, "123\n123\n2\na\tb\n");
+}

@@ -1453,7 +1453,7 @@
     const n = D.sorunlar.length, u = D.uyarilar.length;
     $('#durumCubugu').innerHTML = `<div class="durum-rozet"><span class="gokturk">${GOKTURK}</span>Orhunca</div>
       ${D.proje.dal ? `<span class="ogeler">${S('fork_right')}${kac(D.proje.dal)}</span>` : ''}
-      <span class="tiklanir ${n ? 'hatali' : u ? 'uyarili' : ''}" data-e="altSorunlar">${n} hata · ${u} uyarı</span>
+      ${D.denetimHatasi ? `<span class="tiklanir uyarili" data-e="denetleKomut" title="${kac(D.denetimHatasi)} — yeniden denemek için tıklayın">${S('warning')} Denetlenemedi</span>` : `<span class="tiklanir ${n ? 'hatali' : u ? 'uyarili' : ''}" data-e="altSorunlar">${n} hata · ${u} uyarı</span>`}
       <div style="flex:1"></div>
       <span id="durumImlec">Satır ${D.imlec.satir}, Sütun ${D.imlec.sutun}</span><span>UTF-8</span><span>${kac(surumAdi())}</span>
       <span>${kac(calismaEtiketi())}</span>`;
@@ -1600,9 +1600,17 @@
   // =====================================================================
   // Proje işlemleri
   // =====================================================================
+  /** Proje dosyasında yazan giriş dosyası diskte yoksa hata metni (yoksa null). */
+  function girisHatasi() {
+    const g = D.proje?.giris;
+    if (!g || D.agac.some(x => x.yol === normal(g))) return null;
+    return `Proje dosyasında giriş olarak yazan '${g}' bulunamadı. Dosyayı oluşturun ya da .ohcproj dosyasındaki giriş satırını düzeltin.`;
+  }
+
   function girisDosyasi() {
     if (!D.proje) return null;
-    if (D.proje.giris && D.agac.some(g => g.yol === D.proje.giris)) return D.proje.giris;
+    // Yazılı giriş dosyası yoksa başka bir dosya sessizce seçilmez (CLI ile aynı davranış).
+    if (D.proje.giris) return girisHatasi() ? null : normal(D.proje.giris);
     const s = etkinSekme();
     if (s && uzanti(s.yol) === 'ohc') return s.yol;
     return D.agac.find(g => !g.klasor && uzanti(g.yol) === 'ohc')?.yol || null;
@@ -1647,6 +1655,7 @@
     iskeletVar = false;
     ciz();
     if (bilgi.uyari) bildir(bilgi.uyari, true);
+    else if (girisHatasi()) bildir(girisHatasi(), true);
     if (ilkCalistirma && giris) calistir();
     else {
       D.terminal = [{ t: istem(), c: 'mut' }, { t: bilgi.web ? 'Sunucuyu başlatıp sayfayı önizlemek için F5’e basın.' : 'Çalıştırmak için F5’e basın.', c: 'dim' }];
@@ -1721,19 +1730,24 @@
     for (const s of D.sekmeler) if (!s.ikili && (uzanti(s.yol) === 'ohc' || uzanti(s.yol) === 'ohchtml')) acik[tamYol(s.yol)] = s.icerik;
     const hedefler = [...new Set([girisDosyasi(), etkinSekme() && uzanti(D.etkin) === 'ohc' ? D.etkin : null].filter(Boolean))];
     const hatalar = [], uyarilar = [];
+    let basarisiz = null;
     const ayni = (a, b) => a.mesaj === b.mesaj && a.satir === b.satir && a.sutun === b.sutun && normal(a.dosya) === normal(b.dosya);
     for (const h of hedefler) {
-      const r = await api('/api/denetle', { dosya: tamYol(h), acik }).catch(() => ({ hatalar: [] }));
+      const r = await api('/api/denetle', { dosya: tamYol(h), acik }).catch(e => ({ hata: e.message || 'bağlantı kurulamadı' }));
+      // Denetim yapılamadıysa bu "hata yok" demek değildir.
+      if (r.hata) basarisiz = r.hata;
       for (const x of r.hatalar || []) if (!hatalar.some(y => ayni(x, y))) hatalar.push(x);
       for (const x of r.uyarilar || []) if (!uyarilar.some(y => ayni(x, y))) uyarilar.push(x);
     }
-    if (sira !== denetimSirasi || D.ekran !== 'duzenleyici') return;
+    if (sira !== denetimSirasi || D.ekran !== 'duzenleyici') return hedefler.length;
     D.sorunlar = hatalar;
     D.uyarilar = uyarilar;
+    D.denetimHatasi = basarisiz;
     guncelle('isaretler', 'durum');
     const toplam = hatalar.length + uyarilar.length;
     if (D.altSekme === 'sorunlar') guncelle('alt');
     else { const sekme = $('.alt-sekmeler span[data-a="sorunlar"]'); if (sekme) sekme.textContent = `SORUNLAR${toplam ? ' (' + toplam + ')' : ''}`; }
+    return hedefler.length;
   }
 
   function istem() {
@@ -1758,7 +1772,7 @@
     if (D.calisma) await durdur();
     if (!(await tumunuKaydet())) { bildir('Dosya kaydedilemediği için program çalıştırılmadı (ekrandaki kod diskteki koddan farklı).', true); return; }
     const giris = girisDosyasi();
-    if (!giris) { bildir('Çalıştırılacak .ohc dosyası yok.', true); return; }
+    if (!giris) { bildir(girisHatasi() || 'Çalıştırılacak .ohc dosyası yok.', true); return; }
     D.altPanel = true; D.altSekme = 'terminal';
     if (D.terminal.length) terminaleEkle('');
     terminaleEkle(istem(), 'mut');
@@ -1867,7 +1881,7 @@
     if (!D.proje) return;
     if (!(await tumunuKaydet())) { bildir('Dosya kaydedilemediği için derlenmedi.', true); return; }
     const giris = girisDosyasi();
-    if (!giris) { bildir('Derlenecek .ohc dosyası yok.', true); return; }
+    if (!giris) { bildir(girisHatasi() || 'Derlenecek .ohc dosyası yok.', true); return; }
     const ad = { windows: 'Windows', web: 'Web (WebAssembly)', 'masaustu-linux': 'Linux masaüstü', 'masaustu-windows': 'Windows masaüstü' }[hedef] || 'Linux';
     D.altPanel = true; D.altSekme = 'cikti';
     D.cikti.push({ t: `${ad} için derleniyor: ${giris}`, c: 'mut' });
@@ -2520,7 +2534,13 @@
       D.menu = null;
       guncelle('onizleme', 'durum', 'baslik');
     },
-    denetleKomut() { tumunuKaydet().then(denetle).then(() => { if (!D.sorunlar.length) bildir('Hata yok.'); else EYLEM.altSorunlar(); }); },
+    async denetleKomut() {
+      if (!(await tumunuKaydet())) return bildir('Dosya kaydedilemediği için denetlenmedi.', true);
+      if (!(await denetle())) return bildir(girisHatasi() || 'Denetlenecek .ohc dosyası yok.', true);
+      if (D.denetimHatasi) bildir('Denetlenemedi: ' + D.denetimHatasi, true);
+      else if (!D.sorunlar.length) bildir('Hata yok.');
+      else EYLEM.altSorunlar();
+    },
     derleLinux() { derle('linux'); },
     derleWindows() { derle('windows'); },
     derleWeb() { derle('web'); },

@@ -11,7 +11,7 @@ Orhunca'nın söz dizimi ve standart kütüphanesi. Adım adım öğrenmek için
 |---|---|
 | `sayı` (64 bit tamsayı) | `42`, `-7`, `1_000_000` |
 | `ondalık` (64 bit kayan nokta) | `3.14`, `-0.5`, `19.99` |
-| `metin` | `"Merhaba"` (`\n`, `\t`, `\"`) |
+| `metin` | `"Merhaba"` (`\n`, `\t`, `\"`, `\\`; başka kaçışlar olduğu gibi kalır: `"\d+"`) |
 | `mantık` | `doğru`, `yanlış` |
 | `liste<T>` | `[3, 8, 1]`, `["a", "b"]`, `[]` |
 | `sözlük<A, D>` | `{"elma": 5, "armut": 3}`, `{}` (anahtarlar sayı ya da metin) |

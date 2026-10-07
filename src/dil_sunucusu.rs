@@ -211,6 +211,121 @@ const TIP_ADLARI: &[(&str, &str)] = &[
     ),
 ];
 
+fn girinti(satir: &str) -> usize {
+    satir
+        .chars()
+        .take_while(|c| *c == ' ' || *c == '\t')
+        .count()
+}
+
+/// Kendi kapsamı olan üst düzey blok başlığı (işlev, fiil, web yolu, bileşen).
+fn kapsam_basligi(govde: &str) -> bool {
+    [
+        "işlev ",
+        "fiil ",
+        "al ",
+        "gönder ",
+        "koy ",
+        "sil ",
+        "bileşen ",
+    ]
+    .iter()
+    .any(|b| govde.starts_with(b))
+}
+
+/// Satırda `ad`ın tam kelime olarak geçtiği ilk yer (karakter sırası), `baslangic`tan itibaren.
+fn kelime_konumu(satir: &str, ad: &str, baslangic: usize) -> Option<usize> {
+    let k: Vec<char> = satir.chars().collect();
+    let a: Vec<char> = ad.chars().collect();
+    let harf = |c: char| !HARF_DISI.contains(&c);
+    (baslangic..k.len().saturating_sub(a.len() - 1)).find(|&i| {
+        k[i..i + a.len()] == a[..]
+            && (i == 0 || !harf(k[i - 1]))
+            && k.get(i + a.len()).is_none_or(|c| !harf(*c))
+    })
+}
+
+/// Satır `ad`a ilk değer veren bir atama ya da döngü değişkeni tanımı mı? Konumu döner.
+fn atama_konumu(satir: &str, ad: &str) -> Option<usize> {
+    let g = girinti(satir);
+    let govde: String = satir.chars().skip(g).collect();
+    if let Some(r) = govde.strip_prefix("her ") {
+        return (r.split(' ').next() == Some(ad)).then_some(g + 4);
+    }
+    let r = govde.strip_prefix(ad)?;
+    let r = r.trim_start();
+    let atama = (r.starts_with('=') && !r.starts_with("=="))
+        || (r.starts_with(':') && r.contains('=') && !r.contains("=="));
+    atama.then_some(g)
+}
+
+/// Kapsamı bilen tanım arama. Kullanım bir işlevin (fiil, yol, bileşen) içindeyse önce o
+/// bloğun başlığındaki parametrelere, sonra bloktaki ilk atamaya; değilse yalnızca blokların
+/// dışındaki (üst düzey) ilk atamaya bakılır. Bulunamazsa None (genel aramaya düşülür).
+fn kapsamli_tanim(metin: &str, satir_no: usize, ad: &str) -> Option<(usize, usize)> {
+    let satirlar: Vec<&str> = metin.lines().collect();
+    let dolu = |s: &str| {
+        let t = s.trim();
+        !t.is_empty() && !t.starts_with('#')
+    };
+    // Kullanımı içeren üst düzey blok: geriye doğru ilk girintisiz satır.
+    let blok_basi = (0..=satir_no.min(satirlar.len().saturating_sub(1)))
+        .rev()
+        .find(|&i| dolu(satirlar[i]) && girinti(satirlar[i]) == 0)?;
+    let baslik = satirlar[blok_basi].trim_start();
+    let blok_sonu = |b: usize| {
+        (b + 1..satirlar.len())
+            .find(|&i| dolu(satirlar[i]) && girinti(satirlar[i]) == 0)
+            .unwrap_or(satirlar.len())
+    };
+    if kapsam_basligi(baslik) {
+        // Başlıktaki parametre: işlevde ilk parantezden, fiilde baştan itibaren aranır;
+        // işlevin/fiilin kendi adı parametre sayılmaz.
+        let bas = if baslik.starts_with("işlev ") || baslik.starts_with("bileşen ") {
+            satirlar[blok_basi].chars().position(|c| c == '(')
+        } else {
+            Some(0)
+        };
+        if let Some(b) = bas {
+            let isim = tanimlar(satirlar[blok_basi])
+                .first()
+                .map(|t| (t.ad.clone(), t.bas));
+            let mut i = b;
+            while let Some(k) = kelime_konumu(satirlar[blok_basi], ad, i) {
+                if isim.as_ref().is_some_and(|(n, nb)| n == ad && *nb == k) {
+                    i = k + 1;
+                    continue;
+                }
+                return Some((blok_basi, k));
+            }
+        }
+        // Bloğun içindeki ilk atama.
+        let son = blok_sonu(blok_basi);
+        if let Some((i, k)) = satirlar[blok_basi + 1..son]
+            .iter()
+            .enumerate()
+            .find_map(|(j, s)| atama_konumu(s, ad).map(|k| (blok_basi + 1 + j, k)))
+        {
+            return Some((i, k));
+        }
+        // Blokta tanımlı değil: üst düzey değişkene ancak blok dışında ise gidilir.
+    }
+    // Üst düzey (blokların dışındaki) ilk atama.
+    let mut i = 0;
+    while i < satirlar.len() {
+        let s = satirlar[i];
+        if dolu(s) && girinti(s) == 0 && kapsam_basligi(s.trim_start()) {
+            i = blok_sonu(i);
+            continue;
+        }
+        if let Some(k) = atama_konumu(s, ad) {
+            return Some((i, k));
+        }
+        i += 1;
+    }
+    None
+}
+
 struct Tanim {
     tur: &'static str,
     ad: String,
@@ -657,6 +772,11 @@ impl Sunucu {
         let Some((kelime, _, _)) = kelime_bul(satir, karakter) else {
             return Value::Null;
         };
+        // Değişken ve parametreler kapsamına göre çözülür (işlev içi → parametre, yerel atama).
+        if let Some((s, b)) = kapsamli_tanim(metin, satir_no, &kelime) {
+            let son = b + kelime.chars().count();
+            return json!({ "uri": uri, "range": aralik(metin, s, b, son) });
+        }
         let mut adaylar = vec![(uri.to_string(), metin.clone())];
         if let Some(y) = uri_yol(uri) {
             for d in kullanilan_dosyalar(metin, y.parent().unwrap_or(Path::new("."))) {
@@ -837,6 +957,26 @@ mod testler {
                 ("arayüz", "arayüz")
             ]
         );
+    }
+
+    #[test]
+    fn tanima_git_kapsami_bilir() {
+        // Hata raporu B22: parametre dıştaki aynı adlı değişkene, ikinci işlevin yereli
+        // birincinin yereline gidiyordu.
+        let m = "x = 1\nişlev f(x: sayı) -> sayı:\n    döndür x + 1\n\
+                 işlev g():\n    y = 2\n    y'yi yaz.\nişlev h():\n    y = 3\n    y'yi yaz.\nx'i yaz.\n";
+        assert_eq!(kapsamli_tanim(m, 2, "x"), Some((1, 8)));
+        assert_eq!(kapsamli_tanim(m, 5, "y"), Some((4, 4)));
+        assert_eq!(kapsamli_tanim(m, 8, "y"), Some((7, 4)));
+        assert_eq!(kapsamli_tanim(m, 9, "x"), Some((0, 0)));
+        // İşlevin kendi adı parametre değildir; fiil parametresi bulunur.
+        let m = "fiil sayı'yı karele:\n    döndür sayı * sayı\n";
+        assert_eq!(kapsamli_tanim(m, 1, "sayı"), Some((0, 5)));
+        let m = "işlev f(a):\n    döndür a\nf(2)'yi yaz.\n";
+        assert_eq!(kapsamli_tanim(m, 2, "f"), None);
+        // Döngü değişkeni
+        let m = "her i için 1'den 3'e kadar:\n    i'yi yaz.\n";
+        assert_eq!(kapsamli_tanim(m, 1, "i"), Some((0, 4)));
     }
 
     #[test]

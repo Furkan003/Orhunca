@@ -179,22 +179,17 @@ pub fn sozcukle(kaynak: &str) -> Sonuc<Vec<Sozcuk>> {
                         '\\' => {
                             let e = karakterler.get(i).copied().unwrap_or(' ');
                             i += 1;
-                            metin.push(match e {
-                                'n' => '\n',
-                                't' => '\t',
-                                '"' => '"',
-                                '\\' => '\\',
+                            match e {
+                                'n' => metin.push('\n'),
+                                't' => metin.push('\t'),
+                                '"' => metin.push('"'),
+                                '\\' => metin.push('\\'),
+                                // Bilinmeyen kaçış olduğu gibi kalır: desenlerde "\d+" yazılabilsin.
                                 _ => {
-                                    return Err(Hata::yeni(
-                                        Konum {
-                                            satir: satir_no,
-                                            sutun: i,
-                                            dosya: 0,
-                                        },
-                                        format!("bilinmeyen kaçış dizisi '\\{e}'"),
-                                    ))
+                                    metin.push('\\');
+                                    i -= 1;
                                 }
-                            });
+                            }
                         }
                         _ => metin.push(d),
                     }

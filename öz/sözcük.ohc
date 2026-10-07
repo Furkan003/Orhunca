@@ -177,7 +177,9 @@ işlev sözcükle(kaynak: metin) -> liste<Sözcük>:
                         değilse eğer e == "\"" veya e == "\\" ise:
                             yazı = yazı + e
                         değilse:
-                            döndür hata(çıktı, "bilinmeyen kaçış dizisi '\\" + e + "'", satır_no, i)
+                            # Bilinmeyen kaçış olduğu gibi kalır: "\d+" desenlerde yazılabilsin.
+                            yazı = yazı + "\\"
+                            i -= 1
                     değilse:
                         yazı = yazı + d
                 eğer i < n ve kelime_başı_mı(k[i]) ise:
