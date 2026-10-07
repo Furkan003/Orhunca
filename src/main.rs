@@ -49,6 +49,16 @@ fn ana() -> ExitCode {
         return ExitCode::SUCCESS;
     };
     let kalan = &args[1..];
+    // `orhunca <komut> --help`: hiçbir şey yapmadan o komutun yardımı gösterilir.
+    // `--` sonrası çalıştırılan programın argümanlarıdır, ona bakılmaz.
+    if kalan
+        .iter()
+        .take_while(|a| *a != "--")
+        .any(|a| matches!(a.as_str(), "--help" | "-h" | "--yardım" | "--yardim"))
+    {
+        println!("{}", komut_yardimi(komut));
+        return ExitCode::SUCCESS;
+    }
     let sonuc = match komut.as_str() {
         "derle" => derle_komutu(kalan).map(|_| ExitCode::SUCCESS),
         "çalıştır" | "calistir" => calistir_komutu(kalan),
@@ -82,6 +92,40 @@ fn ana() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+/// Bir komutun yardımı: genel yardımdaki o komuta ait satırlar.
+fn komut_yardimi(komut: &str) -> String {
+    let ascii = |m: &str| {
+        m.chars()
+            .map(|c| match c {
+                'ç' => 'c',
+                'ğ' => 'g',
+                'ı' => 'i',
+                'ö' => 'o',
+                'ş' => 's',
+                'ü' => 'u',
+                c => c,
+            })
+            .collect::<String>()
+    };
+    let aranan = ascii(komut);
+    let satirlar: Vec<&str> = YARDIM
+        .lines()
+        .filter(|s| {
+            s.trim_start()
+                .strip_prefix("orhunca ")
+                .and_then(|k| k.split_whitespace().next())
+                .is_some_and(|k| ascii(k) == aranan)
+        })
+        .collect();
+    if satirlar.is_empty() {
+        return YARDIM.to_string();
+    }
+    format!(
+        "Kullanım:\n{}\n\nBütün komutlar için: orhunca yardım",
+        satirlar.join("\n")
+    )
 }
 
 struct Secenekler {
@@ -340,6 +384,14 @@ fn ohc_dosyalari(klasor: &Path, cikti: &mut Vec<PathBuf>) {
 
 /// `--denetle`: dosyaları değiştirmez; biçimsiz dosya varsa hata koduyla çıkar.
 fn bicimlendir_komutu(args: &[String]) -> Result<ExitCode, String> {
+    if let Some(a) = args
+        .iter()
+        .find(|a| a.starts_with('-') && *a != "--denetle")
+    {
+        return Err(format!(
+            "bilinmeyen seçenek '{a}'\nKullanım: orhunca biçimlendir [dosya.ohc ...] [--denetle]"
+        ));
+    }
     let denetle = args.iter().any(|a| a == "--denetle");
     let mut dosyalar: Vec<PathBuf> = Vec::new();
     for a in args.iter().filter(|a| !a.starts_with("--")) {
@@ -401,6 +453,11 @@ fn yeni_komutu(args: &[String]) -> Result<(), String> {
                     .cloned()
                     .ok_or("--şablon sonrasında şablon adı bekleniyordu")?;
             }
+            a if a.starts_with('-') => {
+                return Err(format!(
+                    "bilinmeyen seçenek '{a}'\nKullanım: orhunca yeni <proje_adı> [--şablon konsol|web_sitesi|...]"
+                ))
+            }
             a if ad.is_none() => ad = Some(a.to_string()),
             a => return Err(format!("beklenmeyen değer '{a}'")),
         }
@@ -434,8 +491,18 @@ fn yeni_komutu(args: &[String]) -> Result<(), String> {
         std::fs::write(&yol, sablonlar::icerik(sablon, dosya, &ad, ornek))
             .map_err(|e| e.to_string())?;
     }
+    // Boşluk ya da kabuk için özel karakter içeren ad tırnak içinde yazılır
+    // (PowerShell, cmd ve sh'de aynı biçimde çalışır).
+    let cd_adi = if ad
+        .chars()
+        .any(|c| c.is_whitespace() || "&()'`;$|<>^%!,".contains(c))
+    {
+        format!("\"{ad}\"")
+    } else {
+        ad.clone()
+    };
     println!(
-        "'{ad}' projesi oluşturuldu ({}).\n  cd {ad}\n  orhunca çalıştır",
+        "'{ad}' projesi oluşturuldu ({}).\n  cd {cd_adi}\n  orhunca çalıştır",
         sablon.ad
     );
     if sablonlar::arayuz_mu(sablon) {

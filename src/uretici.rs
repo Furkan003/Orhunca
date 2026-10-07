@@ -81,7 +81,7 @@ pub(crate) const CALISMA_ZAMANI: &[(&str, usize, bool)] = &[
     ("ohc_matematik", 3, true),
     ("ohc_logaritma_taban", 3, true),
     ("ohc_us_tam", 3, true),
-    ("ohc_us", 2, true),
+    ("ohc_us", 3, true),
     ("ohc_mutlak", 2, true),
     ("ohc_rastgele", 0, true),
     ("ohc_rastgele_aralik", 3, true),
@@ -1134,7 +1134,7 @@ impl Uretici<'_, '_> {
             }
             "logaritma" => self.cz("ohc_logaritma_taban", &[d[0], d[1], satir]),
             "üs" if e.tip == Tip::Sayi => self.cz("ohc_us_tam", &[d[0], d[1], satir]),
-            "üs" => self.cz("ohc_us", d),
+            "üs" => self.cz("ohc_us", &[d[0], d[1], satir]),
             "mutlak" if t0 == Tip::Ondalik => {
                 let f = self.f64(d[0]);
                 let r = self.b.ins().fabs(f);

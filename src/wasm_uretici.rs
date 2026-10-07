@@ -2074,7 +2074,10 @@ impl Uretici<'_> {
                 d.push(satir);
                 self.cagri("ohc_us_tam", &d)?
             }
-            "üs" => self.cagri("ohc_us", &d)?,
+            "üs" => {
+                d.push(satir);
+                self.cagri("ohc_us", &d)?
+            }
             "mutlak" if *t0 == Tip::Ondalik => {
                 self.ifade(&arg[0])?;
                 self.e(K::F64ReinterpretI64);

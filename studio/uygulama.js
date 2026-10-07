@@ -60,7 +60,7 @@
     q: '', siralama: 'tarih',
     tq: '', kategori: 'Tümü', secili: 'konsol',
     projeAdi: 'yeni_konsol', adDokunuldu: false, konum: '', mevcutAdlar: new Set(),
-    secenekler: { git: true, ornek: true, calistir: true, canli: true },
+    secenekler: { git: true, ornek: true, calistir: false, canli: false },
     olusturuluyor: false,
     proje: null, agac: [], kapaliKlasorler: new Set(),
     sekmeler: [], etkin: null, imlec: { satir: 1, sutun: 1 },
@@ -992,7 +992,7 @@
   async function gorevDenetle(i) {
     const d = DERSLER.find(x => x.kimlik === D.ders), g = d.gorevler[i], k = `${d.kimlik}-${i + 1}`;
     if (!D.proje || !D.sekmeler.some(s => s.yol === k + '.ohc')) { await gorevBasla(i); return; }
-    await tumunuKaydet();
+    if (!(await tumunuKaydet())) { bildir('Dosya kaydedilemediği için denetlenmedi.', true); return; }
     const r = await api('/api/ders/denetle', { dosya: tamYol(k + '.ohc'), girdi: g.girdi || '', beklenen: g.cikti }).catch(e => ({ hata: e.message }));
     D.dersSonuc = D.dersSonuc || {};
     if (r.basarili) {
@@ -1609,7 +1609,22 @@
     D.agac = r.girdiler || [];
   }
 
+  /** Açık projeden ayrılmadan önce kaydedilmemiş değişiklikleri kaydeder; kaydedilemezse
+   *  kullanıcıya sorar. Ayrılmak güvenliyse doğru döner. */
+  async function degisiklikleriKoru() {
+    if (!D.proje || !D.sekmeler.some(s => !s.ikili && s.icerik !== s.kayitli)) return true;
+    if (await tumunuKaydet()) return true;
+    return confirm('Bazı dosyalar kaydedilemedi. Kaydedilmemiş değişiklikler kaybolacak; yine de devam edilsin mi?');
+  }
+
   async function projeyiAc(bilgi, { ilkCalistirma = false } = {}) {
+    // Aynı proje yeniden açılıyorsa (ör. başlangıç ekranından) açık sekmeler korunur.
+    if (D.proje && D.proje.yol === bilgi.yol && D.sekmeler.length) {
+      D.ekran = 'duzenleyici'; D.menu = null; D.modal = null;
+      iskeletVar = false; ciz();
+      return;
+    }
+    if (!(await degisiklikleriKoru())) return;
     if (D.calisma) await durdur();
     D.proje = bilgi;
     D.onizleme = null;
@@ -1717,7 +1732,7 @@
   async function calistir(ayikla = false, { yavas = false } = {}) {
     if (!D.proje) return;
     if (D.calisma) await durdur();
-    await tumunuKaydet();
+    if (!(await tumunuKaydet())) { bildir('Dosya kaydedilemediği için program çalıştırılmadı (ekrandaki kod diskteki koddan farklı).', true); return; }
     const giris = girisDosyasi();
     if (!giris) { bildir('Çalıştırılacak .ohc dosyası yok.', true); return; }
     D.altPanel = true; D.altSekme = 'terminal';
@@ -1826,7 +1841,7 @@
 
   async function derle(hedef) {
     if (!D.proje) return;
-    await tumunuKaydet();
+    if (!(await tumunuKaydet())) { bildir('Dosya kaydedilemediği için derlenmedi.', true); return; }
     const giris = girisDosyasi();
     if (!giris) { bildir('Derlenecek .ohc dosyası yok.', true); return; }
     const ad = { windows: 'Windows', web: 'Web (WebAssembly)', 'masaustu-linux': 'Linux masaüstü', 'masaustu-windows': 'Windows masaüstü' }[hedef] || 'Linux';
@@ -2473,7 +2488,7 @@
       D.ekran = 'baslangic'; D.menu = null; iskeletVar = false; ciz();
     },
     async projeyiKapat() {
-      if (D.sekmeler.some(s => !s.ikili && s.icerik !== s.kayitli) && !confirm('Kaydedilmemiş değişiklikler var. Proje kapatılsın mı?')) return;
+      if (!(await degisiklikleriKoru())) return;
       if (D.calisma) await durdur();
       D.proje = null; D.calisma = null;
       EYLEM.baslangicaDon();

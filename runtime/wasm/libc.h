@@ -109,6 +109,9 @@ int mkdir(const char *yol, int kip);
 #define sqrt(x) __builtin_sqrt(x)
 #define fabs(x) __builtin_fabs(x)
 #define floor(x) __builtin_floor(x)
+#define isfinite(x) __builtin_isfinite(x)
+#define isnan(x) __builtin_isnan(x)
+#define isinf(x) __builtin_isinf(x)
 double sin(double x);
 double cos(double x);
 double tan(double x);

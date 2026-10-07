@@ -332,3 +332,82 @@ fn on_kutuphane_programin_tanimlarindan_etkilenmez() {
         "{hata}"
     );
 }
+
+#[test]
+fn nan_ve_sonsuz_veriye_karismaz() {
+    // Hata raporu B21: NaN doğrulamayı geçip kayıtta sessizce 0'a dönüşüyordu.
+    let klasor = std::env::temp_dir().join(format!("orhunca-nan-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&klasor);
+    std::fs::create_dir_all(&klasor).unwrap();
+    let dosya = klasor.join("p.ohc");
+    std::fs::write(
+        &dosya,
+        "model Ürün:\n    fiyat: ondalık, zorunlu, en_az 0\n\
+         (ondalık_mı(\"NaN\"))'yı yaz.\n(ondalık_mı(\"inf\"))'i yaz.\n(ondalık_mı(\"1e999\"))'u yaz.\n\
+         (ondalık(\"3,5\"))'i yaz.\n\
+         ü = Ürün(fiyat: 1.0)\nher i için 1'den 400'e kadar:\n    ü.fiyat = ü.fiyat * 10.0\n\
+         ü.geçerli_mi()'yi yaz.\nü.hatalar()'ı yaz.\n\
+         dene:\n    ü'yü kaydet.\nyakala h:\n    h'yi yaz.\n\
+         dene:\n    üs(-8.0, 0.5)'i yaz.\nyakala h:\n    h'yi yaz.\n(üs(2.0, 0.5))'i yaz.\n",
+    )
+    .unwrap();
+    let c = orhunca()
+        .arg("çalıştır")
+        .arg(&dosya)
+        .env("ORHUNCA_VERI", klasor.join("veri"))
+        .output()
+        .unwrap();
+    assert!(c.status.success(), "{}", String::from_utf8_lossy(&c.stderr));
+    assert_eq!(
+        String::from_utf8_lossy(&c.stdout),
+        "yanlış\nyanlış\nyanlış\n3.5\nyanlış\n[\"Fiyat geçerli bir sayı olmalı\"]\n\
+         'fiyat' alanı geçerli bir sayı değil (NaN ya da sonsuz); kayıt yapılmadı\n\
+         negatif bir sayının kesirli üssü alınamaz (ör. üs(-8.0, 0.5))\n1.4142135623731\n"
+    );
+    assert!(!klasor.join("veri/Ürün.json").exists());
+    let _ = std::fs::remove_dir_all(&klasor);
+}
+
+#[test]
+fn yardim_secenegi_hicbir_sey_degistirmez() {
+    // Hata raporu B01/B02: `biçimlendir --help` dosyaları biçimlendiriyor,
+    // `yeni --help` '--help' adlı proje oluşturuyordu.
+    let klasor = std::env::temp_dir().join(format!("orhunca-yardim-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&klasor);
+    std::fs::create_dir_all(&klasor).unwrap();
+    let dosya = klasor.join("a.ohc");
+    std::fs::write(&dosya, "x = 1   \n\n\n\n").unwrap();
+    for args in [
+        &["biçimlendir", "--help"][..],
+        &["yeni", "--help"],
+        &["yeni", "-h"],
+        &["derle", "--yardım"],
+    ] {
+        let c = orhunca().args(args).current_dir(&klasor).output().unwrap();
+        assert!(c.status.success(), "{args:?}");
+        assert!(
+            String::from_utf8_lossy(&c.stdout).contains("Kullanım"),
+            "{args:?}"
+        );
+    }
+    assert_eq!(std::fs::read_to_string(&dosya).unwrap(), "x = 1   \n\n\n\n");
+    assert_eq!(std::fs::read_dir(&klasor).unwrap().count(), 1);
+    let c = orhunca()
+        .args(["biçimlendir", "--sil"])
+        .current_dir(&klasor)
+        .output()
+        .unwrap();
+    assert!(!c.status.success());
+    // Boşluklu proje adında `cd` tırnaklı yazılır (B23).
+    let c = orhunca()
+        .args(["yeni", "boş luk"])
+        .current_dir(&klasor)
+        .output()
+        .unwrap();
+    assert!(
+        String::from_utf8_lossy(&c.stdout).contains("cd \"boş luk\""),
+        "{}",
+        String::from_utf8_lossy(&c.stdout)
+    );
+    let _ = std::fs::remove_dir_all(&klasor);
+}

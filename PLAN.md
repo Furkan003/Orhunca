@@ -270,6 +270,49 @@ Kararların gerekçesi için: [docs/sohbet-ozeti.md](docs/sohbet-ozeti.md).
   `çizgi`, `yazı_çiz`, `resim_çiz`), giriş (`tuş_basılı`, `fare_x/y`, `fare_basılı`; dokunma),
   `ses`. Stüdyo'da "2B Oyun" şablonu; örnek: örnekler/oyunlar/top_yakala.ohc.
 
+## Aşama 13 – Yol haritası (Ekim 2026)
+
+Kullanıcı testleri (24 bulguluk hata raporu), derin araştırma raporu ve sohbetteki kararlarla
+belirlendi. Her dalganın sonunda sürüm çıkar; sıradaki dalga kullanıcı geri bildirimine göre
+yeniden sıralanabilir. Kararlar: Python/JS çevirileri birebir aynı sonucu verir (gerekirse
+yardımcı işlevlerle); metinlerde bilinmeyen kaçışlar (`"\d"`) olduğu gibi kalır; Türkçe
+klavye yardımı dili değiştirmez (yalnızca Stüdyo); öğretmen özellikleri şimdilik yok.
+
+### 1. dalga – hatalar ve sağlam zemin (0.8)
+1. P1 hataları: `biçimlendir --help` dosya değiştiriyor; proje yeniden açılınca kaydedilmemiş
+   değişiklik kayboluyor; kaydetme başarısızken F5/derleme eski kodu çalıştırıyor; NaN/sonsuz
+   ondalık doğrulamayı geçiyor.
+2. Otomatik kaydetme ve yerel geçmiş.
+3. Windows: boş konsol pencereleri; proje açılınca kodun kendiliğinden başlaması.
+4. Stüdyo/CLI/LSP/rehber hataları: `yeni --help`, desen kaçışları, başarısız denetimin
+   "Hata yok" görünmesi, LSP tanıma git kapsamı, boşluklu proje adında `cd`, eksik giriş dosyası.
+5. Güvenlik: CSP, güvenli oturum anahtarı, sınırlı iş parçacığı.
+6. `.env` desteği (paketlere asla girmez).
+7. Dil sürümü ve geriye uyumluluk (`orhunca düzelt`).
+8. Çeviri anlam farkları (Türkçe harf, yuvarlama, kalan, Unicode, büyük tamsayı, doğru/yanlış…).
+9. Biçimlendirici: olay bloğunun ilk satırındaki yorum.
+10. Stüdyo'dan tek tıkla hata bildirme.
+11. Gerçek cihaz/kullanıcı deneme listesi.
+
+### 2. dalga – kullanıcının hissedeceği şeyler
+Ajanlar için Orhunca (arayüzü görme, proje araçları, `--json`, Stüdyo bağlantısı) · telefonda ve
+tablette kod yazma (PWA) · Türkçe klavyesi olmayanlara yardım · VPS'e yayınlama (`orhunca yayınla`)
+· paylaşımlı hosting (CGI; `.ohc` dosyalarını PHP gibi çalıştırma) · C kütüphanelerini çağırma
+(FFI) · GitHub üzerinde sunucusuz paket mağazası (kolay yayımlama, derleyicinin çıkardığı paket
+izinleri, sağlama toplamı, ad koruması) · Bootstrap (Türkçe sınıf adları, arayüz teması) ·
+proje çapında değiştir ve Hızlı düzelt · güvenilmeyen proje modu · başvuru belgeleri ·
+imzalama/winget ve GitHub Discussions.
+
+### 3. dalga – profesyonel geliştirme
+Stüdyo'yu modüllere bölme ve editör (CodeMirror kararı) · LSP: sembol dizini, referanslar,
+yeniden adlandırma · Git paneli · test çerçevesi (`orhunca sına`) ve Test Gezgini · DAP tabanlı
+hata ayıklayıcı · dil özellikleri (adsız işlevler, model işlevleri, eşzamanlılık) · PHP çevirisi.
+
+### 4. dalga – sonra
+Web hedefinde JavaScript köprüsü · küçük iyileştirmeler (tarayıcıda `bekle`, erişilebilirlik
+sınaması, entegre terminal) · profil çıkarıcı, çok projeli çalışma alanı, eklenti API'si, uzaktan
+geliştirme.
+
 ## Henüz yapılmayanlar
 
 - Çalışma zamanının çekirdeği (bellek ve çöp toplayıcı, listeler, sözlükler, dosyalar, ağ, JSON,

@@ -734,7 +734,16 @@ int64_t ohc_us_tam(int64_t a, int64_t b, int64_t satir) {
     return sonuc;
 }
 
-int64_t ohc_us(int64_t a, int64_t b) { return bitlere(pow(ondalik(a), ondalik(b))); }
+int64_t ohc_us(int64_t a, int64_t b, int64_t satir) {
+    double x = ondalik(a), y = ondalik(b), r = pow(x, y);
+    if (isnan(r) && !isnan(x) && !isnan(y))
+        hata(satir, "negatif bir sayının kesirli üssü alınamaz (ör. üs(-8.0, 0.5))");
+    if (isinf(r) && isfinite(x) && isfinite(y)) {
+        if (x == 0) hata(satir, "sıfırın negatif üssü alınamaz (sıfıra bölme)");
+        hata(satir, "üs sonucu çok büyük (ondalık sayı sınırı aşıldı)");
+    }
+    return bitlere(r);
+}
 
 int64_t ohc_mutlak(int64_t a, int64_t satir) {
     if (a == INT64_MIN) ohc_tasma(satir);
@@ -988,6 +997,8 @@ static int ondalik_oku(const char *s, double *d) {
     while (bosluk(*p)) p++;
     *d = strtod(p, &son);
     if (son == p) return 0;
+    /* "nan", "inf" ve taşan değerler ("1e999") sayı sayılmaz: sessizce veriye karışırlar. */
+    if (!isfinite(*d)) return 0;
     while (bosluk(*son)) son++;
     return *son == 0;
 }
@@ -2466,6 +2477,15 @@ int64_t ohc_model_sil(int64_t tanim, int64_t kimlik, int64_t satir) {
 int64_t ohc_model_kaydet(int64_t n, int64_t satir) {
     if (!n) hata(satir, "boş bir model değeri kaydedilemez");
     ModelBilgisi *m = nesne_bilgisi(n);
+    /* NaN ve sonsuz JSON'da yazılamaz; sessizce null/0 olmasın diye kayıt reddedilir. */
+    for (int64_t i = 1; i < m->alan_sayisi; i++)
+        if (m->alanlar[i].kod % 8 == KOD_ONDALIK && !isfinite(ondalik(ALAN(n, i)))) {
+            char mesaj[256];
+            snprintf(mesaj, sizeof mesaj,
+                     "'%s' alanı geçerli bir sayı değil (NaN ya da sonsuz); kayıt yapılmadı",
+                     m->alanlar[i].ad);
+            hata(satir, mesaj);
+        }
     int64_t liste = kayitlari_oku(m, satir);
     int64_t kimlik = ALAN(n, 0);
     int64_t i = kimlik > 0 ? kayit_sirasi(liste, kimlik) : -1;
@@ -2646,7 +2666,10 @@ int64_t ohc_model_hatalar(int64_t n) {
         case KOD_SAYI:
         case KOD_ONDALIK: {
             double x = a->kod % 8 == KOD_SAYI ? (double)d : ondalik(d);
-            if (a->en_az_var && x < a->en_az)
+            if (!isfinite(x)) {
+                gorunen_ad(&t, a);
+                t_yaz(&t, " geçerli bir sayı olmalı");
+            } else if (a->en_az_var && x < a->en_az)
                 kural_mesaji(&t, a, " en az ", a->en_az, " olmalı");
             else if (a->en_fazla_var && x > a->en_fazla)
                 kural_mesaji(&t, a, " en fazla ", a->en_fazla, " olabilir");
