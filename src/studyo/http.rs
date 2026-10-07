@@ -29,6 +29,8 @@ pub struct Yanit {
     pub durum: u16,
     pub tur: &'static str,
     pub govde: Vec<u8>,
+    /// Stüdyo'nun kendi sayfası: içerik güvenlik politikası eklenir.
+    pub csp: bool,
 }
 
 impl Yanit {
@@ -37,6 +39,7 @@ impl Yanit {
             durum: 200,
             tur: "application/json; charset=utf-8",
             govde: deger.to_string().into_bytes(),
+            csp: false,
         }
     }
 
@@ -47,6 +50,7 @@ impl Yanit {
             govde: serde_json::json!({ "hata": mesaj })
                 .to_string()
                 .into_bytes(),
+            csp: false,
         }
     }
 }
@@ -142,10 +146,19 @@ pub fn yaz(akis: &mut TcpStream, y: &Yanit) {
         404 => "Not Found",
         _ => "Error",
     };
+    // Betik yalnızca Stüdyo'nun kendi dosyalarından yüklenir (sayfaya sızan bir betik
+    // çalışmaz); eklenti, <base> ve başka sitenin çerçevesi kapalı. Masaüstü kabuğunun
+    // (Tauri) iletişimi bozulmasın diye bağlantı ve görsel kaynakları kısıtlanmaz.
+    let csp = if y.csp {
+        "Content-Security-Policy: script-src 'self'; object-src 'none'; base-uri 'none'; \
+         frame-ancestors 'self'; form-action 'self'\r\n"
+    } else {
+        ""
+    };
     let baslik = format!(
         "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\n\
          Cache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\n\
-         Referrer-Policy: no-referrer\r\nX-Frame-Options: SAMEORIGIN\r\n\
+         Referrer-Policy: no-referrer\r\nX-Frame-Options: SAMEORIGIN\r\n{csp}\
          Connection: close\r\n\r\n",
         y.durum,
         durum_metni,

@@ -27,14 +27,18 @@ mod gomulu {
 
 const VARSAYILAN_KAPI: u16 = 7313;
 
+/// Oturum anahtarı: işletim sisteminin güvenli rastgele sayı üretecinden 32 bayt.
 fn rastgele_anahtar() -> String {
-    (0..4)
-        .map(|i| {
+    let mut b = [0u8; 32];
+    if getrandom::getrandom(&mut b).is_err() {
+        // Üreteç kullanılamazsa (çok eski sistemler) karma tabanlı yedek.
+        for (i, p) in b.chunks_mut(8).enumerate() {
             let mut h = RandomState::new().build_hasher();
-            h.write_u64(i ^ std::process::id() as u64);
-            format!("{:016x}", h.finish())
-        })
-        .collect()
+            h.write_u64(i as u64 ^ std::process::id() as u64);
+            p.copy_from_slice(&h.finish().to_le_bytes());
+        }
+    }
+    b.iter().map(|x| format!("{x:02x}")).collect()
 }
 
 /// Bilgi satırı yazar; çıktı kapatılmışsa (ör. boru okunmuyorsa) sessizce geçer.
@@ -130,7 +134,8 @@ fn dinleyici_ac(kapi: u16) -> Result<(TcpListener, String, String), String> {
         .map_err(|e| format!("sunucu başlatılamadı: {e}"))?;
     let kapi = dinleyici.local_addr().map_err(|e| e.to_string())?.port();
     let anahtar = rastgele_anahtar();
-    let adres = format!("http://127.0.0.1:{kapi}/?anahtar={anahtar}");
+    // Anahtar `#` sonrasında taşınır: bu kısım sunucuya ve günlüklere hiç gitmez.
+    let adres = format!("http://127.0.0.1:{kapi}/#anahtar={anahtar}");
     Ok((dinleyici, adres, anahtar))
 }
 
@@ -138,13 +143,28 @@ fn dinle(dinleyici: TcpListener, anahtar: String) {
     let Ok(kapi) = dinleyici.local_addr().map(|a| a.port()) else {
         return;
     };
+    // Aynı anda en çok bu kadar istek işlenir; fazlası sırada bekler (sınırsız iş
+    // parçacığı açılmasın).
+    const EN_COK_ES_ZAMANLI: usize = 32;
+    let aktif = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
     for baglanti in dinleyici.incoming() {
         let Ok(akis) = baglanti else { continue };
+        while aktif.load(std::sync::atomic::Ordering::Acquire) >= EN_COK_ES_ZAMANLI {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        aktif.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
         let anahtar = anahtar.clone();
+        let sayac = aktif.clone();
         // İstekler derleyiciyi bu iş parçacığında çalıştırır: geniş yığın.
-        let _ = std::thread::Builder::new()
+        let baslatildi = std::thread::Builder::new()
             .stack_size(crate::YIGIN)
-            .spawn(move || isle(akis, &anahtar, kapi));
+            .spawn(move || {
+                isle(akis, &anahtar, kapi);
+                sayac.fetch_sub(1, std::sync::atomic::Ordering::AcqRel);
+            });
+        if baslatildi.is_err() {
+            aktif.fetch_sub(1, std::sync::atomic::Ordering::AcqRel);
+        }
     }
 }
 
@@ -193,6 +213,7 @@ fn statik(yol: &str) -> http::Yanit {
             durum: 200,
             tur: http::icerik_turu(a),
             govde: icerik.to_vec(),
+            csp: a.ends_with(".html"),
         },
         None => http::Yanit::hata(404, "bulunamadı"),
     }

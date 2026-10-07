@@ -22,12 +22,18 @@
   const ayarOku = (a, v) => { try { const x = localStorage.getItem('orhunca.' + a); return x === null ? v : JSON.parse(x); } catch { return v; } };
   const ayarYaz = (a, v) => { try { localStorage.setItem('orhunca.' + a, JSON.stringify(v)); } catch { /* yok */ } };
 
-  // Oturum anahtarı: sunucu tarayıcıyı ?anahtar=... ile açar.
-  // Açılışta açılacak proje ya da dosya (masaüstünde çift tıklanan .ohc): ?ac=<tam yol>
-  const ACILACAK = new URL(location.href).searchParams.get('ac');
+  // Oturum anahtarı: sunucu tarayıcıyı /#anahtar=... ile açar (`#` sonrası sunucuya gitmez).
+  // Açılışta açılacak proje ya da dosya (masaüstünde çift tıklanan .ohc): &ac=<tam yol>
+  // Eski biçim (?anahtar=...) de okunur.
+  const ADRES_PARAMETRELERI = (() => {
+    const h = new URLSearchParams(location.hash.slice(1)), q = new URL(location.href).searchParams;
+    return ad => h.get(ad) ?? q.get(ad);
+  })();
+  const ACILACAK = ADRES_PARAMETRELERI('ac');
+  // Açık sekmeye yeni bir anahtarlı adres gelirse (ör. Stüdyo yeniden başlatıldı) sayfa yenilenir.
+  window.addEventListener('hashchange', () => { if (/anahtar=/.test(location.hash)) location.reload(); });
   const ANAHTAR = (() => {
-    const u = new URL(location.href);
-    let a = u.searchParams.get('anahtar');
+    let a = ADRES_PARAMETRELERI('anahtar');
     if (a) {
       try { sessionStorage.setItem('orhunca-anahtar', a); } catch { /* yok */ }
       history.replaceState(null, '', location.pathname);

@@ -923,6 +923,8 @@ pub fn onizleme(kimlik: &str) -> Yanit {
             durum: 200,
             tur: "text/html; charset=utf-8",
             govde: sayfa.clone().into_bytes(),
+            // Kullanıcı programının sayfası: kendi betiklerini (gömülü) çalıştırır.
+            csp: false,
         },
         None => Yanit::hata(404, "önizleme bulunamadı; programı yeniden çalıştırın"),
     }
