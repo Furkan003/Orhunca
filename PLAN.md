@@ -278,7 +278,7 @@ yeniden sıralanabilir. Kararlar: Python/JS çevirileri birebir aynı sonucu ver
 yardımcı işlevlerle); metinlerde bilinmeyen kaçışlar (`"\d"`) olduğu gibi kalır; Türkçe
 klavye yardımı dili değiştirmez (yalnızca Stüdyo); öğretmen özellikleri şimdilik yok.
 
-### 1. dalga – hatalar ve sağlam zemin (0.8)
+### 1. dalga – hatalar ve sağlam zemin (0.8) ✓
 1. P1 hataları: `biçimlendir --help` dosya değiştiriyor; proje yeniden açılınca kaydedilmemiş
    değişiklik kayboluyor; kaydetme başarısızken F5/derleme eski kodu çalıştırıyor; NaN/sonsuz
    ondalık doğrulamayı geçiyor.
@@ -294,7 +294,7 @@ klavye yardımı dili değiştirmez (yalnızca Stüdyo); öğretmen özellikleri
 10. Stüdyo'dan tek tıkla hata bildirme.
 11. Gerçek cihaz/kullanıcı deneme listesi.
 
-### 2. dalga – kullanıcının hissedeceği şeyler
+### 2. dalga – kullanıcının hissedeceği şeyler (0.9 ve 0.10)
 Ajanlar için Orhunca (arayüzü görme, proje araçları, `--json`, Stüdyo bağlantısı) · telefonda ve
 tablette kod yazma (PWA) · Türkçe klavyesi olmayanlara yardım · VPS'e yayınlama (`orhunca yayınla`)
 · paylaşımlı hosting (CGI; `.ohc` dosyalarını PHP gibi çalıştırma) · C kütüphanelerini çağırma
@@ -303,7 +303,7 @@ izinleri, sağlama toplamı, ad koruması) · Bootstrap (Türkçe sınıf adlar�
 proje çapında değiştir ve Hızlı düzelt · güvenilmeyen proje modu · başvuru belgeleri ·
 imzalama/winget ve GitHub Discussions.
 
-### 3. dalga – profesyonel geliştirme
+### 3. dalga – profesyonel geliştirme (0.11)
 Stüdyo'yu modüllere bölme ve editör (CodeMirror kararı) · LSP: sembol dizini, referanslar,
 yeniden adlandırma · Git paneli · test çerçevesi (`orhunca sına`) ve Test Gezgini · DAP tabanlı
 hata ayıklayıcı · dil özellikleri (adsız işlevler, model işlevleri, eşzamanlılık) · PHP çevirisi.

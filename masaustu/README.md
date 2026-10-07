@@ -19,7 +19,7 @@ cargo tauri build                    # kurulum dosyaları: target/release/bundle
 
 | Sistem | Gerekenler | Çıktı |
 |---|---|---|
-| Linux | `libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev libxdo-dev` | `orhunca-studyo_0.7.2_amd64.deb`, `.AppImage`, `.rpm` |
+| Linux | `libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev libxdo-dev` | `orhunca-studyo_0.8.0_amd64.deb`, `.AppImage`, `.rpm` |
 | Windows | WebView2 (Windows 10/11'de hazır) | `.msi`, kurulum `.exe` |
 | macOS (deneysel) | Xcode komut satırı araçları | `.app`, `.dmg` |
 
