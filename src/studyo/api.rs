@@ -1,7 +1,7 @@
 //! Stüdyo arayüzünün çağırdığı JSON uç noktaları.
 
 use super::http::{Istek, Yanit};
-use super::{asistan, calisma, depo, sablonlar, temalar};
+use super::{asistan, calisma, depo, gecmis, sablonlar, temalar};
 use crate::{agac, derleme};
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
@@ -127,6 +127,32 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
         ("POST", "/api/proje/unut") => {
             depo::proje_unut(metin(&g, "yol"));
             Yanit::json(&json!({ "tamam": true }))
+        }
+        ("GET", "/api/gecmis") => {
+            let p = Path::new(istek.sorgu("yol"));
+            if !izinli_mi(p) {
+                return Yanit::hata(403, "bu dosyaya erişim yok");
+            }
+            let l: Vec<Value> = gecmis::liste(p)
+                .into_iter()
+                .map(|(z, b)| json!({ "zaman": z.to_string(), "boyut": b }))
+                .collect();
+            Yanit::json(&json!({ "kayitlar": l }))
+        }
+        ("GET", "/api/gecmis/oku") => {
+            let p = Path::new(istek.sorgu("yol"));
+            if !izinli_mi(p) {
+                return Yanit::hata(403, "bu dosyaya erişim yok");
+            }
+            match istek
+                .sorgu("zaman")
+                .parse::<u128>()
+                .ok()
+                .and_then(|z| gecmis::oku(p, z))
+            {
+                Some(m) => Yanit::json(&json!({ "icerik": m })),
+                None => hata("Bu kayıt bulunamadı."),
+            }
         }
         ("POST", "/api/dosya") => dosya_yaz(metin(&g, "yol"), metin(&g, "icerik")),
         ("POST", "/api/dosya/yeni") => {
@@ -700,8 +726,12 @@ fn dosya_yaz(yol: &str, icerik: &str) -> Yanit {
     if !izinli_mi(p) {
         return Yanit::hata(403, "bu dosyaya erişim yok");
     }
+    gecmis::ilk_hali_sakla(p);
     match std::fs::write(p, icerik) {
-        Ok(()) => Yanit::json(&json!({ "tamam": true })),
+        Ok(()) => {
+            gecmis::kaydet(p, icerik);
+            Yanit::json(&json!({ "tamam": true }))
+        }
         Err(e) => hata(format!("Kaydedilemedi: {e}")),
     }
 }

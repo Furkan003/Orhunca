@@ -1,6 +1,6 @@
 # Orhunca Stüdyo
 
-Okullar için Türkçe geliştirme ortamı.
+Türkçe geliştirme ortamı.
 
 [← README](../README.md)
 
@@ -15,6 +15,13 @@ Tam Yığın Uygulama; Arayüz Uygulaması), sözdizimi renklendirmeli düzenley
 yazarken hata gösterimi, F5 ile derleyip çalıştırma (programın girdisi terminalden verilir),
 kesme noktalı hata ayıklayıcı, Linux/Windows için dağıtım derlemesi ve masaüstü paketleme ve Türkçe anahtar kelime rehberi. İnternet gerekmez; arayüz ve
 yazı tipleri ikili dosyanın içindedir.
+
+**Otomatik kaydetme ve yerel geçmiş:** yazmaya ara verdiğinizde dosya kendiliğinden kaydedilir
+(Ayarlar → Otomatik kaydet ile kapatılabilir). Kaydedilen her dosyanın önceki hâlleri proje
+klasörünün dışında, ayar klasöründe saklanır (dosya başına en çok 100 kayıt, 30 gün; bir dakika
+içindeki kayıtlar birleşir). **Dosya → Yerel geçmiş…** ile bir hâli seçip önizleyebilir ve
+**Bu hâle dön** ile geri getirebilirsiniz (Ctrl+Z ile geri alınır). Kaydetme başarısız olursa
+program çalıştırılmaz; ekrandaki kod ile çalışan kod her zaman aynıdır.
 
 Web projelerinde F5 sunucuyu başlatır ve sayfa sağdaki **canlı önizlemede** açılır. Kaydettiğinizde
 sunucu yeniden derlenir ve önizleme bulunduğu adreste yenilenir (yalnızca `statik/` dosyası

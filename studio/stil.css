@@ -795,3 +795,14 @@ details.tema-grup summary { cursor: pointer; }
 .ceviri-sag { border-left: 1px solid var(--cizgi); padding-left: 16px; }
 .ceviri-sol .no { display: inline-block; width: 28px; color: var(--soluk3); user-select: none; }
 .ceviri-hata { white-space: pre-wrap; font-family: var(--mono); font-size: 12.5px; color: var(--hata); }
+
+/* Yerel geçmiş */
+.gecmis { display: grid; grid-template-columns: 240px 1fr; gap: 12px; min-height: 360px; max-height: 60vh; }
+.gecmis-liste { overflow: auto; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--cizgi); padding-right: 8px; }
+.gecmis-oge { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 7px; cursor: pointer; font-size: 12.5px; }
+.gecmis-oge:hover { background: var(--dugme-hover); }
+.gecmis-oge.secili { background: var(--vurgu-12); }
+.gecmis-oge .simge { font-size: 16px; color: var(--soluk3); }
+.gecmis-boyut { font-size: 11px; color: var(--soluk3); }
+.gecmis-sag { overflow: auto; min-width: 0; }
+.gecmis-onizleme { max-height: none; margin: 0; }

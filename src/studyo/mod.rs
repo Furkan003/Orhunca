@@ -10,6 +10,7 @@ mod api;
 mod asistan;
 mod calisma;
 mod depo;
+mod gecmis;
 pub use depo::ayar_klasoru;
 mod http;
 pub mod sablonlar;

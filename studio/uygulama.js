@@ -77,6 +77,7 @@
     yazarkenDenetle: ayarOku('yazarkenDenetle', true),
     yavasHiz: ayarOku('yavasHiz', 700),
     acilis: ayarOku('acilis', true),
+    otomatikKaydet: ayarOku('otomatikKaydet', true),
     guncellemeDenetle: ayarOku('guncellemeDenetle', true), guncelleme: null, guncellemeDurumu: '',
     // Yapay zekâ asistanı (kullanıcının kendi API anahtarıyla)
     asistan: { durum: null, mesajlar: [], bekliyor: false, modeller: null, hata: '', girdi: '', anahtar: '', adres: null, secilen: null, ayarAcik: false, baglaniyor: false, istek: 0 },
@@ -290,7 +291,7 @@
   // Menüler
   // =====================================================================
   const MENULER = [
-    { ad: 'Dosya', ogeler: [['Yeni dosya…', '', 'yeniDosyaModal'], ['Yeni klasör…', '', 'yeniKlasorModal'], '-', ['Kaydet', 'Ctrl+S', 'kaydet'], ['Tümünü kaydet', 'Ctrl+Alt+S', 'tumunuKaydet'], '-', ['Başlangıç ekranı', '', 'baslangicaDon'], ['Projeyi kapat', '', 'projeyiKapat'], '-', ["Stüdyo'yu kapat", '', 'studyoyuKapat']] },
+    { ad: 'Dosya', ogeler: [['Yeni dosya…', '', 'yeniDosyaModal'], ['Yeni klasör…', '', 'yeniKlasorModal'], '-', ['Kaydet', 'Ctrl+S', 'kaydet'], ['Tümünü kaydet', 'Ctrl+Alt+S', 'tumunuKaydet'], ['Yerel geçmiş…', '', 'gecmisModal'], '-', ['Başlangıç ekranı', '', 'baslangicaDon'], ['Projeyi kapat', '', 'projeyiKapat'], '-', ["Stüdyo'yu kapat", '', 'studyoyuKapat']] },
     { ad: 'Düzen', ogeler: [['Geri al', 'Ctrl+Z', 'geriAl'], ['Yinele', 'Ctrl+Y', 'yinele'], '-', ['Kes', 'Ctrl+X', 'kes'], ['Kopyala', 'Ctrl+C', 'kopyala'], ['Yapıştır', 'Ctrl+V', 'yapistir'], '-', ['Satırı yorum yap', 'Ctrl+/', 'yorumYap'], ['Biçimlendir', 'Ctrl+⇧+F', 'bicimlendir']] },
     { ad: 'Seçim', ogeler: [['Tümünü seç', 'Ctrl+A', 'tumunuSec'], ['Satırı seç', 'Ctrl+L', 'satiriSec'], ['Satırı çoğalt', 'Ctrl+⇧+D', 'satiriCogalt']] },
     { ad: 'Görünüm', ogeler: [['Gezgin', '', 'panelGezgin'], ['Ara', '', 'panelAra'], ['Yapı', '', 'panelYapi'], ['Çalıştır', '', 'panelCalistir'], '-', ['Alt paneli göster/gizle', 'Ctrl+J', 'altPanelAcKapa'], ['Yapay zekâ asistanı', 'Ctrl+I', 'asistanAcKapa'], '-', ['Python karşılığını göster', '', 'ceviriPython'], ['JavaScript karşılığını göster', '', 'ceviriJs'], '-', ['Yazıyı büyüt', 'Ctrl+=', 'yaziBuyut'], ['Yazıyı küçült', 'Ctrl+-', 'yaziKucult']] },
@@ -574,6 +575,7 @@
         <div class="secenek" style="cursor:default"><div class="esnek"><div class="secenek-ad">Tema</div><div class="secenek-alt">Sınıfta projektör için açık tema önerilir.</div></div>
           <div class="tema-secim">${[['koyu', 'Koyu'], ['acik', 'Açık'], ['sistem', 'Sistem']].map(([t, ad]) => `<span class="${!D.ozelTema && D.tema === t ? 'secili' : ''}" data-e="temaSec" data-a="${t}">${ad}</span>`).join('')}</div></div>
         <div class="secenek" data-e="gorunumModal"><div class="esnek"><div class="secenek-ad">Görünüm ve temalar</div><div class="secenek-alt">${D.ozelTema ? 'Etkin tema: ' + kac(D.ozelTema.ad) + ' · ' : ''}Renkler, yazı tipleri, arka plan resmi ya da GIF; temaları paylaşın.</div></div>${S('palette')}</div>
+        <div class="secenek" data-e="otomatikKaydetDegistir"><div class="esnek"><div class="secenek-ad">Otomatik kaydet</div><div class="secenek-alt">Yazmayı bıraktıktan kısa süre sonra dosya kendiliğinden kaydedilir. Önceki hâller Dosya → Yerel geçmiş'te durur.</div></div><div class="anahtar ${D.otomatikKaydet ? 'acik' : ''}"><div></div></div></div>
         <div class="secenek" data-e="guncellemeDenetleDegistir"><div class="esnek"><div class="secenek-ad">Güncellemeleri denetle</div><div class="secenek-alt">Açılışta yeni sürüm olup olmadığına bakılır (GitHub'a tek bir istek; başka veri gönderilmez).</div></div><div class="anahtar ${D.guncellemeDenetle ? 'acik' : ''}"><div></div></div></div>
         ${D.asistan.durum?.kapali ? '' : `<div class="secenek" data-e="asistanGosterDegistir"><div class="esnek"><div class="secenek-ad">Yapay zekâ asistanı</div><div class="secenek-alt">Kenar çubuğunda asistan simgesi gösterilir. Claude, GPT, Gemini ya da bilgisayarınızdaki yerel modellerle (Ollama, LM Studio) çalışır.</div></div><div class="anahtar ${D.asistanGoster ? 'acik' : ''}"><div></div></div></div>`}
         <div class="secenek" data-e="acilisDegistir"><div class="esnek"><div class="secenek-ad">Açılış animasyonu</div><div class="secenek-alt">Stüdyo açılırken Orhunca logosu canlandırılır.</div></div><div class="anahtar ${D.acilis ? 'acik' : ''}"><div></div></div></div>`,
@@ -581,6 +583,7 @@
     }
     if (m.tur === 'gorunum') return cizGorunum(kabuk);
     if (m.tur === 'ceviri') return cizCeviri(kabuk);
+    if (m.tur === 'gecmis') return cizGecmis(kabuk);
     if (m.tur === 'ajan') return cizAjan(kabuk);
     if (m.tur === 'yeniSurum') {
       const g = D.guncelleme || {};
@@ -1264,6 +1267,7 @@
       if (onceKirli !== (s.icerik !== s.kayitli)) cizSekmeler();
       if (D.yanPanel === 'yapi') cizYanPanel();
       denetlemeyiPlanla();
+      kaydetmeyiPlanla();
       tamamlamayiGuncelle(ta);
     });
     ta.addEventListener('blur', () => setTimeout(() => tamamlamaKapat(), 150));
@@ -1662,11 +1666,18 @@
     if (ciz_) guncelle('sekmeler', 'kod', 'yan', 'durum');
   }
 
-  async function kaydet(s = etkinSekme(), sessiz = false) {
+  async function kaydet(s = etkinSekme(), sessiz = false, otomatik = false) {
     if (!s || s.ikili || s.icerik === s.kayitli) return true;
-    const r = await api('/api/dosya', { yol: tamYol(s.yol), icerik: s.icerik });
-    if (r.hata) { bildir(r.hata, true); return false; }
-    s.kayitli = s.icerik;
+    const icerik = s.icerik;
+    const r = await api('/api/dosya', { yol: tamYol(s.yol), icerik }).catch(e => ({ hata: e.message }));
+    if (r.hata) {
+      // Otomatik kaydetmede aynı hata her duraklamada yeniden gösterilmez.
+      if (!otomatik || s.otoHata !== r.hata) bildir(r.hata, true);
+      if (otomatik) s.otoHata = r.hata;
+      return false;
+    }
+    s.otoHata = null;
+    s.kayitli = icerik;
     if (!sessiz) { cizSekmeler(); kayittanSonra(s.yol); }
     return true;
   }
@@ -1680,6 +1691,19 @@
     if (D.ekran === 'duzenleyici') cizSekmeler();
     if (yenile && degisen) kayittanSonra(degisen);
     return true;
+  }
+
+  let kaydetmeZamani;
+  /** Otomatik kaydetme: yazmaya ara verildikten 1,5 sn sonra açık dosya kaydedilir. */
+  function kaydetmeyiPlanla() {
+    if (!D.otomatikKaydet) return;
+    clearTimeout(kaydetmeZamani);
+    kaydetmeZamani = setTimeout(async () => {
+      const s = etkinSekme();
+      if (!s || s.ikili || s.icerik === s.kayitli) return;
+      await kaydet(s, true, true);
+      if (D.ekran === 'duzenleyici') cizSekmeler();
+    }, 1500);
   }
 
   let denetimZamani;
@@ -1932,6 +1956,30 @@
       <pre class="asistan-kod ajan-kod">${kac(i.kod)}</pre>
       <div class="secenek" data-e="ajanTalimatEkle" style="margin-top:12px"><div class="esnek"><div class="secenek-ad">Projeye AGENTS.md ekle</div><div class="secenek-alt">MCP desteklemeyen ajanlar da (Codex, Copilot, Cursor, Jules, Aider…) projedeki bu dosyayı okuyup Orhunca kodunu nasıl yazacağını öğrenir.</div></div>${S('note_add')}</div>`,
       `<div class="dugme" data-e="ajanKopyala">${S('content_copy')} Kopyala</div><div class="dugme birincil" data-e="modalKapat">Tamam</div>`).replace('class="modal"', 'class="modal genis"');
+  }
+
+  /** "bugün 14:32", "dün 09:05", "03.10.2026 18:40" */
+  function zamanYazisi(ms) {
+    const t = new Date(ms), b = new Date(), iki = n => String(n).padStart(2, '0');
+    const saat = `${iki(t.getHours())}:${iki(t.getMinutes())}`;
+    const gun = d => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const fark = Math.round((gun(b) - gun(t)) / 86400000);
+    if (fark === 0) return 'bugün ' + saat;
+    if (fark === 1) return 'dün ' + saat;
+    return `${iki(t.getDate())}.${iki(t.getMonth() + 1)}.${t.getFullYear()} ${saat}`;
+  }
+
+  function cizGecmis(kabuk) {
+    const m = D.modal;
+    const liste = m.kayitlar === null ? '<div class="bos-durum"><div class="donen kucuk" style="margin:auto"></div></div>'
+      : !m.kayitlar.length ? '<div class="panel-not">Bu dosyanın henüz bir geçmişi yok. Dosya kaydedildikçe önceki hâlleri burada birikir.</div>'
+      : m.kayitlar.map((k, i) => `<div class="gecmis-oge ${k.zaman === m.secili ? 'secili' : ''}" data-e="gecmisSec" data-a="${k.zaman}">${S(i === 0 ? 'save' : 'history')}<span class="esnek">${zamanYazisi(+k.zaman)}</span><span class="gecmis-boyut">${k.boyut} bayt</span></div>`).join('');
+    const onizleme = m.icerik === null ? '<div class="panel-not">Soldan bir kayıt seçin.</div>'
+      : `<pre class="asistan-kod gecmis-onizleme">${m.icerik.split('\n').map(x => vurgula(x, uzanti(m.yol) === 'ohc' ? 'ohc' : '')).join('\n')}</pre>`;
+    return kabuk(`${S('history')} Yerel geçmiş: ${kac(m.yol)}`,
+      `<div class="gecmis"><div class="gecmis-liste">${liste}</div><div class="gecmis-sag">${onizleme}</div></div>`,
+      `<div class="panel-not" style="flex:1;font-size:12px;margin:0 12px 0 0">Geri getirdiğiniz hâl düzenleyiciye yazılır; Ctrl+Z ile geri alabilirsiniz.</div>
+       <div class="dugme" data-e="modalKapat">Kapat</div><div class="dugme birincil ${m.icerik === null ? 'pasif' : ''}" data-e="gecmisGeriYukle">${S('restore')}Bu hâle dön</div>`).replace('class="modal"', 'class="modal genis"');
   }
 
   function cizCeviri(kabuk) {
@@ -2376,6 +2424,34 @@
       navigator.clipboard?.writeText(m?.oneri?.icerik || '').then(() => bildir('Kopyalandı.'), () => bildir('Kopyalanamadı.', true));
     },
     asistanGosterDegistir() { D.asistanGoster = !D.asistanGoster; ayarYaz('asistanGoster', D.asistanGoster); katmanlariCiz(); if (D.ekran === 'duzenleyici') guncelle('baslik', 'etkinlik', 'asistan'); },
+    otomatikKaydetDegistir() { D.otomatikKaydet = !D.otomatikKaydet; ayarYaz('otomatikKaydet', D.otomatikKaydet); katmanlariCiz(); },
+    async gecmisModal() {
+      const s = etkinSekme();
+      if (!s || s.ikili) return bildir('Önce bir dosya açın.', true);
+      D.menu = null;
+      D.modal = { tur: 'gecmis', yol: s.yol, kayitlar: null, secili: null, icerik: null };
+      katmanlariCiz();
+      const r = await api('/api/gecmis?' + sorgu({ yol: tamYol(s.yol) })).catch(e => ({ hata: e.message }));
+      if (D.modal?.tur !== 'gecmis') return;
+      if (r.hata) { D.modal = null; katmanlariCiz(); return bildir(r.hata, true); }
+      D.modal.kayitlar = r.kayitlar || [];
+      katmanlariCiz();
+    },
+    async gecmisSec(zaman) {
+      const m = D.modal;
+      m.secili = zaman; m.icerik = null; katmanlariCiz();
+      const r = await api('/api/gecmis/oku?' + sorgu({ yol: tamYol(m.yol), zaman })).catch(e => ({ hata: e.message }));
+      if (D.modal !== m || m.secili !== zaman) return;
+      if (r.hata) return bildir(r.hata, true);
+      m.icerik = r.icerik; katmanlariCiz();
+    },
+    async gecmisGeriYukle() {
+      const m = D.modal;
+      if (m?.icerik == null) return;
+      const icerik = m.icerik;
+      D.modal = null; katmanlariCiz();
+      await asistanYaz({ dosya: m.yol }, icerik);
+    },
     guncellemeDenetleDegistir() { D.guncellemeDenetle = !D.guncellemeDenetle; ayarYaz('guncellemeDenetle', D.guncellemeDenetle); katmanlariCiz(); },
     yeniSurumModal() { D.menu = null; D.modal = { tur: 'yeniSurum' }; katmanlariCiz(); },
     async guncellemeyiKur() {

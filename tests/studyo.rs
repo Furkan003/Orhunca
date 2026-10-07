@@ -94,6 +94,24 @@ impl Sunucu {
         let (_, g) = self.istek("POST", yol, Some(&govde.to_string()), true);
         serde_json::from_str(&g).unwrap()
     }
+
+    fn api_get(&self, yol: &str) -> serde_json::Value {
+        let (_, g) = self.istek("GET", yol, None, true);
+        serde_json::from_str(&g).unwrap()
+    }
+}
+
+/// Sorgu değeri için yüzde kodlaması (harf ve rakam dışındaki her bayt).
+fn url_kodla(m: &str) -> String {
+    m.bytes()
+        .map(|b| {
+            if b.is_ascii_alphanumeric() {
+                (b as char).to_string()
+            } else {
+                format!("%{b:02X}")
+            }
+        })
+        .collect()
 }
 
 #[test]
@@ -747,4 +765,51 @@ fn yapay_zeka_baska_saglayicilar() {
     assert_eq!(lm["model"], "qwen2.5-coder-7b", "{lm}");
     let r = s.api("/api/asistan/ayar", json!({ "adres": "file:///etc" }));
     assert!(r["hata"].is_string(), "{r}");
+}
+
+#[test]
+fn yerel_gecmis() {
+    use serde_json::json;
+    let s = baslat("gecmis");
+    let konum = s.ev.join("Projeler");
+    let r = s.api(
+        "/api/proje/olustur",
+        json!({ "sablon": "konsol", "ad": "g", "konum": konum, "git": false, "ornek": false }),
+    );
+    assert!(r["hata"].is_null(), "{r}");
+    let dosya = konum.join("g").join("ana.ohc");
+    std::fs::write(&dosya, "ilk\n").unwrap();
+    let liste = |s: &Sunucu| {
+        let (_, g) = s.istek(
+            "GET",
+            &format!("/api/gecmis?yol={}", url_kodla(&dosya.to_string_lossy())),
+            None,
+            true,
+        );
+        serde_json::from_str::<serde_json::Value>(&g).unwrap()["kayitlar"]
+            .as_array()
+            .unwrap()
+            .clone()
+    };
+    assert!(liste(&s).is_empty());
+    // İlk kayıtta diskteki önceki hâl de saklanır; bir dakika içindeki kayıtlar birleşir.
+    for icerik in ["ikinci\n", "üçüncü\n", "dördüncü\n"] {
+        let r = s.api("/api/dosya", json!({ "yol": dosya, "icerik": icerik }));
+        assert_eq!(r["tamam"], true, "{r}");
+    }
+    let l = liste(&s);
+    assert_eq!(l.len(), 2, "{l:?}");
+    let oku = |z: &serde_json::Value| {
+        s.api_get(&format!(
+            "/api/gecmis/oku?yol={}&zaman={}",
+            url_kodla(&dosya.to_string_lossy()),
+            z.as_str().unwrap()
+        ))["icerik"]
+            .clone()
+    };
+    assert_eq!(oku(&l[0]["zaman"]), "dördüncü\n");
+    assert_eq!(oku(&l[1]["zaman"]), "ilk\n");
+    // Proje dışındaki bir dosyanın geçmişi istenemez.
+    let (durum, _) = s.istek("GET", "/api/gecmis?yol=%2Fetc%2Fpasswd", None, true);
+    assert_eq!(durum, 403);
 }
