@@ -109,9 +109,42 @@ başlatır. Sunucu stdin/stdout üzerinden konuşur. Sunduğu araçlar:
 | `orhunca_denetle` | Kodu derler; Türkçe hata mesajlarını, satır numarasını ve ipucunu ya da "Hata yok."u döndürür |
 | `orhunca_calistir` | Programı süre sınırıyla çalıştırır; girdi verilebilir ve çıktı döndürülür |
 | `orhunca_bicimlendir` | Kodu standart biçime getirir |
+| `orhunca_arayuz` | Arayüz programını tarayıcısız çalıştırır, ekranı metin olarak döndürür; düğmelere tıklar, girişlere yazar |
+| `orhunca_yeni_proje` | Stüdyo şablonlarından yeni proje oluşturur (`konsol`, `arayuz`, `web_sitesi`, `oyun`…) |
+| `orhunca_dosyalar` | Proje klasöründeki dosyaları listeler |
+| `orhunca_dosya_oku` / `orhunca_dosya_yaz` | Proje dosyalarını (.ohc, .ohchtml, .ohcproj, .css, .html…) okur ve yazar |
 
 Araçlara kod metin olarak (`kod`) ya da diskteki bir dosyanın yoluyla (`dosya`) verilebilir. Rehber,
 `orhunca://rehber` kaynağı olarak da sunulur.
+
+### Ajan arayüzü nasıl görür?
+
+`orhunca_arayuz` arayüz programını (Node.js ile) tarayıcısız çalıştırır ve ekranı metin olarak
+verir. Ajan `eylemler` ile düğmelere tıklayıp girişlere yazarak programı bir kullanıcı gibi dener:
+
+```json
+{ "dosya": "/projeler/sayac/uygulama.ohc",
+  "eylemler": [{ "tıkla": "+ 1" }, { "yaz": { "tür": "giriş", "sıra": 0, "değer": "Ali" } },
+               { "gönder": {} }, { "kare": 30 }] }
+```
+
+```
+Ekran:
+başlık "Sayaç"
+yazı "Şu anki değer: 0"
+satır
+  düğme "+ 1" (olay: tıklanınca)
+
+> tıkla "+ 1"
+Ekran:
+başlık "Sayaç"
+yazı "Şu anki değer: 1"
+...
+```
+
+`yaz` bir giriş, seçim, kaydırıcı ya da onay kutusunun değerini değiştirir (`tür` varsayılan
+`giriş`, `sıra` aynı türden kaçıncı öğe olduğu). `gönder` girişte Enter'a basar, `kare` oyun
+alanında verilen sayıda kare ilerletir.
 
 **En kolayı:** Stüdyo'da **Asistan → Kendi ajanınızı bağlayın**. Pencere, kullandığınız araç için
 hazır yapılandırmayı bilgisayarınızdaki Orhunca'nın tam yoluyla gösterir; **Kopyala** deyip
@@ -212,6 +245,14 @@ Bağlantıdan sonra ajana örneğin şunu yazabilirsiniz: *"Orhunca ile bir not 
 yaz ve çalıştırıp dene."* Ajan önce rehberi okur, sonra kodu yazar, denetler ve çalıştırır.
 
 Ajanınız terminal kullanabiliyorsa MCP olmadan da çalışabilir: `orhunca denetle dosya.ohc` ve
-`orhunca çalıştır dosya.ohc` komutları aynı Türkçe hata mesajlarını verir. Dil rehberinin
+`orhunca çalıştır dosya.ohc` komutları aynı Türkçe hata mesajlarını verir. `orhunca denetle --json`
+hataları ve uyarıları araçların okuyabileceği biçimde yazar:
+
+```json
+{"basarili":false,"dosya":"ana.ohc","hatalar":[{"dosya":"ana.ohc","satir":2,"sutun":1,
+ "mesaj":"Orhunca'da ekrana yazmak bir cümledir: önce değer, sonra fiil","ipucu":"şöyle yazın: x'i yaz."}],
+ "uyarilar":[]}
+```
+ Dil rehberinin
 tamamı tek dosya olarak [llms-full.txt](https://furkan003.github.io/Orhunca/llms-full.txt)
 adresinde de bulunur.

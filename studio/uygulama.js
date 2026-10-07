@@ -931,7 +931,7 @@
     </div>`;
   }
 
-  const ADIMLAR = { kodu_calistir: ['play_arrow', 'Kodu çalıştırdı'], kodu_denetle: ['task_alt', 'Kodu denetledi'], rehber_oku: ['menu_book', 'Rehbere baktı'], dosyayi_degistir: ['edit_document', 'Değişiklik önerdi'] };
+  const ADIMLAR = { kodu_calistir: ['play_arrow', 'Kodu çalıştırdı'], kodu_denetle: ['task_alt', 'Kodu denetledi'], arayuzu_dene: ['select_window', 'Arayüzü denedi'], rehber_oku: ['menu_book', 'Rehbere baktı'], dosyayi_degistir: ['edit_document', 'Değişiklik önerdi'] };
 
   function asistanPaneli() {
     const A = D.asistan, d = A.durum || {};

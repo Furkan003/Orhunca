@@ -10,7 +10,7 @@ Orhunca — Türkçe tabanlı programlama dili
 Kullanım:
   orhunca derle [dosya.ohc] [-o çıktı] [--hedef linux|windows|web|<üçlü>]
   orhunca çalıştır [dosya.ohc] [--hedef web] [-- programın argümanları]
-  orhunca denetle [dosya.ohc]
+  orhunca denetle [dosya.ohc] [--json]
   orhunca etkileşim           (satır satır deneme: yazdığınız her satır hemen çalışır)
   orhunca paketle [dosya.ohc] [-o çıktı] [--hedef linux|windows|macos|android|ios]
   orhunca biçimlendir [dosya.ohc ...] [--denetle]
@@ -63,7 +63,7 @@ fn ana() -> ExitCode {
     let sonuc = match komut.as_str() {
         "derle" => derle_komutu(kalan).map(|_| ExitCode::SUCCESS),
         "çalıştır" | "calistir" => calistir_komutu(kalan),
-        "denetle" => denetle_komutu(kalan).map(|_| ExitCode::SUCCESS),
+        "denetle" => denetle_komutu(kalan),
         "paketle" => paketle_komutu(kalan).map(|_| ExitCode::SUCCESS),
         "etkileşim" | "etkilesim" | "repl" => etkilesim::calistir().map(|_| ExitCode::SUCCESS),
         "yeni" => yeni_komutu(kalan).map(|_| ExitCode::SUCCESS),
@@ -205,12 +205,49 @@ fn uyarilari_yaz(dosya: &Path) {
     }
 }
 
-fn denetle_komutu(args: &[String]) -> Result<(), String> {
-    let s = secenekleri_oku(args)?;
-    uyarilari_yaz(&s.dosya);
-    derleme::yukle(&s.dosya).map_err(|h| h.metin)?;
-    println!("{}: hata yok", s.dosya.display());
-    Ok(())
+fn denetle_komutu(args: &[String]) -> Result<ExitCode, String> {
+    // --json: araçlar ve yapay zekâ ajanları için hatalar ve uyarılar JSON olarak yazılır.
+    let json = args.iter().any(|a| a == "--json");
+    let args: Vec<String> = args.iter().filter(|a| *a != "--json").cloned().collect();
+    let s = secenekleri_oku(&args)?;
+    if !json {
+        uyarilari_yaz(&s.dosya);
+        derleme::yukle(&s.dosya).map_err(|h| h.metin)?;
+        println!("{}: hata yok", s.dosya.display());
+        return Ok(ExitCode::SUCCESS);
+    }
+    let dosya = s.dosya.display().to_string();
+    let uyarilar: Vec<_> = std::fs::read_to_string(&s.dosya)
+        .map(|k| bicimlendirici::uyarilar(&k))
+        .unwrap_or_default()
+        .into_iter()
+        .map(|u| {
+            serde_json::json!({
+                "dosya": dosya, "satir": u.konum.satir, "sutun": u.konum.sutun, "mesaj": u.mesaj
+            })
+        })
+        .collect();
+    let hatalar: Vec<_> = match derleme::yukle(&s.dosya) {
+        Ok(_) => Vec::new(),
+        Err(h) => vec![match h.teshis {
+            Some(t) => serde_json::json!({
+                "dosya": t.dosya, "satir": t.satir, "sutun": t.sutun, "mesaj": t.mesaj, "ipucu": t.ipucu
+            }),
+            None => serde_json::json!({
+                "dosya": dosya, "satir": 0, "sutun": 0, "mesaj": h.metin, "ipucu": null
+            }),
+        }],
+    };
+    let basarili = hatalar.is_empty();
+    println!(
+        "{}",
+        serde_json::json!({ "dosya": dosya, "basarili": basarili, "hatalar": hatalar, "uyarilar": uyarilar })
+    );
+    Ok(if basarili {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::from(1)
+    })
 }
 
 fn cevir_komutu(args: &[String]) -> Result<(), String> {

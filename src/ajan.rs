@@ -301,6 +301,226 @@ fn calistir_yol(yol: &Path, girdi: &str, sure: Duration) -> Result<Calisma, Stri
     })
 }
 
+const AJAN_ARAYUZ_JS: &str = include_str!("../runtime/wasm/ajan_arayuz.js");
+
+/// Node.js kurulu mu (arayüz programlarını tarayıcısız çalıştırmak için gerekir).
+pub fn node_var() -> bool {
+    crate::komut("node")
+        .arg("--version")
+        .output()
+        .is_ok_and(|c| c.status.success())
+}
+
+/// Arayüz programını tarayıcısız çalıştırır, `eylemler`i ([{"tıkla": "Ekle"},
+/// {"yaz": {"tür": "giriş", "sıra": 0, "değer": "Ali"}}, {"gönder": {}}, {"kare": 30}])
+/// sırayla uygular ve her adımdan sonra ekranı metin olarak döndürür.
+pub fn arayuz_calistir(
+    kod: Option<&str>,
+    dosya: Option<&Path>,
+    eylemler: &serde_json::Value,
+    sure: Duration,
+) -> Result<String, String> {
+    let (yol, gecici) = hazirla(kod, dosya)?;
+    let sonuc = (|| {
+        let (wasm, arayuz) = match derleme::wasm_derle(&yol) {
+            Ok(w) => w,
+            Err(h) => return Ok(format!("DERLEME HATASI\n{}", kisa_yol(&h.metin, &yol))),
+        };
+        if !arayuz {
+            return Err(
+                "Bu bir arayüz programı değil (arayüz: bloğu yok); orhunca_calistir kullanın."
+                    .into(),
+            );
+        }
+        if !node_var() {
+            return Err(
+                "Arayüz programını tarayıcısız çalıştırmak için Node.js gerekli \
+                 (https://nodejs.org). Program hatasız derlendi."
+                    .into(),
+            );
+        }
+        let klasor = derleme::gecici_klasor("ajan-arayuz")?;
+        let yaz = |ad: &str, veri: &[u8]| {
+            std::fs::write(klasor.join(ad), veri).map_err(|e| e.to_string())
+        };
+        yaz("program.wasm", &wasm)?;
+        yaz("orhunca_rt.wasm", derleme::WASM_CALISMA_ZAMANI)?;
+        yaz("orhunca.js", derleme::WASM_YUKLEYICI.as_bytes())?;
+        yaz("ajan_arayuz.js", AJAN_ARAYUZ_JS.as_bytes())?;
+        let eylemler = if eylemler.is_array() {
+            eylemler.clone()
+        } else {
+            serde_json::json!([])
+        };
+        yaz("eylemler.json", eylemler.to_string().as_bytes())?;
+        let mut c = crate::komut("node")
+            .arg(klasor.join("ajan_arayuz.js"))
+            .arg(&klasor)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("node çalıştırılamadı: {e}"))?;
+        let mut cikti_akisi = c.stdout.take();
+        let mut hata_akisi = c.stderr.take();
+        let o1 = std::thread::spawn(move || {
+            let mut m = String::new();
+            if let Some(a) = cikti_akisi.as_mut() {
+                let _ = a.read_to_string(&mut m);
+            }
+            m
+        });
+        let o2 = std::thread::spawn(move || {
+            let mut m = String::new();
+            if let Some(a) = hata_akisi.as_mut() {
+                let _ = a.read_to_string(&mut m);
+            }
+            m
+        });
+        let bas = Instant::now();
+        let zaman_asimi = loop {
+            if c.try_wait().map_err(|e| e.to_string())?.is_some() {
+                break false;
+            }
+            if bas.elapsed() > sure {
+                let _ = c.kill();
+                let _ = c.wait();
+                break true;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        };
+        let mut m = o1.join().unwrap_or_default();
+        let h = o2.join().unwrap_or_default();
+        if !h.trim().is_empty() {
+            m.push_str("\nHata:\n");
+            m.push_str(h.trim());
+        }
+        if zaman_asimi {
+            m.push_str("\nProgram süre sınırında bitmedi (sonsuz döngü olabilir) ve durduruldu.");
+        }
+        temizle(Some(klasor));
+        Ok(kirp(&m.replace('\r', ""), EN_COK_AJAN_CIKTISI * 2))
+    })();
+    temizle(gecici);
+    sonuc
+}
+
+/// Yeni bir Orhunca projesi oluşturur (Stüdyo'daki şablonlar); oluşturulan dosyaları döndürür.
+pub fn yeni_proje(konum: &Path, ad: &str, sablon: &str) -> Result<String, String> {
+    use crate::studyo::sablonlar;
+    if ad.is_empty() || ad.contains(['/', '\\']) || ad.starts_with('.') {
+        return Err(format!("geçersiz proje adı '{ad}'"));
+    }
+    let s = sablonlar::bul(sablon)
+        .filter(|s| s.yakinda.is_none())
+        .ok_or_else(|| {
+            let l: Vec<&str> = sablonlar::SABLONLAR
+                .iter()
+                .filter(|s| s.yakinda.is_none())
+                .map(|s| s.kimlik)
+                .collect();
+            format!("bilinmeyen şablon '{sablon}'; şablonlar: {}", l.join(", "))
+        })?;
+    let klasor = konum.join(ad);
+    if klasor.exists() {
+        return Err(format!("'{}' zaten var", klasor.display()));
+    }
+    let mut yazilan = Vec::new();
+    for dosya in s.dosyalar {
+        let yol = klasor.join(dosya.replace("{ad}", ad));
+        if let Some(u) = yol.parent() {
+            std::fs::create_dir_all(u).map_err(|e| e.to_string())?;
+        }
+        std::fs::write(&yol, sablonlar::icerik(s, dosya, ad, sablon != "konsol"))
+            .map_err(|e| e.to_string())?;
+        yazilan.push(dosya.replace("{ad}", ad));
+    }
+    Ok(format!(
+        "'{}' projesi oluşturuldu ({}): {}\nGiriş dosyası: {}",
+        klasor.display(),
+        s.ad,
+        yazilan.join(", "),
+        klasor.join(s.giris).display()
+    ))
+}
+
+/// Ajanın okuyup yazabileceği dosya türleri (proje dosyaları; program ya da gizli dosya değil).
+const AJAN_DOSYA_TURLERI: &[&str] = &[
+    "ohc", "ohchtml", "ohcproj", "css", "js", "html", "md", "json", "txt", "csv",
+];
+
+fn ajan_dosyasi_mi(yol: &Path) -> Result<(), String> {
+    if yol
+        .components()
+        .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        return Err("yolda '..' kullanılamaz".into());
+    }
+    let ad = yol.file_name().and_then(|a| a.to_str()).unwrap_or("");
+    let uzanti = yol.extension().and_then(|u| u.to_str()).unwrap_or("");
+    if ad.starts_with('.') || !AJAN_DOSYA_TURLERI.contains(&uzanti) {
+        return Err(format!(
+            "yalnızca proje dosyaları okunup yazılabilir ({})",
+            AJAN_DOSYA_TURLERI.join(", ")
+        ));
+    }
+    Ok(())
+}
+
+pub fn dosya_oku(yol: &Path) -> Result<String, String> {
+    ajan_dosyasi_mi(yol)?;
+    std::fs::read_to_string(yol).map_err(|e| format!("'{}' okunamadı: {e}", yol.display()))
+}
+
+pub fn dosya_yaz(yol: &Path, icerik: &str) -> Result<String, String> {
+    ajan_dosyasi_mi(yol)?;
+    if let Some(u) = yol.parent().filter(|u| !u.as_os_str().is_empty()) {
+        std::fs::create_dir_all(u).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(yol, icerik).map_err(|e| format!("'{}' yazılamadı: {e}", yol.display()))?;
+    Ok(format!(
+        "'{}' yazıldı ({} bayt).",
+        yol.display(),
+        icerik.len()
+    ))
+}
+
+/// Proje klasöründeki dosyalar (gizli dosyalar, derleme çıktıları ve paketler hariç).
+pub fn proje_dosyalari(klasor: &Path) -> Result<String, String> {
+    fn gez(k: &Path, kok: &Path, l: &mut Vec<String>) {
+        let Ok(g) = std::fs::read_dir(k) else { return };
+        let mut g: Vec<_> = g.flatten().collect();
+        g.sort_by_key(|x| x.file_name());
+        for x in g {
+            let ad = x.file_name().to_string_lossy().to_string();
+            if ad.starts_with('.') || ad == "cikti" || ad == "paketler" || ad == "target" {
+                continue;
+            }
+            let p = x.path();
+            let goreli = p
+                .strip_prefix(kok)
+                .unwrap_or(&p)
+                .to_string_lossy()
+                .replace('\\', "/");
+            if p.is_dir() {
+                l.push(format!("{goreli}/"));
+                gez(&p, kok, l);
+            } else if l.len() < 500 {
+                l.push(goreli);
+            }
+        }
+    }
+    if !klasor.is_dir() {
+        return Err(format!("'{}' bir klasör değil", klasor.display()));
+    }
+    let mut l = Vec::new();
+    gez(klasor, klasor, &mut l);
+    Ok(if l.is_empty() {
+        "(boş klasör)".into()
+    } else {
+        l.join("\n")
+    })
+}
+
 /// Kod verildiyse geçici bir dosyaya yazar; dosya verildiyse onu kullanır.
 fn hazirla(kod: Option<&str>, dosya: Option<&Path>) -> Result<(PathBuf, Option<PathBuf>), String> {
     match (kod, dosya) {

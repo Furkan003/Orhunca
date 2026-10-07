@@ -21,7 +21,7 @@ bir programlama dilidir; kullanıcıların bir kısmı programlamayı yeni öğr
 Kullanıcıyla Türkçe konuş; açıklamaların kısa, sade ve öğretici olsun.
 
 Kod yazdığında önce kodu_denetle ile denetle, mümkünse kodu_calistir ile çalıştırıp çıktısına \
-bak; hata varsa düzelt. Kullanıcının açık dosyasını değiştirmen gerektiğinde dosyanın yeni \
+bak (arayüz programlarını arayuzu_dene ile düğmelere tıklayarak dene); hata varsa düzelt. Kullanıcının açık dosyasını değiştirmen gerektiğinde dosyanın yeni \
 içeriğinin tamamını dosyayi_degistir ile öner; değişikliği kullanıcı onaylayınca dosyaya \
 yazılır. Kullanıcı yalnızca bir soru sorduysa dosyayı değiştirme; kısa örneklerle yanıtla. \
 Kullanıcı bir alıştırmayı kendisi çözmeye çalışıyorsa çözümü hemen verme; ipucuyla yol göster.
@@ -235,11 +235,14 @@ pub fn ajan_talimati() -> String {
         "# Yapay zekâ ajanları için\n\n\
          Bu proje Orhunca ile yazılmıştır. {giris}\n\n\
          ## Araçlar\n\n\
-         - `orhunca denetle <dosya.ohc>`: kodu çalıştırmadan derler, Türkçe hata ve ipuçlarını gösterir.\n\
+         - `orhunca denetle <dosya.ohc>`: kodu çalıştırmadan derler, Türkçe hata ve ipuçlarını gösterir \
+         (`--json` ile JSON olarak).\n\
          - `orhunca çalıştır <dosya.ohc>`: programı çalıştırır (proje klasöründe yalnızca `orhunca çalıştır`).\n\
          - `orhunca biçimlendir <dosya.ohc>`: kodu standart biçime getirir.\n\
          - `orhunca mcp`: MCP sunucusu (araçlar: orhunca_rehber, orhunca_denetle, orhunca_calistir, \
-         orhunca_bicimlendir). Ajanınız MCP destekliyorsa bu sunucuya bağlanın.\n\n\
+         orhunca_bicimlendir, orhunca_arayuz, orhunca_yeni_proje, orhunca_dosyalar, orhunca_dosya_oku, \
+         orhunca_dosya_yaz). Ajanınız MCP destekliyorsa bu sunucuya bağlanın. Arayüz programlarını \
+         orhunca_arayuz ile çalıştırıp düğmelere tıklayarak deneyin.\n\n\
          Dil rehberinin tamamı: https://furkan003.github.io/Orhunca/llms-full.txt\n"
     )
 }
@@ -675,12 +678,24 @@ fn arac_tanimlari() -> Vec<(&'static str, &'static str, Value)> {
         ),
         (
             "kodu_calistir",
-            "Orhunca programını derleyip en fazla 10 saniye çalıştırır ve çıktısını döndürür. Arayüz programları yalnızca derlenir.",
+            "Orhunca programını derleyip en fazla 10 saniye çalıştırır ve çıktısını döndürür. Arayüz programları yalnızca derlenir; onları arayuzu_dene ile deneyin.",
             json!({
                 "type": "object",
                 "properties": {
                     "kod": { "type": "string", "description": "Orhunca kaynak kodu" },
                     "girdi": { "type": "string", "description": "Programın oku() ile okuyacağı girdi; satırlar \\n ile ayrılır" }
+                },
+                "required": ["kod"]
+            }),
+        ),
+        (
+            "arayuzu_dene",
+            "Arayüz programını (arayüz: bloğu olan) çalıştırır ve ekranı metin olarak döndürür. 'eylemler' sırayla uygulanır, her eylemden sonra ekran yeniden yazılır: {\"tıkla\": \"Düğme metni\"}, {\"yaz\": {\"tür\": \"giriş\", \"sıra\": 0, \"değer\": \"Ali\"}}, {\"gönder\": {}}, {\"kare\": 30}.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "kod": { "type": "string", "description": "Orhunca kaynak kodu" },
+                    "eylemler": { "type": "array", "items": { "type": "object" }, "description": "Uygulanacak eylemler" }
                 },
                 "required": ["kod"]
             }),
@@ -738,6 +753,12 @@ fn arac_yurut(ad: &str, g: &Value, oneri: &mut Option<Value>) -> (String, bool) 
             Ok(c) => (c.metin(), false),
             Err(e) => (e, true),
         },
+        "arayuzu_dene" if kod.is_some() => {
+            match ajan::arayuz_calistir(kod, None, &g["eylemler"], Duration::from_secs(10)) {
+                Ok(m) => (m, false),
+                Err(e) => (e, true),
+            }
+        }
         "rehber_oku" => (
             ajan::rehber_bolumu(g["bolum"].as_str().unwrap_or("")),
             false,

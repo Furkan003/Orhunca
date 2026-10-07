@@ -63,3 +63,34 @@ fn derinlik_sinirlari() {
     let c = denetle(&bloklar);
     assert!(c.contains("çok fazla iç içe blok"), "{c}");
 }
+
+#[test]
+fn json_cikti() {
+    let klasor = std::env::temp_dir().join(format!("orhunca-denetle-json-{}", std::process::id()));
+    std::fs::create_dir_all(&klasor).unwrap();
+    let calistir = |ad: &str, kaynak: &str| {
+        let dosya = klasor.join(ad);
+        std::fs::write(&dosya, kaynak).unwrap();
+        let c = Command::new(env!("CARGO_BIN_EXE_orhunca"))
+            .args(["denetle", "--json"])
+            .arg(&dosya)
+            .output()
+            .unwrap();
+        let j: serde_json::Value = serde_json::from_slice(&c.stdout).unwrap();
+        (c.status.code(), j)
+    };
+    let (kod, j) = calistir("iyi.ohc", "5'i yaz.\n");
+    assert_eq!(kod, Some(0));
+    assert_eq!(j["basarili"], true);
+    assert_eq!(j["hatalar"], serde_json::json!([]));
+    let (kod, j) = calistir("kotu.ohc", "x = 5\nyaz(x)\n");
+    assert_eq!(kod, Some(1));
+    assert_eq!(j["basarili"], false);
+    let h = &j["hatalar"][0];
+    assert_eq!(h["satir"], 2);
+    assert_eq!(h["sutun"], 1);
+    assert_eq!(h["ipucu"], "şöyle yazın: x'i yaz.");
+    let (_, j) = calistir("uyari.ohc", "x = \"5\" + 3\n");
+    assert!(!j["uyarilar"].as_array().unwrap().is_empty(), "{j}");
+    std::fs::remove_dir_all(&klasor).unwrap();
+}
