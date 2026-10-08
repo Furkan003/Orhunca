@@ -304,6 +304,15 @@ pub fn program(p: &Program) -> String {
         if let Some(r) = &f.rota {
             m.push_str(&format!(" rota {} {}", r.yontem, metin(&r.kalip)));
         }
+        if let Some(d) = &f.dis {
+            let tipler: Vec<&str> = d.tipler.iter().map(|t| t.adi()).collect();
+            m.push_str(&format!(
+                " dış {} ({}) -> {}",
+                metin(&d.kutuphane),
+                tipler.join(" "),
+                d.donus.adi()
+            ));
+        }
         satir(&mut s, 0, &m);
         blok(&f.govde, 2, &mut s);
     }

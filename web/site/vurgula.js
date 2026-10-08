@@ -3,7 +3,7 @@
 (function (kok) {
   'use strict';
   const ANAHTAR = new Set([
-    'eğer', 'değilse', 'ise', 'her', 'için', 'kadar', 'işlev', 'fiil', 'kullan', 'sabit', 'döndür', 'dur',
+    'eğer', 'değilse', 'ise', 'her', 'için', 'kadar', 'işlev', 'fiil', 'kullan', 'kütüphane', 'sabit', 'döndür', 'dur',
     'sürdür', 've', 'veya', 'değil', 'doğru', 'yanlış', 'olduğu', 'sürece', 'iken', 'yaz', 'ekle', 'sırala',
     'çıkar', 'ekrana', 'dene', 'yakala', 'seçenek', 'model', 'durum', 'arayüz', 'bileşen', 'tıklanınca',
     'değişince', 'gönderilince', 'çalınca', 'al', 'gönder', 'koy', 'sil', 'kaydet', 'boş',

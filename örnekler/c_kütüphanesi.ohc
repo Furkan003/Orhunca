@@ -1,0 +1,21 @@
+# C kütüphanelerini çağırmak: kütüphane bloğunda C işlevlerinin imzaları yazılır,
+# sonra Orhunca işlevleri gibi çağrılır. "m" matematik, "c" C'nin standart kütüphanesidir
+# (Linux'ta libm/libc, Windows'ta msvcrt, macOS'ta libSystem).
+kütüphane "m":
+    işlev pow(taban: ondalık, üs: ondalık) -> ondalık
+    işlev sqrt(x: ondalık) -> ondalık
+    işlev floor(x: ondalık) -> ondalık
+
+kütüphane "c":
+    işlev strlen(m: metin) -> sayı
+    işlev atoi(m: metin) -> sayı32
+    işlev abs(x: sayı32) -> sayı32
+    işlev toupper(harf: sayı32) -> sayı32
+
+pow(2.0, 10.0)'u yaz.
+sqrt(2.0)'yi yaz.
+floor(-3.5)'i yaz.
+strlen("Orhunca")'yı yaz.
+atoi("-250") + 50'yi yaz.
+abs(-7)'yi yaz.
+karakter(toupper(kod("a")))'yı yaz.

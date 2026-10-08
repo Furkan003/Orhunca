@@ -264,6 +264,14 @@ const HATALI_PROGRAMLAR: &[&str] = &[
     "x = 1\nx.5 = 2\n",
     "\"kapanmamış\n",
     "x = 5 @ 3\n",
+    "kütüphane \"m\":\n    x = 5\n",
+    "kütüphane \"m\":\n    işlev f(x) -> sayı\n",
+    "kütüphane \"m\":\n    işlev f(x: liste<sayı>) -> sayı\n",
+    "kütüphane \"m\":\n    işlev f(x: sayı) -> sayı:\n        döndür 1\n",
+    "kütüphane \" \":\n    işlev f()\n",
+    "kütüphane \"m\":\n    işlev f(x: sayı) -> yok yok\n",
+    "kütüphane \"m\":\nx = 1\n",
+    "eğer doğru ise:\n    kütüphane \"m\":\n        işlev f()\n",
 ];
 
 #[test]

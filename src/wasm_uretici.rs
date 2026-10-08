@@ -83,6 +83,9 @@ const YALNIZ_YEREL: &[&str] = &[
     "ohc_ay_cik",
     "ohc_ay_satir",
     "ohc_yigin_denetle",
+    "ohc_dis_bul",
+    "ohc_dis_metin",
+    "ohc_dis_metinden",
 ];
 
 /// `dene:` bloklarının işlevlerinin tek parametresi: çevreleyen işlevin çerçevesi.
@@ -230,6 +233,13 @@ impl Ortak {
 
 /// Programı WebAssembly modülüne (ikili) çevirir.
 pub fn uret(p: &Program) -> Result<Vec<u8>, String> {
+    if let Some(f) = p.islevler.iter().find(|f| f.dis.is_some()) {
+        return Err(format!(
+            "'{}' bir C kütüphanesi işlevi (kütüphane bloğu); C kütüphaneleri WebAssembly \
+             hedefinde (tarayıcıda) kullanılamaz",
+            f.ad
+        ));
+    }
     if let Some(f) = p.islevler.iter().find(|f| f.rota.is_some()) {
         let r = f.rota.as_ref().unwrap();
         let soz = match r.yontem.as_str() {
@@ -577,6 +587,7 @@ fn olay_islevi_kur(olay: &Olay, no: usize) -> Islev {
         yereller,
         rota: None,
         arayuz: false,
+        dis: None,
     }
 }
 
@@ -2325,6 +2336,10 @@ mod testler {
                 let yol = g.unwrap().path();
                 if yol.extension().is_some_and(|u| u == "ohc") {
                     let p = crate::derleme::yukle(&yol).unwrap();
+                    // C kütüphanesi çağıran örnekler tarayıcıya derlenemez.
+                    if p.islevler.iter().any(|f| f.dis.is_some()) {
+                        continue;
+                    }
                     let wasm = super::uret(&p).unwrap();
                     sonuc.push((yol.display().to_string(), wasm));
                 }

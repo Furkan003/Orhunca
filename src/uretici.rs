@@ -25,6 +25,9 @@ const I64: types::Type = types::I64;
 /// Çalışma zamanı işlevleri: ad, parametre sayısı, değer döndürür mü.
 pub(crate) const CALISMA_ZAMANI: &[(&str, usize, bool)] = &[
     ("ohc_yaz", 2, false),
+    ("ohc_dis_bul", 3, true),
+    ("ohc_dis_metin", 1, true),
+    ("ohc_dis_metinden", 1, true),
     ("ohc_bol", 3, true),
     ("ohc_mod", 3, true),
     ("ohc_ondalik_bol", 3, true),
@@ -292,6 +295,15 @@ pub fn uret_secenekli(p: &Program, isa: OwnedTargetIsa, ayiklama: bool) -> Resul
     for (f, sig) in p.islevler.iter().zip(imzalar) {
         let (id, doner) = ortak.islevler[&f.ad];
         ctx.func = Function::with_name_signature(UserFuncName::user(0, id.as_u32()), sig);
+        if let Some(d) = &f.dis {
+            dis_islev_uret(&mut ortak, &mut ctx, &mut fctx, f, d)?;
+            ortak
+                .module
+                .define_function(id, &mut ctx)
+                .map_err(|e| format!("'{}': {e:?}", f.ad))?;
+            ortak.module.clear_context(&mut ctx);
+            continue;
+        }
         islev_uret(
             &mut ortak,
             &mut ctx,
@@ -392,6 +404,92 @@ fn govdeleri_uret(
             .map_err(|e| format!("dene bloğu: {e:?}"))?;
         ortak.module.clear_context(ctx);
     }
+    Ok(())
+}
+
+/// `kütüphane "m":` bloğundaki C işlevinin gövdesi: işlevin adresi çalışma zamanında
+/// bulunur (ohc_dis_bul) ve platformun C çağrı kuralıyla çağrılır. Orhunca değerleri
+/// (her şey 64 bit) C tiplerine, dönüş değeri de geri Orhunca'ya çevrilir.
+fn dis_islev_uret(
+    ortak: &mut Ortak,
+    ctx: &mut Context,
+    fctx: &mut FunctionBuilderContext,
+    f: &Islev,
+    d: &DisIslev,
+) -> Result<(), String> {
+    let mut b = FunctionBuilder::new(&mut ctx.func, fctx);
+    let giris = b.create_block();
+    b.append_block_params_for_function_params(giris);
+    b.switch_to_block(giris);
+    let parametreler = b.block_params(giris).to_vec();
+    let mut u = Uretici {
+        b,
+        ortak,
+        degiskenler: HashMap::new(),
+        dis: HashMap::new(),
+        govde: None,
+        donguler: Vec::new(),
+        cagri_onbellek: HashMap::new(),
+        donus: Some(d.donus != CTip::Yok),
+        ay: None,
+    };
+    let kutuphane = u.metin_sabiti(&d.kutuphane)?;
+    let ad = u.metin_sabiti(&f.ad)?;
+    let satir = u.sabit(f.konum.satir as i64);
+    let adres = u
+        .cz("ohc_dis_bul", &[kutuphane, ad, satir])
+        .expect("ohc_dis_bul değer döndürür");
+
+    let mut sig = u.ortak.module.make_signature();
+    let mut argumanlar = Vec::new();
+    for (t, v) in d.tipler.iter().zip(parametreler) {
+        let (tur, deger) = match t {
+            CTip::Ondalik => (types::F64, u.f64(v)),
+            CTip::Metin => (I64, u.cz("ohc_dis_metin", &[v]).expect("metin")),
+            // C'nin int ve bool değerleri 32 bitlik yazmaçta geçer.
+            CTip::Sayi32 | CTip::Mantik => (types::I32, u.b.ins().ireduce(types::I32, v)),
+            CTip::Sayi | CTip::Yok => (I64, v),
+        };
+        sig.params.push(AbiParam::new(tur));
+        argumanlar.push(deger);
+    }
+    let donus_turu = match d.donus {
+        CTip::Ondalik => Some(types::F64),
+        CTip::Sayi32 => Some(types::I32),
+        CTip::Mantik => Some(types::I8),
+        CTip::Sayi | CTip::Metin => Some(I64),
+        CTip::Yok => None,
+    };
+    if let Some(t) = donus_turu {
+        sig.returns.push(AbiParam::new(t));
+    }
+    let imza = u.b.import_signature(sig);
+    let cagri = u.b.ins().call_indirect(imza, adres, &argumanlar);
+    let sonuc = u.b.inst_results(cagri).first().copied();
+    match (d.donus, sonuc) {
+        (CTip::Yok, _) | (_, None) => u.don(&[]),
+        (CTip::Ondalik, Some(r)) => {
+            let v = u.bitler(r);
+            u.don(&[v]);
+        }
+        (CTip::Sayi32, Some(r)) => {
+            let v = u.b.ins().sextend(I64, r);
+            u.don(&[v]);
+        }
+        (CTip::Mantik, Some(r)) => {
+            let sifir_degil = u.b.ins().icmp_imm_u(IntCC::NotEqual, r, 0);
+            let v = u.b.ins().uextend(I64, sifir_degil);
+            u.don(&[v]);
+        }
+        (CTip::Metin, Some(r)) => {
+            let v = u.cz("ohc_dis_metinden", &[r]).expect("metin");
+            u.don(&[v]);
+        }
+        (CTip::Sayi, Some(r)) => u.don(&[r]),
+    }
+    u.b.seal_all_blocks();
+    let hedef = u.ortak.module.target_config();
+    u.b.finalize(hedef);
     Ok(())
 }
 

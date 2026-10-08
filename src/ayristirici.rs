@@ -617,6 +617,7 @@ impl Ayristirici {
                 }
                 Tok::Girinti => return Err(Hata::yeni(self.konum(), "beklenmeyen girinti")),
                 _ if self.kelime_mi("işlev") => p.islevler.push(self.islev()?),
+                _ if self.kutuphane_basi_mi() => p.islevler.extend(self.kutuphane_blogu()?),
                 _ if self.bilesen_basi_mi() => p.islevler.push(self.islev()?),
                 _ if self.arayuz_basi_mi() && !kutuphane => {
                     let f = self.arayuz_blogu()?;
@@ -709,6 +710,7 @@ impl Ayristirici {
         let mut govde = Vec::new();
         while !matches!(self.bak(), Tok::Cikinti | Tok::Son) {
             if self.kelime_mi("işlev")
+                || self.kutuphane_basi_mi()
                 || self.kelime_mi("fiil")
                 || self.model_basi_mi()
                 || self.rota_basi_mi()
@@ -728,6 +730,140 @@ impl Ayristirici {
             self.ilerle();
         }
         Ok(govde)
+    }
+
+    /// `kütüphane "m":` satırı mı? (C kütüphanesindeki işlevler)
+    fn kutuphane_basi_mi(&self) -> bool {
+        self.kelime_mi("kütüphane")
+            && matches!(self.bak_n(1), Tok::Metin(_))
+            && *self.bak_n(2) == Tok::Op(":")
+    }
+
+    /// ```text
+    /// kütüphane "m":
+    ///     işlev cbrt(x: ondalık) -> ondalık
+    /// ```
+    fn kutuphane_blogu(&mut self) -> Sonuc<Vec<Islev>> {
+        self.ilerle();
+        let kk = self.konum();
+        let Tok::Metin(kutuphane) = self.ilerle().tok else {
+            unreachable!()
+        };
+        if kutuphane.trim().is_empty() {
+            return Err(Hata::yeni(kk, "kütüphane adı boş olamaz").ipucu("kütüphane \"m\":"));
+        }
+        self.bekle_op(":", "kütüphane adından sonra")?;
+        if *self.bak() != Tok::YeniSatir {
+            return Err(self.beklenmeyen("':' sonrasında yeni satır"));
+        }
+        self.ilerle();
+        if *self.bak() != Tok::Girinti {
+            return Err(Hata::yeni(
+                self.konum(),
+                "kütüphane bloğunda C işlevlerinin imzaları yazılmalı",
+            )
+            .ipucu("    işlev cbrt(x: ondalık) -> ondalık"));
+        }
+        self.ilerle();
+        let mut islevler = Vec::new();
+        while !matches!(self.bak(), Tok::Cikinti | Tok::Son) {
+            if *self.bak() == Tok::YeniSatir {
+                self.ilerle();
+                continue;
+            }
+            if !self.kelime_mi("işlev") {
+                return Err(Hata::yeni(
+                    self.konum(),
+                    "kütüphane bloğunda yalnızca işlev imzaları olabilir",
+                )
+                .ipucu("işlev cbrt(x: ondalık) -> ondalık"));
+            }
+            self.ilerle();
+            let konum = self.konum();
+            let ad = self.isim_adi("C işlevinin adı")?;
+            if YERLESIK.contains(&ad.as_str()) {
+                return Err(Hata::yeni(
+                    konum,
+                    format!("'{ad}' yerleşik bir işlevin adı"),
+                ));
+            }
+            self.bekle_op("(", "parametre listesi")?;
+            let mut parametreler = Vec::new();
+            let mut tipler = Vec::new();
+            while !self.op_mu(")") {
+                let p = self.isim_adi("parametre adı")?;
+                self.bekle_op(":", "C işlevinin parametre tipi (ör. x: ondalık)")?;
+                let t = self.c_tipi(false)?;
+                parametreler.push((p, t.orhunca()));
+                tipler.push(t);
+                if !self.op_mu(")") {
+                    self.bekle_op(",", "parametreler arasında")?;
+                }
+            }
+            self.ilerle();
+            let donus = if self.op_mu("->") {
+                self.ilerle();
+                self.c_tipi(true)?
+            } else {
+                CTip::Yok
+            };
+            if self.op_mu(":") {
+                return Err(Hata::yeni(
+                    self.konum(),
+                    "C işlevinin gövdesi yazılmaz; yalnızca imzası yazılır",
+                ));
+            }
+            self.deyim_bitir()?;
+            islevler.push(Islev {
+                ad,
+                parametreler,
+                haller: Vec::new(),
+                donus: Some(donus.orhunca()),
+                govde: Vec::new(),
+                konum,
+                yereller: Vec::new(),
+                rota: None,
+                arayuz: false,
+                dis: Some(DisIslev {
+                    kutuphane: kutuphane.clone(),
+                    tipler,
+                    donus,
+                }),
+            });
+        }
+        if *self.bak() == Tok::Cikinti {
+            self.ilerle();
+        }
+        Ok(islevler)
+    }
+
+    /// C işlevlerinde kullanılabilen tipler: sayı, sayı32, ondalık, mantık, metin.
+    fn c_tipi(&mut self, donus: bool) -> Sonuc<CTip> {
+        let konum = self.konum();
+        let ad = match self.ilerle().tok {
+            Tok::Kelime(k) => k,
+            t => {
+                return Err(Hata::yeni(
+                    konum,
+                    format!("tip adı bekleniyordu, {} bulundu", tok_adi(&t)),
+                ))
+            }
+        };
+        Ok(match ad.as_str() {
+            "sayı" => CTip::Sayi,
+            "sayı32" => CTip::Sayi32,
+            "ondalık" => CTip::Ondalik,
+            "mantık" => CTip::Mantik,
+            "metin" => CTip::Metin,
+            "yok" if donus => CTip::Yok,
+            _ => {
+                return Err(Hata::yeni(
+                    konum,
+                    format!("'{ad}' C işlevlerinde kullanılamaz"),
+                )
+                .ipucu("C işlevlerinin tipleri: sayı (int64), sayı32 (int), ondalık (double), mantık (bool), metin (char *)"))
+            }
+        })
     }
 
     /// `seçenek Renk:` satırı mı?
@@ -854,6 +990,7 @@ impl Ayristirici {
             yereller: Vec::new(),
             rota: None,
             arayuz: true,
+            dis: None,
         })
     }
 
@@ -1178,6 +1315,7 @@ impl Ayristirici {
             konum,
             yereller: Vec::new(),
             arayuz: false,
+            dis: None,
             rota: Some(Rota {
                 yontem: yontem.into(),
                 kalip,
@@ -1244,6 +1382,7 @@ impl Ayristirici {
             konum,
             yereller: Vec::new(),
             arayuz: bilesen,
+            dis: None,
             rota: None,
         })
     }
@@ -1343,6 +1482,7 @@ impl Ayristirici {
             konum,
             yereller: Vec::new(),
             arayuz: false,
+            dis: None,
             rota: None,
         })
     }
@@ -2868,6 +3008,7 @@ fn sablon_islevi(t: &Rc<Tanimlar>, s: Sablon) -> Sonuc<Islev> {
         yereller: Vec::new(),
         rota: None,
         arayuz: false,
+        dis: None,
     })
 }
 

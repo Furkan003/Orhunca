@@ -172,7 +172,7 @@
         },
         {
           "name": "keyword.other.orhunca",
-          "match": "(?<![\\p{L}\\p{N}_])(işlev|fiil|kullan|sabit|ekrana|model|istek)(?![\\p{L}\\p{N}_])"
+          "match": "(?<![\\p{L}\\p{N}_])(işlev|fiil|kullan|kütüphane|sabit|ekrana|model|istek)(?![\\p{L}\\p{N}_])"
         },
         {
           "name": "keyword.operator.logical.orhunca",

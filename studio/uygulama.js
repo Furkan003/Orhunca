@@ -147,7 +147,7 @@
   // =====================================================================
   // Orhunca sözdizimi renklendirme
   // =====================================================================
-  const ANAHTAR_KELIMELER = new Set(['eğer', 'değilse', 'ise', 'her', 'için', 'kadar', 'işlev', 'fiil', 'döndür', 'dur', 'sürdür', 'dene', 'yakala', 'seçenek', 've', 'veya', 'değil', 'olduğu', 'sürece', 'iken', 'kullan', 'sabit', 'doğru', 'yanlış', 'ekrana', 'tıklanınca', 'değişince', 'gönderilince', 'çalınca']);
+  const ANAHTAR_KELIMELER = new Set(['eğer', 'değilse', 'ise', 'her', 'için', 'kadar', 'işlev', 'fiil', 'döndür', 'dur', 'sürdür', 'dene', 'yakala', 'seçenek', 've', 'veya', 'değil', 'olduğu', 'sürece', 'iken', 'kullan', 'kütüphane', 'sabit', 'doğru', 'yanlış', 'ekrana', 'tıklanınca', 'değişince', 'gönderilince', 'çalınca']);
   // Arayüz dilinin kapsayıcı öğeleri (`satır:`) parantezsiz de yazılır.
   const KAPSAYICILAR = new Set(['satır', 'sütun', 'kart', 'kutu', 'ızgara']);
   const YERLESIK_FIILLER = new Set(['yaz', 'ekle', 'sırala', 'çıkar', 'kaydet']);
@@ -493,6 +493,7 @@
     ['x = değer', 'let / var', 'yaş = 21'],
     ['sabit', 'const', 'sabit PI = 3.14159'],
     ['işlev', 'function', 'işlev topla(a, b):'],
+    ['kütüphane "m":', 'extern "C" / ctypes', 'kütüphane "m": işlev sqrt(x: ondalık) -> ondalık'],
     ['fiil', '(Orhunca’ya özgü)', "fiil sayı'yı karele:"],
     ['eğer … ise / değilse', 'if / else', "eğer yaş 18'den büyükse:"],
     ['her … için', 'for each', 'her öğe için listeden:'],

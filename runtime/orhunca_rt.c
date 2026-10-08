@@ -4072,6 +4072,117 @@ static void istek_varsa_isle(Baglanti *b, const char *istek_tanimi) {
     b->gelen.n -= (size_t)boy;
 }
 
+#ifndef __wasm__
+/* ---------------------------------------------------------------------- */
+/* C kütüphanelerini çağırma (FFI)                                         */
+/* ---------------------------------------------------------------------- */
+/* `kütüphane "m":` bloğundaki işlevler. Derleyici her C işlevi için bir gövde üretir:
+ * ohc_dis_bul ile işlevin adresi bulunur (ilk çağrıda kütüphane yüklenir, sonra önbellekten)
+ * ve işlev platformun C çağrı kuralıyla doğrudan çağrılır. */
+typedef struct {
+    char *ad;
+    void *tutamak;
+} DisKutuphane;
+typedef struct {
+    char *kutuphane;
+    char *ad;
+    void *adres;
+} DisAdres;
+static DisKutuphane *dis_kutuphaneler;
+static int64_t dis_kutuphane_sayisi;
+static DisAdres *dis_adresler;
+static int64_t dis_adres_sayisi;
+
+static void *dis_yukle(const char *ad) {
+#ifdef _WIN32
+    wchar_t w[1024];
+    if (!MultiByteToWideChar(CP_UTF8, 0, ad, -1, w, 1024)) return NULL;
+    return (void *)LoadLibraryW(w);
+#else
+    return dlopen(ad, RTLD_NOW | RTLD_GLOBAL);
+#endif
+}
+
+/* "m" → libm.so.6 (Linux), libm.dylib (macOS), m.dll (Windows); dosya adı da verilebilir. */
+static void *dis_kutuphane_ac(const char *ad, int64_t satir) {
+    for (int64_t i = 0; i < dis_kutuphane_sayisi; i++)
+        if (!strcmp(dis_kutuphaneler[i].ad, ad)) return dis_kutuphaneler[i].tutamak;
+    const char *istenen = ad;
+    Tampon denenen = {0};
+    void *t = NULL;
+    char aday[600];
+    int dosya_adi = strchr(ad, '.') || strchr(ad, '/') || strchr(ad, '\\');
+#ifdef _WIN32
+    const char *kaliplar[] = {"%s.dll", "lib%s.dll", "./%s.dll", NULL};
+    if (!strcmp(ad, "c") || !strcmp(ad, "m")) ad = "msvcrt.dll", dosya_adi = 1;
+#elif defined(__APPLE__)
+    const char *kaliplar[] = {"lib%s.dylib", "./lib%s.dylib", "/usr/local/lib/lib%s.dylib",
+                              "/opt/homebrew/lib/lib%s.dylib", NULL};
+    if (!strcmp(ad, "c") || !strcmp(ad, "m")) ad = "libSystem.B.dylib", dosya_adi = 1;
+#else
+    const char *kaliplar[] = {"lib%s.so",   "lib%s.so.6", "lib%s.so.5", "lib%s.so.4", "lib%s.so.3",
+                              "lib%s.so.2", "lib%s.so.1", "lib%s.so.0", "./lib%s.so", NULL};
+#endif
+    if (dosya_adi) {
+        t = dis_yukle(ad);
+        t_yaz(&denenen, ad);
+    } else {
+        for (int i = 0; kaliplar[i] && !t; i++) {
+            snprintf(aday, sizeof aday, kaliplar[i], ad);
+            t = dis_yukle(aday);
+            if (denenen.n) t_yaz(&denenen, ", ");
+            t_yaz(&denenen, aday);
+        }
+    }
+    if (!t) {
+        char m[900];
+        snprintf(m, sizeof m, "'%s' C kütüphanesi bulunamadı (denenen: %s); kütüphane kurulu mu?", ad,
+                 denenen.v ? denenen.v : "");
+        free(denenen.v);
+        hata(satir, m);
+    }
+    free(denenen.v);
+    dis_kutuphaneler = ham_buyut(dis_kutuphaneler, sizeof(DisKutuphane) * (size_t)(dis_kutuphane_sayisi + 1));
+    dis_kutuphaneler[dis_kutuphane_sayisi].ad = strdup(istenen);
+    dis_kutuphaneler[dis_kutuphane_sayisi].tutamak = t;
+    dis_kutuphane_sayisi++;
+    return t;
+}
+
+/* C işlevinin adresi (önbellekli). */
+int64_t ohc_dis_bul(int64_t kutuphane, int64_t ad, int64_t satir) {
+    for (int64_t i = 0; i < dis_adres_sayisi; i++)
+        if (!strcmp(dis_adresler[i].ad, M(ad)) && !strcmp(dis_adresler[i].kutuphane, M(kutuphane)))
+            return D(dis_adresler[i].adres);
+    void *t = dis_kutuphane_ac(M(kutuphane), satir);
+#ifdef _WIN32
+    void *a = (void *)GetProcAddress((HMODULE)t, M(ad));
+#else
+    void *a = dlsym(t, M(ad));
+#endif
+    if (!a) {
+        char m[600];
+        snprintf(m, sizeof m, "'%s' işlevi '%s' C kütüphanesinde bulunamadı", M(ad), M(kutuphane));
+        hata(satir, m);
+    }
+    dis_adresler = ham_buyut(dis_adresler, sizeof(DisAdres) * (size_t)(dis_adres_sayisi + 1));
+    dis_adresler[dis_adres_sayisi].kutuphane = strdup(M(kutuphane));
+    dis_adresler[dis_adres_sayisi].ad = strdup(M(ad));
+    dis_adresler[dis_adres_sayisi].adres = a;
+    dis_adres_sayisi++;
+    return D(a);
+}
+
+/* Metin → C'nin const char * değeri (UTF-8, NUL ile biter). Metin çağrı boyunca yaşar. */
+int64_t ohc_dis_metin(int64_t m) { return D(M(m)); }
+
+/* C'nin döndürdüğü char * → yeni bir metin (NULL ise boş metin). */
+int64_t ohc_dis_metinden(int64_t p) {
+    const char *s = (const char *)(uintptr_t)p;
+    return s ? metin_yap(s, strlen(s)) : metin_yap("", 0);
+}
+#endif
+
 #if !defined(_WIN32)
 /* ---------------------------------------------------------------------- */
 /* CGI (paylaşımlı hosting)                                                */

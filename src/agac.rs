@@ -575,6 +575,59 @@ pub struct Islev {
     pub rota: Option<Rota>,
     /// `arayüz:` bloğu ya da `bileşen`: gövdesinde arayüz öğeleri olabilir.
     pub arayuz: bool,
+    /// `kütüphane "m":` bloğundaki C işlevi: gövdesi yoktur, çağrılınca C kütüphanesindeki
+    /// aynı adlı işlev çağrılır.
+    pub dis: Option<DisIslev>,
+}
+
+/// C kütüphanesindeki bir işlevin bilgileri (FFI).
+#[derive(Debug, Clone)]
+pub struct DisIslev {
+    /// `kütüphane "m":` → "m" (libm); tam dosya adı da olabilir ("libcurl.so.4").
+    pub kutuphane: String,
+    /// Parametrelerin C karşılıkları
+    pub tipler: Vec<CTip>,
+    pub donus: CTip,
+}
+
+/// Orhunca tipinin C'deki karşılığı.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CTip {
+    /// `sayı`: int64_t (long long)
+    Sayi,
+    /// `sayı32`: int (32 bit)
+    Sayi32,
+    /// `ondalık`: double
+    Ondalik,
+    /// `mantık`: bool
+    Mantik,
+    /// `metin`: const char * (UTF-8, NUL ile biter)
+    Metin,
+    /// dönüş yok (void)
+    Yok,
+}
+
+impl CTip {
+    pub fn adi(self) -> &'static str {
+        match self {
+            CTip::Sayi => "sayı",
+            CTip::Sayi32 => "sayı32",
+            CTip::Ondalik => "ondalık",
+            CTip::Mantik => "mantık",
+            CTip::Metin => "metin",
+            CTip::Yok => "yok",
+        }
+    }
+
+    pub fn orhunca(self) -> Tip {
+        match self {
+            CTip::Sayi | CTip::Sayi32 => Tip::Sayi,
+            CTip::Ondalik => Tip::Ondalik,
+            CTip::Mantik => Tip::Mantik,
+            CTip::Metin => Tip::Metin,
+            CTip::Yok => Tip::Bos,
+        }
+    }
 }
 
 /// Programın arayüzünü çizen işlevin adı (`arayüz:` bloğu).

@@ -87,6 +87,10 @@ model İşlev:
     rota_yöntem: metin
     rota_kalıp: metin
     gövde: liste<Deyim>
+    # `kütüphane "m":` bloğundaki C işlevi: kütüphanenin adı, C tipleri ve dönüşü
+    dış: metin
+    dış_tipler: liste<metin>
+    dış_dönüş: metin
 
 model Program:
     modeller: liste<ModelTanımı>
@@ -691,7 +695,7 @@ işlev rota_kalıbı(a: Ayrıştırıcı, kalıp: metin, k: Sözcük) -> RotaKal
 # ---------------------------------------------------------------------------
 
 işlev tanım_başı_mı(a: Ayrıştırıcı) -> mantık:
-    döndür kelime_mi(a, "işlev") veya kelime_mi(a, "fiil") veya model_başı_mı(a) veya rota_başı_mı(a) veya bileşen_başı_mı(a) veya arayüz_başı_mı(a) veya durum_başı_mı(a) veya seçenek_başı_mı(a)
+    döndür kelime_mi(a, "işlev") veya kütüphane_başı_mı(a) veya kelime_mi(a, "fiil") veya model_başı_mı(a) veya rota_başı_mı(a) veya bileşen_başı_mı(a) veya arayüz_başı_mı(a) veya durum_başı_mı(a) veya seçenek_başı_mı(a)
 
 işlev program_(a: Ayrıştırıcı, p: Program):
     bak(a).tür != "Son" olduğu sürece:
@@ -702,6 +706,8 @@ işlev program_(a: Ayrıştırıcı, p: Program):
             hata_s(a, bak(a), "beklenmeyen girinti", "-")
         değilse eğer kelime_mi(a, "işlev") veya bileşen_başı_mı(a) ise:
             işlev_(a)'yı p.işlevler'e ekle.
+        değilse eğer kütüphane_başı_mı(a) ise:
+            kütüphane_bloğu(a, p)
         değilse eğer arayüz_başı_mı(a) ise:
             f = arayüz_bloğu(a)
             her g için p.işlevler'den:
@@ -766,6 +772,77 @@ işlev blok(a: Ayrıştırıcı) -> liste<Deyim>:
     eğer bak(a).tür == "Cikinti" ise:
         ilerle(a)
     döndür gövde
+
+# `kütüphane "m":` satırı mı? (C kütüphanesindeki işlevler)
+işlev kütüphane_başı_mı(a: Ayrıştırıcı) -> mantık:
+    döndür kelime_mi(a, "kütüphane") ve bak_n(a, 1).tür == "Metin" ve s_op(bak_n(a, 2), ":")
+
+# kütüphane "m":
+#     işlev cbrt(x: ondalık) -> ondalık
+işlev kütüphane_bloğu(a: Ayrıştırıcı, p: Program):
+    ilerle(a)
+    kk = ilerle(a)
+    kütüphane = kk.değer
+    eğer kırp(kütüphane) == "" ise:
+        hata_s(a, kk, "kütüphane adı boş olamaz", "kütüphane \"m\":")
+    bekle_op(a, ":", "kütüphane adından sonra")
+    eğer bak(a).tür != "YeniSatir" ise:
+        beklenmeyen(a, "':' sonrasında yeni satır")
+    ilerle(a)
+    eğer bak(a).tür != "Girinti" ise:
+        hata_s(a, bak(a), "kütüphane bloğunda C işlevlerinin imzaları yazılmalı", "    işlev cbrt(x: ondalık) -> ondalık")
+    ilerle(a)
+    bak(a).tür != "Cikinti" ve bak(a).tür != "Son" olduğu sürece:
+        eğer bak(a).tür == "YeniSatir" ise:
+            ilerle(a)
+            sürdür
+        eğer değil kelime_mi(a, "işlev") ise:
+            hata_s(a, bak(a), "kütüphane bloğunda yalnızca işlev imzaları olabilir", "işlev cbrt(x: ondalık) -> ondalık")
+        ilerle(a)
+        k = bak(a)
+        ad = isim_adı(a, "C işlevinin adı")
+        eğer içerir(temel_yerleşikler(), ad) ise:
+            hata_s(a, k, "'" + ad + "' yerleşik bir işlevin adı", "-")
+        bekle_op(a, "(", "parametre listesi")
+        f = İşlev(ad: ad, satır: k.satır, sütun: k.sütun, dış: kütüphane)
+        değil op_mu(a, ")") olduğu sürece:
+            pa = isim_adı(a, "parametre adı")
+            bekle_op(a, ":", "C işlevinin parametre tipi (ör. x: ondalık)")
+            t = c_tipi(a, yanlış)
+            pa'yı f.parametreler'e ekle.
+            c_tipinin_karşılığı(t)'nı f.tipler'e ekle.
+            t'yi f.dış_tipler'e ekle.
+            eğer değil op_mu(a, ")") ise:
+                bekle_op(a, ",", "parametreler arasında")
+        ilerle(a)
+        f.dış_dönüş = "yok"
+        eğer op_mu(a, "->") ise:
+            ilerle(a)
+            f.dış_dönüş = c_tipi(a, doğru)
+        f.dönüş = c_tipinin_karşılığı(f.dış_dönüş)
+        eğer op_mu(a, ":") ise:
+            hata_s(a, bak(a), "C işlevinin gövdesi yazılmaz; yalnızca imzası yazılır", "-")
+        deyim_bitir(a)
+        f'yi p.işlevler'e ekle.
+    eğer bak(a).tür == "Cikinti" ise:
+        ilerle(a)
+
+# C işlevlerinde kullanılabilen tipler: sayı, sayı32, ondalık, mantık, metin (dönüşte yok)
+işlev c_tipi(a: Ayrıştırıcı, dönüş: mantık) -> metin:
+    k = ilerle(a)
+    eğer k.tür != "Kelime" ise:
+        hata_s(a, k, "tip adı bekleniyordu, " + tok_adı(k) + " bulundu", "-")
+    eğer içerir(["sayı", "sayı32", "ondalık", "mantık", "metin"], k.değer) veya (dönüş ve k.değer == "yok") ise:
+        döndür k.değer
+    hata_s(a, k, "'" + k.değer + "' C işlevlerinde kullanılamaz", "C işlevlerinin tipleri: sayı (int64), sayı32 (int), ondalık (double), mantık (bool), metin (char *)")
+    döndür ""
+
+işlev c_tipinin_karşılığı(t: metin) -> metin:
+    eğer t == "sayı32" ise:
+        döndür "sayı"
+    eğer t == "yok" ise:
+        döndür "boş"
+    döndür t
 
 işlev seçenek_başı_mı(a: Ayrıştırıcı) -> mantık:
     döndür kelime_mi(a, "seçenek") ve bak_n(a, 1).tür == "Kelime" ve s_op(bak_n(a, 2), ":")
@@ -2149,6 +2226,8 @@ işlev döküm(p: Program) -> metin:
             ç = ç + " arayüz"
         eğer f.rota_var ise:
             ç = ç + " rota " + f.rota_yöntem + " " + json(f.rota_kalıp)
+        eğer f.dış != "" ise:
+            ç = ç + " dış " + json(f.dış) + " (" + birleştir(f.dış_tipler, " ") + ") -> " + f.dış_dönüş
         m = m + döküm_satırı(0, ç) + blok_dökümü(f.gövde, 2)
     döndür m + döküm_satırı(0, "ana") + blok_dökümü(p.ana, 2)
 

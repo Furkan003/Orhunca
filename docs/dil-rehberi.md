@@ -150,6 +150,41 @@ sabit KDV_ORANI = 0.20           # her yerden (işlevlerden de) görülür
 ```
 `kullan` ile eklenen dosyalarda yalnızca işlev, fiil ve sabit tanımları olabilir. `pi` hazır bir sabittir.
 
+### C kütüphaneleri
+
+Bilgisayarda kurulu bir C kütüphanesinin işlevleri, imzaları `kütüphane` bloğuna yazılarak
+Orhunca işlevi gibi çağrılır (gövde yazılmaz):
+
+```
+kütüphane "m":
+    işlev pow(taban: ondalık, üs: ondalık) -> ondalık
+
+kütüphane "c":
+    işlev strlen(m: metin) -> sayı
+    işlev abs(x: sayı32) -> sayı32
+    işlev getenv(ad: metin) -> metin
+
+pow(2.0, 10.0)'u yaz.          # 1024.0
+strlen("Orhunca")'yı yaz.      # 7
+```
+
+| Orhunca | C |
+|---|---|
+| `sayı` | `int64_t` (`long long`) |
+| `sayı32` | `int` |
+| `ondalık` | `double` |
+| `mantık` | `bool` (C'de `int` döndüren "doğru mu" işlevleri için `sayı32` kullanın) |
+| `metin` | `const char *` (UTF-8) |
+| dönüş yazılmazsa | `void` |
+
+- Kütüphane adı kısa yazılır: `"m"` Linux'ta `libm.so`, macOS'ta `libm.dylib`, Windows'ta `m.dll`
+  olarak aranır (çalışılan klasörde de). `"c"` ve `"m"` Windows'ta `msvcrt.dll`'dir. Tam dosya
+  adı da yazılabilir: `kütüphane "libcurl.so.4":`.
+- Kütüphane ilk çağrıda yüklenir; bulunamazsa ya da işlev yoksa çalışma hatası verilir.
+- Yalnızca bilgisayarda çalışan programlarda kullanılır (web hedefinde ve arayüz programlarında
+  olmaz). Python karşılığında `ctypes` ile çağrılır.
+- İşaretçi, yapı (struct) ve geri çağırma (callback) isteyen işlevler şimdilik çağrılamaz.
+
 ### Standart kütüphane
 
 | Alan | İşlevler |

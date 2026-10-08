@@ -28,7 +28,7 @@ ADLAR = {
     "standart_kutuphane": "Standart kütüphane", "tip_çıkarımı": "Tip çıkarımı", "merhaba": None,
     "sayaç": "Sayaç", "yapılacaklar": "Yapılacaklar listesi", "hesap_makinesi": "Hesap makinesi",
 }
-ATLA = ("dosya", "sun(", "kaydet", "argümanlar(", "ortam(")
+ATLA = ("dosya", "sun(", "kaydet", "argümanlar(", "ortam(", "kütüphane \"")
 
 
 def kimlik(ad):

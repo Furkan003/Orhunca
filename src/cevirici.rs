@@ -138,6 +138,9 @@ fn yardimci_kodu(dil: Dil, ad: &str) -> &'static str {
         (Dil::JavaScript, "rastgele") => {
             "function rastgele(a, b) {\n  return a + Math.floor(Math.random() * (b - a + 1));\n}"
         }
+        (Dil::Python, "orhunca_c") => {
+            "def orhunca_c(kütüphane, ad, tipler, dönüş, *argümanlar):\n    \"\"\"C kütüphanesindeki işlevi çağırır (Orhunca'daki kütüphane bloğu).\"\"\"\n    c = {\"sayı\": ctypes.c_int64, \"sayı32\": ctypes.c_int, \"ondalık\": ctypes.c_double, \"mantık\": ctypes.c_bool, \"metin\": ctypes.c_char_p, \"yok\": None}\n    yol = kütüphane if \".\" in kütüphane or \"/\" in kütüphane else ctypes.util.find_library(kütüphane)\n    f = getattr(ctypes.CDLL(yol), ad)\n    f.argtypes = [c[t] for t in tipler]\n    f.restype = c[dönüş]\n    sonuç = f(*[a.encode() if isinstance(a, str) else a for a in argümanlar])\n    return (sonuç or b\"\").decode() if dönüş == \"metin\" else sonuç"
+        }
         // Orhunca'nın davranışını birebir taklit eden yardımcılar (çeviri aynı sonucu versin)
         (Dil::Python, "orhunca_metin") => {
             "def orhunca_metin(x, iç=False):\n    \"\"\"Değeri Orhunca'nın yazdığı gibi metne çevirir: doğru/yanlış, 2.0, [\"a\", 1].\"\"\"\n    if isinstance(x, bool):\n        return \"doğru\" if x else \"yanlış\"\n    if isinstance(x, float):\n        m = f\"{x:.15g}\"\n        return m if any(h in m for h in \".eni\") else m + \".0\"\n    if isinstance(x, str):\n        return f'\"{x}\"' if iç else x\n    if isinstance(x, list):\n        return \"[\" + \", \".join(orhunca_metin(o, True) for o in x) + \"]\"\n    if isinstance(x, dict):\n        return \"{\" + \", \".join(orhunca_metin(a, True) + \": \" + orhunca_metin(d, True) for a, d in x.items()) + \"}\"\n    return str(x)"
@@ -559,6 +562,48 @@ impl Cevirici {
     fn islev(&mut self, f: &Islev) {
         self.konum(f.konum);
         let parametreler: Vec<String> = f.parametreler.iter().map(|(a, _)| self.ad(a)).collect();
+        if let Some(d) = &f.dis {
+            // C kütüphanesindeki işlev: Python'da ctypes ile çağrılır; JavaScript'te karşılığı yok.
+            if self.py() {
+                self.ithal.insert("ctypes");
+                self.ithal.insert("ctypes.util");
+                self.yardimci.insert("orhunca_c");
+                let tipler: Vec<String> =
+                    d.tipler.iter().map(|t| format!("{:?}", t.adi())).collect();
+                self.blok_ac(format!(
+                    "def {}({})",
+                    self.ad(&f.ad),
+                    parametreler.join(", ")
+                ));
+                let mut argumanlar = vec![
+                    format!("{:?}", d.kutuphane),
+                    format!("{:?}", f.ad),
+                    format!("[{}]", tipler.join(", ")),
+                    format!("{:?}", d.donus.adi()),
+                ];
+                argumanlar.extend(parametreler);
+                self.yaz(format!("return orhunca_c({})", argumanlar.join(", ")));
+            } else {
+                self.notlar.insert(
+                    "C kütüphanesi işlevleri (kütüphane bloğu) JavaScript'te çağrılamaz; çağrılınca hata verir.",
+                );
+                self.blok_ac(format!(
+                    "function {}({})",
+                    self.ad(&f.ad),
+                    parametreler.join(", ")
+                ));
+                self.yaz(format!(
+                    "throw new Error({});",
+                    metin_sabiti(&format!(
+                        "'{}' bir C işlevi; JavaScript'te çağrılamaz",
+                        f.ad
+                    ))
+                ));
+            }
+            self.blok_kapat();
+            self.bos_satir();
+            return;
+        }
         if self.py() {
             self.blok_ac(format!(
                 "def {}({})",

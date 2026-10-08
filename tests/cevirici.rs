@@ -77,6 +77,7 @@ fn python_karsiligi() {
             "not_ortalaması",
             "sayilar",
             "birim_çevirici",
+            "c_kütüphanesi",
         ],
     );
 }

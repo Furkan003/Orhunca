@@ -56,6 +56,13 @@ fn ornekler_webassembly_ile_ayni_ciktiyi_verir() {
         if yol.extension().is_none_or(|u| u != "ohc") {
             continue;
         }
+        // C kütüphaneleri tarayıcıda çağrılamaz.
+        if std::fs::read_to_string(&yol)
+            .unwrap()
+            .contains("kütüphane \"")
+        {
+            continue;
+        }
         let beklenen = std::fs::read_to_string(yol.with_extension("beklenen")).unwrap();
         let c = web_calistir(&yol, &calisma, &[]);
         assert!(
