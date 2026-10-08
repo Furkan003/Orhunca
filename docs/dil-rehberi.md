@@ -441,3 +441,32 @@ yakala hata:
 olursa blok orada bırakılır ve `yakala` bloğu çalışır. Hatadan önce yapılan atamalar kalır.
 Değişken adı isteğe bağlıdır (`yakala:`). `dene` blokları iç içe yazılabilir; blokta `döndür`,
 `dur` ve `sürdür` kullanılabilir. Web yolunda yakalanmayan hata yine 500 sayfası verir.
+
+### Sınamalar
+
+Programın doğru çalıştığını denetleyen küçük programlar. Adı `_sına.ohc` ile biten dosyalara (ya da
+`sınamalar/` klasörüne) yazılır; adı `sına_` ile başlayan parametresiz her işlev bir sınamadır:
+
+```
+# hesap_sına.ohc
+kullan "hesap.ohc"
+
+işlev sına_toplama():
+    eşit_olmalı(topla(2, 3), 5)
+    eşit_olmalı(büyük_harf("ıi"), "Iİ")
+
+işlev sına_ortalama():
+    doğrula(ortalama([1, 2, 3]) == 2.0)
+    doğrula(uzunluk(notlar) > 0, "not listesi boş olmamalı")
+```
+
+- `eşit_olmalı(gerçek, beklenen)`: değerler farklıysa ikisini de gösterir
+  (`hesap_sına.ohc:5: beklenen 5, bulunan 4`). Her tiple çalışır: sayı, metin, liste...
+- `doğrula(koşul)` · `doğrula(koşul, açıklama)`: koşul yanlışsa satırı gösterir.
+
+`orhunca sına` projedeki bütün sınamaları çalıştırır; her sınama ayrı denenir, birinin hatası
+ötekileri durdurmaz. `orhunca sına hesap_sına.ohc --ad toplama` yalnızca adında "toplama" geçenleri,
+`--json` sonucu makinenin okuyacağı biçimde verir. Bir sınama kalırsa çıkış kodu 1'dir (CI için).
+Stüdyo'da soldaki **Sınamalar** paneli sınamaları listeler; hepsini, bir dosyayı ya da tek bir
+sınamayı çalıştırır ve kalanların mesajını gösterir. `doğrula` ve `eşit_olmalı` sınama dosyası
+dışında da kullanılabilir.

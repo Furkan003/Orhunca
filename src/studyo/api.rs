@@ -133,6 +133,14 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
         ("POST", "/api/proje/olustur") => proje_olustur(&g),
         ("POST", "/api/proje/ac") => proje_ac(metin(&g, "yol")),
         ("POST", "/api/proje/klonla") => proje_klonla(metin(&g, "url"), metin(&g, "konum")),
+        ("GET", "/api/sinamalar") => {
+            let kok = PathBuf::from(istek.sorgu("kok"));
+            if !izinli_mi(&kok) {
+                return Yanit::hata(403, "bu klasöre erişim yok");
+            }
+            Yanit::json(&crate::sinama::listele(&kok))
+        }
+        ("POST", "/api/sina") => sina(&g),
         ("POST", "/api/proje/guven") => {
             let yol = PathBuf::from(metin(&g, "yol"));
             if !izinli_mi(&yol) {
@@ -363,16 +371,8 @@ fn sablon_listesi() -> Yanit {
 }
 
 fn yerlesikler() -> Yanit {
-    let liste: Vec<Value> = crate::yerlesik::YERLESIKLER
-        .iter()
-        .map(|y| {
-            json!({
-                "ad": y.ad, "kullanim": y.kullanim, "aciklama": y.aciklama,
-                "bolum": crate::yerlesik::bolum(y),
-            })
-        })
-        .collect();
-    Yanit::json(&json!({ "yerlesikler": liste }))
+    // Başvuru listesi: yerleşik işlevler ve sınama işlevleri, bölümleriyle.
+    Yanit::json(&json!({ "yerlesikler": crate::basvuru::json()["islevler"] }))
 }
 
 /// Dersler projesi (`~/Orhunca/Dersler`): alıştırmanın dosyası yoksa başlangıç koduyla
@@ -988,6 +988,36 @@ fn guven_gerekli(yol: &Path, islem: &str) -> Option<Yanit> {
              Projeyi tanıyorsanız “Projeye güven” ile açabilirsiniz."
         ),
     })))
+}
+
+/// Sınamaları çalıştırır: `dosya` (göreli) ve `ad` verilmezse projedeki hepsi.
+fn sina(g: &Value) -> Yanit {
+    let kok = PathBuf::from(metin(g, "kok"));
+    if !izinli_mi(&kok) {
+        return Yanit::hata(403, "bu klasöre erişim yok");
+    }
+    if let Some(y) = guven_gerekli(&kok, "sınamaları çalıştırma") {
+        return y;
+    }
+    let dosya = g["dosya"]
+        .as_str()
+        .filter(|d| !d.is_empty())
+        .map(|d| kok.join(d));
+    if let Some(d) = &dosya {
+        if !izinli_mi(d) || !d.is_file() {
+            return Yanit::hata(403, "bu dosyaya erişim yok");
+        }
+    }
+    // Tek sınama: adı tam eşleşir (sına_a çalışırken sına_ab çalışmasın).
+    let ad = g["ad"]
+        .as_str()
+        .filter(|a| !a.is_empty())
+        .map(|a| format!("={a}"));
+    Yanit::json(&crate::sinama::calistir_json(
+        &kok,
+        dosya.as_deref(),
+        ad.as_deref(),
+    ))
 }
 
 fn paket_islemi(

@@ -819,3 +819,19 @@ details.tema-grup summary { cursor: pointer; }
 .basvuru-ara { max-width: 420px; }
 .basvuru-bolum h3 { font-size: 13px; font-weight: 600; color: var(--soluk); margin: 18px 0 8px; }
 .basvuru-bolum.gizli, .tablo-satir.gizli, #basvuruYok.gizli { display: none; }
+.sinama-dosya { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--yazi2); margin-top: 8px; cursor: pointer; }
+.sinama-oge { display: flex; align-items: center; gap: 6px; padding: 3px 4px 3px 14px; border-radius: 4px; font-size: 12.5px; color: var(--ikincil); cursor: pointer; }
+.sinama-oge:hover, .sinama-dosya:hover { background: var(--girdi); }
+.sinama-calistir { font-size: 16px; color: var(--soluk3); opacity: 0; }
+.sinama-oge:hover .sinama-calistir, .sinama-dosya:hover .sinama-calistir { opacity: 1; }
+.sinama-calistir:hover { color: var(--vurgu); }
+.sinama-durum { font-size: 15px; color: var(--soluk4); }
+.sinama-durum.gecti { color: var(--basari); }
+.sinama-durum.kaldi { color: var(--hata); }
+.sinama-durum.bekliyor { color: var(--sari); }
+.sinama-mesaj { font: 11.5px var(--mono); color: var(--hata); padding: 2px 6px 6px 36px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.sinama-mesaj pre { margin: 4px 0 0; color: var(--soluk2); white-space: pre-wrap; }
+.sinama-ozet { font-size: 12px; padding: 6px 8px; border-radius: 6px; background: var(--girdi); }
+.sinama-ozet.gecti { color: var(--basari); }
+.sinama-ozet.kaldi { color: var(--hata); }
+.sinama-ornek { font: 11.5px var(--mono); background: var(--girdi); padding: 8px; border-radius: 6px; color: var(--yazi2); white-space: pre; overflow-x: auto; }

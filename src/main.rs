@@ -17,6 +17,7 @@ Kullanım:
   orhunca düzelt [dosya.ohc ...] [--denetle]   (eskiyen yazımları yenisine çevirir)
   orhunca dil-sunucusu        (düzenleyiciler için LSP, stdin/stdout)
   orhunca çevir [dosya.ohc] [--dil python|javascript]   (programın Python/JS karşılığı)
+  orhunca sına [dosya ya da klasör] [--ad parça] [--json]   (sınamaları çalıştırır: *_sına.ohc)
   orhunca başvuru [arama] [--md | --json]   (yerleşik işlevler: ör. orhunca başvuru tarih)
   orhunca mcp                 (yapay zekâ ajanları için MCP sunucusu, stdin/stdout)
   orhunca yeni <proje_adı> [--şablon konsol|web_sitesi|tam_yigin|web_api|...]
@@ -83,6 +84,13 @@ fn ana() -> ExitCode {
         "dil-sunucusu" | "lsp" => dil_sunucusu::calistir().map(|_| ExitCode::SUCCESS),
         "mcp" => orhunca::mcp::calistir().map(|_| ExitCode::SUCCESS),
         "çevir" | "cevir" => cevir_komutu(kalan).map(|_| ExitCode::SUCCESS),
+        "sına" | "sina" | "test" => orhunca::sinama::komut(kalan).map(|tamam| {
+            if tamam {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::FAILURE
+            }
+        }),
         "başvuru" | "basvuru" => orhunca::basvuru::komut(kalan).map(|_| ExitCode::SUCCESS),
         "paket" => paket::komut(kalan).map(|_| ExitCode::SUCCESS),
         "yayınla" | "yayinla" => yayinla_komutu(kalan).map(|_| ExitCode::SUCCESS),

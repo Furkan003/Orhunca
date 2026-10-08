@@ -31,6 +31,7 @@ pub mod oneriler;
 pub mod paket;
 pub mod paket_denetim;
 pub mod sablon;
+pub mod sinama;
 pub mod sozcuk;
 pub mod studyo;
 pub mod uretici;

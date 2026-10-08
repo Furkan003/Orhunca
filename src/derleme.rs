@@ -193,7 +193,11 @@ pub fn yukle_ortulu(
     }
     let mut program = ayristirici::ayristir_cok(sozcukler, sablonlar)
         .map_err(|h| DerlemeHatasi::konumlu(h, &dosyalar))?;
-    denetci::denetle(&mut program).map_err(|h| DerlemeHatasi::konumlu(h, &dosyalar))?;
+    crate::sinama::indir(&mut program, &dosyalar)
+        .map_err(|h| DerlemeHatasi::konumlu(h, &dosyalar))?;
+    denetci::denetle(&mut program).map_err(|h| {
+        DerlemeHatasi::konumlu(crate::sinama::hatayi_acikla(h, &dosyalar), &dosyalar)
+    })?;
     program.dosyalar = dosyalar.into_iter().map(|(y, _)| y).collect();
     Ok(program)
 }
@@ -295,13 +299,32 @@ pub fn derle_ayiklamali(dosya: &Path, cikti: &Path) -> Result<Vec<String>, Derle
     derle_secenekli(dosya, cikti, None, true)
 }
 
+/// Bu bilgisayar için derler; `ortulu`daki dosyalar bellekten okunur (bkz. `yukle_ortulu`).
+pub fn derle_ortulu(
+    dosya: &Path,
+    ortulu: &HashMap<PathBuf, String>,
+    cikti: &Path,
+) -> Result<(), DerlemeHatasi> {
+    let program = yukle_ortulu(dosya, ortulu)?;
+    programi_derle(program, dosya, cikti, None, false).map(|_| ())
+}
+
 fn derle_secenekli(
     dosya: &Path,
     cikti: &Path,
     hedef: Option<&str>,
     ayiklama: bool,
 ) -> Result<Vec<String>, DerlemeHatasi> {
-    let program = yukle(dosya)?;
+    programi_derle(yukle(dosya)?, dosya, cikti, hedef, ayiklama)
+}
+
+fn programi_derle(
+    program: agac::Program,
+    dosya: &Path,
+    cikti: &Path,
+    hedef: Option<&str>,
+    ayiklama: bool,
+) -> Result<Vec<String>, DerlemeHatasi> {
     if program.arayuz_programi() {
         return Err(DerlemeHatasi::duz(format!(
             "'{}' bir arayüz programı (arayüz: / durum): tarayıcıda çalışır\nipucu: orhunca derle {} --hedef web",

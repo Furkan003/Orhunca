@@ -76,7 +76,7 @@
     kesmeler: ayarOku('kesmeler', {}),
     // Web projelerinde canlı önizleme: { kapi, adres, yol, durum: bekliyor|acik|hata|durdu, surum }
     onizleme: null, onizlemeAcik: true,
-    yanPanel: 'gezgin', araMetin: '', araSonuc: [], degistirMetin: '', tamKelime: false,
+    yanPanel: 'gezgin', sinamalar: null, sinamaSonuc: {}, sinamaMesgul: null, araMetin: '', araSonuc: [], degistirMetin: '', tamKelime: false,
     paketler: [], paketKaynagi: '', paketMesgul: false, paketDizini: null, paketDizinHatasi: '',
     menu: null, modal: null, bildirim: null,
     yaziBoyutu: ayarOku('yaziBoyutu', 13),
@@ -754,7 +754,7 @@
   }
 
   function cizEtkinlik() {
-    const ogeler = [['gezgin', 'description', 'Gezgin'], ['ara', 'search', 'Ara'], ['yapi', 'account_tree', 'Yapı'], ['calistir', 'play_circle', 'Çalıştır'], ['dersler', 'school', 'Dersler'], ['eklentiler', 'extension', 'Paketler']];
+    const ogeler = [['gezgin', 'description', 'Gezgin'], ['ara', 'search', 'Ara'], ['yapi', 'account_tree', 'Yapı'], ['calistir', 'play_circle', 'Çalıştır'], ['sinamalar', 'task_alt', 'Sınamalar'], ['dersler', 'school', 'Dersler'], ['eklentiler', 'extension', 'Paketler']];
     $('#etkinlik').innerHTML = ogeler.map(([id, simge, ad]) => `<span class="simge ${D.yanPanel === id ? 'etkin' : ''}" title="${ad}" data-e="yanPanelSec" data-a="${id}">${simge}</span>`).join('')
       + (asistanAcik() ? `<span class="simge ${D.asistanPaneliAcik ? 'etkin' : ''}" title="Yapay zekâ asistanı (Ctrl+I)" data-e="asistanAcKapa">smart_toy</span>` : '')
       + `<div style="flex:1"></div><span class="simge" title="Başlangıç ekranı" data-e="baslangicaDon">home</span><span class="simge" title="Ayarlar" data-e="ayarlarModal">settings</span>`;
@@ -802,6 +802,8 @@
       });
       kap.innerHTML = baslik('YAPI') + `<div class="panel-ic">${ogeler.map(([t, ad, n]) => `<div class="yapi-oge" data-e="satiraGit" data-a="${n}"><span class="tur">${t}</span><span class="${t === 'fiil' || t === 'işlev' ? 'f' : t === 'sabit' ? 't' : 's'}">${kac(ad)}</span><span class="satir-no">${n}</span></div>`).join('')
         || '<div class="panel-not">Bu dosyada işlev, fiil ya da sabit tanımı yok.</div>'}</div>`;
+    } else if (D.yanPanel === 'sinamalar') {
+      kap.innerHTML = baslik('SINAMALAR', `<span class="simge" title="Hepsini çalıştır" data-e="sinamalariCalistir">play_arrow</span><span class="simge" title="Yenile" data-e="sinamalariYukle">refresh</span>`) + `<div class="panel-ic">${sinamaPaneli()}</div>`;
     } else if (D.yanPanel === 'dersler') {
       kap.innerHTML = baslik('DERSLER') + `<div class="panel-ic ders-panel">${dersPaneli()}</div>`;
       kap.querySelectorAll('pre[data-orhunca]').forEach(p => { p.innerHTML = p.textContent.split('\n').map(x => vurgula(x, 'ohc')).join('\n'); });
@@ -1010,6 +1012,59 @@
     imleciGuncelle();
     bildir('Değişiklik uygulandı (Ctrl+Z ile geri alabilirsiniz).');
     return true;
+  }
+
+  /** Sınamalar paneli (Test Gezgini): *_sına.ohc dosyalarındaki sına_ işlevleri. */
+  function sinamaPaneli() {
+    const L = D.sinamalar;
+    if (!L) { sinamalariYukle(); return '<div class="panel-not">Yükleniyor…</div>'; }
+    if (!L.dosyalar.length) {
+      return `<div class="panel-not">Bu projede sınama yok.<br><br>Adı <b>_sına.ohc</b> ile biten bir dosya oluşturun (ör. <span class="mono">hesap_sına.ohc</span>); adı <b>sına_</b> ile başlayan her işlev bir sınamadır:</div>
+        <pre class="sinama-ornek">kullan "ana.ohc"\n\nişlev sına_toplama():\n    eşit_olmalı(2 + 3, 5)\n    doğrula(uzunluk("abc") == 3)</pre>`;
+    }
+    const S_ = D.sinamaSonuc;
+    let gecen = 0, kalan = 0;
+    const satirlar = L.dosyalar.map(d => {
+      const ust = `<div class="sinama-dosya">${S('description', '', 'font-size:15px')}<span class="esnek" data-e="konumaGit" data-a="${kac(d.dosya)}|1">${kac(d.dosya)}</span><span class="simge sinama-calistir" title="Bu dosyadaki sınamaları çalıştır" data-e="sinamaDosyaCalistir" data-a="${kac(d.dosya)}">play_arrow</span></div>`;
+      if (d.hata || S_[d.dosya + '|']) return ust + `<div class="sinama-mesaj">${kac((S_[d.dosya + '|'] || d.hata).split('\n')[0])}</div>`;
+      return ust + d.sinamalar.map(t => {
+        const s = S_[d.dosya + '|' + t.ad];
+        if (s) s.gecti ? gecen++ : kalan++;
+        const durum = D.sinamaMesgul && (!D.sinamaMesgul.dosya || D.sinamaMesgul.dosya === d.dosya) && (!D.sinamaMesgul.ad || D.sinamaMesgul.ad === t.ad)
+          ? '<span class="simge sinama-durum bekliyor">more_horiz</span>'
+          : s ? `<span class="simge sinama-durum ${s.gecti ? 'gecti' : 'kaldi'}">${s.gecti ? 'check_circle' : 'error'}</span>` : '<span class="simge sinama-durum">task_alt</span>';
+        return `<div class="sinama-oge">${durum}<span class="esnek" data-e="konumaGit" data-a="${kac(d.dosya)}|${t.satir}" title="Tanıma git">${kac(t.ad.replace(/^s[ıi]na_/, '').replace(/_/g, ' '))}</span><span class="simge sinama-calistir" title="Bu sınamayı çalıştır" data-e="sinamaCalistir" data-a="${kac(d.dosya)}|${kac(t.ad)}">play_arrow</span></div>`
+          + (s && !s.gecti ? `<div class="sinama-mesaj">${kac(s.mesaj)}${s.cikti ? `<pre>${kac(s.cikti.trimEnd())}</pre>` : ''}</div>` : '');
+      }).join('');
+    }).join('');
+    const ozet = gecen + kalan ? `<div class="sinama-ozet ${kalan ? 'kaldi' : 'gecti'}">${gecen} geçti · ${kalan} kaldı</div>` : '';
+    return ozet + satirlar;
+  }
+
+  async function sinamalariYukle() {
+    if (!D.proje) return;
+    const r = await api('/api/sinamalar?' + sorgu({ kok: D.proje.yol })).catch(e => ({ hata: e.message }));
+    D.sinamalar = r.hata ? { dosyalar: [] } : r;
+    if (r.hata) bildir(r.hata, true);
+    if (D.yanPanel === 'sinamalar') cizYanPanel();
+  }
+
+  async function sinamalariCalistir(dosya = '', ad = '') {
+    if (!D.proje || D.sinamaMesgul) return;
+    if (!(await guvenSor('Sınamaları çalıştırmak'))) return;
+    if (!(await tumunuKaydet())) { bildir('Dosya kaydedilemediği için sınamalar çalıştırılmadı.', true); return; }
+    D.sinamaMesgul = { dosya, ad };
+    await sinamalariYukle();
+    const r = await api('/api/sina', { kok: D.proje.yol, dosya, ad }).catch(e => ({ hata: e.message }));
+    D.sinamaMesgul = null;
+    if (r.hata) { bildir(r.hata, true); cizYanPanel(); return; }
+    for (const d of r.dosyalar) {
+      delete D.sinamaSonuc[d.dosya + '|'];
+      if (d.hata) D.sinamaSonuc[d.dosya + '|'] = d.hata;
+      for (const t of d.sinamalar) D.sinamaSonuc[d.dosya + '|' + t.ad] = t;
+    }
+    bildir(r.kaldi ? `${r.kaldi} sınama kaldı, ${r.gecti} geçti.` : `${r.gecti} sınamanın hepsi geçti.`, r.kaldi > 0);
+    cizYanPanel();
   }
 
   function dersPaneli() {
@@ -1747,7 +1802,7 @@
     }
     if (!(await degisiklikleriKoru())) return;
     if (D.calisma) await durdur();
-    D.proje = bilgi; D.kisitliSeritKapali = false;
+    D.proje = bilgi; D.kisitliSeritKapali = false; D.sinamalar = null; D.sinamaSonuc = {};
     D.onizleme = null;
     D.sekmeler = []; D.etkin = null; D.sorunlar = []; D.uyarilar = []; D.terminal = []; D.cikti = [];
     D.kapaliKlasorler = new Set(); D.calisma = null; D.menu = null; D.modal = null;
@@ -2657,7 +2712,11 @@
       if (e.target.closest('.acilir-menu')) return;
       D.menu = D.menu === ad ? null : ad; guncelle('baslik');
     },
-    yanPanelSec(p) { D.yanPanel = p; guncelle('etkinlik', 'yan'); if (p === 'ara') $('#araMetin')?.focus(); if (p === 'eklentiler') paketleriYukle(); },
+    yanPanelSec(p) { D.yanPanel = p; guncelle('etkinlik', 'yan'); if (p === 'ara') $('#araMetin')?.focus(); if (p === 'eklentiler') paketleriYukle(); if (p === 'sinamalar') sinamalariYukle(); },
+    sinamalariYukle() { sinamalariYukle(); },
+    sinamalariCalistir() { sinamalariCalistir(); },
+    sinamaDosyaCalistir(d) { sinamalariCalistir(d); },
+    sinamaCalistir(a) { const i = a.lastIndexOf('|'); sinamalariCalistir(a.slice(0, i), a.slice(i + 1)); },
     paketleriYenile() { paketleriYukle(); },
     paketEkle() { if (D.paketKaynagi.trim()) paketIslemi('/api/paket/ekle', { kaynak: D.paketKaynagi.trim() }, `Paket ekleniyor: ${D.paketKaynagi.trim()}`); },
     paketYukle() { paketIslemi('/api/paket/yukle', { guncelle: false }, 'Paketler yükleniyor…'); },

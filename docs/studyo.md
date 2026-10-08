@@ -35,6 +35,11 @@ kaldır** projeyi yeniden kısıtlı moda alır. Önceki sürümlerden kalan son
 istediniz", yanlış ek için ünlü uyumu, eski yazımlar için "şöyle yazın") **Sorunlar** listesinde
 hatanın yanında **Düzelt** düğmesi çıkar; tıklayınca öneri koda uygulanır (Ctrl+Z ile geri alınır).
 
+**Sınamalar (Test Gezgini):** soldaki **Sınamalar** paneli projedeki `*_sına.ohc` dosyalarında
+adı `sına_` ile başlayan işlevleri listeler. Hepsini, bir dosyayı ya da tek bir sınamayı
+çalıştırabilirsiniz; kalan sınamanın yanında beklenen ve bulunan değer ile sınamanın çıktısı
+görünür, ada tıklayınca tanımına gidilir. Ayrıntılar: dil rehberinin Sınamalar bölümü.
+
 **Projede bul ve değiştir:** **Ara** panelinde (soldaki büyüteç) aranan metnin altına yenisini yazıp
 **Tümünü değiştir** düğmesine basın. Büyük/küçük harf ayrımı yapılmaz ve Türkçeye uygundur (`IŞIK` ile
 `ışık` aynı kelimedir); **Yalnızca tam kelime** seçiliyse `sayı` aranınca `sayılar` değişmez. Gizli

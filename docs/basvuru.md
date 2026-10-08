@@ -7,7 +7,7 @@ Orhunca'nın her programda hazır bulunan işlevleri. Terminalde aramak için
 ve kodda işlevin üzerine gelince de görünür. Dilin kendisi (değişkenler, koşullar,
 döngüler, fiiller, modeller) için: [dil rehberi](dil-rehberi.md).
 
-**Bölümler:** Dönüşümler · Metin · Liste ve sözlük · Dosya · Matematik · Zaman ve sistem · Desenler (düzenli ifadeler) · CSV · Web · Telefon · Arayüz · Oyun
+**Bölümler:** Dönüşümler · Metin · Liste ve sözlük · Dosya · Matematik · Zaman ve sistem · Desenler (düzenli ifadeler) · CSV · Web · Telefon · Arayüz · Oyun · Sınama
 
 ## Dönüşümler
 
@@ -173,3 +173,12 @@ Arayüz programlarında (tarayıcıda ve masaüstü paketinde) çalışır.
 | `fare_x` | `fare_x() → sayı` | Farenin (ya da parmağın) oyun alanındaki x konumu. |
 | `fare_y` | `fare_y() → sayı` | Farenin (ya da parmağın) oyun alanındaki y konumu. |
 | `fare_basılı` | `fare_basılı() → mantık` | Fare düğmesi basılı ya da ekrana dokunuluyor mu? |
+
+## Sınama
+
+Sınama dosyalarında (`*_sına.ohc`) ve programın her yerinde kullanılabilir; ayrıntılar dil rehberinin Sınamalar bölümünde.
+
+| İşlev | Kullanım | Açıklama |
+|---|---|---|
+| `doğrula` | `doğrula(koşul) · doğrula(koşul, açıklama)` | Koşul yanlışsa satırı ve açıklamayı gösteren bir çalışma hatası verir: doğrula(yaş >= 0, "yaş eksi olamaz"). |
+| `eşit_olmalı` | `eşit_olmalı(gerçek, beklenen)` | İki değer farklıysa ikisini de gösteren bir çalışma hatası verir. Her tiple çalışır. Sınamaları çalıştırmak için: orhunca sına. |

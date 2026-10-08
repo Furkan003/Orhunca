@@ -1,7 +1,37 @@
 //! Yerleşik işlev başvurusu: `orhunca başvuru [arama]`, docs/basvuru.md ve sitenin
 //! başvuru sayfası aynı listeden (yerlesik.rs) üretilir.
 
-use crate::yerlesik::{bolum, Yerlesik, BOLUMLER, YERLESIKLER};
+use crate::yerlesik::{Yerlesik, BOLUMLER, YERLESIKLER};
+
+/// Derleyicinin sıradan deyimlere çevirdiği sınama işlevleri (bkz. sinama.rs).
+const SINAMA: &[Yerlesik] = &[
+    Yerlesik {
+        ad: "doğrula",
+        kullanim: "doğrula(koşul) · doğrula(koşul, açıklama)",
+        aciklama: "Koşul yanlışsa satırı ve açıklamayı gösteren bir çalışma hatası verir: doğrula(yaş >= 0, \"yaş eksi olamaz\").",
+    },
+    Yerlesik {
+        ad: "eşit_olmalı",
+        kullanim: "eşit_olmalı(gerçek, beklenen)",
+        aciklama: "İki değer farklıysa ikisini de gösteren bir çalışma hatası verir. Her tiple çalışır. Sınamaları çalıştırmak için: orhunca sına.",
+    },
+];
+
+fn tumu() -> impl Iterator<Item = &'static Yerlesik> {
+    YERLESIKLER.iter().chain(SINAMA.iter())
+}
+
+fn bolum(y: &Yerlesik) -> &'static str {
+    if SINAMA.iter().any(|s| s.ad == y.ad) {
+        "Sınama"
+    } else {
+        crate::yerlesik::bolum(y)
+    }
+}
+
+fn bolumler() -> impl Iterator<Item = &'static str> {
+    BOLUMLER.iter().map(|(b, _)| *b).chain(["Sınama"])
+}
 use serde_json::json;
 
 /// Bölümün kısa açıklaması (yalnızca bazı ortamlarda çalışan işlevler için).
@@ -10,6 +40,7 @@ fn bolum_notu(b: &str) -> Option<&'static str> {
         "Telefon" => "Android/iOS uygulamasında ve tarayıcıda çalışır; bilgisayar programında etkisizdir.",
         "Arayüz" => "Arayüz programlarında (tarayıcıda ve masaüstü paketinde) çalışır.",
         "Oyun" => "`oyun_alanı(...)` içindeki `her_karede:` bloğunda çizer; bilgisayar programında etkisizdir.",
+        "Sınama" => "Sınama dosyalarında (`*_sına.ohc`) ve programın her yerinde kullanılabilir; ayrıntılar dil rehberinin Sınamalar bölümünde.",
         "Web" => "İnternetten veri alma ve web sunucusu yanıtları (`görünüm`, `yanıt`, `yönlendir`...).",
         _ => return None,
     })
@@ -37,14 +68,11 @@ fn sade(m: &str) -> String {
 pub fn ara(sorgu: &str) -> Vec<&'static Yerlesik> {
     let s = sade(sorgu.trim());
     if s.is_empty() {
-        return YERLESIKLER.iter().collect();
+        return tumu().collect();
     }
-    let mut adda: Vec<_> = YERLESIKLER
-        .iter()
-        .filter(|y| sade(y.ad).contains(&s))
-        .collect();
+    let mut adda: Vec<_> = tumu().filter(|y| sade(y.ad).contains(&s)).collect();
     adda.sort_by_key(|y| (sade(y.ad) != s, !sade(y.ad).starts_with(&s)));
-    let aciklamada = YERLESIKLER.iter().filter(|y| {
+    let aciklamada = tumu().filter(|y| {
         !sade(y.ad).contains(&s) && (sade(y.aciklama).contains(&s) || sade(y.kullanim).contains(&s))
     });
     adda.into_iter().chain(aciklamada).collect()
@@ -65,21 +93,15 @@ pub fn markdown() -> String {
          döngüler, fiiller, modeller) için: [dil rehberi](dil-rehberi.md).\n\n",
     );
     m.push_str("**Bölümler:** ");
-    m.push_str(
-        &BOLUMLER
-            .iter()
-            .map(|(b, _)| b.to_string())
-            .collect::<Vec<_>>()
-            .join(" · "),
-    );
+    m.push_str(&bolumler().collect::<Vec<_>>().join(" · "));
     m.push('\n');
-    for (b, _) in BOLUMLER {
+    for b in bolumler() {
         m.push_str(&format!("\n## {b}\n\n"));
         if let Some(n) = bolum_notu(b) {
             m.push_str(&format!("{n}\n\n"));
         }
         m.push_str("| İşlev | Kullanım | Açıklama |\n|---|---|---|\n");
-        for y in YERLESIKLER.iter().filter(|y| bolum(y) == *b) {
+        for y in tumu().filter(|y| bolum(y) == b) {
             m.push_str(&format!(
                 "| `{}` | `{}` | {} |\n",
                 y.ad,
@@ -93,8 +115,8 @@ pub fn markdown() -> String {
 
 pub fn json() -> serde_json::Value {
     json!({
-        "bolumler": BOLUMLER.iter().map(|(b, _)| json!({ "ad": b, "not": bolum_notu(b) })).collect::<Vec<_>>(),
-        "islevler": YERLESIKLER.iter().map(|y| json!({
+        "bolumler": bolumler().map(|b| json!({ "ad": b, "not": bolum_notu(b) })).collect::<Vec<_>>(),
+        "islevler": tumu().map(|y| json!({
             "ad": y.ad, "kullanim": y.kullanim, "aciklama": y.aciklama, "bolum": bolum(y),
         })).collect::<Vec<_>>(),
     })
@@ -159,7 +181,8 @@ mod sinamalar {
         // Açıklamada geçenler de bulunur, adı uyanlardan sonra
         let k = adlar("karekök");
         assert_eq!(k[0], "karekök");
-        assert!(ara("").len() == YERLESIKLER.len());
+        assert!(ara("").len() == YERLESIKLER.len() + SINAMA.len());
+        assert_eq!(adlar("esit_olmali")[0], "eşit_olmalı");
         assert!(ara("bulunmayan_bir_sey_xyz").is_empty());
     }
 
