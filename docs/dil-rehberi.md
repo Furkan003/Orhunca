@@ -319,6 +319,10 @@ birlikte okunup yazılır, yavaş bir istemci ötekileri bekletmez, HTTP/1.1 ba�
 **HTTPS.** `ORHUNCA_SERTIFIKA=sertifika.pem ORHUNCA_ANAHTAR=anahtar.pem` verilirse sunucu HTTPS
 konuşur. Sistemdeki OpenSSL (1.1 ya da 3) çalışırken yüklenir; derlemede ek bir şey gerekmez.
 
+**Yayınlamak.** `orhunca yayınla kullanıcı@sunucu --alan ornek.com` programı bir Linux sunucusuna
+(VPS) kurar, hizmet olarak başlatır ve HTTPS sertifikasını kendiliğinden alır. Bkz.
+[sunucuya yayınlamak](yayinlama.md).
+
 ### Görünümler (.ohchtml)
 
 `görünümler/` klasöründeki dosyalar derlemeye katılır ve `görünüm("ad", değer)` ile kullanılır:

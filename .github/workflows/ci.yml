@@ -126,6 +126,14 @@ jobs:
           ORHUNCA_KABUK_SINAMA=1 timeout 120 ./sayac.exe > pencere.txt
           cat pencere.txt
           grep -q "Şu anki değer: 0" pencere.txt
+      - name: Sunucuya yayın klasörü (Windows'ta Linux programı derlenir)
+        shell: bash
+        run: |
+          d=$(mktemp -d) && cd "$d"
+          "$GITHUB_WORKSPACE/target/debug/orhunca.exe" yeni site --şablon tam_yigin
+          cd site && "$GITHUB_WORKSPACE/target/debug/orhunca.exe" yayınla --alan ornek.com
+          [ "$(head -c 4 cikti/yayın/site | tail -c 3)" = ELF ]
+          grep -q "reverse_proxy" cikti/yayın/kur.sh
       - name: Hata ayıklayıcı (çalışma zamanı, Windows soketleri)
         shell: bash
         env:

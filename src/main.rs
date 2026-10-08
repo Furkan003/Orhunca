@@ -20,6 +20,7 @@ Kullanım:
   orhunca mcp                 (yapay zekâ ajanları için MCP sunucusu, stdin/stdout)
   orhunca yeni <proje_adı> [--şablon konsol|web_sitesi|tam_yigin|web_api|...]
   orhunca paket ara [kelime] | ekle <ad | git-adresi>[#etiket] | yükle | güncelle | kaldır <ad> | listele
+  orhunca yayınla [kullanıcı@sunucu] [--alan ornek.com] [--kapı 3000] [--klasör /srv/ad] [--ssh-kapı 22]
   orhunca stüdyo [--kapı 7313] [--tarayıcı-açma]
   orhunca güncelle [--denetle]
   orhunca sürüm
@@ -30,6 +31,8 @@ paketle: arayüz programını kendi penceresinde açılan masaüstü uygulaması
 dönüştürür (Windows: WebView2, Linux: WebKitGTK); --hedef android: telefona
 kurulabilen imzalı .apk (Android SDK gerekmez); --hedef ios: iPhone/iPad için Xcode
 projesi (Mac'te Xcode ile ya da GitHub'da derlenir).
+yayınla: web programını Linux sunucusuna (VPS) kurar; sunucuda Orhunca gerekmez.
+Sunucu verilmezse yalnızca cikti/yayın/ klasörü hazırlanır.
 --hedef web: WebAssembly; tarayıcıda açılan tek bir .html dosyası (-o x.wasm: ayrı
 dosyalar). 'çalıştır --hedef web' programı Node.js ile çalıştırır.";
 
@@ -74,6 +77,7 @@ fn ana() -> ExitCode {
         "mcp" => orhunca::mcp::calistir().map(|_| ExitCode::SUCCESS),
         "çevir" | "cevir" => cevir_komutu(kalan).map(|_| ExitCode::SUCCESS),
         "paket" => paket::komut(kalan).map(|_| ExitCode::SUCCESS),
+        "yayınla" | "yayinla" => yayinla_komutu(kalan).map(|_| ExitCode::SUCCESS),
         "güncelle" | "guncelle" | "update" => {
             orhunca::guncelleme::komut(kalan).map(|_| ExitCode::SUCCESS)
         }
@@ -248,6 +252,66 @@ fn denetle_komutu(args: &[String]) -> Result<ExitCode, String> {
     } else {
         ExitCode::from(1)
     })
+}
+
+fn yayinla_komutu(args: &[String]) -> Result<(), String> {
+    let mut a = orhunca::yayinla::Ayarlar {
+        sunucu: None,
+        alan: None,
+        kapi: 3000,
+        klasor: None,
+        ssh_kapi: None,
+    };
+    let mut dosya = None;
+    let mut i = 0;
+    while i < args.len() {
+        let deger = |i: usize| {
+            args.get(i + 1)
+                .cloned()
+                .ok_or_else(|| format!("{} için bir değer verin", args[i]))
+        };
+        match args[i].as_str() {
+            "--alan" => a.alan = Some(deger(i)?.trim().trim_end_matches('/').to_lowercase()),
+            "--kapı" | "--kapi" => {
+                let d = deger(i)?;
+                a.kapi = d
+                    .parse()
+                    .ok()
+                    .filter(|k| *k > 0)
+                    .ok_or_else(|| format!("geçersiz kapı '{d}'"))?;
+            }
+            "--klasör" | "--klasor" => a.klasor = Some(deger(i)?),
+            "--ssh-kapı" | "--ssh-kapi" => {
+                let d = deger(i)?;
+                a.ssh_kapi = Some(d.parse().map_err(|_| format!("geçersiz kapı '{d}'"))?);
+            }
+            s if s.starts_with('-') => return Err(format!("bilinmeyen seçenek '{s}'")),
+            s if s.ends_with(".ohc") => dosya = Some(PathBuf::from(s)),
+            s => a.sunucu = Some(s.to_string()),
+        }
+        i += if args[i].starts_with('-') { 2 } else { 1 };
+    }
+    let giris = match dosya {
+        Some(d) => d,
+        None => proje_girisi()?,
+    };
+    let (yayin, ad) = orhunca::yayinla::hazirla(&giris, &a)?;
+    match &a.sunucu {
+        Some(s) => orhunca::yayinla::gonder(&yayin, &ad, s, &a),
+        None => {
+            println!(
+                "Yayın klasörü hazır: {}\n\n\
+                 Sunucuya göndermek için:  orhunca yayınla kullanıcı@sunucu{}\n\
+                 Ya da klasörü sunucuya kendiniz kopyalayıp orada çalıştırın:  sudo sh kur.sh",
+                yayin.display(),
+                a.alan
+                    .as_ref()
+                    .map(|x| format!(" --alan {x}"))
+                    .unwrap_or_default()
+            );
+            Ok(())
+        }
+    }
 }
 
 fn cevir_komutu(args: &[String]) -> Result<(), String> {

@@ -30,6 +30,7 @@ pub mod sozcuk;
 pub mod studyo;
 pub mod uretici;
 pub mod wasm_uretici;
+pub mod yayinla;
 pub mod yerlesik;
 
 /// Derleyicinin sürümü (Cargo.toml).

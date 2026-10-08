@@ -51,13 +51,22 @@ ne yapacağınız ve ne görmeniz gerektiği yazıyor. Beklenmeyen bir şey gör
 - [ ] **ChatGPT web.** Sohbete `https://furkan003.github.io/Orhunca/llms-full.txt` bağlantısını verip kod
       yazdırın; kodu Stüdyo'da çalıştırın.
 
-## 4. Diğer sistemler (varsa)
+## 4. Sunucuya yayınlama (VPS varsa)
+
+- [ ] **orhunca yayınla.** Bir "Tam Yığın Uygulama" projesinde `orhunca yayınla kok@<sunucu-ip>`
+      çalıştırın; sonunda `✓ Yayında: http://<ip>:3000` yazmalı ve site tarayıcıda açılmalı.
+- [ ] **Alan adı ve HTTPS.** Alan adının A kaydını sunucuya yönlendirip `--alan ornek.com` ile yeniden
+      yayınlayın; `https://ornek.com` kilit simgesiyle açılmalı.
+- [ ] **Güncelleme verileri silmiyor.** Sitede birkaç kayıt ekleyin, kodda küçük bir değişiklik yapıp
+      yeniden yayınlayın; kayıtlar durmalı.
+
+## 5. Diğer sistemler (varsa)
 
 - [ ] **Pardus/Ubuntu.** `orhunca-studyo_amd64.deb` kurulur, Stüdyo açılır, F5 çalışır.
 - [ ] **macOS.** `.dmg` → ilk açılışta sağ tık → Aç; F5 çalışır.
 - [ ] **Raspberry Pi.** `kur.sh` ile komut satırı kurulur, `orhunca çalıştır` çalışır.
 
-## 5. Gerçek kullanıcı denemesi
+## 6. Gerçek kullanıcı denemesi
 
 Listedeki en değerli madde: 3-5 kişiye (bir öğrenci, bir yetişkin, bir öğretmen) Stüdyo'yu verin, hiç
 yardım etmeden ilk programlarını yazmalarını isteyin ve nerede takıldıklarını not edin.
