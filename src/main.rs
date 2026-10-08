@@ -21,6 +21,7 @@ Kullanım:
   orhunca yeni <proje_adı> [--şablon konsol|web_sitesi|tam_yigin|web_api|...]
   orhunca paket ara [kelime] | ekle <ad | git-adresi>[#etiket] | yükle | güncelle | kaldır <ad> | listele
   orhunca yayınla [kullanıcı@sunucu] [--alan ornek.com] [--kapı 3000] [--klasör /srv/ad] [--ssh-kapı 22]
+  orhunca yayınla --cgi [--kaynakla]   (paylaşımlı hosting: cikti/cgi/ klasörü public_html'e yüklenir)
   orhunca stüdyo [--kapı 7313] [--tarayıcı-açma]
   orhunca güncelle [--denetle]
   orhunca sürüm
@@ -48,6 +49,10 @@ fn main() -> ExitCode {
 
 fn ana() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    // Paylaşımlı hostingde orhunca.cgi olarak: .ohc dosyalarını derleyip çalıştırır.
+    if orhunca::cgi::isleyici_mi(&args) {
+        return orhunca::cgi::isleyici();
+    }
     let Some(komut) = args.first() else {
         println!("{YARDIM}");
         return ExitCode::SUCCESS;
@@ -263,8 +268,15 @@ fn yayinla_komutu(args: &[String]) -> Result<(), String> {
         ssh_kapi: None,
     };
     let mut dosya = None;
+    let (mut cgi, mut kaynakla) = (false, false);
     let mut i = 0;
     while i < args.len() {
+        if matches!(args[i].as_str(), "--cgi" | "--kaynakla") {
+            cgi |= args[i] == "--cgi";
+            kaynakla |= args[i] == "--kaynakla";
+            i += 1;
+            continue;
+        }
         let deger = |i: usize| {
             args.get(i + 1)
                 .cloned()
@@ -295,6 +307,28 @@ fn yayinla_komutu(args: &[String]) -> Result<(), String> {
         Some(d) => d,
         None => proje_girisi()?,
     };
+    if kaynakla && !cgi {
+        return Err("--kaynakla yalnızca --cgi ile kullanılır".into());
+    }
+    if cgi {
+        if a.sunucu.is_some() || a.alan.is_some() {
+            return Err(
+                "--cgi ile sunucu ve alan adı verilmez: cikti/cgi/ klasörünü \
+                 barındırmanın dosya yöneticisi ya da FTP ile public_html klasörüne yükleyin"
+                    .into(),
+            );
+        }
+        let k = orhunca::cgi::hazirla(&giris, kaynakla)?;
+        println!(
+            "Paylaşımlı hosting klasörü hazır: {}\n\n\
+             Klasörün İÇİNDEKİLERİ (gizli .htaccess dosyası dahil) barındırmanın public_html\n\
+             klasörüne yükleyin. {} izni 755 olmalı (dosya yöneticisinde \"İzinler\").\n\
+             Ayrıntılar: https://github.com/Furkan003/Orhunca/blob/HEAD/docs/yayinlama.md#paylaşımlı-hosting",
+            k.display(),
+            if kaynakla { "orhunca.cgi dosyasının" } else { "uygulama.cgi dosyasının" }
+        );
+        return Ok(());
+    }
     let (yayin, ad) = orhunca::yayinla::hazirla(&giris, &a)?;
     match &a.sunucu {
         Some(s) => orhunca::yayinla::gonder(&yayin, &ad, s, &a),

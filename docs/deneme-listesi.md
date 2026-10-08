@@ -51,7 +51,7 @@ ne yapacağınız ve ne görmeniz gerektiği yazıyor. Beklenmeyen bir şey gör
 - [ ] **ChatGPT web.** Sohbete `https://furkan003.github.io/Orhunca/llms-full.txt` bağlantısını verip kod
       yazdırın; kodu Stüdyo'da çalıştırın.
 
-## 4. Sunucuya yayınlama (VPS varsa)
+## 4. Sunucuya yayınlama (VPS ya da hosting varsa)
 
 - [ ] **orhunca yayınla.** Bir "Tam Yığın Uygulama" projesinde `orhunca yayınla kok@<sunucu-ip>`
       çalıştırın; sonunda `✓ Yayında: http://<ip>:3000` yazmalı ve site tarayıcıda açılmalı.
@@ -59,6 +59,11 @@ ne yapacağınız ve ne görmeniz gerektiği yazıyor. Beklenmeyen bir şey gör
       yayınlayın; `https://ornek.com` kilit simgesiyle açılmalı.
 - [ ] **Güncelleme verileri silmiyor.** Sitede birkaç kayıt ekleyin, kodda küçük bir değişiklik yapıp
       yeniden yayınlayın; kayıtlar durmalı.
+
+- [ ] **Paylaşımlı hosting (Natro vb.).** `orhunca yayınla --cgi` ile oluşan `cikti/cgi/` klasörünün
+      içindekileri `public_html`e yükleyin (`uygulama.cgi` izni 755). Site açılmalı, kayıt eklenebilmeli.
+- [ ] **PHP gibi.** `public_html`e `orhunca yayınla --cgi --kaynakla` ile yükleyin; dosya yöneticisinde
+      `index.ohc`'yi değiştirip sayfayı yenileyin, değişiklik görünmeli.
 
 ## 5. Diğer sistemler (varsa)
 

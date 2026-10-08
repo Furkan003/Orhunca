@@ -127,7 +127,7 @@ pub fn hazirla(giris: &Path, a: &Ayarlar) -> Result<(PathBuf, String), String> {
     Ok((yayin, ad))
 }
 
-fn klasor_kopyala(kaynak: &Path, hedef: &Path) -> Result<(), String> {
+pub(crate) fn klasor_kopyala(kaynak: &Path, hedef: &Path) -> Result<(), String> {
     std::fs::create_dir_all(hedef).map_err(|e| e.to_string())?;
     for g in std::fs::read_dir(kaynak)
         .map_err(|e| e.to_string())?

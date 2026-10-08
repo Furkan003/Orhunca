@@ -186,6 +186,14 @@ pub fn yukle_ortulu(
     Ok(program)
 }
 
+/// Proje kökü aramasının çıkamayacağı klasör (paylaşımlı hostingde orhunca.cgi'nin
+/// klasörü; üst klasördeki başka bir sitenin projesi bulunmasın).
+static PROJE_SINIRI: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+
+pub fn proje_sinirini_koy(klasor: PathBuf) {
+    let _ = PROJE_SINIRI.set(klasor);
+}
+
 /// Projenin kök klasörü: giriş dosyasından yukarı doğru `.ohcproj` içeren ilk
 /// klasör; yoksa giriş dosyasının klasörü.
 pub fn proje_koku(dosya: &Path) -> PathBuf {
@@ -197,6 +205,9 @@ pub fn proje_koku(dosya: &Path) -> PathBuf {
     let mut k = Some(klasor.as_path());
     for _ in 0..4 {
         let Some(aday) = k else { break };
+        if PROJE_SINIRI.get().is_some_and(|s| !aday.starts_with(s)) {
+            break;
+        }
         if proje_dosyasi(aday).is_some() {
             return aday.to_path_buf();
         }

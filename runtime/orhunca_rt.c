@@ -62,6 +62,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <dirent.h>
 #endif
 #endif /* __wasm__ */
 
@@ -110,6 +111,9 @@ static char son_hata[1024];
 /* Son çalışma hatasının yalnızca mesajı (yakala bloğundaki değişkene gelir) */
 static char son_mesaj[1024];
 
+/* CGI kipinde (paylaşımlı hosting) program bir hatayla bittiyse 500 sayfası gönderilir. */
+static int cgi_hatali;
+
 #define YIGIN_TASTI "çok derin özyineleme: işlevler birbirini bitmeyecek kadar çok çağırıyor (bitiş koşulunu denetleyin)"
 
 static void hata(int64_t satir, const char *mesaj) {
@@ -131,6 +135,7 @@ static void hata(int64_t satir, const char *mesaj) {
     ay_hatada_dur(son_hata);
 #endif
     fprintf(stderr, "%s\n", son_hata);
+    cgi_hatali = 1;
     exit(1);
 }
 
@@ -539,6 +544,10 @@ static void env_yukle(void) {
     fclose(f);
 }
 
+#if !defined(_WIN32)
+static void cgi_baslat(void);
+#endif
+
 int main(int argc, char **argv) {
     volatile uintptr_t dip = 0;
     yigin_dibi = (uintptr_t *)&dip + 1;
@@ -549,6 +558,9 @@ int main(int argc, char **argv) {
 #endif
     argumanlari_kaydet(argc, argv);
     env_yukle();
+#if !defined(_WIN32)
+    cgi_baslat();
+#endif
     baslat();
 #ifdef ORHUNCA_CALISTIRICI
     int kod = program_yukle()();
@@ -3592,6 +3604,10 @@ static int64_t istek_tamam_mi(const char *v, size_t n, Tampon *cozulen, size_t *
     }
 }
 
+/* CGI kipi: program bir web sunucusu (Apache, LiteSpeed) tarafından her istekte ayrı
+ * çalıştırılır (paylaşımlı hosting). Bkz. cgi_isle. */
+static int cgi_kipi;
+
 /* Tam bir isteği işler, yanıtı `y->cikti`ya yazar. `v`/`n`: isteğin baytları. */
 static void istegi_isle(Yanit *y, char *v, size_t n, size_t govde_basi, const char *govde_v, size_t govde_n,
                         const char *istek_tanimi, int tls) {
@@ -3805,6 +3821,7 @@ static void istegi_isle(Yanit *y, char *v, size_t n, size_t govde_basi, const ch
         }
     }
     double ms = (ondalik(ohc_zaman()) - bas_zaman) * 1000.0;
+    if (cgi_kipi) return;
     printf("  %s %s → %" PRId64 " · %.0f ms\n", yontem, M(gorunen), durum, ms);
     fflush(stdout);
 }
@@ -4055,8 +4072,300 @@ static void istek_varsa_isle(Baglanti *b, const char *istek_tanimi) {
     b->gelen.n -= (size_t)boy;
 }
 
+#if !defined(_WIN32)
+/* ---------------------------------------------------------------------- */
+/* CGI (paylaşımlı hosting)                                                */
+/* ---------------------------------------------------------------------- */
+/* Web sunucusu programı her istekte ayrı çalıştırır; istek ortam değişkenlerinden ve
+ * standart girdiden okunur, yanıt standart çıktıya "Status: ..." başlığıyla yazılır.
+ * Programın kendi yazdıkları (yaz) yanıtı bozmasın diye standart çıktı geçici bir dosyaya
+ * yönlendirilir. Program sun() çağırmadan biterse yazdıkları sayfa olarak gönderilir
+ * (PHP gibi). Oturumlar her süreçte kaybolmasın diye veri/.oturumlar/ altında saklanır. */
+static int cgi_cikti = -1, cgi_sunuldu;
+static FILE *cgi_tampon;
+
+static void cgi_yaz(const char *v, size_t n) {
+    while (n) {
+        ssize_t k = write(cgi_cikti, v, n);
+        if (k < 0 && errno == EINTR) continue;
+        if (k <= 0) return;
+        v += k;
+        n -= (size_t)k;
+    }
+}
+
+/* HTTP yanıtını ("HTTP/1.1 200 OK\r\n...") CGI yanıtına çevirip gönderir. */
+static void cgi_gonder(Tampon *t) {
+    cgi_sunuldu = 1;
+    const char *v = t->v ? t->v : "";
+    const char *satir_sonu = bul_n(v, t->n, "\r\n");
+    const char *bas_sonu = bul_n(v, t->n, "\r\n\r\n");
+    if (!satir_sonu || !bas_sonu) return;
+    Tampon c = {0};
+    const char *durum = strchr(v, ' ');
+    t_yaz(&c, "Status:");
+    t_ekle(&c, durum ? durum : " 500", durum && durum < satir_sonu ? (size_t)(satir_sonu - durum) : 4);
+    t_yaz(&c, "\r\n");
+    for (const char *p = satir_sonu + 2; p < bas_sonu + 2;) {
+        const char *e = bul_n(p, (size_t)(bas_sonu + 2 - p), "\r\n");
+        if (!e) break;
+        if (!((size_t)(e - p) >= 11 && !harf_duyarsiz_esit(p, "connection:", 11))) t_ekle(&c, p, (size_t)(e - p) + 2);
+        p = e + 2;
+    }
+    t_yaz(&c, "\r\n");
+    cgi_yaz(c.v, c.n);
+    cgi_yaz(bas_sonu + 4, t->n - (size_t)(bas_sonu + 4 - v));
+    free(c.v);
+}
+
+/* Program sun() çağırmadan bittiyse yazdıkları (ya da hata sayfası) gönderilir. */
+static void cgi_bitir(void) {
+    if (cgi_sunuldu) return;
+    fflush(stdout);
+    Tampon g = {0};
+    if (cgi_tampon) {
+        rewind(cgi_tampon);
+        char b[8192];
+        size_t n;
+        while ((n = fread(b, 1, sizeof b, cgi_tampon)) > 0) t_ekle(&g, b, n);
+    }
+    Tampon t = {0};
+    Yanit y = {&t, 0, 0, {0}};
+    if (cgi_hatali) {
+        hata_sayfasi(&y, 500, "Sunucu hatası", son_hata);
+    } else {
+        const char *v = g.v ? g.v : "";
+        while (*v == ' ' || *v == '\n' || *v == '\r' || *v == '\t') v++;
+        const char *tur = *v == '<' ? "text/html; charset=utf-8" : "text/plain; charset=utf-8";
+        yanit_yaz(&y, 200, tur, g.v ? g.v : "", g.n, NULL, 0);
+    }
+    cgi_gonder(&t);
+    free(t.v);
+    free(g.v);
+}
+
+static void cgi_baslat(void) {
+    const char *g = getenv("GATEWAY_INTERFACE");
+    if (!g || strncmp(g, "CGI/", 4)) return;
+    cgi_kipi = 1;
+    cgi_cikti = dup(1);
+    cgi_tampon = tmpfile();
+    if (cgi_cikti < 0) return;
+    fflush(stdout);
+    dup2(cgi_tampon ? fileno(cgi_tampon) : 2, 1);
+    atexit(cgi_bitir);
+}
+
+static int oturum_kimligi_gecerli(const char *k) {
+    if (strlen(k) != 32) return 0;
+    for (const char *p = k; *p; p++)
+        if (!((*p >= '0' && *p <= '9') || (*p >= 'a' && *p <= 'f'))) return 0;
+    return 1;
+}
+
+static char *oturum_dosyasi(const char *kimlik) {
+    Tampon t = {0};
+    t_yaz(&t, veri_klasoru());
+    t_yaz(&t, "/.oturumlar/");
+    t_yaz(&t, kimlik);
+    return t.v;
+}
+
+/* Süresi geçmiş oturum dosyaları ara sıra silinir. */
+static void eski_oturum_dosyalarini_sil(double simdi) {
+    Tampon k = {0};
+    t_yaz(&k, veri_klasoru());
+    t_yaz(&k, "/.oturumlar");
+    DIR *d = opendir(k.v);
+    if (d) {
+        struct dirent *g;
+        while ((g = readdir(d))) {
+            if (!oturum_kimligi_gecerli(g->d_name)) continue;
+            char *yol = oturum_dosyasi(g->d_name);
+            struct stat st;
+            if (!stat(yol, &st) && simdi - (double)st.st_mtime > OTURUM_OMRU) unlink(yol);
+            free(yol);
+        }
+        closedir(d);
+    }
+    free(k.v);
+}
+
+static void cgi_isle(const char *istek_tanimi) {
+    const char *yontem = getenv("REQUEST_METHOD");
+    if (!yontem || !*yontem) yontem = "GET";
+    /* Yol: REQUEST_URI'den (yüzde kodlu, ham) programın klasörü çıkarılır; böylece
+     * alt klasöre kurulan uygulamada da yollar "/" ile başlar. */
+    const char *uri = getenv("REQUEST_URI");
+    const char *betik = getenv("SCRIPT_NAME");
+    Tampon hedef = {0};
+    if (uri && *uri == '/') {
+        size_t taban = 0;
+        if (betik) {
+            const char *bolu = strrchr(betik, '/');
+            size_t bn = bolu ? (size_t)(bolu - betik) : 0;
+            if (!strncmp(uri, betik, strlen(betik)))
+                taban = strlen(betik); /* /uygulama.cgi/yol */
+            else if (bn && !strncmp(uri, betik, bn) && (uri[bn] == '/' || uri[bn] == '?' || !uri[bn]))
+                taban = bn;
+        }
+        t_yaz(&hedef, uri + taban);
+    } else {
+        const char *pi = getenv("PATH_INFO");
+        t_yaz(&hedef, pi ? pi : "");
+        const char *q = getenv("QUERY_STRING");
+        if (q && *q) {
+            t_yaz(&hedef, "?");
+            t_yaz(&hedef, q);
+        }
+    }
+    if (!hedef.n || hedef.v[0] != '/') {
+        Tampon h = {0};
+        t_yaz(&h, "/");
+        if (hedef.v) t_yaz(&h, hedef.v);
+        free(hedef.v);
+        hedef = h;
+    }
+
+    /* İstek, sunucunun okuduğu biçimde yeniden kurulur. */
+    Tampon r = {0};
+    t_yaz(&r, yontem);
+    t_yaz(&r, " ");
+    t_yaz(&r, hedef.v);
+    t_yaz(&r, " HTTP/1.0\r\n");
+    extern char **environ;
+    for (char **e = environ; *e; e++) {
+        const char *ad = *e, *esit = strchr(ad, '=');
+        if (!esit) continue;
+        const char *b = NULL;
+        size_t bn = 0;
+        if (!strncmp(ad, "HTTP_", 5)) {
+            b = ad + 5;
+            bn = (size_t)(esit - b);
+        } else if (!strncmp(ad, "CONTENT_TYPE=", 13) || !strncmp(ad, "CONTENT_LENGTH=", 15)) {
+            b = ad;
+            bn = (size_t)(esit - ad);
+        }
+        if (!b || !bn || !esit[1]) continue;
+        for (size_t i = 0; i < bn; i++) {
+            /* HTTP_USER_AGENT → user-agent */
+            char c = b[i] == '_' ? '-' : (b[i] >= 'A' && b[i] <= 'Z') ? (char)(b[i] + 32) : b[i];
+            t_ekle(&r, &c, 1);
+        }
+        t_yaz(&r, ": ");
+        t_yaz(&r, esit + 1);
+        t_yaz(&r, "\r\n");
+    }
+    t_yaz(&r, "\r\n");
+    size_t govde_basi = r.n;
+
+    Tampon t = {0};
+    Yanit y = {&t, 0, 0, {0}};
+    const char *uz = getenv("CONTENT_LENGTH");
+    long long govde_n = uz ? atoll(uz) : 0;
+    if (en_buyuk_govde < 0) {
+        const char *e = getenv("ORHUNCA_EN_BUYUK_GOVDE");
+        en_buyuk_govde = e && atoll(e) > 0 ? atoll(e) : 32 * 1024 * 1024;
+    }
+    if (govde_n < 0 || govde_n > en_buyuk_govde) {
+        hata_sayfasi(&y, 413, "İstek gövdesi çok büyük", NULL);
+    } else {
+        for (long long okunan = 0; okunan < govde_n;) {
+            char b[65536];
+            size_t iste = (size_t)(govde_n - okunan) < sizeof b ? (size_t)(govde_n - okunan) : sizeof b;
+            ssize_t k = read(0, b, iste);
+            if (k < 0 && errno == EINTR) continue;
+            if (k <= 0) break;
+            t_ekle(&r, b, (size_t)k);
+            okunan += k;
+        }
+        size_t gn = r.n - govde_basi;
+
+        /* Oturum: çerezdeki kimliğin dosyası okunur. */
+        double simdi = ondalik(ohc_zaman());
+        char ilk[33] = {0};
+        const char *cerez = getenv("HTTP_COOKIE");
+        const char *o = cerez ? strstr(cerez, OTURUM_CEREZI "=") : NULL;
+        if (o) {
+            o += strlen(OTURUM_CEREZI) + 1;
+            size_t n = strcspn(o, "; ");
+            if (n == 32) {
+                memcpy(ilk, o, 32);
+                if (!oturum_kimligi_gecerli(ilk)) ilk[0] = 0;
+            }
+        }
+        if (ilk[0]) {
+            char *yol = oturum_dosyasi(ilk);
+            struct stat st;
+            FILE *f = !stat(yol, &st) && simdi - (double)st.st_mtime <= OTURUM_OMRU ? fopen(yol, "rb") : NULL;
+            if (f) {
+                Tampon j = {0};
+                char b[8192];
+                size_t n;
+                while ((n = fread(b, 1, sizeof b, f)) > 0) t_ekle(&j, b, n);
+                fclose(f);
+                t_ekle(&j, "", 0);
+                oturumlar = ham_buyut(oturumlar, sizeof(Oturum) * 1);
+                oturum_kap = 1;
+                memcpy(oturumlar[0].kimlik, ilk, 33);
+                oturumlar[0].json = j.v;
+                oturumlar[0].son = simdi;
+                oturum_sayisi = 1;
+            }
+            free(yol);
+        }
+        const char *https = getenv("HTTPS");
+        int tls = https && (!strcmp(https, "on") || !strcmp(https, "1"));
+        istegi_isle(&y, r.v, r.n, govde_basi, r.v + govde_basi, gn, istek_tanimi, tls);
+
+        /* Oturumlar geri yazılır; silinen oturumun dosyası kaldırılır. */
+        if (ilk[0] && !oturum_bul(ilk)) {
+            char *yol = oturum_dosyasi(ilk);
+            unlink(yol);
+            free(yol);
+        }
+        if (oturum_sayisi) {
+            Tampon k = {0};
+            t_yaz(&k, veri_klasoru());
+            klasor_olustur(k.v);
+            t_yaz(&k, "/.oturumlar");
+            mkdir(k.v, 0700);
+            free(k.v);
+        }
+        for (int64_t i = 0; i < oturum_sayisi; i++) {
+            char *yol = oturum_dosyasi(oturumlar[i].kimlik);
+            int fd = open(yol, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+            if (fd >= 0) {
+                const char *j = oturumlar[i].json ? oturumlar[i].json : "{}";
+                size_t n = strlen(j);
+                while (n) {
+                    ssize_t k = write(fd, j, n);
+                    if (k <= 0) break;
+                    j += k;
+                    n -= (size_t)k;
+                }
+                close(fd);
+            }
+            free(yol);
+        }
+        if (rand() % 50 == 0) eski_oturum_dosyalarini_sil(simdi);
+    }
+    cgi_gonder(&t);
+    free(t.v);
+    free(r.v);
+    free(hedef.v);
+    free(y.cerezler.v);
+}
+#endif
+
 /* Sunucuyu başlatır ve istekleri karşılar (dönmez). */
 void ohc_sun(int64_t kapi, int64_t istek_tanimi) {
+#if !defined(_WIN32)
+    if (cgi_kipi) {
+        cgi_isle(M(istek_tanimi));
+        exit(0);
+    }
+#endif
     /* ORHUNCA_KAPI programdaki kapıyı geçersiz kılar; 0 ise boş bir kapı seçilir. */
     const char *e = getenv("ORHUNCA_KAPI");
     int otomatik = e && !strcmp(e, "0");
