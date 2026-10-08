@@ -6,7 +6,8 @@ Orhunca ile yazılan web siteleri iki yolla internete açılır:
   En hızlısı ve en esnek olanı.
 - **[Paylaşımlı hosting](#paylaşımlı-hosting)** (cPanel, Plesk; Natro, Turhost, Hostinger…):
   `orhunca yayınla --cgi` ile hazırlanan klasör dosya yöneticisi ya da FTP ile `public_html`e
-  yüklenir. `.ohc` dosyaları PHP gibi de çalışabilir.
+  yüklenir. `.ohc` dosyaları PHP gibi de çalışabilir. CGI izni olmayan barındırmalarda program
+  `orhunca yayınla --php` ile [PHP'ye çevrilir](#php-ye-çevirmek) ve MySQL ile çalışır.
 
 ## VPS
 
@@ -234,6 +235,75 @@ her i için 1'den 3'e kadar:
   (`al "/ürünler": ...`) gider; `modeller/`, `yollar/` gibi dosyalar tek başına çalıştırılamaz.
   Giriş dosyası yüklenirken `index.ohc` adını alır.
 - Bilgisayarınız Windows ya da macOS ise `orhunca.cgi` GitHub'daki son sürümden indirilir.
+
+### PHP'ye çevirmek
+
+CGI'ye izin vermeyen, yalnızca PHP ve MySQL sunan barındırmalarda (ucuz paketlerin çoğu, Windows
+olmayan her cPanel) program PHP'ye çevrilir:
+
+```sh
+orhunca yayınla --php
+```
+
+`cikti/php/` klasörü hazırlanır; **içindekileri** `public_html`e yükleyin:
+
+```
+cikti/php/
+├── .htaccess            bütün adresleri index.php'ye yönlendirir
+├── index.php            programınızın PHP'ye çevrilmiş hâli
+├── stil.css …           statik/ klasörünüzün içindekiler
+├── orhunca/
+│   ├── calisma.php      Orhunca'nın PHP çalışma zamanı
+│   └── ayarlar.php      veritabanı ayarları
+└── veri/                SQLite veritabanı ve yüklenen dosyalar (dışarıya kapalı)
+```
+
+Gereken: PHP 8.1 ya da üstü, `mbstring` ve `pdo_mysql` (ya da `pdo_sqlite`) eklentileri; bunlar
+barındırmaların hemen hepsinde açıktır. Derleyici ya da `.cgi` dosyası yüklenmez, izin (755)
+ayarlamak gerekmez.
+
+**Veritabanı.** Modeller (`Ürün.hepsi()`, `ü'yü kaydet.`) varsayılan olarak
+`veri/orhunca.sqlite` dosyasında saklanır. MySQL kullanmak için barındırma panelinde (cPanel →
+*MySQL Veritabanları*) bir veritabanı ve kullanıcı oluşturup `orhunca/ayarlar.php` dosyasına
+yazın:
+
+```php
+<?php
+return [
+    'sunucu' => 'localhost',
+    'veritabani' => 'kullanici_dukkan',
+    'kullanici' => 'kullanici_dukkan',
+    'sifre' => '...',
+];
+```
+
+Her model bir tablo olur (`Ürün` → `Ürün` tablosu, `kimlik` birincil anahtar); tablolar ve sonradan
+eklenen alanlar kendiliğinden oluşturulur. Projede `veri/Ürün.json` gibi kayıt dosyaları varsa
+tablo ilk oluşturulduğunda içeri aktarılır.
+
+**Yeniden yayınlamak.** Kodu değiştirince komutu yeniden çalıştırın ve `index.php` ile
+`orhunca/calisma.php` dosyalarını yükleyin. `orhunca/ayarlar.php` ve `veri/` yeniden yayınlamada
+korunur; sunucudakilerin üzerine yazmayın.
+
+**Davranış.** Çevrilen program Orhunca'nın kendi sunucusuyla aynı yanıtları verir: yollar, yol
+parametreleri, formlar ve doğrulama, JSON, yönlendirme, oturum ve çerezler, dosya yükleme,
+görünümler, 404/405/500 sayfaları (500 sayfası hatanın Orhunca satırını gösterir). Sayılar,
+bölme, Türkçe sıralama ve metin biçimleri de aynıdır. Farklar:
+
+- Oturumlar PHP'nin oturum düzeniyle saklanır (çerez adı yine `orhunca_oturum`).
+- C kütüphanesi çağrıları (`kütüphane` blokları) ve arayüz programları çevrilmez; arayüz programları
+  için `orhunca derle --hedef web` kullanılır.
+- Program bir alt klasöre (`public_html/site/`) kurulursa yönlendirmeler o klasöre göre yapılır;
+  sayfalardaki elle yazılmış `/ürünler` bağlantıları ise yine alan adının köküne gider.
+
+Bilgisayarınızda PHP varsa çeviriyi yüklemeden önce deneyebilirsiniz:
+
+```sh
+cd cikti/php
+php -S localhost:8000 index.php
+```
+
+Konsol programları da çevrilebilir: `php index.php` ile çalışırlar.
 
 ### Paylaşımlı hostingde bilinmesi gerekenler
 

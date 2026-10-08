@@ -359,7 +359,8 @@ konuşur. Sistemdeki OpenSSL (1.1 ya da 3) çalışırken yüklenir; derlemede e
 **Yayınlamak.** `orhunca yayınla kullanıcı@sunucu --alan ornek.com` programı bir Linux sunucusuna
 (VPS) kurar, hizmet olarak başlatır ve HTTPS sertifikasını kendiliğinden alır. Paylaşımlı
 hostingde (cPanel) `orhunca yayınla --cgi` ile program CGI olarak çalışır; `--kaynakla` ile `.ohc`
-dosyaları PHP gibi çalışır. Bkz. [sunucuya yayınlamak](yayinlama.md).
+dosyaları PHP gibi çalışır. Yalnızca PHP ve MySQL sunan barındırmalarda `orhunca yayınla --php`
+programı PHP'ye çevirir. Bkz. [sunucuya yayınlamak](yayinlama.md).
 
 ### Görünümler (.ohchtml)
 

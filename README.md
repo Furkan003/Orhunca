@@ -241,7 +241,7 @@ ifadeler), CSV, JSON, HTTP istekleri; resmi `istatistik` ve `geometri` paketleri
 | [Arayüz dili](docs/arayuz.md) | `durum`, `arayüz:`, öğeler ve olaylar; masaüstüne paketleme |
 | [Orhunca Stüdyo](docs/studyo.md) | Geliştirme ortamı, hata ayıklayıcı, canlı önizleme |
 | [Oyun yapmak](docs/oyun.md) | `oyun_alanı`, çizim, klavye, fare ve dokunma, ses |
-| [Sunucuya yayınlamak](docs/yayinlama.md) | `orhunca yayınla`: VPS'e kurmak, alan adı ve HTTPS; paylaşımlı hosting (cPanel) ve `.ohc` dosyalarını PHP gibi çalıştırmak |
+| [Sunucuya yayınlamak](docs/yayinlama.md) | `orhunca yayınla`: VPS'e kurmak, alan adı ve HTTPS; paylaşımlı hosting (cPanel), `.ohc` dosyalarını PHP gibi çalıştırmak ve programı PHP + MySQL'e çevirmek (`--php`) |
 | [Telefon uygulamaları](docs/mobil.md) | Android (.apk) ve iPhone/iPad; `titret`, `paylaş`, `bildirim_gönder` |
 | [Yapay zekâ](docs/yapay-zeka.md) | Stüdyo asistanı (bulut ve yerel modeller); Claude Code, Codex, Cursor gibi ajanları `orhunca mcp` ile bağlamak |
 | [Geriye uyumluluk](docs/uyumluluk.md) | Güncellemelerde programların bozulmaması, dil sürümü, `orhunca düzelt` |

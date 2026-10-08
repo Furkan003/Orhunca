@@ -25,6 +25,7 @@ Kullanım:
   orhunca paket ara [kelime] | ekle <ad | git-adresi>[#etiket] | yükle | güncelle | kaldır <ad> | listele
   orhunca paket bilgi <ad | git-adresi> [--json] | yayımla   (izinler, içerik özeti; paket mağazasına yayımlama)
   orhunca yayınla [kullanıcı@sunucu] [--alan ornek.com] [--kapı 3000] [--klasör /srv/ad] [--ssh-kapı 22]
+  orhunca yayınla --php   (yalnızca PHP ve MySQL sunan barındırmalar: cikti/php/ public_html'e yüklenir)
   orhunca yayınla --cgi [--kaynakla]   (paylaşımlı hosting: cikti/cgi/ klasörü public_html'e yüklenir)
   orhunca stüdyo [--kapı 7313] [--tarayıcı-açma]
   orhunca güncelle [--denetle]
@@ -281,12 +282,13 @@ fn yayinla_komutu(args: &[String]) -> Result<(), String> {
         ssh_kapi: None,
     };
     let mut dosya = None;
-    let (mut cgi, mut kaynakla) = (false, false);
+    let (mut cgi, mut kaynakla, mut php) = (false, false, false);
     let mut i = 0;
     while i < args.len() {
-        if matches!(args[i].as_str(), "--cgi" | "--kaynakla") {
+        if matches!(args[i].as_str(), "--cgi" | "--kaynakla" | "--php") {
             cgi |= args[i] == "--cgi";
             kaynakla |= args[i] == "--kaynakla";
+            php |= args[i] == "--php";
             i += 1;
             continue;
         }
@@ -320,6 +322,26 @@ fn yayinla_komutu(args: &[String]) -> Result<(), String> {
         Some(d) => d,
         None => proje_girisi()?,
     };
+    if php {
+        if a.sunucu.is_some() || a.alan.is_some() || cgi {
+            return Err(
+                "--php ile sunucu ve alan adı verilmez: cikti/php/ klasörünü barındırmanın \
+                 public_html klasörüne yükleyin"
+                    .into(),
+            );
+        }
+        let k = orhunca::php::hazirla(&giris)?;
+        println!(
+            "PHP klasörü hazır: {}\n\n\
+             Klasörün İÇİNDEKİLERİ (gizli .htaccess dosyası dahil) barındırmanın public_html\n\
+             klasörüne yükleyin. MySQL kullanmak için orhunca/ayarlar.php dosyasına veritabanı\n\
+             bilgilerini yazın (boş bırakılırsa SQLite kullanılır). PHP 8.1 ya da sonrası gerekir.\n\
+             Bilgisayarda denemek için: cd {} && php -S localhost:3000 index.php",
+            k.display(),
+            k.display()
+        );
+        return Ok(());
+    }
     if kaynakla && !cgi {
         return Err("--kaynakla yalnızca --cgi ile kullanılır".into());
     }
