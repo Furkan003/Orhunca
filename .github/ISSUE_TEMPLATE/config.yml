@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Soru sor ya da fikir paylaş
+    url: https://github.com/Furkan003/Orhunca/discussions
+    about: Nasıl yapılır soruları, fikirler ve yaptıklarınız için Tartışmalar
   - name: Güvenlik açığı bildir
     url: https://github.com/Furkan003/Orhunca/security/advisories/new
     about: Güvenlik açıklarını lütfen gizli olarak bildirin
