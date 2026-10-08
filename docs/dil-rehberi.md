@@ -267,6 +267,30 @@ model Düğüm:
 eğer boş_mu(d.sonraki) ise: ...
 ```
 
+**Model işlevleri.** Modelin içinde tanımlanan işlevler o modelin nesneleriyle çağrılır;
+nesnenin kendisi `bu`dur:
+
+```
+model Hesap:
+    sahip: metin
+    bakiye: ondalık
+
+    işlev yatır(miktar: ondalık):
+        bu.bakiye += miktar
+
+    işlev özet() -> metin:
+        döndür bu.sahip + ": " + para(bu.bakiye) + " TL"
+
+h = Hesap(sahip: "Ayşe")
+h.yatır(150)
+h.özet()'i yaz.                  # Ayşe: 150,00 TL
+```
+- Alanlar `bu.alan` ile okunur ve değiştirilir; değişiklik nesnenin kendisinde olur.
+- Model işlevleri birbirini (`bu.özet()`) ve başka modellerin işlevlerini çağırabilir.
+- Alanla aynı adı ve yerleşik yöntem adlarını (`kaydet`, `sil`, `geçerli_mi`, `hatalar`, `json`,
+  `hepsi`, `bul`, `var_mı`, `formdan`) alamaz.
+- Python/JavaScript çevirisinde sınıfın yöntemleri olur (`bu` → `self` / `this`).
+
 ### Seçenekler (numaralandırma)
 
 ```

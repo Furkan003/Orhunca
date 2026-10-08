@@ -1,0 +1,52 @@
+# Model işlevleri: modelin içinde tanımlanır, alanlara `bu` ile erişilir.
+
+model Hesap:
+    sahip: metin
+    bakiye: ondalık
+    hareketler: liste<metin>
+
+    işlev yatır(miktar: ondalık):
+        bu.bakiye += miktar
+        ("+" + para(miktar))'yı bu.hareketler'e ekle.
+
+    işlev çek(miktar: ondalık):
+        eğer miktar bu.bakiye'den büyükse:
+            hata_ver("yetersiz bakiye: " + para(bu.bakiye))
+        bu.bakiye -= miktar
+        ("-" + para(miktar))'yı bu.hareketler'e ekle.
+
+    işlev özet() -> metin:
+        döndür bu.sahip + ": " + para(bu.bakiye) + " TL"
+
+    # Bir işlev başka bir işlevi de çağırabilir.
+    işlev aktar(miktar: ondalık, hedef: Hesap):
+        bu.çek(miktar)
+        hedef.yatır(miktar)
+
+model Banka:
+    hesaplar: liste<Hesap>
+
+    işlev aç(sahip: metin) -> Hesap:
+        h = Hesap(sahip: sahip)
+        h'yi bu.hesaplar'a ekle.
+        döndür h
+
+    işlev toplam() -> ondalık:
+        t = 0.0
+        her h için bu.hesaplar'dan:
+            t += h.bakiye
+        döndür t
+
+banka = Banka()
+ayşe = banka.aç("Ayşe")
+mehmet = banka.aç("Mehmet")
+ayşe.yatır(1500)
+ayşe.aktar(250.5, mehmet)
+ayşe.özet()'i yaz.
+mehmet.özet()'i yaz.
+ayşe.hareketler'i yaz.
+dene:
+    mehmet.çek(1000)
+yakala hata:
+    hata'yı yaz.
+"Toplam: " + para(banka.toplam())'u yaz.

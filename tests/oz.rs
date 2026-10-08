@@ -272,6 +272,11 @@ const HATALI_PROGRAMLAR: &[&str] = &[
     "kütüphane \"m\":\n    işlev f(x: sayı) -> yok yok\n",
     "kütüphane \"m\":\nx = 1\n",
     "eğer doğru ise:\n    kütüphane \"m\":\n        işlev f()\n",
+    "model Kitap:\n    ad: metin\n    işlev kaydet():\n        döndür 1\n",
+    "model Kitap:\n    ad: metin\n    işlev f(bu):\n        döndür 1\n",
+    "model Kitap:\n    ad: metin\n    işlev ad() -> metin:\n        döndür bu.ad\n",
+    "model Kitap:\n    işlev oku() -> metin:\n        döndür \"a\"\n    sayfa: sayı\nk = Kitap()\nk.oku()'yu yaz.\n",
+    "model Kitap:\n    ad: metin\n    işlev f(:\n        döndür 1\n",
 ];
 
 #[test]

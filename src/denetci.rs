@@ -750,6 +750,17 @@ impl Denetci {
             )
             .ipucu(format!("işlevleri parantezle çağırın: {ad}(x)")));
         };
+        // Modelin kendi işlevi: `k.özet(x)` → `Kitap.özet(k, x)`
+        let mut islev = format!("{m}.{ad}");
+        if self.imzalar.contains_key(islev.as_str()) {
+            let mut tum = vec![(**alici).clone()];
+            tum.append(arg);
+            let mut tum_tipler = vec![t.clone()];
+            tum_tipler.extend(tipler);
+            let sonuc = self.cagri_tipli(&mut islev, &mut tum, tum_tipler, konum)?;
+            e.tur = IfadeTuru::Cagri(islev, tum);
+            return Ok(sonuc);
+        }
         let model = self.model(m, konum)?;
         Ok(match (ad.as_str(), tipler.as_slice()) {
             ("kaydet", []) => {
@@ -764,11 +775,22 @@ impl Denetci {
             ("hatalar", []) => Liste(Box::new(Metin)),
             ("json", []) => Metin,
             _ => {
+                let mut kendi: Vec<String> = self
+                    .imzalar
+                    .keys()
+                    .filter_map(|k| k.strip_prefix(&format!("{m}.")).map(|a| format!("{a}()")))
+                    .collect();
+                kendi.sort();
+                let mut ipucu =
+                    "yöntemler: kaydet(), sil(), geçerli_mi(), hatalar(), json()".to_string();
+                if !kendi.is_empty() {
+                    ipucu.push_str(&format!("; modelin işlevleri: {}", kendi.join(", ")));
+                }
                 return Err(Hata::yeni(
                     konum,
                     format!("'{m}' nesnelerinin '{ad}' diye bir yöntemi yok"),
                 )
-                .ipucu("yöntemler: kaydet(), sil(), geçerli_mi(), hatalar(), json()"))
+                .ipucu(ipucu));
             }
         })
     }
@@ -1789,6 +1811,17 @@ impl Denetci {
         for a in arg.iter_mut() {
             tipler.push(self.ifade(a)?);
         }
+        self.cagri_tipli(ad_, arg, tipler, konum)
+    }
+
+    /// Bağımsız değişkenleri denetlenmiş çağrı.
+    fn cagri_tipli(
+        &mut self,
+        ad_: &mut String,
+        arg: &mut Vec<Ifade>,
+        tipler: Vec<Tip>,
+        konum: Konum,
+    ) -> Sonuc<Tip> {
         // Ön kütüphanenin içinden yerleşik çağrı: programın tanımları gölgelemez.
         // (Önek kalır: kod üretici de programın tanımına değil yerleşiğe bağlar.)
         if let Some(y) = ad_.strip_prefix(YERLESIK_ON_EK) {
@@ -1853,13 +1886,15 @@ impl Denetci {
                     },
                 ));
             }
+            // Model işlevlerinde ilk parametre (bu) nesnenin kendisidir; mesajlarda sayılmaz.
+            let ilk = ad.contains('.') as usize;
             if imza.parametreler.len() != tipler.len() {
                 return Err(Hata::yeni(
                     konum,
                     format!(
                         "'{ad}' {} bağımsız değişken bekler, {} verildi",
-                        imza.parametreler.len(),
-                        tipler.len()
+                        imza.parametreler.len() - ilk,
+                        tipler.len() - ilk
                     ),
                 ));
             }
@@ -1886,7 +1921,7 @@ impl Denetci {
                         arg[i].konum,
                         format!(
                             "'{ad}' {tur} {}. parametresi {p} olmalı, {t} verildi",
-                            i + 1
+                            i + 1 - ilk
                         ),
                     )
                     .ipucu(format!(

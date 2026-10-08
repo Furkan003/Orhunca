@@ -75,7 +75,8 @@ yakala hata:
 - Dönüşüm: `metin(x)`, `sayı("42")`, `ondalık("3.5")`, `yuvarla(x, 2)`. Girdi: `oku()`.
   Rastgele: `rastgele(1, 6)`. Sabit: `sabit KDV = 0.20`. Başka dosya: `kullan "araçlar.ohc"`.
 - Model (veri tipi): `model Kitap:` altında `ad: metin, zorunlu` gibi alanlar;
-  `k = Kitap(ad: "Nutuk")`, `k.ad`, `k'yı kaydet.`, `Kitap.hepsi()`.
+  `k = Kitap(ad: "Nutuk")`, `k.ad`, `k'yı kaydet.`, `Kitap.hepsi()`. Modelin içinde
+  `işlev özet() -> metin:` tanımlanır, alanlara `bu.ad` ile erişilir, `k.özet()` ile çağrılır.
 - Arayüz programı (tarayıcı, masaüstü, telefon): `durum sayaç = 0` ve `arayüz:` bloğu;
   `düğme("Artır") tıklanınca:`, `yazı(...)`, `giriş(ad)`.
 - Web sunucusu: `al "/":` bloğunda `döndür "<h1>Merhaba</h1>"`; POST için `gönder "/yol":`.

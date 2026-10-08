@@ -49,6 +49,8 @@ pub fn cevir(p: &Program, dil: Dil) -> Vec<Satir> {
             .map(|s| (s.ad.clone(), s.degerler.clone()))
             .collect(),
         model_adi: String::new(),
+        yontemler: Vec::new(),
+        yontemde: false,
         karsiliksiz: BTreeSet::new(),
         notlar: BTreeSet::new(),
         alan_varsayilan: Default::default(),
@@ -272,6 +274,10 @@ struct Cevirici {
     secenekler: Vec<(String, Vec<String>)>,
     /// Çevrilen modelin adı (kendine dönen alan başta boştur)
     model_adi: String,
+    /// Model işlevleri (`Kitap.özet`) sınıfın yöntemleri olarak yazılır.
+    yontemler: Vec<Islev>,
+    /// Bir yöntemin içindeyiz: `bu` → self / this
+    yontemde: bool,
     /// Karşılığı olmayan (Orhunca'ya özel) yerleşikler ve yöntemler
     karsiliksiz: BTreeSet<String>,
     /// Modellerin alanlarının varsayılan değerleri (çevrilmiş): kurucuda yazılmayanlar atlanır
@@ -327,6 +333,9 @@ impl Cevirici {
     }
 
     fn ad(&self, a: &str) -> String {
+        if self.yontemde && a == MODEL_NESNESI {
+            return if self.py() { "self" } else { "this" }.into();
+        }
         let a = a
             .trim_start_matches(ON_EK)
             .trim_start_matches(YERLESIK_ON_EK);
@@ -411,6 +420,12 @@ impl Cevirici {
             }
             self.bos_satir();
         }
+        self.yontemler = p
+            .islevler
+            .iter()
+            .filter(|f| f.ad.contains('.') && !f.ad.starts_with('‹'))
+            .cloned()
+            .collect();
         // Yerleşik modeller (İstek, Yanıt...) programın dosyalarında tanımlı değildir
         for m in p
             .modeller
@@ -431,7 +446,10 @@ impl Cevirici {
         }
         let mut ozel = false;
         for f in &p.islevler {
-            if f.ad.starts_with(ON_EK) || f.ad.starts_with('‹') || f.konum.dosya >= p.dosyalar.len()
+            if f.ad.starts_with(ON_EK)
+                || f.ad.starts_with('‹')
+                || f.ad.contains('.')
+                || f.konum.dosya >= p.dosyalar.len()
             {
                 continue;
             }
@@ -539,7 +557,9 @@ impl Cevirici {
                     self.yaz(format!("self.{a} = {a}"));
                 }
             }
-            self.girinti -= 2;
+            self.girinti -= 1;
+            self.yontemleri_yaz(&m.ad);
+            self.girinti -= 1;
         } else {
             self.blok_ac(format!("class {}", m.ad));
             let parametreler: Vec<String> = alanlar
@@ -554,9 +574,49 @@ impl Cevirici {
                 self.yaz(format!("this.{a} = {a};"));
             }
             self.blok_kapat();
+            self.yontemleri_yaz(&m.ad);
             self.blok_kapat();
         }
         self.bos_satir();
+    }
+
+    /// Modelin işlevleri sınıfın yöntemleri olur; ilk parametre (`bu`) self/this'tir.
+    fn yontemleri_yaz(&mut self, model: &str) {
+        let on_ek = format!("{model}.");
+        let yontemler: Vec<Islev> = self
+            .yontemler
+            .iter()
+            .filter(|f| f.ad.starts_with(&on_ek))
+            .cloned()
+            .collect();
+        for f in yontemler {
+            self.bos_satir();
+            self.konum(f.konum);
+            let kisa = &f.ad[on_ek.len()..];
+            let mut parametreler: Vec<String> = f.parametreler[1..]
+                .iter()
+                .map(|(a, _)| self.ad(a))
+                .collect();
+            if self.py() {
+                parametreler.insert(0, "self".into());
+                self.blok_ac(format!(
+                    "def {}({})",
+                    self.ad(kisa),
+                    parametreler.join(", ")
+                ));
+            } else {
+                self.blok_ac(format!("{}({})", self.ad(kisa), parametreler.join(", ")));
+                self.kapsam
+                    .push(f.parametreler.iter().map(|(a, _)| a.clone()).collect());
+            }
+            self.yontemde = true;
+            self.govde(&f.govde);
+            self.yontemde = false;
+            if !self.py() {
+                self.kapsam.pop();
+            }
+            self.blok_kapat();
+        }
     }
 
     fn islev(&mut self, f: &Islev) {
@@ -1160,6 +1220,15 @@ impl Cevirici {
         if ad == SECENEK_CEVIR {
             // Seçenek değeri metin olarak taşınır: Renk("mavi") → "mavi"
             return self.ifade_p(&arg[0]);
+        }
+        // Model işlevi: Kitap.özet(k, x) → k.özet(x)
+        if let (Some((_, kisa)), false) = (ad.split_once('.'), ad.starts_with('‹')) {
+            let alici = self.oncelikli(&arg[0], P_ATOM);
+            let a: Vec<String> = arg[1..].iter().map(|x| self.ifade(x)).collect();
+            return (
+                format!("{alici}.{}({})", self.ad(kisa), a.join(", ")),
+                P_ATOM,
+            );
         }
         let on_kutuphane = ad.starts_with(ON_EK);
         let ad = ad

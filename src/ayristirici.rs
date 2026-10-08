@@ -48,6 +48,18 @@ const FIILLER: &[&str] = &["yaz", "ekle", "sırala", "çıkar"];
 /// Model nesneleri için fiiller: `ürün'ü kaydet.`, `ürün'ü sil.` Ayrılmış değildir;
 /// yalnızca cümlenin sonunda fiil sayılırlar (`sil(liste, 0)` bir işlev çağrısıdır).
 const MODEL_FIILLERI: &[&str] = &["kaydet", "sil"];
+/// Modellerin yerleşik yöntemleri; model işlevlerine bu adlar verilemez.
+const MODEL_YONTEMLERI: &[&str] = &[
+    "kaydet",
+    "sil",
+    "geçerli_mi",
+    "hatalar",
+    "json",
+    "hepsi",
+    "bul",
+    "var_mı",
+    "formdan",
+];
 
 /// Web yolu tanımlayan kelimeler ve HTTP yöntemleri: `al "/ürünler":`
 const ROTA_YONTEMLERI: &[(&str, &str)] = &[
@@ -300,15 +312,28 @@ fn sozluk_kur(s: &[Sozcuk]) -> Tanimlar {
                 Tok::YeniSatir | Tok::Girinti | Tok::Cikinti | Tok::Son
             )
     };
-    // Model bloğunun içinde miyiz (girinti derinliği)?
+    // Model bloğunun içinde miyiz (girinti derinliği)? Model işlevlerinin satırları
+    // (`işlev özet():` ve gövdesi) programın geri kalanı gibi taranır.
     let mut model_derinligi = 0usize;
+    let mut model_islevinde = false;
     for i in 0..s.len() {
         match s[i].tok {
             Tok::Girinti if model_derinligi > 0 => model_derinligi += 1,
             // Model bloğunun bittiği çıkıntı
-            Tok::Cikinti if model_derinligi == 2 => model_derinligi = 0,
-            Tok::Cikinti if model_derinligi > 2 => model_derinligi -= 1,
-            Tok::Son => model_derinligi = 0,
+            Tok::Cikinti if model_derinligi == 2 => {
+                model_derinligi = 0;
+                model_islevinde = false;
+            }
+            Tok::Cikinti if model_derinligi > 2 => {
+                model_derinligi -= 1;
+                if model_derinligi == 2 {
+                    model_islevinde = false;
+                }
+            }
+            Tok::Son => {
+                model_derinligi = 0;
+                model_islevinde = false;
+            }
             _ => {}
         }
         // `seçenek Renk: kırmızı, yeşil` → tür adı ve değerleri (değerler ekli yazılabilir)
@@ -344,12 +369,18 @@ fn sozluk_kur(s: &[Sozcuk]) -> Tanimlar {
             }
         }
         if model_derinligi == 2 && satir_basi(i) {
-            if let (Some(alan), Some(Tok::Op(":"))) = (kelime(i), s.get(i + 1).map(|s| &s.tok)) {
-                t.alanlar.ekle(alan);
+            if s[i].tok == Tok::Kelime("işlev".into()) {
+                model_islevinde = true;
+                sozluk.ekle(MODEL_NESNESI);
+            } else {
+                if let (Some(alan), Some(Tok::Op(":"))) = (kelime(i), s.get(i + 1).map(|s| &s.tok))
+                {
+                    t.alanlar.ekle(alan);
+                }
+                continue;
             }
-            continue;
         }
-        if model_derinligi > 1 {
+        if model_derinligi > 1 && !model_islevinde {
             continue;
         }
         // Web yolu: `al "/ürünler/{kimlik: sayı}":` → istek ve kimlik tanımlıdır.
@@ -402,7 +433,8 @@ fn sozluk_kur(s: &[Sozcuk]) -> Tanimlar {
             }
         }
         if s[i].tok == Tok::Kelime("işlev".into()) || s[i].tok == Tok::Kelime("bileşen".into()) {
-            if let Some(ad) = kelime(i + 1) {
+            // Model işlevinin adı yalnızca `nesne.ad()` biçiminde kullanılır.
+            if let (Some(ad), false) = (kelime(i + 1), model_islevinde) {
                 sozluk.ekle(ad);
             }
             // Parametreler: parantez içinde virgülle ayrılmış parçaların ilk kelimesi.
@@ -639,13 +671,14 @@ impl Ayristirici {
                 }
                 _ if self.kelime_mi("fiil") => p.islevler.push(self.fiil_tanimi()?),
                 _ if self.model_basi_mi() => {
-                    let m = self.model_tanimi()?;
+                    let (m, islevler) = self.model_tanimi()?;
                     if p.modeller.iter().any(|x| x.ad == m.ad) {
                         return Err(Hata::yeni(
                             m.konum,
                             format!("'{}' modeli iki kez tanımlanmış", m.ad),
                         ));
                     }
+                    p.islevler.extend(islevler);
                     p.modeller.push(m);
                 }
                 _ if self.rota_basi_mi() => p.islevler.push(self.rota()?),
@@ -1097,7 +1130,7 @@ impl Ayristirici {
     ///     fiyat: ondalık, en_az 0
     ///     stok: sayı = 0
     /// ```
-    fn model_tanimi(&mut self) -> Sonuc<Model> {
+    fn model_tanimi(&mut self) -> Sonuc<(Model, Vec<Islev>)> {
         let konum = self.konum();
         self.bekle_kelime("model")?;
         let akonum = self.konum();
@@ -1133,7 +1166,16 @@ impl Ayristirici {
         }
         self.ilerle();
         let mut alanlar: Vec<AlanTanimi> = Vec::new();
+        let mut islevler: Vec<Islev> = Vec::new();
         while !matches!(self.bak(), Tok::Cikinti | Tok::Son) {
+            if *self.bak() == Tok::YeniSatir {
+                self.ilerle();
+                continue;
+            }
+            if self.kelime_mi("işlev") {
+                islevler.push(self.model_islevi(&ad)?);
+                continue;
+            }
             let fk = self.konum();
             let alan = self.isim_adi("alan adı")?;
             if alanlar.iter().any(|a| a.ad == alan) {
@@ -1264,11 +1306,51 @@ impl Ayristirici {
                 },
             ),
         }
-        Ok(Model {
-            ad,
-            alanlar,
-            konum: akonum,
-        })
+        for f in &islevler {
+            let kisa = f.ad.rsplit_once('.').map_or(f.ad.as_str(), |(_, k)| k);
+            if alanlar.iter().any(|a| a.ad == kisa) {
+                return Err(Hata::yeni(
+                    f.konum,
+                    format!("'{kisa}' hem alan hem işlev olamaz"),
+                ));
+            }
+        }
+        Ok((
+            Model {
+                ad,
+                alanlar,
+                konum: akonum,
+            },
+            islevler,
+        ))
+    }
+
+    /// Model bloğundaki `işlev özet() -> metin:`: adı `Model.özet` olan ve ilk
+    /// parametresi `bu` (nesnenin kendisi) olan bir işleve çevrilir.
+    fn model_islevi(&mut self, model: &str) -> Sonuc<Islev> {
+        let ak = self.konum();
+        let mut f = self.islev_tanimi(true)?;
+        if MODEL_YONTEMLERI.contains(&f.ad.as_str()) {
+            return Err(Hata::yeni(
+                ak,
+                format!(
+                    "'{}' modellerin yerleşik bir yöntemi; başka bir ad seçin",
+                    f.ad
+                ),
+            ));
+        }
+        if f.parametreler.iter().any(|(p, _)| p == MODEL_NESNESI) {
+            return Err(Hata::yeni(
+                ak,
+                format!("'{MODEL_NESNESI}' model işlevlerinde nesnenin kendisidir; parametre adı olamaz"),
+            ));
+        }
+        f.ad = format!("{model}.{}", f.ad);
+        f.parametreler.insert(
+            0,
+            (MODEL_NESNESI.to_string(), Tip::Model(model.to_string())),
+        );
+        Ok(f)
     }
 
     /// `al "/ürünler/{kimlik: sayı}":` — gövde, `istek` parametresi alan ve `Yanıt`
@@ -1325,6 +1407,11 @@ impl Ayristirici {
 
     /// `işlev ad(...) -> tip:` ya da `bileşen Ad(...):` (arayüz parçası)
     fn islev(&mut self) -> Sonuc<Islev> {
+        self.islev_tanimi(false)
+    }
+
+    /// `modelde`: model işlevi; adı modelle birlikte kullanıldığından yerleşiklerle çakışmaz.
+    fn islev_tanimi(&mut self, modelde: bool) -> Sonuc<Islev> {
         let konum = self.konum();
         let bilesen = self.kelime_mi("bileşen");
         self.ilerle();
@@ -1339,7 +1426,7 @@ impl Ayristirici {
                 format!("'{ad}' yerleşik bir arayüz öğesinin adı"),
             ));
         }
-        if YERLESIK.contains(&ad.as_str()) {
+        if YERLESIK.contains(&ad.as_str()) && !modelde {
             return Err(Hata::yeni(
                 konum,
                 format!("'{ad}' yerleşik bir işlevin adı"),

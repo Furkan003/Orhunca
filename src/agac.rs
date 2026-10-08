@@ -742,6 +742,10 @@ pub struct SecenekTanimi {
 /// `Renk("mavi")` → `‹seçenek›("mavi", "kırmızı|yeşil|mavi", "Renk")`.
 pub const SECENEK_CEVIR: &str = "‹seçenek›";
 
+/// Model işlevlerinde nesnenin kendisi: `bu.ad`. Model işlevi `Kitap.özet` adlı ve ilk
+/// parametresi `bu` olan sıradan bir işlevdir; `k.özet()` çağrısı `Kitap.özet(k)` olur.
+pub const MODEL_NESNESI: &str = "bu";
+
 #[derive(Debug, Clone, Default)]
 pub struct Program {
     pub islevler: Vec<Islev>,

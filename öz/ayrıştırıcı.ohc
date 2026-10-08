@@ -60,6 +60,8 @@ model ModelTanımı:
     satır: sayı
     sütun: sayı
     alanlar: liste<Alan>
+    # Model işlevleri: `Kitap.özet` adlı, ilk parametresi `bu` olan işlevler
+    işlevler: liste<İşlev>
 
 model SeçenekTanımı:
     ad: metin
@@ -501,16 +503,22 @@ işlev tanımları_kur(a: Ayrıştırıcı, s: liste<Sözcük>):
     sözlüğe_ekle(a.alanlar, "kimlik")
     n = uzunluk(s)
     model_derinliği = 0
+    # Model işlevlerinin satırları (`işlev özet():` ve gövdesi) programın geri kalanı gibi taranır.
+    işlev_satırları = yanlış
     her i için 0'dan n - 1'e kadar:
         t = s[i].tür
         eğer t == "Girinti" ve model_derinliği > 0 ise:
             model_derinliği += 1
         değilse eğer t == "Cikinti" ve model_derinliği == 2 ise:
             model_derinliği = 0
+            işlev_satırları = yanlış
         değilse eğer t == "Cikinti" ve model_derinliği > 2 ise:
             model_derinliği -= 1
+            eğer model_derinliği == 2 ise:
+                işlev_satırları = yanlış
         değilse eğer t == "Son" ise:
             model_derinliği = 0
+            işlev_satırları = yanlış
         # `seçenek Renk: kırmızı, yeşil`
         eğer satır_başı(s, i) ve s_kelime(s[i], "seçenek") ise:
             ad = kelime_at(s, i + 1)
@@ -544,11 +552,15 @@ işlev tanımları_kur(a: Ayrıştırıcı, s: liste<Sözcük>):
                 model_derinliği = 1
                 sürdür
         eğer model_derinliği == 2 ve satır_başı(s, i) ise:
-            alan = kelime_at(s, i)
-            eğer alan != "" ve op_at(s, i + 1, ":") ise:
-                sözlüğe_ekle(a.alanlar, alan)
-            sürdür
-        eğer model_derinliği > 1 ise:
+            eğer s_kelime(s[i], "işlev") ise:
+                işlev_satırları = doğru
+                sözlüğe_ekle(a.isimler, "bu")
+            değilse:
+                alan = kelime_at(s, i)
+                eğer alan != "" ve op_at(s, i + 1, ":") ise:
+                    sözlüğe_ekle(a.alanlar, alan)
+                sürdür
+        eğer model_derinliği > 1 ve değil işlev_satırları ise:
             sürdür
         # Web yolu: `al "/ürünler/{kimlik: sayı}":` → istek ve yol parametreleri tanımlı
         eğer satır_başı(s, i) ve t == "Kelime" ve i + 2 < n ise:
@@ -588,8 +600,9 @@ işlev tanımları_kur(a: Ayrıştırıcı, s: liste<Sözcük>):
             eğer k != "" ise:
                 sözlüğe_ekle(a.isimler, k)
         eğer s_kelime(s[i], "işlev") veya s_kelime(s[i], "bileşen") ise:
+            # Model işlevinin adı yalnızca `nesne.ad()` biçiminde kullanılır.
             ad = kelime_at(s, i + 1)
-            eğer ad != "" ise:
+            eğer ad != "" ve değil işlev_satırları ise:
                 sözlüğe_ekle(a.isimler, ad)
             # Parametreler: parantez içinde virgülle ayrılmış parçaların ilk kelimesi
             j = i + 2
@@ -727,6 +740,8 @@ işlev program_(a: Ayrıştırıcı, p: Program):
             her mx için p.modeller'den:
                 eğer mx.ad == m.ad ise:
                     hata_at(a, m.satır, m.sütun, "'" + m.ad + "' modeli iki kez tanımlanmış", "-")
+            her f için m.işlevler'den:
+                f'yi p.işlevler'e ekle.
             m'yi p.modeller'e ekle.
         değilse eğer rota_başı_mı(a) ise:
             rota(a)'yı p.işlevler'e ekle.
@@ -994,6 +1009,12 @@ işlev model_tanımı(a: Ayrıştırıcı) -> ModelTanımı:
     ilerle(a)
     m = ModelTanımı(ad: ad, satır: ak.satır, sütun: ak.sütun)
     bak(a).tür != "Cikinti" ve bak(a).tür != "Son" olduğu sürece:
+        eğer bak(a).tür == "YeniSatir" ise:
+            ilerle(a)
+            sürdür
+        eğer kelime_mi(a, "işlev") ise:
+            model_işlevi(a, ad)'ni m.işlevler'e ekle.
+            sürdür
         fk = bak(a)
         alan_adı = isim_adı(a, "alan adı")
         her x için m.alanlar'dan:
@@ -1069,7 +1090,32 @@ işlev model_tanımı(a: Ayrıştırıcı) -> ModelTanımı:
         her x için m.alanlar'dan:
             x'i yeni'ye ekle.
         m.alanlar = yeni
+    her f için m.işlevler'den:
+        kısa = böl(f.ad, ".")[1]
+        her x için m.alanlar'dan:
+            eğer x.ad == kısa ise:
+                hata_at(a, f.satır, f.sütun, "'" + kısa + "' hem alan hem işlev olamaz", "-")
     döndür m
+
+# Model bloğundaki `işlev özet() -> metin:`: adı `Model.özet` olan ve ilk parametresi
+# `bu` (nesnenin kendisi) olan bir işleve çevrilir.
+işlev model_işlevi(a: Ayrıştırıcı, model: metin) -> İşlev:
+    ak = bak(a)
+    f = işlev_tanımı(a, doğru)
+    eğer içerir(["kaydet", "sil", "geçerli_mi", "hatalar", "json", "hepsi", "bul", "var_mı", "formdan"], f.ad) ise:
+        hata_s(a, ak, "'" + f.ad + "' modellerin yerleşik bir yöntemi; başka bir ad seçin", "-")
+    eğer içerir(f.parametreler, "bu") ise:
+        hata_s(a, ak, "'bu' model işlevlerinde nesnenin kendisidir; parametre adı olamaz", "-")
+    f.ad = model + "." + f.ad
+    parametreler = ["bu"]
+    tipler = [model]
+    her p için f.parametreler'den:
+        p'yi parametreler'e ekle.
+    her t için f.tipler'den:
+        t'yi tipler'e ekle.
+    f.parametreler = parametreler
+    f.tipler = tipler
+    döndür f
 
 # `al "/ürünler/{kimlik: sayı}":` — gövde, `istek` parametresi alan ve `Yanıt`
 # döndüren bir işleve çevrilir. Yol parametreleri yerel değişken olur.
@@ -1099,6 +1145,10 @@ işlev rota(a: Ayrıştırıcı) -> İşlev:
 
 # `işlev ad(...) -> tip:` ya da `bileşen Ad(...):` (arayüz parçası)
 işlev işlev_(a: Ayrıştırıcı) -> İşlev:
+    döndür işlev_tanımı(a, yanlış)
+
+# `model_içi`: model işlevi; adı modelle birlikte kullanıldığından yerleşiklerle çakışmaz.
+işlev işlev_tanımı(a: Ayrıştırıcı, model_içi: mantık) -> İşlev:
     k = bak(a)
     bileşen = kelime_mi(a, "bileşen")
     ilerle(a)
@@ -1108,7 +1158,7 @@ işlev işlev_(a: Ayrıştırıcı) -> İşlev:
     ad = isim_adı(a, tarif)
     eğer bileşen ve içerir(arayüz_öğeleri(), ad) ise:
         hata_s(a, k, "'" + ad + "' yerleşik bir arayüz öğesinin adı", "-")
-    eğer içerir(temel_yerleşikler(), ad) ise:
+    eğer içerir(temel_yerleşikler(), ad) ve değil model_içi ise:
         hata_s(a, k, "'" + ad + "' yerleşik bir işlevin adı", "-")
     bekle_op(a, "(", "parametre listesi")
     f = İşlev(ad: ad, satır: k.satır, sütun: k.sütun, dönüş: "-", arayüz: bileşen)
