@@ -7,7 +7,7 @@ Orhunca'nın her programda hazır bulunan işlevleri. Terminalde aramak için
 ve kodda işlevin üzerine gelince de görünür. Dilin kendisi (değişkenler, koşullar,
 döngüler, fiiller, modeller) için: [dil rehberi](dil-rehberi.md).
 
-**Bölümler:** Dönüşümler · Metin · Liste ve sözlük · Dosya · Matematik · Zaman ve sistem · Desenler (düzenli ifadeler) · CSV · Web · Telefon · Arayüz · Oyun · Sınama
+**Bölümler:** Dönüşümler · Metin · Liste ve sözlük · Dosya · Matematik · Zaman ve sistem · Desenler (düzenli ifadeler) · CSV · Program · Web · Telefon · Arayüz · Oyun · Sınama
 
 ## Dönüşümler
 
@@ -111,6 +111,11 @@ döngüler, fiiller, modeller) için: [dil rehberi](dil-rehberi.md).
 |---|---|---|
 | `csv_oku` | `csv_oku(metin) → liste<liste<metin>>` | CSV metnini satırlara ve alanlara ayırır; ayraç (, ; ya da sekme) kendiliğinden anlaşılır. |
 | `csv_yaz` | `csv_yaz(liste<liste<metin>>) → metin` | Tabloyu CSV metnine çevirir: dosyaya_yaz("x.csv", csv_yaz(tablo)) |
+
+## Program
+
+| İşlev | Kullanım | Açıklama |
+|---|---|---|
 | `bekle` | `bekle(saniye)` | Programı verilen süre kadar bekletir. |
 | `oku` | `oku() → metin` | Klavyeden bir satır okur. |
 | `argümanlar` | `argümanlar() → liste<metin>` | Programa komut satırından verilen değerler. |

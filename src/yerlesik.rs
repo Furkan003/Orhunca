@@ -485,6 +485,7 @@ pub const BOLUMLER: &[(&str, &str)] = &[
     ("Zaman ve sistem", "zaman"),
     ("Desenler (düzenli ifadeler)", "eşleşir"),
     ("CSV", "csv_oku"),
+    ("Program", "bekle"),
     ("Web", "http_al"),
     ("Telefon", "titret"),
     ("Arayüz", "tema"),
