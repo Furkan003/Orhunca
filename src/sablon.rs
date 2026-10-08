@@ -13,6 +13,7 @@
 //! @eğer koşul { ... } @değilse { ... }
 //! @her ürün için model'den { ... }
 //! @içerik                     (düzende) sayfanın içeriği
+//! @bootstrap                  (düzenin <head> bölümünde) Bootstrap 5; sınıf="düğme düğme-birincil"
 //! @@  @* yorum *@
 //! ```
 
@@ -468,7 +469,9 @@ impl Cozucu {
         macro_rules! bosalt {
             () => {
                 if !metin.is_empty() {
-                    parcalar.push(Parca::Metin(std::mem::take(&mut metin)));
+                    // sınıf="düğme düğme-birincil" → class="btn btn-primary"
+                    let m = crate::bootstrap::siniflari_cevir(&std::mem::take(&mut metin));
+                    parcalar.push(Parca::Metin(m));
                 }
             };
         }
@@ -641,6 +644,11 @@ impl Cozucu {
                     parcalar.push(Parca::Icerik);
                     self.i = kelime_sonu;
                 }
+                // Bootstrap'ın CSS ve JavaScript dosyaları (düzenin <head> bölümünde)
+                "bootstrap" if !ardindan.is_some_and(|c| c == '.' || c == '(' || c == '[') => {
+                    metin.push_str(crate::bootstrap::BASLIK);
+                    self.i = kelime_sonu;
+                }
                 "ham" if ardindan == Some('(') => {
                     let son = self.dengeli(kelime_sonu, '(', ')')?;
                     bosalt!();
@@ -691,6 +699,30 @@ impl Cozucu {
 #[cfg(test)]
 mod testler {
     use super::*;
+
+    #[test]
+    fn bootstrap() {
+        let s = coz_metin(
+            "<head>\n    @bootstrap\n</head>\n<a sınıf=\"düğme düğme-birincil\" href=\"/\">@ad</a>\n",
+        );
+        let metin: String = s
+            .parcalar
+            .iter()
+            .filter_map(|p| match p {
+                Parca::Metin(m) => Some(m.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            metin.contains("bootstrap@5.3.3/dist/css/bootstrap.min.css"),
+            "{metin}"
+        );
+        assert!(metin.contains("integrity=\"sha384-"), "{metin}");
+        assert!(
+            metin.contains("<a class=\"btn btn-primary\" href=\"/\">"),
+            "{metin}"
+        );
+    }
 
     fn coz_metin(k: &str) -> Sablon {
         coz(&SablonKaynagi {

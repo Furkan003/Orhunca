@@ -10,6 +10,7 @@ pub mod arayuz;
 pub mod ayristirici;
 pub mod baglayici;
 pub mod bicimlendirici;
+pub mod bootstrap;
 pub mod cevirici;
 pub mod cgi;
 pub mod denetci;

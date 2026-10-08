@@ -2056,6 +2056,7 @@ impl Denetci {
             ("çık", [Sayi]) => Bos,
             ("hata_ver", [Metin]) => Bos,
             ("titret", [Sayi]) | ("paylaş", [Metin]) | ("bildirim_gönder", [Metin, Metin]) => Bos,
+            ("tema", [Metin]) => Bos,
             // Oyun: konumlar ve boyutlar ondalık olarak gönderilir
             ("temizle", [Metin]) => Bos,
             ("dikdörtgen" | "çizgi", [a, b, c, d, Metin])

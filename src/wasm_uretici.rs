@@ -68,6 +68,7 @@ const MOBIL_ISLEVLERI: &[(&str, &str, usize)] = &[
     ("titret", "titret", 1),
     ("paylaş", "paylas", 1),
     ("bildirim_gönder", "bildirim", 2),
+    ("tema", "tema", 1),
 ];
 
 /// Olay işlevlerinin ilk parametresi: çizim anında yakalanan değerlerin listesi.
@@ -2130,7 +2131,7 @@ impl Uretici<'_> {
                 self.cagri("ohc_http", &d)?
             }
             "çık" => self.cagri("ohc_cik", &d)?,
-            "titret" | "paylaş" | "bildirim_gönder" => {
+            "titret" | "paylaş" | "bildirim_gönder" | "tema" => {
                 let a: Vec<Arg> = arg.iter().map(Arg::I).collect();
                 self.argumanlar(&a)?;
                 let sira = self.o.mobil[ad];

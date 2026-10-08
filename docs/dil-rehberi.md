@@ -386,6 +386,33 @@ dosyaları PHP gibi çalışır. Bkz. [sunucuya yayınlamak](yayinlama.md).
 - Parça görünümler: `@görünüm("parçalar/kart", ü)`. Yorum: `@* ... *@`, `@` için `@@`.
 - Görünümdeki hatalar görünüm dosyasının satırını gösterir.
 
+**Bootstrap.** Düzenin `<head>` bölümüne `@bootstrap` yazılınca [Bootstrap 5](https://getbootstrap.com)
+sayfaya eklenir. Sınıflar İngilizce (`class="btn btn-primary"`) ya da Türkçe yazılır: `sınıf="..."`
+içindeki Türkçe adlar çevrilir, bilinmeyenler (kendi sınıflarınız) olduğu gibi kalır.
+
+```
+<nav sınıf="gezinme arka-koyu gezinme-koyu"><a sınıf="gezinme-marka" href="/">Dükkan</a></nav>
+<div sınıf="kapsayıcı"><div sınıf="satır"><div sınıf="sütun-orta-4">
+  <div sınıf="kart gölge-küçük"><div sınıf="kart-gövde">
+    <h5 sınıf="kart-başlık">@ü.ad</h5>
+    <a sınıf="düğme düğme-birincil" href="/sepet">Sepete ekle</a>
+  </div></div>
+</div></div></div>
+```
+
+| Türkçe | Bootstrap |
+|---|---|
+| `düğme`, `düğme-birincil`, `düğme-çerçeve-tehlike`, `düğme-büyük`/`düğme-küçük` | `btn`, `btn-primary`, `btn-outline-danger`, `btn-lg`/`btn-sm` |
+| renkler: `birincil` `ikincil` `başarı` `tehlike` `dikkat` `bilgi` `açık` `koyu` | `primary` `secondary` `success` `danger` `warning` `info` `light` `dark` |
+| `kapsayıcı`, `satır`, `sütun-orta-6` (`küçük`/`orta`/`büyük`/`geniş` = sm/md/lg/xl) | `container`, `row`, `col-md-6` |
+| `kart`, `kart-gövde`, `kart-başlık`, `kart-metin`, `kart-üst`, `kart-alt` | `card`, `card-body`, `card-title`, `card-text`, `card-header`, `card-footer` |
+| `uyarı uyarı-başarı`, `rozet`, `tablo tablo-çizgili`, `form-denetim`, `form-etiket` | `alert alert-success`, `badge`, `table table-striped`, `form-control`, `form-label` |
+| `gezinme`, `gezinme-marka`, `menü`, `menü-bağlantı`, `arka-koyu`, `metin-orta`, `gölge`, `esnek`, `gizli` | `navbar`, `navbar-brand`, `nav`, `nav-link`, `bg-dark`, `text-center`, `shadow`, `d-flex`, `d-none` |
+
+Boşluk ve benzeri yardımcı sınıflar İngilizce yazılır (`mt-3`, `p-2`). Bootstrap internetten
+(jsDelivr) bütünlük özetiyle yüklenir; internetsiz çalışacak sayfalarda `statik/` klasörüne
+indirip `<link>` ile ekleyin.
+
 ### Hata mesajları
 
 ```

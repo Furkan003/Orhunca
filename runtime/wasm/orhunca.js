@@ -353,6 +353,11 @@
         else if (kok.navigator && kok.navigator.share) kok.navigator.share({ text: m }).catch(() => {});
         else if (kok.navigator && kok.navigator.clipboard) kok.navigator.clipboard.writeText(m).catch(() => {});
       },
+      // tema("bootstrap"): arayüzün görünümü (bkz. TEMALAR)
+      tema(p) {
+        seciliTema = metin(Number(p)).trim().toLowerCase();
+        for (const k of temaKokleri) temaUygula(k);
+      },
       bildirim(a, b) {
         const baslik = metin(Number(a));
         const icerik = metin(Number(b));
@@ -757,6 +762,62 @@
 .ohc-iletisim .govde{display:flex;flex-direction:column;gap:10px;padding:10px 18px 18px;overflow:auto}
 `;
 
+  // Seçilebilir temalar: tema("bootstrap"). Kendi CSS'leriyle gelir, internet gerekmez.
+  // Bootstrap temasında düğmelere sınıf: "başarı", "tehlike", "dikkat", "bilgi", "ikincil",
+  // "açık", "koyu" (ya da İngilizcesi: success, danger...), "çerçeveli" (outline), "büyük", "küçük".
+  const TEMALAR = {
+    bootstrap: `
+.ohc-tema-bootstrap{--ohc-yazi:#212529;--ohc-soluk:#6c757d;--ohc-pano:#fff;--ohc-arka:#f8f9fa;--ohc-kenar:#dee2e6;--ohc-vurgu:#0d6efd;--ohc-vurgu-yazi:#fff;
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;font-size:16px;line-height:1.5}
+@media (prefers-color-scheme:dark){.ohc-tema-bootstrap{--ohc-yazi:#dee2e6;--ohc-soluk:#adb5bd;--ohc-pano:#212529;--ohc-arka:#2b3035;--ohc-kenar:#495057;--ohc-vurgu:#0d6efd;--ohc-vurgu-yazi:#fff}}
+.ohc-tema-bootstrap .ohc-baslik{font-size:2.5rem;font-weight:500;letter-spacing:0}
+.ohc-tema-bootstrap .ohc-alt-baslik{font-size:1.75rem;font-weight:500}
+.ohc-tema-bootstrap .ohc-dugme{--d:#0d6efd;--y:#fff;font-weight:400;color:var(--y);background:var(--d);border:1px solid var(--d);border-radius:.375rem;padding:.375rem .75rem;transition:filter .15s,box-shadow .15s}
+.ohc-tema-bootstrap .ohc-dugme:hover{filter:brightness(.9)}
+.ohc-tema-bootstrap .ohc-dugme:focus-visible{outline:0;box-shadow:0 0 0 .25rem color-mix(in srgb,var(--d) 40%,transparent)}
+.ohc-tema-bootstrap .ohc-dugme:is(.ikincil,.secondary){--d:#6c757d}
+.ohc-tema-bootstrap .ohc-dugme:is(.başarı,.basari,.success){--d:#198754}
+.ohc-tema-bootstrap .ohc-dugme:is(.tehlike,.danger){--d:#dc3545}
+.ohc-tema-bootstrap .ohc-dugme:is(.dikkat,.warning){--d:#ffc107;--y:#000}
+.ohc-tema-bootstrap .ohc-dugme:is(.bilgi,.info){--d:#0dcaf0;--y:#000}
+.ohc-tema-bootstrap .ohc-dugme:is(.açık,.acik,.light){--d:#f8f9fa;--y:#000}
+.ohc-tema-bootstrap .ohc-dugme:is(.koyu,.dark){--d:#212529}
+.ohc-tema-bootstrap .ohc-dugme:is(.çerçeveli,.cerceveli,.outline){color:var(--d);background:transparent}
+.ohc-tema-bootstrap .ohc-dugme:is(.çerçeveli,.cerceveli,.outline):hover{color:var(--y);background:var(--d);filter:none}
+.ohc-tema-bootstrap .ohc-dugme:is(.büyük,.buyuk,.lg){padding:.5rem 1rem;font-size:1.25rem;border-radius:.5rem}
+.ohc-tema-bootstrap .ohc-dugme:is(.küçük,.kucuk,.sm){padding:.25rem .5rem;font-size:.875rem;border-radius:.25rem}
+.ohc-tema-bootstrap :is(.ohc-giris,.ohc-metin-alani,.ohc-secim){border:1px solid var(--ohc-kenar);border-radius:.375rem;padding:.375rem .75rem;transition:border-color .15s,box-shadow .15s}
+.ohc-tema-bootstrap :is(.ohc-giris,.ohc-metin-alani,.ohc-secim):focus{outline:0;border-color:#86b7fe;box-shadow:0 0 0 .25rem rgba(13,110,253,.25)}
+.ohc-tema-bootstrap .ohc-kart{border:1px solid rgba(0,0,0,.175);border-radius:.375rem;padding:1rem;box-shadow:none}
+.ohc-tema-bootstrap .ohc-kart:is(.birincil,.primary){border-color:#0d6efd}
+.ohc-tema-bootstrap .ohc-kart:is(.başarı,.basari,.success){border-color:#198754}
+.ohc-tema-bootstrap .ohc-kart:is(.tehlike,.danger){border-color:#dc3545}
+.ohc-tema-bootstrap .ohc-kart:is(.dikkat,.warning){border-color:#ffc107}
+.ohc-tema-bootstrap :is(.ohc-yazi,.ohc-kutu):is(.uyarı-kutusu,.alert){padding:1rem;border-radius:.375rem;border:1px solid #b6d4fe;background:#cfe2ff;color:#084298}
+.ohc-tema-bootstrap :is(.ohc-yazi,.ohc-kutu):is(.uyarı-kutusu,.alert):is(.başarı,.basari,.success){border-color:#badbcc;background:#d1e7dd;color:#0f5132}
+.ohc-tema-bootstrap :is(.ohc-yazi,.ohc-kutu):is(.uyarı-kutusu,.alert):is(.tehlike,.danger){border-color:#f5c2c7;background:#f8d7da;color:#842029}
+.ohc-tema-bootstrap :is(.ohc-yazi,.ohc-kutu):is(.uyarı-kutusu,.alert):is(.dikkat,.warning){border-color:#ffecb5;background:#fff3cd;color:#664d03}
+.ohc-tema-bootstrap .ohc-tablo table{border-collapse:collapse;width:100%}
+.ohc-tema-bootstrap .ohc-tablo :is(th,td){padding:.5rem;border-bottom:1px solid var(--ohc-kenar)}
+.ohc-tema-bootstrap .ohc-tablo tbody tr:nth-child(odd){background:color-mix(in srgb,var(--ohc-yazi) 5%,transparent)}
+.ohc-tema-bootstrap .ohc-baglanti{color:#0d6efd}
+`,
+  };
+  let seciliTema = '';
+  const temaKokleri = new Set();
+
+  function temaUygula(kok) {
+    for (const ad of Object.keys(TEMALAR)) kok.classList.toggle('ohc-tema-' + ad, ad === seciliTema);
+    const css = TEMALAR[seciliTema];
+    const belge = kok.ownerDocument;
+    if (css && !belge.getElementById('ohc-tema-' + seciliTema)) {
+      const st = belge.createElement('style');
+      st.id = 'ohc-tema-' + seciliTema;
+      st.textContent = css;
+      belge.head.appendChild(st);
+    }
+  }
+
   function temaEkle(belge) {
     if (belge.getElementById('ohc-tema')) return;
     const st = belge.createElement('style');
@@ -959,6 +1020,8 @@
     const belge = kok.ownerDocument;
     temaEkle(belge);
     kok.classList.add('ohc-uygulama');
+    temaKokleri.add(kok);
+    temaUygula(kok);
 
     const yarat = (v) => {
       const [etiket, sinif] = ETIKETLER[v.tur] || ['div', 'kutu'];

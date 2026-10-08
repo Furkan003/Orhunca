@@ -1269,7 +1269,7 @@ impl Uretici<'_, '_> {
             }
             "çık" => self.cz("ohc_cik", d),
             // Telefon komutları bilgisayar programında etkisizdir
-            "titret" | "paylaş" | "bildirim_gönder" => None,
+            "titret" | "paylaş" | "bildirim_gönder" | "tema" => None,
             // Oyun komutları yalnızca tarayıcıda (oyun_alanı) çalışır
             "temizle" | "dikdörtgen" | "daire" | "çizgi" | "yazı_çiz" | "resim_çiz" | "ses" => {
                 None

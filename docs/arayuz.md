@@ -63,6 +63,24 @@ Seçenekler bütün öğelerde kullanılabilir: `renk`, `arka`, `boyut`, `kalın
 `"açık_gri"` …) ya da CSS biçiminde (`"#3366ff"`). Örnekler: [örnekler/arayüz/](../örnekler/arayüz)
 (sayaç, yapılacaklar listesi, hesap makinesi, sınıf defteri: tablo, grafik, sekmeler ve iletişim kutusu).
 
+**Bootstrap görünümü:** `arayüz:` bloğunun başında `tema("bootstrap")` yazılınca öğeler Bootstrap
+görünümüne geçer (internet gerekmez). Düğmelerin rengi ve boyu `sınıf` ile seçilir: `"ikincil"`,
+`"başarı"`, `"tehlike"`, `"dikkat"`, `"bilgi"`, `"açık"`, `"koyu"`, `"çerçeveli"`, `"büyük"`,
+`"küçük"` (İngilizceleri de olur: `"danger"`, `"outline"`…). `yazı(..., sınıf: "uyarı-kutusu başarı")`
+renkli bir uyarı kutusudur; kartlara da renk verilebilir.
+
+```orhunca
+arayüz:
+    tema("bootstrap")
+    kart:
+        giriş(ad, "Adınız")
+        satır:
+            düğme("Kaydet") tıklanınca:
+                ad'ı kayıtlar'a ekle.
+            düğme("Sil", sınıf: "tehlike çerçeveli")
+    yazı(uzunluk(kayıtlar) + " kayıt", sınıf: "uyarı-kutusu")
+```
+
 ![Orhunca Stüdyo — arayüz uygulaması canlı önizlemede](ekran/arayuz.png)
 
 ### Masaüstü uygulaması olarak paketleme

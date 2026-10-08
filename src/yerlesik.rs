@@ -410,6 +410,12 @@ pub const YERLESIKLER: &[Yerlesik] = &[
         "bildirim_gönder(başlık, metin)",
         "Telefonda bildirim gösterir; ilk seferde izin istenir."
     ),
+    // Arayüz (tarayıcıda; bilgisayar programında etkisizdir)
+    y!(
+        "tema",
+        "tema(ad)",
+        "Arayüzün görünümünü seçer: tema(\"bootstrap\"). Bootstrap temasında düğmelere sınıf: \"başarı\", \"tehlike\", \"dikkat\", \"çerçeveli\"... verilebilir."
+    ),
     // Oyun (oyun_alanı(...) her_karede: bloğunda çizer; bilgisayar programında etkisizdir)
     y!(
         "temizle",
