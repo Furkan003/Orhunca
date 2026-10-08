@@ -37,7 +37,7 @@ dil = "1"
 bir dil sürümü istiyorsa derleme anlaşılmaz hatalar yerine şunu söyler:
 
 ```
-bu proje Orhunca dilinin 2. sürümü için yazılmış; kurulu Orhunca (0.9.0) en çok 1. sürümü tanıyor
+bu proje Orhunca dilinin 2. sürümü için yazılmış; kurulu Orhunca (0.10.0) en çok 1. sürümü tanıyor
 ipucu: Orhunca'yı güncelleyin: orhunca güncelle
 ```
 

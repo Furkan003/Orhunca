@@ -299,7 +299,7 @@ klavye yardımı dili değiştirmez (yalnızca Stüdyo); öğretmen özellikleri
 sonraya kaldı) · telefonda ve tablette kod yazma (PWA) · Türkçe klavyesi olmayanlara yardım · VPS'e
 yayınlama (`orhunca yayınla`) · paylaşımlı hosting (CGI; `.ohc` dosyalarını PHP gibi çalıştırma).
 
-**0.10:** C kütüphanelerini çağırma
+**0.10 ✓ (yayımlandı):** C kütüphanelerini çağırma
 (FFI) · GitHub üzerinde sunucusuz paket mağazası (kolay yayımlama, derleyicinin çıkardığı paket
 izinleri, sağlama toplamı, ad koruması) · Bootstrap (Türkçe sınıf adları, arayüz teması) ·
 proje çapında değiştir ve Hızlı düzelt · güvenilmeyen proje modu · başvuru belgeleri ·
