@@ -23,6 +23,14 @@ içindeki kayıtlar birleşir). **Dosya → Yerel geçmiş…** ile bir hâli se
 **Bu hâle dön** ile geri getirebilirsiniz (Ctrl+Z ile geri alınır). Kaydetme başarısız olursa
 program çalıştırılmaz; ekrandaki kod ile çalışan kod her zaman aynıdır.
 
+**Kısıtlı mod (güvenilmeyen projeler):** Stüdyo'da oluşturmadığınız bir proje (internetten
+indirilen, Git ile klonlanan, başkasından gelen klasör) ilk açıldığında kısıtlı modda açılır. Kodu
+okuyabilir, düzenleyebilir, denetleyebilir ve biçimlendirebilirsiniz; ama çalıştırma, hata ayıklama,
+derleme, paket kurma ve yapay zekâ asistanının kod çalıştırması kapalıdır (açık dosyaya yazılmış bir
+metin asistanı kandırıp kod çalıştıramaz). Kodu okuyup kaynağını tanıyorsanız şeritteki **Projeye
+güven** düğmesine basın ya da F5'te sorulduğunda onaylayın; tercih saklanır. **Dosya → Projeye güveni
+kaldır** projeyi yeniden kısıtlı moda alır. Önceki sürümlerden kalan son projeler güvenilir sayılır.
+
 **Hızlı düzelt:** derleyici bir düzeltme önerdiğinde (yanlış yazılmış bir isim için "bunu mu demek
 istediniz", yanlış ek için ünlü uyumu, eski yazımlar için "şöyle yazın") **Sorunlar** listesinde
 hatanın yanında **Düzelt** düğmesi çıkar; tıklayınca öneri koda uygulanır (Ctrl+Z ile geri alınır).

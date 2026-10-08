@@ -76,7 +76,12 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
             Ok(d) => Yanit::json(&d),
             Err(e) => hata(e),
         },
-        ("POST", "/api/asistan/sor") => match asistan::sor(&g) {
+        ("POST", "/api/asistan/sor") => match asistan::sor(
+            &g,
+            g["proje"]
+                .as_str()
+                .is_some_and(|p| !depo::guvenilir_mi(Path::new(p))),
+        ) {
             Ok(d) => Yanit::json(&d),
             Err(e) => hata(e),
         },
@@ -128,6 +133,14 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
         ("POST", "/api/proje/olustur") => proje_olustur(&g),
         ("POST", "/api/proje/ac") => proje_ac(metin(&g, "yol")),
         ("POST", "/api/proje/klonla") => proje_klonla(metin(&g, "url"), metin(&g, "konum")),
+        ("POST", "/api/proje/guven") => {
+            let yol = PathBuf::from(metin(&g, "yol"));
+            if !izinli_mi(&yol) {
+                return Yanit::hata(403, "bu klasöre erişim yok");
+            }
+            depo::guven(&yol, g["guven"].as_bool() != Some(false));
+            Yanit::json(&json!({ "guvenilir": depo::guvenilir_mi(&yol) }))
+        }
         ("POST", "/api/proje/unut") => {
             depo::proje_unut(metin(&g, "yol"));
             Yanit::json(&json!({ "tamam": true }))
@@ -199,7 +212,7 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
             })).collect::<Vec<_>>() })),
             Err(e) => hata(e),
         },
-        ("POST", "/api/paket/ekle") => paket_islemi(metin(&g, "kok"), |k| {
+        ("POST", "/api/paket/ekle") => paket_islemi(metin(&g, "kok"), true, |k| {
             crate::paket::ekle(
                 k,
                 metin(&g, "kaynak").trim(),
@@ -207,14 +220,14 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
                 g["izinVer"].as_bool() == Some(true),
             )
         }),
-        ("POST", "/api/paket/yukle") => paket_islemi(metin(&g, "kok"), |k| {
+        ("POST", "/api/paket/yukle") => paket_islemi(metin(&g, "kok"), true, |k| {
             crate::paket::yukle(
                 k,
                 g["guncelle"].as_bool() == Some(true),
                 g["izinVer"].as_bool() == Some(true),
             )
         }),
-        ("POST", "/api/paket/kaldir") => paket_islemi(metin(&g, "kok"), |k| {
+        ("POST", "/api/paket/kaldir") => paket_islemi(metin(&g, "kok"), false, |k| {
             crate::paket::kaldir(k, metin(&g, "ad"))
         }),
         ("POST", "/api/bicimlendir") => Yanit::json(&json!({
@@ -385,6 +398,7 @@ fn ders_hazirla(g: &Value) -> Yanit {
         }
     }
     koke_izin_ver(&kok);
+    depo::guven(&kok, true);
     Yanit::json(&json!({ "proje": proje_bilgisi(&kok), "dosya": format!("{ad}.ohc") }))
 }
 
@@ -598,6 +612,8 @@ fn proje_olustur(g: &Value) -> Yanit {
     }
     depo::sablon_kullanildi(sablon.kimlik);
     koke_izin_ver(&kok);
+    // Stüdyo'da oluşturulan proje kullanıcının kendi projesidir.
+    depo::guven(&kok, true);
     let mut y = proje_bilgisi(&kok);
     y["uyari"] = json!(uyari);
     Yanit::json(&y)
@@ -633,6 +649,7 @@ fn proje_bilgisi(kok: &Path) -> Value {
     depo::proje_acildi(&ad, &yol, &sablon);
     json!({
         "ad": ad, "yol": yol, "sablon": sablon, "giris": giris, "dal": dal, "web": web,
+        "guvenilir": depo::guvenilir_mi(kok),
         "proje_dosyasi": proje_dosyasi.map(|p| p.to_string_lossy().into_owned()),
     })
 }
@@ -953,10 +970,34 @@ fn paket_listesi(kok: &str) -> Yanit {
     }
 }
 
-fn paket_islemi(kok: &str, f: impl FnOnce(&Path) -> Result<Vec<String>, String>) -> Yanit {
+/// Kısıtlı mod: güvenilmeyen projede kod çalıştıran ya da indiren işlemler yapılmaz. Arayüz
+/// `guvensiz` yanıtını görünce kullanıcıya projeye güvenip güvenmediğini sorar.
+fn guven_gerekli(yol: &Path, islem: &str) -> Option<Yanit> {
+    if depo::guvenilir_mi(yol) {
+        return None;
+    }
+    Some(Yanit::json(&json!({
+        "guvensiz": true,
+        "hata": format!(
+            "Bu proje güvenilir olarak işaretlenmedi (kısıtlı mod); {islem} kapalı. \
+             Projeyi tanıyorsanız “Projeye güven” ile açabilirsiniz."
+        ),
+    })))
+}
+
+fn paket_islemi(
+    kok: &str,
+    kur: bool,
+    f: impl FnOnce(&Path) -> Result<Vec<String>, String>,
+) -> Yanit {
     let kok = Path::new(kok);
     if !izinli_mi(kok) {
         return Yanit::hata(403, "bu klasöre erişim yok");
+    }
+    if kur {
+        if let Some(y) = guven_gerekli(kok, "paket kurma") {
+            return y;
+        }
     }
     match f(kok) {
         Ok(g) => Yanit::json(&json!({ "gunluk": g })),
@@ -1105,6 +1146,9 @@ fn calistir(g: &Value) -> Yanit {
     let dosya = PathBuf::from(metin(g, "dosya"));
     if !izinli_mi(&dosya) {
         return Yanit::hata(403, "bu dosyaya erişim yok");
+    }
+    if let Some(y) = guven_gerekli(&dosya, "çalıştırma ve hata ayıklama") {
+        return y;
     }
     let baslangic = Instant::now();
     match derleme::yukle(&dosya) {
@@ -1262,6 +1306,9 @@ fn derle(dosya: &str, hedef: &str) -> Yanit {
     let p = PathBuf::from(dosya);
     if !izinli_mi(&p) {
         return Yanit::hata(403, "bu dosyaya erişim yok");
+    }
+    if let Some(y) = guven_gerekli(&p, "derleme ve paketleme") {
+        return y;
     }
     // "masaustu-linux" / "masaustu-windows": pencere kabuğuna paketlenir.
     let masaustu = hedef.strip_prefix("masaustu-");

@@ -798,6 +798,9 @@ struct Sonuc {
     oneri: Option<Value>,
     /// Model araç kullanamadığı için düz sohbet edildi
     aracsiz: bool,
+    /// Güvenilmeyen proje (kısıtlı mod): kod çalıştıran araçlar kapalı. Açık dosyadaki bir
+    /// metin asistanı kandırıp kod çalıştıramasın diye.
+    kisitli: bool,
 }
 
 impl Sonuc {
@@ -809,7 +812,17 @@ impl Sonuc {
     }
 
     fn arac(&mut self, ad: &str, girdi: &Value) -> String {
-        let (sonuc, hatali) = arac_yurut(ad, girdi, &mut self.oneri);
+        let (sonuc, hatali) = if self.kisitli && matches!(ad, "kodu_calistir" | "arayuzu_dene") {
+            (
+                "Bu proje güvenilir olarak işaretlenmedi (kısıtlı mod); kod çalıştırma kapalı. \
+                 Kodu kodu_denetle ile denetleyebilirsiniz; çalıştırmak için kullanıcının projeye \
+                 güvenmesi gerekir."
+                    .to_string(),
+                true,
+            )
+        } else {
+            arac_yurut(ad, girdi, &mut self.oneri)
+        };
         self.adimlar
             .push(json!({ "ad": ad, "sonuc": sonuc.chars().take(2000).collect::<String>() }));
         if hatali {
@@ -823,7 +836,7 @@ impl Sonuc {
 /// Konuşmayı sürdürür: `mesajlar` [{rol: kullanici|asistan, metin}], `dosya` ve
 /// `icerik` kullanıcının açık dosyası. Asistanın yanıtını, kullandığı araçları ve
 /// varsa dosya önerisini döndürür.
-pub fn sor(g: &Value) -> Result<Value, String> {
+pub fn sor(g: &Value, kisitli: bool) -> Result<Value, String> {
     if kapali_mi() {
         return Err(kapali_hatasi());
     }
@@ -866,7 +879,10 @@ pub fn sor(g: &Value) -> Result<Value, String> {
     {
         return Err("Konuşma kullanıcı mesajıyla başlayıp bitmeli.".into());
     }
-    let mut sonuc = Sonuc::default();
+    let mut sonuc = Sonuc {
+        kisitli,
+        ..Sonuc::default()
+    };
     let durma = match b.s.tur {
         Tur::Anthropic => anthropic_sor(&b, &model, &konusma, &mut sonuc),
         _ => openai_sor(&b, &model, &konusma, &mut sonuc),

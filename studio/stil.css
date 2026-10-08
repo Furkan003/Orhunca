@@ -810,3 +810,9 @@ details.tema-grup summary { cursor: pointer; }
 .ara-degistir { margin-top: 6px; gap: 6px; }
 .ara-degistir .metin-girdi { flex: 1; min-width: 0; }
 .ara-secenek { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--yazi2); margin: 6px 0 2px; cursor: pointer; }
+.kisitli-serit { display: flex; align-items: center; gap: 10px; padding: 7px 12px; font-size: 12.5px; line-height: 1.4; color: var(--yazi); background: color-mix(in srgb, var(--sari) 14%, var(--pencere)); border-bottom: 1px solid color-mix(in srgb, var(--sari) 40%, transparent); }
+.kisitli-serit.gizli { display: none; }
+.kisitli-serit > .simge:first-child { color: var(--sari); font-size: 18px; }
+.kisitli-serit > span:nth-child(2) { flex: 1; }
+.kisitli-serit .dugme { white-space: nowrap; padding: 4px 10px; }
+.kisitli-serit .kapat { cursor: pointer; color: var(--yazi2); font-size: 16px; }

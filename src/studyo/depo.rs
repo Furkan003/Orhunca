@@ -56,6 +56,10 @@ fn kaydet(deger: &Value) {
 /// Projeyi son açılanların başına taşır.
 pub fn proje_acildi(ad: &str, yol: &str, sablon: &str) {
     let mut d = oku();
+    // Geçiş: güvenilenler listesi, yeni proje son açılanlara eklenmeden önce kaydedilir.
+    if d["guvenilen"].is_null() {
+        d["guvenilen"] = json!(guvenilenler(&d));
+    }
     let mut liste: Vec<Value> = d["projeler"]
         .as_array()
         .cloned()
@@ -92,5 +96,53 @@ pub fn sablon_kullanildi(kimlik: &str) {
     liste.insert(0, json!(kimlik));
     liste.truncate(3);
     d["son_sablonlar"] = Value::Array(liste);
+    kaydet(&d);
+}
+
+/// Güvenilen proje klasörleri (tam yollar). Güvenilmeyen bir projede Stüdyo kod çalıştırmaz,
+/// derlemez, paket kurmaz ve asistanın kod çalıştıran araçlarını kapatır (kısıtlı mod).
+/// Ayar dosyasında liste hiç yoksa (önceki sürümlerden geçiş) son açılan projeler güvenilir
+/// sayılır: kullanıcı onları zaten çalıştırıyordu.
+fn guvenilenler(d: &Value) -> Vec<String> {
+    match d["guvenilen"].as_array() {
+        Some(l) => l
+            .iter()
+            .filter_map(|y| y.as_str().map(str::to_string))
+            .collect(),
+        None => d["projeler"]
+            .as_array()
+            .map(|l| {
+                l.iter()
+                    .filter_map(|p| p["yol"].as_str())
+                    .filter_map(|y| std::fs::canonicalize(y).ok())
+                    .map(|y| y.to_string_lossy().into_owned())
+                    .collect()
+            })
+            .unwrap_or_default(),
+    }
+}
+
+/// Klasör (ya da içindeki dosya) güvenilen bir projenin içinde mi?
+pub fn guvenilir_mi(yol: &std::path::Path) -> bool {
+    let Ok(tam) = std::fs::canonicalize(yol) else {
+        return false;
+    };
+    guvenilenler(&oku())
+        .iter()
+        .any(|g| tam.starts_with(std::path::Path::new(g)))
+}
+
+pub fn guven(yol: &std::path::Path, guvenilir: bool) {
+    let Ok(tam) = std::fs::canonicalize(yol) else {
+        return;
+    };
+    let tam = tam.to_string_lossy().into_owned();
+    let mut d = oku();
+    let mut l = guvenilenler(&d);
+    l.retain(|g| *g != tam);
+    if guvenilir {
+        l.push(tam);
+    }
+    d["guvenilen"] = json!(l);
     kaydet(&d);
 }

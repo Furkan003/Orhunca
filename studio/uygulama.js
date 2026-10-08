@@ -297,7 +297,7 @@
   // Menüler
   // =====================================================================
   const MENULER = [
-    { ad: 'Dosya', ogeler: [['Yeni dosya…', '', 'yeniDosyaModal'], ['Yeni klasör…', '', 'yeniKlasorModal'], '-', ['Kaydet', 'Ctrl+S', 'kaydet'], ['Tümünü kaydet', 'Ctrl+Alt+S', 'tumunuKaydet'], ['Yerel geçmiş…', '', 'gecmisModal'], '-', ['Başlangıç ekranı', '', 'baslangicaDon'], ['Projeyi kapat', '', 'projeyiKapat'], '-', ["Stüdyo'yu kapat", '', 'studyoyuKapat']] },
+    { ad: 'Dosya', ogeler: [['Yeni dosya…', '', 'yeniDosyaModal'], ['Yeni klasör…', '', 'yeniKlasorModal'], '-', ['Kaydet', 'Ctrl+S', 'kaydet'], ['Tümünü kaydet', 'Ctrl+Alt+S', 'tumunuKaydet'], ['Yerel geçmiş…', '', 'gecmisModal'], ['Projeye güveni kaldır (kısıtlı mod)', '', 'guveniKaldir'], '-', ['Başlangıç ekranı', '', 'baslangicaDon'], ['Projeyi kapat', '', 'projeyiKapat'], '-', ["Stüdyo'yu kapat", '', 'studyoyuKapat']] },
     { ad: 'Düzen', ogeler: [['Geri al', 'Ctrl+Z', 'geriAl'], ['Yinele', 'Ctrl+Y', 'yinele'], '-', ['Kes', 'Ctrl+X', 'kes'], ['Kopyala', 'Ctrl+C', 'kopyala'], ['Yapıştır', 'Ctrl+V', 'yapistir'], '-', ['Satırı yorum yap', 'Ctrl+/', 'yorumYap'], ['Biçimlendir', 'Ctrl+⇧+F', 'bicimlendir']] },
     { ad: 'Seçim', ogeler: [['Tümünü seç', 'Ctrl+A', 'tumunuSec'], ['Satırı seç', 'Ctrl+L', 'satiriSec'], ['Satırı çoğalt', 'Ctrl+⇧+D', 'satiriCogalt']] },
     { ad: 'Görünüm', ogeler: [['Gezgin', '', 'panelGezgin'], ['Ara', '', 'panelAra'], ['Yapı', '', 'panelYapi'], ['Çalıştır', '', 'panelCalistir'], '-', ['Alt paneli göster/gizle', 'Ctrl+J', 'altPanelAcKapa'], ['Yapay zekâ asistanı', 'Ctrl+I', 'asistanAcKapa'], '-', ['Python karşılığını göster', '', 'ceviriPython'], ['JavaScript karşılığını göster', '', 'ceviriJs'], '-', ['Yazıyı büyüt', 'Ctrl+=', 'yaziBuyut'], ['Yazıyı küçült', 'Ctrl+-', 'yaziKucult']] },
@@ -716,6 +716,7 @@
             <div class="yan-panel" id="yanPanel"></div>
             <div class="duz-orta">
               <div class="sekmeler" id="sekmeler"></div>
+              <div class="kisitli-serit gizli" id="kisitliSerit"></div>
               <div class="kirinti" id="kirinti"></div>
               <div id="kodBolge" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>
               <div class="alt-panel" id="altPanel"></div>
@@ -846,6 +847,33 @@
       return `<div class="sekme ${s.yol === D.etkin ? 'etkin' : ''}" data-e="sekmeSec" data-a="${kac(s.yol)}" title="${kac(s.yol)}"><span>${kac(sonParca(s.yol))}</span>${kirli ? `<span class="kirli" data-e="sekmeKapat" data-a="${kac(s.yol)}"></span>` : `<span class="simge kapat" data-e="sekmeKapat" data-a="${kac(s.yol)}">close</span>`}</div>`;
     }).join('');
     $('#kirinti').textContent = D.etkin ? [D.proje.ad, ...D.etkin.split('/')].join('  ›  ') : D.proje.ad;
+    cizKisitliSerit();
+  }
+
+  /** Güvenilmeyen proje (kısıtlı mod) şeridi: kod okunup düzenlenebilir, çalıştırılamaz. */
+  function cizKisitliSerit() {
+    const el = $('#kisitliSerit');
+    if (!el) return;
+    const kisitli = D.proje?.guvenilir === false && !D.kisitliSeritKapali;
+    el.classList.toggle('gizli', !kisitli);
+    el.innerHTML = kisitli ? `${S('lock')}<span><b>Kısıtlı mod.</b> Bu projeyi Stüdyo'da siz oluşturmadınız. Kodu okuyup düzenleyebilirsiniz; çalıştırma, hata ayıklama, derleme, paket kurma ve asistanın kod çalıştırması projeye güvenene kadar kapalı.</span>
+      <div class="dugme birincil" data-e="projeyeGuven">Projeye güven</div><span class="simge kapat" data-e="kisitliSeritKapat" title="Gizle">close</span>` : '';
+  }
+
+  async function projeyeGuven(guven = true) {
+    const r = await api('/api/proje/guven', { yol: D.proje.yol, guven }).catch(e => ({ hata: e.message }));
+    if (r.hata) { bildir(r.hata, true); return false; }
+    D.proje.guvenilir = r.guvenilir;
+    cizKisitliSerit(); guncelle('durum');
+    if (guven) bildir('Projeye güvenildi; kod çalıştırılabilir.');
+    return r.guvenilir === guven;
+  }
+
+  /** Kısıtlı modda kod çalıştıran bir işlemden önce kullanıcıya sorulur. */
+  async function guvenSor(islem) {
+    if (!D.proje || D.proje.guvenilir !== false) return true;
+    if (!confirm(`Bu proje kısıtlı modda: Stüdyo'da siz oluşturmadınız (indirildi, kopyalandı ya da başka bir yerden açıldı).\n\n${islem} için projeye güvenmeniz gerekir. Güvenilen bir projenin kodu bu bilgisayarda çalışır; dosyalarınıza ve internete erişebilir.\n\nKodu okuduysanız ve kaynağını tanıyorsanız güvenin. Projeye güvenilsin mi?`)) return false;
+    return projeyeGuven(true);
   }
 
   // ---- Dersler: dersler.json (dersler/*.md'den üretilir), alıştırmalar ~/Orhunca/Dersler
@@ -1533,6 +1561,7 @@
       ${D.denetimHatasi ? `<span class="tiklanir uyarili" data-e="denetleKomut" title="${kac(D.denetimHatasi)} — yeniden denemek için tıklayın">${S('warning')} Denetlenemedi</span>` : `<span class="tiklanir ${n ? 'hatali' : u ? 'uyarili' : ''}" data-e="altSorunlar">${n} hata · ${u} uyarı</span>`}
       <div style="flex:1"></div>
       <span id="durumImlec">Satır ${D.imlec.satir}, Sütun ${D.imlec.sutun}</span><span>UTF-8</span><span>${kac(surumAdi())}</span>
+      ${D.proje.guvenilir === false ? `<span class="tiklanir uyarili" data-e="kisitliModBilgi" title="Projeye güvenmek için tıklayın">${S('lock')} Kısıtlı mod</span>` : ''}
       <span>${kac(calismaEtiketi())}</span>`;
   }
 
@@ -1715,7 +1744,7 @@
     }
     if (!(await degisiklikleriKoru())) return;
     if (D.calisma) await durdur();
-    D.proje = bilgi;
+    D.proje = bilgi; D.kisitliSeritKapali = false;
     D.onizleme = null;
     D.sekmeler = []; D.etkin = null; D.sorunlar = []; D.uyarilar = []; D.terminal = []; D.cikti = [];
     D.kapaliKlasorler = new Set(); D.calisma = null; D.menu = null; D.modal = null;
@@ -1847,6 +1876,7 @@
   async function calistir(ayikla = false, { yavas = false } = {}) {
     if (!D.proje) return;
     if (D.calisma) await durdur();
+    if (!(await guvenSor(ayikla ? 'Hata ayıklamak' : 'Programı çalıştırmak'))) return;
     if (!(await tumunuKaydet())) { bildir('Dosya kaydedilemediği için program çalıştırılmadı (ekrandaki kod diskteki koddan farklı).', true); return; }
     const giris = girisDosyasi();
     if (!giris) { bildir(girisHatasi() || 'Çalıştırılacak .ohc dosyası yok.', true); return; }
@@ -1956,6 +1986,7 @@
 
   async function derle(hedef) {
     if (!D.proje) return;
+    if (!(await guvenSor('Derlemek'))) return;
     if (!(await tumunuKaydet())) { bildir('Dosya kaydedilemediği için derlenmedi.', true); return; }
     const giris = girisDosyasi();
     if (!giris) { bildir(girisHatasi() || 'Derlenecek .ohc dosyası yok.', true); return; }
@@ -2493,6 +2524,7 @@
       const s = etkinSekme();
       const govde = { mesajlar: a.mesajlar.map(m => ({ rol: m.rol, metin: m.metin + (m.oneri ? '\n\n[Önerilen dosya içeriği:]\n' + m.oneri.icerik : '') })) };
       if (s && !s.ikili) { govde.dosya = s.yol; govde.icerik = s.icerik; a.mesajlar.at(-1).dosya = s.yol; }
+      if (D.proje) govde.proje = D.proje.yol;
       const r = await api('/api/asistan/sor', govde).catch(e => ({ hata: e.message }));
       if (istek !== a.istek) return;
       a.bekliyor = false;
@@ -2590,6 +2622,14 @@
       GIRDI.araMetin(D.araMetin);
       denetle();
     },
+    projeyeGuven() { projeyeGuven(true); },
+    async guveniKaldir() {
+      if (!D.proje) return;
+      if (D.proje.guvenilir === false) { bildir('Bu proje zaten kısıtlı modda.'); return; }
+      if (await projeyeGuven(false)) bildir('Proje kısıtlı moda alındı.');
+    },
+    kisitliSeritKapat() { D.kisitliSeritKapali = true; cizKisitliSerit(); },
+    kisitliModBilgi() { D.kisitliSeritKapali = false; cizKisitliSerit(); },
     async gecmisGeriYukle() {
       const m = D.modal;
       if (m?.icerik == null) return;
@@ -2812,6 +2852,7 @@
 
   async function paketIslemi(yol, govde, baslik) {
     if (D.paketMesgul) return;
+    if (!(await guvenSor('Paket kurmak'))) return;
     D.paketMesgul = true; cizYanPanel();
     D.altPanel = true; D.altSekme = 'cikti';
     D.cikti.push({ t: baslik, c: 'mut' });
