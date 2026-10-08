@@ -474,6 +474,57 @@ pub const YERLESIKLER: &[Yerlesik] = &[
     ),
 ];
 
+/// Başvuru belgesinin bölümleri: (bölüm adı, bölümün ilk işlevi). YERLESIKLER bu sırayla
+/// dizilidir; bir işlevin bölümü, kendisinden önce başlayan son bölümdür.
+pub const BOLUMLER: &[(&str, &str)] = &[
+    ("Dönüşümler", "uzunluk"),
+    ("Metin", "büyük_harf"),
+    ("Liste ve sözlük", "sil"),
+    ("Dosya", "dosya_oku"),
+    ("Matematik", "karekök"),
+    ("Zaman ve sistem", "zaman"),
+    ("Desenler (düzenli ifadeler)", "eşleşir"),
+    ("CSV", "csv_oku"),
+    ("Web", "http_al"),
+    ("Telefon", "titret"),
+    ("Arayüz", "tema"),
+    ("Oyun", "temizle"),
+];
+
+/// İşlevin başvuru belgesindeki bölümü.
+pub fn bolum(y: &Yerlesik) -> &'static str {
+    let sira = YERLESIKLER.iter().position(|x| x.ad == y.ad).unwrap_or(0);
+    let mut ad = BOLUMLER[0].0;
+    for (b, ilk) in BOLUMLER {
+        match YERLESIKLER.iter().position(|x| x.ad == *ilk) {
+            Some(i) if i <= sira => ad = b,
+            _ => break,
+        }
+    }
+    ad
+}
+
 pub fn bul(ad: &str) -> Option<&'static Yerlesik> {
     YERLESIKLER.iter().find(|y| y.ad == ad)
+}
+
+#[cfg(test)]
+mod sinamalar {
+    use super::*;
+
+    #[test]
+    fn bolumler_sirali() {
+        let mut onceki = 0;
+        for (b, ilk) in BOLUMLER {
+            let i = YERLESIKLER
+                .iter()
+                .position(|x| x.ad == *ilk)
+                .unwrap_or_else(|| panic!("{b}: {ilk} yok"));
+            assert!(i >= onceki, "{b}");
+            onceki = i;
+        }
+        assert_eq!(bolum(bul("uzunluk").unwrap()), "Dönüşümler");
+        assert_eq!(bolum(bul("temizle").unwrap()), "Oyun");
+        assert_eq!(bolum(bul("fare_basılı").unwrap()), "Oyun");
+    }
 }

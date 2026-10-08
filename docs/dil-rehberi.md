@@ -187,6 +187,8 @@ strlen("Orhunca")'yı yaz.      # 7
 
 ### Standart kütüphane
 
+Her işlevin kullanımı ve açıklaması: [yerleşik işlevler başvurusu](basvuru.md) (terminalde `orhunca başvuru <kelime>`).
+
 | Alan | İşlevler |
 |---|---|
 | Dönüşüm | `uzunluk` `metin` `sayı` `ondalık` `yuvarla(x)` `yuvarla(x, 2)` `sayı_mı` `ondalık_mı` |

@@ -816,3 +816,6 @@ details.tema-grup summary { cursor: pointer; }
 .kisitli-serit > span:nth-child(2) { flex: 1; }
 .kisitli-serit .dugme { white-space: nowrap; padding: 4px 10px; }
 .kisitli-serit .kapat { cursor: pointer; color: var(--yazi2); font-size: 16px; }
+.basvuru-ara { max-width: 420px; }
+.basvuru-bolum h3 { font-size: 13px; font-weight: 600; color: var(--soluk); margin: 18px 0 8px; }
+.basvuru-bolum.gizli, .tablo-satir.gizli, #basvuruYok.gizli { display: none; }

@@ -4,6 +4,7 @@
 # - web/site/: tanıtım ve indirme sayfası, tarayıcıda deneme sayfası
 # - web/oyun/: derleyicinin WebAssembly biçimi (deneme sayfası kodu tarayıcıda derler)
 # - dersler/: dersler (Markdown → HTML, araclar/dersler.py)
+# - basvuru.html: yerleşik işlevler (docs/basvuru.md → HTML, araclar/basvuru_sayfasi.py)
 # Gerekenler: Rust (wasm32-unknown-unknown hedefi), Python 3.
 set -eu
 cd "$(dirname "$0")/.."
@@ -32,5 +33,6 @@ cp docs/ekran/*.png "$CIKTI/ekran/"
 cp kurulum/kur.sh kurulum/kur.ps1 "$CIKTI/"
 python3 araclar/site_ornekleri.py > "$CIKTI/ornekler.json"
 python3 araclar/dersler.py "$CIKTI/dersler"
+python3 araclar/basvuru_sayfasi.py "$CIKTI/basvuru.html"
 touch "$CIKTI/.nojekyll"
 du -sh "$CIKTI"

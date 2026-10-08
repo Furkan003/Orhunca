@@ -172,7 +172,7 @@ SAYFA = """<!doctype html>
 <body>
 <header class="ust"><div class="kap">
   <a class="marka" href="../"><img src="../marka/logo.svg" alt="">orhunca</a>
-  <nav class="gezinti"><a href="./" class="etkin">Dersler</a><a href="../dene.html">Tarayıcıda dene</a><a href="../#indir">İndir</a></nav>
+  <nav class="gezinti"><a href="./" class="etkin">Dersler</a><a href="../basvuru.html">Başvuru</a><a href="../dene.html">Tarayıcıda dene</a><a href="../#indir">İndir</a></nav>
   <span class="bosluk"></span>
   <a class="github" href="https://github.com/Furkan003/Orhunca"><span>GitHub</span></a>
 </div></header>

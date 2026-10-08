@@ -19,6 +19,7 @@
   <a href="https://furkan003.github.io/Orhunca/dene.html"><b>Tarayıcıda dene</b></a> ·
   <a href="https://furkan003.github.io/Orhunca/dersler/"><b>Dersler</b></a> ·
   <a href="docs/dil-rehberi.md">Dil rehberi</a> ·
+  <a href="https://furkan003.github.io/Orhunca/basvuru.html">Yerleşik işlevler</a> ·
   <a href="https://github.com/Furkan003/Orhunca/releases">Sürümler</a>
 </p>
 
@@ -227,6 +228,7 @@ ifadeler), CSV, JSON, HTTP istekleri; resmi `istatistik` ve `geometri` paketleri
 |---|---|
 | [Dersler](dersler) | Adım adım, alıştırmalı Türkçe dersler |
 | [Dil rehberi](docs/dil-rehberi.md) | Söz dizimi, hâl ekleri, modeller, web, standart kütüphane |
+| [Yerleşik işlevler](docs/basvuru.md) | Bütün yerleşik işlevler bölüm bölüm ([aranabilir sayfa](https://furkan003.github.io/Orhunca/basvuru.html), terminalde `orhunca başvuru tarih`) |
 | [Arayüz dili](docs/arayuz.md) | `durum`, `arayüz:`, öğeler ve olaylar; masaüstüne paketleme |
 | [Orhunca Stüdyo](docs/studyo.md) | Geliştirme ortamı, hata ayıklayıcı, canlı önizleme |
 | [Oyun yapmak](docs/oyun.md) | `oyun_alanı`, çizim, klavye, fare ve dokunma, ses |

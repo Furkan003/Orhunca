@@ -534,8 +534,10 @@
       ${tablo(['Ek', 'Rolü', 'Örnek'], HAL_TABLOSU)}
       <div class="cagri-kart"><div class="esnek"><div class="cagri-ad">İlk programını yaz</div><div class="cagri-alt">Konsol Uygulaması şablonuyla başla, F5 ile çalıştır, sonucu terminalde anında gör.</div></div><div class="dugme birincil" data-e="ilkProgram">Başla</div></div>
       <div class="cagri-kart"><div class="esnek"><div class="cagri-ad">Derslerle öğren</div><div class="cagri-alt">13 ders, otomatik denetlenen alıştırmalar: ilk programdan arayüz ve web uygulamalarına.</div></div><div class="dugme" data-e="dersleriAc">Derslere başla</div></div>
-      <h2>Standart kütüphane</h2>
-      ${tablo(['İşlev', 'Kullanım', 'Açıklama'], D.yerlesikler.map(y => [y.ad, y.kullanim, y.aciklama]), 'genis')}
+      <h2>Yerleşik işlevler</h2>
+      <input id="basvuruAra" data-g="basvuruAra" class="metin-girdi basvuru-ara" placeholder="İşlev ara (ör. tarih, büyük harf, dosya)" spellcheck="false" autocomplete="off">
+      <div id="basvuru">${[...new Set(D.yerlesikler.map(y => y.bolum))].map(b => `<div class="basvuru-bolum"><h3>${kac(b)}</h3>${tablo(['İşlev', 'Kullanım', 'Açıklama'], D.yerlesikler.filter(y => y.bolum === b).map(y => [y.ad, y.kullanim, y.aciklama]), 'genis')}</div>`).join('')}</div>
+      <div class="panel-not gizli" id="basvuruYok">Bu aramaya uyan işlev yok.</div>
     </div></div>`;
   }
 
@@ -2976,6 +2978,23 @@
       }, 200);
     },
     degistirMetin(v) { D.degistirMetin = v; },
+    /** Öğren sayfasındaki yerleşik işlev listesini süzer (Türkçe harfsiz yazım da bulunur). */
+    basvuruAra(v) {
+      const sade = t => kucuk(t).replace(/[çğıöşü]/g, h => ({ ç: 'c', ğ: 'g', ı: 'i', ö: 'o', ş: 's', ü: 'u' })[h]).replace(/\u0307/g, '');
+      const a = sade(v.trim());
+      let toplam = 0;
+      for (const b of document.querySelectorAll('#basvuru .basvuru-bolum')) {
+        let gorunen = 0;
+        for (const satir of b.querySelectorAll('.tablo-satir')) {
+          const uyar = !a || sade(satir.textContent).includes(a);
+          satir.classList.toggle('gizli', !uyar);
+          if (uyar) gorunen++;
+        }
+        b.classList.toggle('gizli', !gorunen);
+        toplam += gorunen;
+      }
+      $('#basvuruYok')?.classList.toggle('gizli', toplam > 0);
+    },
   };
 
   // =====================================================================

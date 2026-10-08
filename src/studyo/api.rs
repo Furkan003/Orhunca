@@ -365,7 +365,12 @@ fn sablon_listesi() -> Yanit {
 fn yerlesikler() -> Yanit {
     let liste: Vec<Value> = crate::yerlesik::YERLESIKLER
         .iter()
-        .map(|y| json!({ "ad": y.ad, "kullanim": y.kullanim, "aciklama": y.aciklama }))
+        .map(|y| {
+            json!({
+                "ad": y.ad, "kullanim": y.kullanim, "aciklama": y.aciklama,
+                "bolum": crate::yerlesik::bolum(y),
+            })
+        })
         .collect();
     Yanit::json(&json!({ "yerlesikler": liste }))
 }
