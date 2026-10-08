@@ -483,7 +483,7 @@ dependencies = [
 
 [[package]]
 name = "orhunca"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "cranelift-codegen",
  "cranelift-frontend",
@@ -500,7 +500,7 @@ dependencies = [
 
 [[package]]
 name = "orhunca-oyun"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "orhunca",
  "serde_json",

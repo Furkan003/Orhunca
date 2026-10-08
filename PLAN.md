@@ -295,7 +295,7 @@ klavye yardımı dili değiştirmez (yalnızca Stüdyo); öğretmen özellikleri
 11. Gerçek cihaz/kullanıcı deneme listesi.
 
 ### 2. dalga – kullanıcının hissedeceği şeyler (0.9 ve 0.10)
-**0.9 ✓:** Ajanlar için Orhunca (arayüzü görme, proje araçları, `--json`; açık Stüdyo'ya bağlanma
+**0.9 ✓ (yayımlandı):** Ajanlar için Orhunca (arayüzü görme, proje araçları, `--json`; açık Stüdyo'ya bağlanma
 sonraya kaldı) · telefonda ve tablette kod yazma (PWA) · Türkçe klavyesi olmayanlara yardım · VPS'e
 yayınlama (`orhunca yayınla`) · paylaşımlı hosting (CGI; `.ohc` dosyalarını PHP gibi çalıştırma).
 
