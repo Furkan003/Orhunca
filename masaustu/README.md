@@ -32,6 +32,12 @@ dosyalarını üretir ve `v*` etiketlerinde GitHub sürümü olarak yayımlar. S
 - **Linux:** `.deb` (`/usr/bin/orhunca` da kurulur), `.AppImage`, `.rpm`.
 - **macOS:** `.dmg` (Apple işlemcili ve Intel).
 
+Her sürüm dosyası için GitHub'ın imzalı derleme kanıtı (build provenance) oluşturulur ve
+`SHA256SUMS.txt` eklenir. Sürüm yayımlandıktan sonra paket yöneticisi bildirimleri
+güncellenir: `python3 araclar/dagitim_bildirimleri.py vX.Y.Z` (Scoop `bucket/`, Homebrew
+`Formula/`, winget `kurulum/winget/`); winget bildirimi microsoft/winget-pkgs deposuna çekme
+isteğiyle gönderilir (`wingetcreate submit kurulum/winget/X.Y.Z`).
+
 `.ohc` ve `.ohcproj` dosyaları Stüdyo ile ilişkilendirilir; çift tıklanan dosyanın projesi açılır.
 
 ## Kullanıcının bilgisayarında

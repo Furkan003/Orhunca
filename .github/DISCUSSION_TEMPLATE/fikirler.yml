@@ -1,0 +1,9 @@
+title: "Fikir: "
+body:
+  - type: textarea
+    id: fikir
+    attributes:
+      label: Fikriniz
+      description: Dile, Stüdyo'ya ya da derslere ne eklenmeli? Hangi sorunu çözer?
+    validations:
+      required: true

@@ -1,0 +1,24 @@
+title: "Soru: "
+labels: ["soru"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Orhunca'yla ilgili her soru buraya. Hata bulduysanız lütfen **Hata bildir** (Issues) kullanın.
+  - type: textarea
+    id: soru
+    attributes:
+      label: Sorunuz
+      description: Ne yapmak istiyorsunuz, ne denediniz?
+    validations:
+      required: true
+  - type: textarea
+    id: kod
+    attributes:
+      label: Kod (varsa)
+      render: orhunca
+  - type: input
+    id: surum
+    attributes:
+      label: Orhunca sürümü
+      placeholder: "orhunca sürüm çıktısı, ör. orhunca 0.9.0"

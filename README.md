@@ -105,9 +105,18 @@ Düğmeler, tablolar, grafikler ve sekmelerle uygulamalar; oturumlu web siteleri
 | **Linux ARM64** (Raspberry Pi 4/5) | [.deb](https://github.com/Furkan003/Orhunca/releases/latest/download/orhunca-studyo_arm64.deb) · [.rpm](https://github.com/Furkan003/Orhunca/releases/latest/download/orhunca-studyo.aarch64.rpm) | [.tar.gz](https://github.com/Furkan003/Orhunca/releases/latest/download/orhunca-linux-aarch64.tar.gz) · aynı `kur.sh` |
 | **macOS 10.15+** | [.dmg](https://github.com/Furkan003/Orhunca/releases/latest/download/Orhunca-Studyo-macOS.dmg) (Apple işlemcili ve Intel) | [.tar.gz](https://github.com/Furkan003/Orhunca/releases/latest/download/orhunca-macos.tar.gz) |
 
+Paket yöneticileriyle (uyarısız kurulur, `orhunca` komutunu kurar):
+
+```sh
+scoop bucket add orhunca https://github.com/Furkan003/Orhunca && scoop install orhunca   # Windows
+brew tap furkan003/orhunca https://github.com/Furkan003/Orhunca && brew install orhunca   # macOS, Linux
+```
+
 Stüdyo kurulumları `orhunca` komutunu da kurar ve yeni sürümleri kendisi bildirir. Kurulum
-dosyaları henüz imzalı değildir: Windows'ta "Bilinmeyen yayımcı" uyarısında *Ek bilgi → Yine de
-çalıştır*, macOS'ta ilk açılışta *sağ tık → Aç*. Kurmadan denemek için:
+dosyaları henüz kod imzalı değildir: Windows'ta "Bilinmeyen yayımcı" uyarısında *Ek bilgi → Yine de
+çalıştır*, macOS'ta ilk açılışta *sağ tık → Aç*. Her dosyanın bu depoda GitHub tarafından
+derlendiği doğrulanabilir: `gh attestation verify <dosya> --repo Furkan003/Orhunca` (ayrıca
+sürümdeki `SHA256SUMS.txt`). Kurmadan denemek için:
 **[tarayıcıda dene](https://furkan003.github.io/Orhunca/dene.html)**. Bu sayfa telefona ve tablete
 uygulama olarak kurulur ve internetsiz çalışır ([telefonda kod yazmak](docs/mobil.md#telefonda-ve-tablette-kod-yazmak)).
 

@@ -247,6 +247,12 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') || startsWith(inputs.surum, 'v')
     needs: [komut, studyo, vscode]
     runs-on: ubuntu-latest
+    # Dosyaların bu iş akışında derlendiğinin imzalı kanıtı (Sigstore; ücretsiz):
+    #   gh attestation verify <dosya> --repo Furkan003/Orhunca
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -261,6 +267,10 @@ jobs:
           cp kurulum/kur.sh kurulum/kur.ps1 yayin/
           (cd yayin && sha256sum * > SHA256SUMS.txt)
           ls -la yayin
+      - name: Derleme kanıtı (build provenance)
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "yayin/*"
       - name: Sürüm notları
         env:
           SURUM: ${{ inputs.surum || github.ref_name }}

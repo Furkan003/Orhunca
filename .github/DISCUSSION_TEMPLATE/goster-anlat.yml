@@ -1,0 +1,12 @@
+title: "Yaptım: "
+body:
+  - type: markdown
+    attributes:
+      value: Orhunca ile yaptığınız programı, oyunu ya da siteyi paylaşın.
+  - type: textarea
+    id: anlat
+    attributes:
+      label: Ne yaptınız?
+      description: Ekran görüntüsü, bağlantı ya da tarayıcıda dene bağlantısı ekleyebilirsiniz.
+    validations:
+      required: true
