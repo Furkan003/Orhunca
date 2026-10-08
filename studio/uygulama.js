@@ -820,11 +820,12 @@
         <div class="panel-dugme" data-e="paketleIos">${S('smartphone')}Telefon (iPhone, Xcode projesi)</div>
       </div>`;
     } else {
-      const liste = D.paketler.map(p => `<div class="paket-oge" title="${kac(p.kaynak)}">${S('deployed_code')}<div class="esnek"><div class="paket-ad">${kac(p.ad)}</div><div class="paket-kaynak">${kac(p.kaynak)}</div><div class="paket-kaynak">${p.kurulu ? (p.isleme || '').slice(0, 10) : '<span style="color:var(--sari)">kurulu değil</span>'}</div></div><span class="simge sil" title="Kaldır" data-e="paketKaldir" data-a="${kac(p.ad)}">delete</span></div>`).join('');
+      const izinRozeti = iz => (Array.isArray(iz) ? iz : String(iz || '').split(',').map(x => x.trim()).filter(Boolean)).map(x => `<span class="paket-izin" title="Bu paketin izni">${kac(x)}</span>`).join('');
+      const liste = D.paketler.map(p => `<div class="paket-oge" title="${kac(p.kaynak)}">${S('deployed_code')}<div class="esnek"><div class="paket-ad">${kac(p.ad)}</div><div class="paket-kaynak">${kac(p.kaynak)}</div><div class="paket-kaynak">${p.kurulu ? (p.isleme || '').slice(0, 10) : '<span style="color:var(--sari)">kurulu değil</span>'}</div><div>${izinRozeti(p.izinler)}</div></div><span class="simge sil" title="Kaldır" data-e="paketKaldir" data-a="${kac(p.ad)}">delete</span></div>`).join('');
       const kurulu = new Set(D.paketler.map(p => p.ad));
       const dizin = D.paketDizini == null
         ? (D.paketDizinHatasi ? `<div class="panel-not" style="font-size:12px">Paket dizinine ulaşılamadı: ${kac(D.paketDizinHatasi)}</div>` : '<div class="panel-not">Paket dizini yükleniyor…</div>')
-        : D.paketDizini.filter(p => !kurulu.has(p.ad)).map(p => `<div class="paket-oge" title="${kac(p.kaynak)}">${S('deployed_code')}<div class="esnek"><div class="paket-ad">${kac(p.ad)}</div><div class="paket-kaynak" style="white-space:normal">${kac(p.aciklama)}</div></div><span class="simge" title="Ekle" data-e="paketDizindenEkle" data-a="${kac(p.ad)}">add</span></div>`).join('') || '<div class="panel-not">Dizindeki bütün paketler ekli.</div>';
+        : D.paketDizini.filter(p => !kurulu.has(p.ad)).map(p => `<div class="paket-oge" title="${kac(p.kaynak)}">${S('deployed_code')}<div class="esnek"><div class="paket-ad">${kac(p.ad)}${p.surum ? ` <span class="paket-kaynak">${kac(p.surum)}</span>` : ''}</div><div class="paket-kaynak" style="white-space:normal">${kac(p.aciklama)}</div><div>${izinRozeti(p.izinler)}${p.sahip ? `<span class="paket-kaynak"> · ${kac(p.sahip)}</span>` : ''}</div></div><span class="simge" title="Ekle" data-e="paketDizindenEkle" data-a="${kac(p.ad)}">add</span></div>`).join('') || '<div class="panel-not">Dizindeki bütün paketler ekli.</div>';
       kap.innerHTML = baslik('PAKETLER', D.paketMesgul ? '<div class="donen kucuk"></div>' : `<span class="simge" title="Yenile" data-e="paketleriYenile">refresh</span>`) + `<div class="panel-ic">
         ${liste || '<div class="panel-not">Bu projenin paketi yok. Bir Git deposundan Orhunca kütüphanesi ekleyin; kodda <span class="mono">kullan "paket_adı"</span> ile kullanılır.</div>'}
         <div class="panel-not" style="font-size:11px;letter-spacing:.06em;margin-top:8px">PAKET DİZİNİ</div>
@@ -2772,7 +2773,17 @@
     D.altPanel = true; D.altSekme = 'cikti';
     D.cikti.push({ t: baslik, c: 'mut' });
     guncelle('alt');
-    const r = await api(yol, { kok: D.proje.yol, ...govde }).catch(e => ({ hata: e.message }));
+    let r = await api(yol, { kok: D.proje.yol, ...govde }).catch(e => ({ hata: e.message }));
+    if (r.izin) {
+      // Paket dosya, ağ, C kütüphanesi gibi izinler istiyor: kullanıcıya sorulur.
+      D.cikti.push({ t: 'Paket şu izinleri istiyor:\n' + r.ayrinti, c: 'err' });
+      guncelle('alt');
+      if (confirm('Bu paket(ler) şu izinleri istiyor:\n\n' + r.ayrinti + '\n\nYalnızca güvendiğiniz paketlere izin verin. Onaylıyor musunuz?')) {
+        r = await api(yol, { kok: D.proje.yol, ...govde, izinVer: true }).catch(e => ({ hata: e.message }));
+      } else {
+        r = { hata: 'İzin verilmedi; paket eklenmedi.' };
+      }
+    }
     D.paketMesgul = false;
     if (r.hata) { D.cikti.push({ t: r.hata, c: 'err' }); bildir('Paket işlemi başarısız.', true); }
     else {

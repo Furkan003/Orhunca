@@ -184,15 +184,25 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
         ("GET", "/api/paket/liste") => paket_listesi(istek.sorgu("kok")),
         ("GET", "/api/paket/dizin") => match crate::paket::dizin() {
             Ok(l) => Yanit::json(&json!({ "paketler": l.into_iter().map(|p| json!({
-                "ad": p.ad, "aciklama": p.aciklama, "kaynak": p.kaynak,
+                "ad": p.ad, "aciklama": p.aciklama, "kaynak": p.kaynak, "surum": p.surum,
+                "sahip": p.sahip, "izinler": p.izinler,
             })).collect::<Vec<_>>() })),
             Err(e) => hata(e),
         },
         ("POST", "/api/paket/ekle") => paket_islemi(metin(&g, "kok"), |k| {
-            crate::paket::ekle(k, metin(&g, "kaynak").trim(), None)
+            crate::paket::ekle(
+                k,
+                metin(&g, "kaynak").trim(),
+                None,
+                g["izinVer"].as_bool() == Some(true),
+            )
         }),
         ("POST", "/api/paket/yukle") => paket_islemi(metin(&g, "kok"), |k| {
-            crate::paket::yukle(k, g["guncelle"].as_bool() == Some(true))
+            crate::paket::yukle(
+                k,
+                g["guncelle"].as_bool() == Some(true),
+                g["izinVer"].as_bool() == Some(true),
+            )
         }),
         ("POST", "/api/paket/kaldir") => paket_islemi(metin(&g, "kok"), |k| {
             crate::paket::kaldir(k, metin(&g, "ad"))
@@ -815,6 +825,7 @@ fn paket_listesi(kok: &str) -> Yanit {
     match crate::paket::listele(kok) {
         Ok(l) => Yanit::json(&json!({ "paketler": l.into_iter().map(|p| json!({
             "ad": p.ad, "kaynak": p.kaynak, "isleme": p.isleme, "kurulu": p.kurulu,
+            "izinler": p.izinler,
         })).collect::<Vec<_>>() })),
         Err(e) => hata(e),
     }
@@ -827,6 +838,11 @@ fn paket_islemi(kok: &str, f: impl FnOnce(&Path) -> Result<Vec<String>, String>)
     }
     match f(kok) {
         Ok(g) => Yanit::json(&json!({ "gunluk": g })),
+        // Arayüz izinleri gösterip onay ister, onaylanırsa izinVer ile yineler.
+        Err(e) if e.starts_with(crate::paket::IZIN_GEREKLI) => Yanit::json(&json!({
+            "izin": true,
+            "ayrinti": e[crate::paket::IZIN_GEREKLI.len()..].trim(),
+        })),
         Err(e) => hata(e),
     }
 }

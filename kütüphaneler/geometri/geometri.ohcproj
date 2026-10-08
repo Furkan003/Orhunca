@@ -1,3 +1,4 @@
 ad = "geometri"
+sürüm = "1.0.0"
 giriş = "geometri.ohc"
 açıklama = "Daire, üçgen, dikdörtgen, küre ve silindirin alan, çevre ve hacim hesapları"

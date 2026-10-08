@@ -1,0 +1,14 @@
+{
+  "ad": "geometri",
+  "açıklama": "Daire, üçgen, dikdörtgen, küre ve silindirin alan, çevre ve hacim hesapları",
+  "sahip": "Furkan003",
+  "sürümler": [
+    {
+      "sürüm": "1.0.0",
+      "kaynak": "github:Furkan003/Orhunca#v0.8.0:kütüphaneler/geometri",
+      "işleme": "d757dc798d13abea83c6ca1536ef79db091eefb2",
+      "özet": "sha256:97a4e3a55793394f383099f1fdb3547a6f6102308a86520ca97562fecd1c7304",
+      "izinler": []
+    }
+  ]
+}

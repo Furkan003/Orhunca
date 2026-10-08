@@ -26,6 +26,7 @@ pub mod mcp;
 pub mod on_kutuphane;
 pub mod oneriler;
 pub mod paket;
+pub mod paket_denetim;
 pub mod sablon;
 pub mod sozcuk;
 pub mod studyo;

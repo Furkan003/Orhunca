@@ -1,0 +1,25 @@
+# Ana dala elle yapılan değişikliklerde dizin.json yenilenir.
+name: Dizin
+
+on:
+  push:
+    branches: [main]
+    paths: ["paketler/**", "araclar/dizin.py"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  dizin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 araclar/dizin.py
+      - run: |
+          if ! git diff --quiet dizin.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -qm "dizin.json yenilendi" dizin.json
+            git push
+          fi

@@ -17,7 +17,8 @@
 //! bırakılırsa varsayılan dal). Paket dizini (`kütüphaneler/dizin.json`) paketleri adla
 //! bulur: `orhunca paket ara`, `orhunca paket ekle istatistik`.
 
-use std::collections::{BTreeMap, HashMap};
+use crate::paket_denetim::{self, Izin};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 
 const BOLUM: &str = "bağımlılıklar";
@@ -345,18 +346,38 @@ fn alt_klasoru_getir(
 }
 
 /// Paket dizinindeki bir paket
+#[derive(Debug, Clone, Default)]
 pub struct DizinPaketi {
     pub ad: String,
     pub aciklama: String,
+    /// Son sürümün kaynağı (etiketiyle): `github:kişi/depo#v1.0`
     pub kaynak: String,
+    pub surum: String,
+    /// Paketi yayımlayan GitHub kullanıcısı; paketi yalnızca o güncelleyebilir.
+    pub sahip: String,
+    /// Son sürümün işlemesi (commit); etiket sonradan taşınırsa kurulmaz.
+    pub isleme: Option<String>,
+    /// İçerik özeti (`sha256:...`), bkz. paket_denetim::icerik_ozeti
+    pub ozet: Option<String>,
+    /// Paket dizininin denetiminde koddan çıkarılan izinler
+    pub izinler: Vec<String>,
 }
 
-/// Varsayılan paket dizini; `ORHUNCA_PAKET_DIZINI` ile başka bir adres ya da dosya verilebilir.
+/// Paket mağazası (GitHub'daki `orhunca-paketler` deposu); ulaşılamazsa eski dizin.
+/// `ORHUNCA_PAKET_DIZINI` ile başka bir adres ya da dosya verilebilir.
 pub const DIZIN_ADRESI: &str =
+    "https://raw.githubusercontent.com/Furkan003/orhunca-paketler/HEAD/dizin.json";
+const ESKI_DIZIN_ADRESI: &str =
     "https://raw.githubusercontent.com/Furkan003/Orhunca/HEAD/k%C3%BCt%C3%BCphaneler/dizin.json";
 
 pub fn dizin() -> Result<Vec<DizinPaketi>, String> {
-    let yer = std::env::var("ORHUNCA_PAKET_DIZINI").unwrap_or_else(|_| DIZIN_ADRESI.into());
+    match std::env::var("ORHUNCA_PAKET_DIZINI") {
+        Ok(yer) => dizin_oku(&yer),
+        Err(_) => dizin_oku(DIZIN_ADRESI).or_else(|_| dizin_oku(ESKI_DIZIN_ADRESI)),
+    }
+}
+
+fn dizin_oku(yer: &str) -> Result<Vec<DizinPaketi>, String> {
     let metin = if yer.starts_with("https://") || yer.starts_with("http://") {
         let c = crate::komut("curl")
             .args([
@@ -366,7 +387,7 @@ pub fn dizin() -> Result<Vec<DizinPaketi>, String> {
                 "--proto",
                 "=https,http",
                 "--",
-                &yer,
+                yer,
             ])
             .output()
             .map_err(|_| "paket dizini indirilemedi: curl bulunamadı".to_string())?;
@@ -378,7 +399,7 @@ pub fn dizin() -> Result<Vec<DizinPaketi>, String> {
         }
         String::from_utf8_lossy(&c.stdout).into_owned()
     } else {
-        std::fs::read_to_string(&yer).map_err(|e| format!("paket dizini okunamadı ({yer}): {e}"))?
+        std::fs::read_to_string(yer).map_err(|e| format!("paket dizini okunamadı ({yer}): {e}"))?
     };
     let j: serde_json::Value =
         serde_json::from_str(&metin).map_err(|e| format!("paket dizini bozuk: {e}"))?;
@@ -391,6 +412,18 @@ pub fn dizin() -> Result<Vec<DizinPaketi>, String> {
                     ad: alan(p, "ad"),
                     aciklama: alan(p, "açıklama"),
                     kaynak: alan(p, "kaynak"),
+                    surum: alan(p, "sürüm"),
+                    sahip: alan(p, "sahip"),
+                    isleme: Some(alan(p, "işleme")).filter(|m| !m.is_empty()),
+                    ozet: Some(alan(p, "özet")).filter(|m| !m.is_empty()),
+                    izinler: p["izinler"]
+                        .as_array()
+                        .map(|l| {
+                            l.iter()
+                                .filter_map(|i| i.as_str().map(str::to_string))
+                                .collect()
+                        })
+                        .unwrap_or_default(),
                 })
                 .filter(|p| gecerli_paket_adi(&p.ad) && !p.kaynak.is_empty())
                 .collect()
@@ -409,13 +442,13 @@ pub fn ara(kelime: &str) -> Result<Vec<DizinPaketi>, String> {
 }
 
 /// Adres değil de yalnızca bir ad verildiyse (ör. `istatistik`) paket dizininde bulunur.
-fn dizinden_coz(kok: &Path, kaynak: &str) -> Result<Option<(String, String)>, String> {
+fn dizinden_coz(kok: &Path, kaynak: &str) -> Result<Option<DizinPaketi>, String> {
     if !gecerli_paket_adi(kaynak) || kok.join(kaynak).exists() {
         return Ok(None);
     }
     let paketler = dizin()?;
     match paketler.iter().find(|p| p.ad == kaynak) {
-        Some(p) => Ok(Some((p.ad.clone(), p.kaynak.clone()))),
+        Some(p) => Ok(Some(p.clone())),
         None => {
             let adlar = paketler.iter().map(|p| p.ad.as_str());
             let mut h = format!("'{kaynak}' paket dizininde yok");
@@ -459,7 +492,17 @@ impl Proje {
     }
 }
 
-fn kilidi_oku(kok: &Path) -> HashMap<String, (String, String)> {
+/// Kilit dosyasındaki bir paketin kaydı.
+#[derive(Debug, Clone, PartialEq)]
+struct Kilit {
+    kaynak: String,
+    isleme: String,
+    /// Kurulumda onaylanan izinler; yoksa (eski kilit) bilinmiyor.
+    izinler: Option<String>,
+    ozet: Option<String>,
+}
+
+fn kilidi_oku(kok: &Path) -> HashMap<String, Kilit> {
     let metin = std::fs::read_to_string(kok.join(KILIT_DOSYASI)).unwrap_or_default();
     let a = AyarDosyasi::coz(&metin);
     let mut sonuc = HashMap::new();
@@ -476,18 +519,32 @@ fn kilidi_oku(kok: &Path) -> HashMap<String, (String, String)> {
             a.deger(Some(&b), &["kaynak"]),
             a.deger(Some(&b), &["işleme", "isleme"]),
         ) {
-            sonuc.insert(b, (k, i));
+            let izinler = a.deger(Some(&b), &["izinler"]);
+            let ozet = a.deger(Some(&b), &["özet", "ozet"]);
+            sonuc.insert(
+                b,
+                Kilit {
+                    kaynak: k,
+                    isleme: i,
+                    izinler,
+                    ozet,
+                },
+            );
         }
     }
     sonuc
 }
 
-fn kilidi_yaz(kok: &Path, kurulan: &BTreeMap<String, (String, String)>) -> Result<(), String> {
+fn kilidi_yaz(kok: &Path, kurulan: &BTreeMap<String, Kilit>) -> Result<(), String> {
     let mut s =
         String::from("# Bu dosya `orhunca paket` tarafından üretilir; elle düzenlemeyin.\n");
-    for (ad, (kaynak, isleme)) in kurulan {
+    for (ad, k) in kurulan {
         s.push_str(&format!(
-            "\n[{ad}]\nkaynak = \"{kaynak}\"\nişleme = \"{isleme}\"\n"
+            "\n[{ad}]\nkaynak = \"{}\"\nişleme = \"{}\"\nizinler = \"{}\"\nözet = \"{}\"\n",
+            k.kaynak,
+            k.isleme,
+            k.izinler.as_deref().unwrap_or(""),
+            k.ozet.as_deref().unwrap_or("")
         ));
     }
     std::fs::write(kok.join(KILIT_DOSYASI), s).map_err(|e| e.to_string())
@@ -511,57 +568,186 @@ fn gitignore_guncelle(kok: &Path) {
     }
 }
 
+/// İzin onayı gereken paketlerde dönen hatanın ilk satırı; komut satırı ve Stüdyo bunu
+/// görünce kullanıcıya sorar ve onaylanırsa işlemi `izin_ver` ile yineler.
+pub const IZIN_GEREKLI: &str = "İZİN GEREKLİ";
+
+fn izin_hatasi(onay: &[(String, BTreeSet<Izin>)]) -> String {
+    let mut m = format!("{IZIN_GEREKLI}\n");
+    for (ad, izinler) in onay {
+        for i in izinler {
+            m.push_str(&format!("  • {ad}: {} — {}\n", i.ad(), i.aciklama()));
+        }
+    }
+    m.trim_end().to_string()
+}
+
+/// Kurulu paketin işlemesi (commit).
+fn kurulu_isleme(hedef: &Path) -> Option<String> {
+    if let Ok(m) = std::fs::read_to_string(hedef.join(ISLEME_DOSYASI)) {
+        return Some(m.trim().to_string());
+    }
+    if hedef.join(".git").exists() {
+        return git(&["rev-parse", "HEAD"], Some(hedef)).ok();
+    }
+    None
+}
+
 /// Tüm bağımlılıkları (dolaylı olanlar dahil) `paketler/` klasörüne kurar.
-/// `guncelle`: kilitteki sürümler yok sayılır, en yeni sürümler alınır.
-pub fn yukle(kok: &Path, guncelle: bool) -> Result<Vec<String>, String> {
+/// `guncelle`: kilitteki sürümler yok sayılır, en yeni sürümler alınır. `izin_ver`: yeni
+/// izin isteyen paketler (onaylanmış izinlerin dışında) kurulur; verilmezse hiçbir şey
+/// değiştirilmez ve [`IZIN_GEREKLI`] ile başlayan bir hata döner.
+pub fn yukle(kok: &Path, guncelle: bool, izin_ver: bool) -> Result<Vec<String>, String> {
+    yukle_ic(kok, guncelle, izin_ver, &HashMap::new())
+}
+
+/// `beklenen`: paket dizininden eklenen paketlerin kayıtları (işleme ve içerik özeti
+/// karşılaştırılır).
+fn yukle_ic(
+    kok: &Path,
+    guncelle: bool,
+    izin_ver: bool,
+    beklenen: &HashMap<String, DizinPaketi>,
+) -> Result<Vec<String>, String> {
     let proje = Proje::ac(kok)?;
+    let eski_kilit = kilidi_oku(kok);
     let kilit = if guncelle {
         HashMap::new()
     } else {
-        kilidi_oku(kok)
+        eski_kilit.clone()
     };
+    let paketler = kok.join(PAKET_KLASORU);
     let mut gunluk = Vec::new();
-    let mut kurulan: BTreeMap<String, (String, String)> = BTreeMap::new();
+    let mut kurulan: BTreeMap<String, Kilit> = BTreeMap::new();
+    // İndirilip henüz yerine konmamış paketler: izinler onaylanınca taşınır.
+    let mut bekleyen: Vec<(String, PathBuf)> = Vec::new();
+    let mut onay: Vec<(String, BTreeSet<Izin>)> = Vec::new();
     let mut kuyruk: Vec<(String, String, String)> = proje
         .bagimliliklar()
         .into_iter()
         .map(|(a, k)| (a, k, proje.ad()))
         .rev()
         .collect();
-    while let Some((ad, kaynak, isteyen)) = kuyruk.pop() {
-        if let Some((k, _)) = kurulan.get(&ad) {
-            if kaynagi_ayir(k).0 != kaynagi_ayir(&kaynak).0 {
-                return Err(format!(
-                    "'{ad}' paketi iki farklı kaynaktan isteniyor: '{k}' ve '{kaynak}' ({isteyen})"
+    let sonuc = (|| -> Result<(), String> {
+        while let Some((ad, kaynak, isteyen)) = kuyruk.pop() {
+            if let Some(k) = kurulan.get(&ad) {
+                if kaynagi_ayir(&k.kaynak).0 != kaynagi_ayir(&kaynak).0 {
+                    return Err(format!(
+                        "'{ad}' paketi iki farklı kaynaktan isteniyor: '{}' ve '{kaynak}' ({isteyen})",
+                        k.kaynak
+                    ));
+                }
+                continue;
+            }
+            let hedef = paketler.join(&ad);
+            let kilitli = kilit.get(&ad).filter(|k| k.kaynak == kaynak);
+            let (klasor, isleme) = match kilitli {
+                Some(k) if kurulu_isleme(&hedef).as_deref() == Some(k.isleme.as_str()) => {
+                    (hedef.clone(), k.isleme.clone())
+                }
+                _ => {
+                    let gecici = paketler.join(format!(".yeni-{ad}"));
+                    let _ = std::fs::remove_dir_all(&gecici);
+                    bekleyen.push((ad.clone(), gecici.clone()));
+                    let i = getir(
+                        &kaynak,
+                        kilitli.map(|k| k.isleme.as_str()),
+                        &gecici,
+                        &mut gunluk,
+                    )?;
+                    (gecici, i)
+                }
+            };
+            let izinler = paket_denetim::izinler(&klasor);
+            let ozet = paket_denetim::icerik_ozeti(&klasor);
+            if let Some(b) = beklenen.get(&ad) {
+                if b.isleme.as_ref().is_some_and(|i| *i != isleme) {
+                    return Err(format!(
+                        "'{ad}' paketinin etiketi paket dizinine kaydedilen işlemeyi göstermiyor \
+                         (yayımlandıktan sonra değiştirilmiş olabilir); paket kurulmadı"
+                    ));
+                }
+                if b.ozet.as_ref().is_some_and(|o| *o != ozet) {
+                    return Err(format!(
+                        "'{ad}' paketinin içeriği paket dizinindeki özetle uyuşmuyor; paket kurulmadı"
+                    ));
+                }
+            }
+            if let Some(k) = kilitli.filter(|k| k.isleme == isleme) {
+                if k.ozet.as_ref().is_some_and(|o| !o.is_empty() && *o != ozet) {
+                    gunluk.push(format!(
+                        "uyarı: paketler/{ad} kilit dosyasındaki içerikten farklı (elle değiştirilmiş olabilir)"
+                    ));
+                }
+            }
+            // Daha önce onaylanan izinlerin dışındakiler onay ister. Eski kilitlerde
+            // (izin kaydı yok) kurulu izinler onaylanmış sayılır.
+            let onaylanmis = match eski_kilit.get(&ad) {
+                Some(k) => k
+                    .izinler
+                    .as_deref()
+                    .map(paket_denetim::izinleri_coz)
+                    .unwrap_or_else(|| izinler.clone()),
+                None => BTreeSet::new(),
+            };
+            let yeni: BTreeSet<Izin> = izinler.difference(&onaylanmis).copied().collect();
+            if !yeni.is_empty() && !izin_ver {
+                onay.push((ad.clone(), yeni));
+            }
+            gunluk.push(format!("✓ {ad} ({})", &isleme[..isleme.len().min(10)]));
+            if let Ok(p) = Proje::ac(&klasor) {
+                for (a, k) in p.bagimliliklar().into_iter().rev() {
+                    kuyruk.push((a, k, ad.clone()));
+                }
+            } else {
+                gunluk.push(format!(
+                    "uyarı: '{ad}' paketinde .ohcproj yok; giriş dosyası {ad}.ohc varsayılır"
                 ));
             }
-            continue;
+            kurulan.insert(
+                ad,
+                Kilit {
+                    kaynak,
+                    isleme,
+                    izinler: Some(paket_denetim::izin_metni(&izinler)),
+                    ozet: Some(ozet),
+                },
+            );
         }
-        let hedef = kok.join(PAKET_KLASORU).join(&ad);
-        let kilitli = kilit
-            .get(&ad)
-            .filter(|(k, _)| *k == kaynak)
-            .map(|(_, i)| i.as_str());
-        let isleme = getir(&kaynak, kilitli, &hedef, &mut gunluk)?;
-        gunluk.push(format!("✓ {ad} ({})", &isleme[..isleme.len().min(10)]));
-        if let Ok(p) = Proje::ac(&hedef) {
-            for (a, k) in p.bagimliliklar().into_iter().rev() {
-                kuyruk.push((a, k, ad.clone()));
-            }
-        } else {
-            gunluk.push(format!(
-                "uyarı: '{ad}' paketinde .ohcproj yok; giriş dosyası {ad}.ohc varsayılır"
-            ));
+        Ok(())
+    })();
+    if sonuc.is_err() || !onay.is_empty() {
+        for (_, g) in &bekleyen {
+            let _ = std::fs::remove_dir_all(g);
         }
-        kurulan.insert(ad, (kaynak, isleme));
+        sonuc?;
+        return Err(izin_hatasi(&onay));
+    }
+    for (ad, gecici) in bekleyen {
+        let hedef = paketler.join(&ad);
+        if hedef.exists() {
+            std::fs::remove_dir_all(&hedef)
+                .map_err(|e| format!("'{}' silinemedi: {e}", hedef.display()))?;
+        }
+        std::fs::rename(&gecici, &hedef)
+            .map_err(|e| format!("'{}' yerine konamadı: {e}", hedef.display()))?;
     }
     // Artık istenmeyen paketler silinir.
-    if let Ok(okunan) = std::fs::read_dir(kok.join(PAKET_KLASORU)) {
+    if let Ok(okunan) = std::fs::read_dir(&paketler) {
         for g in okunan.filter_map(|g| g.ok()) {
             let ad = g.file_name().to_string_lossy().into_owned();
             if !kurulan.contains_key(&ad) && g.path().is_dir() {
                 let _ = std::fs::remove_dir_all(g.path());
-                gunluk.push(format!("kaldırıldı: {ad}"));
+                if !ad.starts_with('.') {
+                    gunluk.push(format!("kaldırıldı: {ad}"));
+                }
+            }
+        }
+    }
+    for (ad, k) in &kurulan {
+        if let Some(iz) = k.izinler.as_deref().filter(|i| !i.is_empty()) {
+            if eski_kilit.get(ad).and_then(|e| e.izinler.as_deref()) != Some(iz) {
+                gunluk.push(format!("izinler: {ad} → {iz}"));
             }
         }
     }
@@ -592,11 +778,17 @@ fn gecerli_paket_adi(ad: &str) -> bool {
 }
 
 /// Paketi bağımlılıklara ekler ve kurar. Ad verilmezse paketin kendi adı kullanılır.
-pub fn ekle(kok: &Path, kaynak: &str, ad: Option<&str>) -> Result<Vec<String>, String> {
+/// Paket izin istiyorsa `izin_ver` verilmedikçe eklenmez (bkz. [`yukle`]).
+pub fn ekle(
+    kok: &Path,
+    kaynak: &str,
+    ad: Option<&str>,
+    izin_ver: bool,
+) -> Result<Vec<String>, String> {
     let mut proje = Proje::ac(kok)?;
     let dizinden = dizinden_coz(kok, kaynak)?;
     let (kaynak, ad) = match &dizinden {
-        Some((a, k)) => (k.as_str(), Some(ad.unwrap_or(a))),
+        Some(p) => (p.kaynak.as_str(), Some(ad.unwrap_or(&p.ad))),
         None => (kaynak, ad),
     };
     let ad = match ad {
@@ -626,10 +818,12 @@ pub fn ekle(kok: &Path, kaynak: &str, ad: Option<&str>) -> Result<Vec<String>, S
     proje.ayarlar.yaz(BOLUM, &ad, kaynak);
     proje.kaydet()?;
     let mut gunluk = vec![format!("eklendi: {ad} = \"{kaynak}\"")];
-    match yukle(kok, false) {
+    let beklenen: HashMap<String, DizinPaketi> =
+        dizinden.into_iter().map(|p| (ad.clone(), p)).collect();
+    match yukle_ic(kok, false, izin_ver, &beklenen) {
         Ok(g) => gunluk.extend(g),
         Err(h) => {
-            // Kurulamayan paket proje dosyasında bırakılmaz.
+            // Kurulamayan (ya da izni onaylanmayan) paket proje dosyasında bırakılmaz.
             proje.ayarlar = onceki;
             let _ = proje.kaydet();
             return Err(h);
@@ -658,7 +852,7 @@ pub fn kaldir(kok: &Path, ad: &str) -> Result<Vec<String>, String> {
     }
     proje.kaydet()?;
     let mut gunluk = vec![format!("bağımlılıklardan çıkarıldı: {ad}")];
-    gunluk.extend(yukle(kok, false)?);
+    gunluk.extend(yukle(kok, false, false)?);
     Ok(gunluk)
 }
 
@@ -667,6 +861,8 @@ pub struct PaketBilgisi {
     pub kaynak: String,
     pub isleme: Option<String>,
     pub kurulu: bool,
+    /// Kurulumda onaylanan izinler ("dosya, ağ")
+    pub izinler: String,
 }
 
 pub fn listele(kok: &Path) -> Result<Vec<PaketBilgisi>, String> {
@@ -677,11 +873,274 @@ pub fn listele(kok: &Path) -> Result<Vec<PaketBilgisi>, String> {
         .into_iter()
         .map(|(ad, kaynak)| PaketBilgisi {
             kurulu: kok.join(PAKET_KLASORU).join(&ad).is_dir(),
-            isleme: kilit.get(&ad).map(|(_, i)| i.clone()),
+            isleme: kilit.get(&ad).map(|k| k.isleme.clone()),
+            izinler: kilit
+                .get(&ad)
+                .and_then(|k| k.izinler.clone())
+                .unwrap_or_default(),
             ad,
             kaynak,
         })
         .collect())
+}
+
+/// Bir paketin (indirilerek) incelenmesi: adı, sürümü, işlemesi, içerik özeti ve izinleri.
+#[derive(Debug, Clone)]
+pub struct Inceleme {
+    pub ad: String,
+    pub surum: String,
+    pub aciklama: String,
+    pub kaynak: String,
+    pub isleme: String,
+    pub ozet: String,
+    pub izinler: BTreeSet<Izin>,
+}
+
+impl Inceleme {
+    pub fn json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "ad": self.ad,
+            "sürüm": self.surum,
+            "açıklama": self.aciklama,
+            "kaynak": self.kaynak,
+            "işleme": self.isleme,
+            "özet": self.ozet,
+            "izinler": self.izinler.iter().map(|i| i.ad()).collect::<Vec<_>>(),
+        })
+    }
+}
+
+/// Paketi geçici bir klasöre indirip inceler (paket dizininin denetimi ve `yayımla` için).
+pub fn incele(kaynak: &str) -> Result<Inceleme, String> {
+    let kaynak = match dizinden_coz(Path::new("."), kaynak) {
+        Ok(Some(p)) => p.kaynak,
+        _ => kaynak.to_string(),
+    };
+    let gecici = crate::derleme::gecici_klasor("paket-incele")?;
+    let hedef = gecici.join("p");
+    let mut g = Vec::new();
+    let sonuc = getir(&kaynak, None, &hedef, &mut g).map(|isleme| {
+        let proje = Proje::ac(&hedef).ok();
+        let ayar = |a: &[&str]| {
+            proje
+                .as_ref()
+                .and_then(|p| p.ayarlar.deger(None, a))
+                .unwrap_or_default()
+        };
+        Inceleme {
+            ad: proje
+                .as_ref()
+                .map(|p| p.ad())
+                .unwrap_or_else(|| depo_adi(&kaynak)),
+            surum: ayar(&["sürüm", "surum"]),
+            aciklama: ayar(&["açıklama", "aciklama"]),
+            kaynak: kaynak.clone(),
+            isleme,
+            ozet: paket_denetim::icerik_ozeti(&hedef),
+            izinler: paket_denetim::izinler(&hedef),
+        }
+    });
+    let _ = std::fs::remove_dir_all(&gecici);
+    sonuc
+}
+
+/// Paket mağazasının deposu: her paketin kaydı `paketler/<ad>.json` dosyasındadır.
+pub const MAGAZA_DEPOSU: &str = "Furkan003/orhunca-paketler";
+
+/// `git remote` adresinden GitHub'daki `kişi/depo`.
+fn github_deposu(adres: &str) -> Option<(String, String)> {
+    let yol = adres
+        .strip_prefix("https://github.com/")
+        .or_else(|| adres.strip_prefix("http://github.com/"))
+        .or_else(|| adres.strip_prefix("git@github.com:"))
+        .or_else(|| adres.strip_prefix("ssh://git@github.com/"))?;
+    let yol = yol.trim_end_matches('/').trim_end_matches(".git");
+    let (kisi, depo) = yol.split_once('/')?;
+    (!kisi.is_empty() && !depo.is_empty() && !depo.contains('/'))
+        .then(|| (kisi.to_string(), depo.to_string()))
+}
+
+fn url_kodla(m: &str) -> String {
+    m.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (b as char).to_string()
+            }
+            _ => format!("%{b:02X}"),
+        })
+        .collect()
+}
+
+/// `orhunca paket yayımla` sonucu
+pub struct Yayim {
+    /// paketler/<ad>.json dosyasının yeni içeriği
+    pub kayit: String,
+    /// Kaydın yazıldığı yerel dosya
+    pub dosya: PathBuf,
+    /// Çekme isteğini (PR) açacak GitHub sayfası
+    pub adres: String,
+    pub yeni: bool,
+    pub inceleme: Inceleme,
+}
+
+/// Paketi yayımlamaya hazırlar: etiketin GitHub'da olduğunu denetler, paketi oradan indirip
+/// inceler ve paket mağazasına eklenecek kaydı üretir.
+pub fn yayimla(kok: &Path, etiket: Option<&str>) -> Result<Yayim, String> {
+    let proje = Proje::ac(kok)?;
+    let ad = proje
+        .ayarlar
+        .deger(None, &["ad"])
+        .ok_or("paketin .ohcproj dosyasında ad = \"...\" satırı olmalı")?;
+    if !gecerli_paket_adi(&ad) || ad.chars().count() < 2 || ad.chars().count() > 40 {
+        return Err(format!(
+            "'{ad}' paket adı olamaz: 2-40 karakter; harf, rakam, _ ve - kullanın"
+        ));
+    }
+    let surum = proje
+        .ayarlar
+        .deger(None, &["sürüm", "surum"])
+        .ok_or("paketin .ohcproj dosyasında sürüm = \"1.0.0\" satırı olmalı")?;
+    if surum.split('.').count() != 3 || !surum.split('.').all(|p| p.parse::<u32>().is_ok()) {
+        return Err(format!("sürüm '{surum}' üç sayıdan oluşmalı (ör. 1.0.0)"));
+    }
+    let aciklama = proje
+        .ayarlar
+        .deger(None, &["açıklama", "aciklama"])
+        .filter(|a| !a.trim().is_empty())
+        .ok_or(
+            "paketin .ohcproj dosyasına bir açıklama yazın: açıklama = \"Paket ne işe yarar\"",
+        )?;
+    let uzak = git(&["remote", "get-url", "origin"], Some(kok))
+        .map_err(|_| "paket bir Git deposunda olmalı ve GitHub'a gönderilmiş olmalı (git remote add origin ...)".to_string())?;
+    let (kisi, depo) = github_deposu(&uzak)
+        .ok_or_else(|| format!("paketin deposu GitHub'da olmalı (şu an: {uzak})"))?;
+    let alt = git(&["rev-parse", "--show-prefix"], Some(kok))?;
+    let alt = alt.trim_end_matches('/');
+    let etiket = etiket
+        .map(str::to_string)
+        .unwrap_or_else(|| format!("v{surum}"));
+    if git(
+        &[
+            "rev-parse",
+            "-q",
+            "--verify",
+            &format!("refs/tags/{etiket}"),
+        ],
+        Some(kok),
+    )
+    .is_err()
+    {
+        return Err(format!(
+            "'{etiket}' etiketi yok. Sürümü etiketleyip GitHub'a gönderin:\n  git tag {etiket}\n  git push origin {etiket}"
+        ));
+    }
+    let uzak_etiket = git(
+        &[
+            "ls-remote",
+            "--tags",
+            "origin",
+            &format!("refs/tags/{etiket}"),
+        ],
+        Some(kok),
+    )
+    .unwrap_or_default();
+    if uzak_etiket.trim().is_empty() {
+        return Err(format!(
+            "'{etiket}' etiketi GitHub'da yok; gönderin:\n  git push origin {etiket}"
+        ));
+    }
+    let mut kaynak = format!("github:{kisi}/{depo}#{etiket}");
+    if !alt.is_empty() {
+        kaynak.push(':');
+        kaynak.push_str(alt);
+    }
+    let inceleme = incele(&kaynak)?;
+    if inceleme.ad != ad {
+        return Err(format!(
+            "GitHub'daki '{etiket}' etiketinde paketin adı '{}' (yereldeki: '{ad}'); etiketi güncelleyin",
+            inceleme.ad
+        ));
+    }
+
+    // Ad koruması: aynı ad başkasına aitse ya da çok benzer bir ad varsa yayımlanmaz.
+    let dizindeki = dizin().unwrap_or_default();
+    let sade = crate::oneriler::sadelestir;
+    if let Some(p) = dizindeki.iter().find(|p| p.ad == ad) {
+        if !p.sahip.is_empty() && !p.sahip.eq_ignore_ascii_case(&kisi) {
+            return Err(format!(
+                "'{ad}' adı {} kullanıcısına ait; başka bir ad seçin",
+                p.sahip
+            ));
+        }
+    } else if let Some(p) = dizindeki.iter().find(|p| sade(&p.ad) == sade(&ad)) {
+        return Err(format!(
+            "'{ad}' adı mağazadaki '{}' paketine çok benziyor; başka bir ad seçin",
+            p.ad
+        ));
+    }
+
+    // Mağazadaki kayda yeni sürüm eklenir (önceki sürümler değiştirilemez).
+    let kayit_adresi = format!(
+        "https://raw.githubusercontent.com/{MAGAZA_DEPOSU}/HEAD/paketler/{}.json",
+        url_kodla(&ad)
+    );
+    let onceki = crate::komut("curl")
+        .args(["-sSfL", "--max-time", "20", "--", &kayit_adresi])
+        .output()
+        .ok()
+        .filter(|c| c.status.success())
+        .and_then(|c| serde_json::from_slice::<serde_json::Value>(&c.stdout).ok());
+    let yeni = onceki.is_none();
+    let mut surumler = onceki
+        .as_ref()
+        .and_then(|o| o["sürümler"].as_array().cloned())
+        .unwrap_or_default();
+    if surumler.iter().any(|s| s["sürüm"] == surum.as_str()) {
+        return Err(format!(
+            "{surum} sürümü zaten yayımlanmış; .ohcproj dosyasındaki sürümü artırın"
+        ));
+    }
+    surumler.push(serde_json::json!({
+        "sürüm": surum,
+        "kaynak": kaynak,
+        "işleme": inceleme.isleme,
+        "özet": inceleme.ozet,
+        "izinler": inceleme.izinler.iter().map(|i| i.ad()).collect::<Vec<_>>(),
+    }));
+    let sahip = onceki
+        .as_ref()
+        .and_then(|o| o["sahip"].as_str().map(str::to_string))
+        .unwrap_or_else(|| kisi.clone());
+    let kayit = serde_json::json!({
+        "ad": ad,
+        "açıklama": aciklama,
+        "sahip": sahip,
+        "sürümler": surumler,
+    });
+    let kayit = serde_json::to_string_pretty(&kayit).map_err(|e| e.to_string())? + "\n";
+    let klasor = kok.join("cikti");
+    std::fs::create_dir_all(&klasor).map_err(|e| e.to_string())?;
+    let dosya = klasor.join(format!("{ad}.paket.json"));
+    std::fs::write(&dosya, &kayit).map_err(|e| e.to_string())?;
+    let adres = if yeni {
+        format!(
+            "https://github.com/{MAGAZA_DEPOSU}/new/main?filename=paketler/{}.json&value={}",
+            url_kodla(&ad),
+            url_kodla(&kayit)
+        )
+    } else {
+        format!(
+            "https://github.com/{MAGAZA_DEPOSU}/edit/main/paketler/{}.json",
+            url_kodla(&ad)
+        )
+    };
+    Ok(Yayim {
+        kayit,
+        dosya,
+        adres,
+        yeni,
+        inceleme,
+    })
 }
 
 /// `kullan "matematik"` → kurulu paketin giriş dosyası; `kullan "matematik/x.ohc"` → paketteki dosya.
@@ -710,6 +1169,33 @@ pub fn paket_yolu(klasor: &Path, kullanilan: &str) -> Option<PathBuf> {
     None
 }
 
+/// İzin isteyen paketlerde kullanıcıya sorar; onaylanırsa işlemi `izin_ver` ile yineler.
+fn izinle(
+    izin_ver: bool,
+    f: impl Fn(bool) -> Result<Vec<String>, String>,
+) -> Result<Vec<String>, String> {
+    use std::io::{BufRead, IsTerminal, Write};
+    match f(izin_ver) {
+        Err(h) if h.starts_with(IZIN_GEREKLI) => {
+            let ayrinti = h[IZIN_GEREKLI.len()..].trim_start_matches('\n');
+            eprintln!("Paketler şu izinleri istiyor:\n{ayrinti}");
+            if !std::io::stdin().is_terminal() {
+                return Err("onaylıyorsanız komutu --izin-ver ile yineleyin".into());
+            }
+            eprint!("Onaylıyor musunuz? [e/H] ");
+            let _ = std::io::stderr().flush();
+            let mut yanit = String::new();
+            let _ = std::io::stdin().lock().read_line(&mut yanit);
+            if matches!(yanit.trim().to_lowercase().as_str(), "e" | "evet") {
+                f(true)
+            } else {
+                Err("iptal edildi; hiçbir şey değiştirilmedi".into())
+            }
+        }
+        r => r,
+    }
+}
+
 /// `orhunca paket ...` komutları
 pub fn komut(args: &[String]) -> Result<(), String> {
     let kok = std::env::current_dir().map_err(|e| e.to_string())?;
@@ -718,16 +1204,20 @@ pub fn komut(args: &[String]) -> Result<(), String> {
             println!("{s}");
         }
     };
+    let izin_ver = args.iter().any(|a| a == "--izin-ver");
+    let secenek = |ad: &str| {
+        args.iter()
+            .position(|a| a == ad)
+            .and_then(|i| args.get(i + 1))
+            .map(String::as_str)
+    };
     match args.first().map(String::as_str) {
         Some("ekle") => {
             let kaynak = args
                 .get(1)
                 .ok_or("paket adı ya da adresi bekleniyordu: orhunca paket ekle <ad | git-adresi>[#etiket]")?;
-            let ad = args
-                .iter()
-                .position(|a| a == "--ad")
-                .and_then(|i| args.get(i + 1));
-            yazdir(ekle(&kok, kaynak, ad.map(String::as_str))?);
+            let ad = secenek("--ad");
+            yazdir(izinle(izin_ver, |iv| ekle(&kok, kaynak, ad, iv))?);
         }
         Some("ara") | Some("dizin") => {
             let kelime = args.get(1).map(String::as_str).unwrap_or("");
@@ -736,14 +1226,65 @@ pub fn komut(args: &[String]) -> Result<(), String> {
                 println!("'{kelime}' ile eşleşen paket yok.");
             }
             for p in &bulunan {
-                println!("{:<16} {}", p.ad, p.aciklama);
+                let izin = if p.izinler.is_empty() {
+                    String::new()
+                } else {
+                    format!("  [izinler: {}]", p.izinler.join(", "))
+                };
+                println!("{:<16} {}{izin}", p.ad, p.aciklama);
             }
             if !bulunan.is_empty() {
                 println!("\nEklemek için: orhunca paket ekle <ad>");
             }
         }
-        Some("yükle") | Some("yukle") | Some("kur") => yazdir(yukle(&kok, false)?),
-        Some("güncelle") | Some("guncelle") => yazdir(yukle(&kok, true)?),
+        Some("bilgi") | Some("incele") => {
+            let kaynak = args
+                .get(1)
+                .filter(|a| !a.starts_with("--"))
+                .ok_or("paket adı ya da adresi bekleniyordu: orhunca paket bilgi <ad | git-adresi>[#etiket] [--json]")?;
+            let i = incele(kaynak)?;
+            if args.iter().any(|a| a == "--json") {
+                println!("{}", i.json());
+            } else {
+                println!("ad:       {}\nsürüm:    {}\naçıklama: {}\nkaynak:   {}\nişleme:   {}\nözet:     {}",
+                    i.ad, i.surum, i.aciklama, i.kaynak, i.isleme, i.ozet);
+                if i.izinler.is_empty() {
+                    println!("izinler:  yok (yalnızca hesaplama yapar)");
+                } else {
+                    println!("izinler:");
+                    for iz in &i.izinler {
+                        println!("  • {} — {}", iz.ad(), iz.aciklama());
+                    }
+                }
+            }
+        }
+        Some("yayımla") | Some("yayimla") => {
+            let y = yayimla(&kok, secenek("--etiket"))?;
+            println!(
+                "{} {} yayıma hazır (izinler: {}).\nKayıt: {}\n",
+                y.inceleme.ad,
+                y.inceleme.surum,
+                if y.inceleme.izinler.is_empty() {
+                    "yok".to_string()
+                } else {
+                    paket_denetim::izin_metni(&y.inceleme.izinler)
+                },
+                y.dosya.display()
+            );
+            if y.yeni {
+                println!("Açılan GitHub sayfasında \"Propose new file\" ve ardından \"Create pull request\" deyin.");
+            } else {
+                println!("Açılan GitHub sayfasında dosyanın içeriğini yukarıdaki kayıtla değiştirip \"Propose changes\" deyin.");
+            }
+            println!("Paket mağazası denetimi geçince paket herkesin kullanımına açılır.\n\n{}", y.adres);
+            if !args.iter().any(|a| a == "--tarayıcı-açma" || a == "--tarayici-acma") {
+                crate::studyo::tarayicida_ac(&y.adres);
+            }
+        }
+        Some("yükle") | Some("yukle") | Some("kur") => {
+            yazdir(izinle(izin_ver, |iv| yukle(&kok, false, iv))?)
+        }
+        Some("güncelle") | Some("guncelle") => yazdir(izinle(izin_ver, |iv| yukle(&kok, true, iv))?),
         Some("kaldır") | Some("kaldir") | Some("sil") => {
             let ad = args
                 .get(1)
@@ -754,7 +1295,7 @@ pub fn komut(args: &[String]) -> Result<(), String> {
             let liste = listele(&kok)?;
             if liste.is_empty() {
                 println!(
-                    "Bu projenin bağımlılığı yok. Eklemek için: orhunca paket ekle <git-adresi>"
+                    "Bu projenin bağımlılığı yok. Eklemek için: orhunca paket ekle <ad | git-adresi>"
                 );
             }
             for p in liste {
@@ -764,13 +1305,18 @@ pub fn komut(args: &[String]) -> Result<(), String> {
                     .as_deref()
                     .map(|i| &i[..i.len().min(10)])
                     .unwrap_or("-");
-                println!("{:<20} {:<12} {:<14} {}", p.ad, isleme, durum, p.kaynak);
+                let izin = if p.izinler.is_empty() {
+                    String::new()
+                } else {
+                    format!("  [izinler: {}]", p.izinler)
+                };
+                println!("{:<20} {:<12} {:<14} {}{izin}", p.ad, isleme, durum, p.kaynak);
             }
         }
         Some(k) => {
             return Err(format!(
-            "bilinmeyen paket komutu '{k}'\nkomutlar: ara, ekle, yükle, güncelle, kaldır, listele"
-        ))
+                "bilinmeyen paket komutu '{k}'\nkomutlar: ara, bilgi, ekle, yükle, güncelle, kaldır, listele, yayımla"
+            ))
         }
     }
     Ok(())

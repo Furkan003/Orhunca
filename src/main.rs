@@ -20,6 +20,7 @@ Kullanım:
   orhunca mcp                 (yapay zekâ ajanları için MCP sunucusu, stdin/stdout)
   orhunca yeni <proje_adı> [--şablon konsol|web_sitesi|tam_yigin|web_api|...]
   orhunca paket ara [kelime] | ekle <ad | git-adresi>[#etiket] | yükle | güncelle | kaldır <ad> | listele
+  orhunca paket bilgi <ad | git-adresi> [--json] | yayımla   (izinler, içerik özeti; paket mağazasına yayımlama)
   orhunca yayınla [kullanıcı@sunucu] [--alan ornek.com] [--kapı 3000] [--klasör /srv/ad] [--ssh-kapı 22]
   orhunca yayınla --cgi [--kaynakla]   (paylaşımlı hosting: cikti/cgi/ klasörü public_html'e yüklenir)
   orhunca stüdyo [--kapı 7313] [--tarayıcı-açma]

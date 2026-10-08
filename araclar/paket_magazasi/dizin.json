@@ -1,0 +1,27 @@
+{
+  "sürüm": 2,
+  "paketler": [
+    {
+      "ad": "geometri",
+      "açıklama": "Daire, üçgen, dikdörtgen, küre ve silindirin alan, çevre ve hacim hesapları",
+      "sahip": "Furkan003",
+      "sürüm": "1.0.0",
+      "kaynak": "github:Furkan003/Orhunca#v0.8.0:kütüphaneler/geometri",
+      "işleme": "d757dc798d13abea83c6ca1536ef79db091eefb2",
+      "özet": "sha256:97a4e3a55793394f383099f1fdb3547a6f6102308a86520ca97562fecd1c7304",
+      "izinler": [],
+      "sürüm_sayısı": 1
+    },
+    {
+      "ad": "istatistik",
+      "açıklama": "Ortalama, ortanca, tepe değer, standart sapma ve sıklık tablosu",
+      "sahip": "Furkan003",
+      "sürüm": "1.0.0",
+      "kaynak": "github:Furkan003/Orhunca#v0.8.0:kütüphaneler/istatistik",
+      "işleme": "d757dc798d13abea83c6ca1536ef79db091eefb2",
+      "özet": "sha256:6602dbdc0c3a6f9e07897cbc23ce2327ffc3762a8c4ae26b46f2b59928759eda",
+      "izinler": [],
+      "sürüm_sayısı": 1
+    }
+  ]
+}

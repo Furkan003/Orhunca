@@ -1,3 +1,4 @@
 ad = "istatistik"
+sürüm = "1.0.0"
 giriş = "istatistik.ohc"
 açıklama = "Ortalama, ortanca, tepe değer, standart sapma ve sıklık tablosu"

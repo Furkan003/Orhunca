@@ -1,0 +1,60 @@
+# Paket mağazasına gelen çekme isteklerini denetler; kurallara uyan kayıtları kendiliğinden
+# birleştirir ve dizin.json'u yeniler. Çekme isteğinin kodu çalıştırılmaz: betikler ana
+# daldan gelir, çekme isteğindeki paketler/<ad>.json dosyaları yalnızca veri olarak okunur.
+name: Paket denetimi
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: magaza-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  denetle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Çekme isteğini getir (veri olarak)
+        run: git fetch origin "pull/${{ github.event.pull_request.number }}/head:pr"
+      - name: Orhunca'yı kur
+        run: |
+          curl -fsSL https://furkan003.github.io/Orhunca/kur.sh | sh || true
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/bin:$PATH"
+          # 'paket bilgi' komutu olmayan eski sürümde kaynaktan derlenir.
+          if ! orhunca yardım 2>/dev/null | grep -q "paket bilgi"; then
+            cargo install --locked --git https://github.com/Furkan003/Orhunca orhunca
+          fi
+          orhunca sürüm
+      - name: Denetle
+        id: denetim
+        run: python3 araclar/denetle.py pr "${{ github.event.pull_request.user.login }}"
+      - name: Sonucu yaz
+        if: always() && hashFiles('sonuc.md') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr comment "${{ github.event.pull_request.number }}" --body-file sonuc.md
+      - name: Birleştir ve dizini yenile
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr merge "${{ github.event.pull_request.number }}" --squash --delete-branch=false
+          git checkout main
+          git pull --ff-only origin main
+          python3 araclar/dizin.py
+          if ! git diff --quiet dizin.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -qm "dizin.json yenilendi" dizin.json
+            git push origin main
+          fi
