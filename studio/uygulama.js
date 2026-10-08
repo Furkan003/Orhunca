@@ -593,6 +593,8 @@
     if (m.tur === 'gorunum') return cizGorunum(kabuk);
     if (m.tur === 'ceviri') return cizCeviri(kabuk);
     if (m.tur === 'gecmis') return cizGecmis(kabuk);
+    if (m.tur === 'fark') return kabuk(`${m.yol} ${m.hazir ? '(hazırlanan)' : ''}`, `<div class="fark">${m.metin == null ? '<div class="donen kucuk"></div>' : farkHtml(m.metin)}</div>`,
+      `<div class="dugme" data-e="modalKapat">Kapat</div><div class="dugme" data-e="farkDosyaAc">${S('open_in_new')}Dosyayı aç</div>`).replace('class="modal"', 'class="modal genis"');
     if (m.tur === 'ajan') return cizAjan(kabuk);
     if (m.tur === 'yeniSurum') {
       const g = D.guncelleme || {};
@@ -754,7 +756,7 @@
   }
 
   function cizEtkinlik() {
-    const ogeler = [['gezgin', 'description', 'Gezgin'], ['ara', 'search', 'Ara'], ['yapi', 'account_tree', 'Yapı'], ['calistir', 'play_circle', 'Çalıştır'], ['sinamalar', 'task_alt', 'Sınamalar'], ['dersler', 'school', 'Dersler'], ['eklentiler', 'extension', 'Paketler']];
+    const ogeler = [['gezgin', 'description', 'Gezgin'], ['ara', 'search', 'Ara'], ['yapi', 'account_tree', 'Yapı'], ['git', 'fork_right', 'Git'], ['calistir', 'play_circle', 'Çalıştır'], ['sinamalar', 'task_alt', 'Sınamalar'], ['dersler', 'school', 'Dersler'], ['eklentiler', 'extension', 'Paketler']];
     $('#etkinlik').innerHTML = ogeler.map(([id, simge, ad]) => `<span class="simge ${D.yanPanel === id ? 'etkin' : ''}" title="${ad}" data-e="yanPanelSec" data-a="${id}">${simge}</span>`).join('')
       + (asistanAcik() ? `<span class="simge ${D.asistanPaneliAcik ? 'etkin' : ''}" title="Yapay zekâ asistanı (Ctrl+I)" data-e="asistanAcKapa">smart_toy</span>` : '')
       + `<div style="flex:1"></div><span class="simge" title="Başlangıç ekranı" data-e="baslangicaDon">home</span><span class="simge" title="Ayarlar" data-e="ayarlarModal">settings</span>`;
@@ -802,6 +804,9 @@
       });
       kap.innerHTML = baslik('YAPI') + `<div class="panel-ic">${ogeler.map(([t, ad, n]) => `<div class="yapi-oge" data-e="satiraGit" data-a="${n}"><span class="tur">${t}</span><span class="${t === 'fiil' || t === 'işlev' ? 'f' : t === 'sabit' ? 't' : 's'}">${kac(ad)}</span><span class="satir-no">${n}</span></div>`).join('')
         || '<div class="panel-not">Bu dosyada işlev, fiil ya da sabit tanımı yok.</div>'}</div>`;
+    } else if (D.yanPanel === 'git') {
+      const ek = D.git?.depo ? `<span class="simge" title="Çek (pull)" data-e="gitCek">arrow_downward</span><span class="simge" title="Gönder (push)" data-e="gitGonder">arrow_upward</span>` : '';
+      kap.innerHTML = baslik('GIT', ek + `<span class="simge" title="Yenile" data-e="gitYukle">refresh</span>`) + `<div class="panel-ic">${gitPaneli()}</div>`;
     } else if (D.yanPanel === 'sinamalar') {
       kap.innerHTML = baslik('SINAMALAR', `<span class="simge" title="Hepsini çalıştır" data-e="sinamalariCalistir">play_arrow</span><span class="simge" title="Yenile" data-e="sinamalariYukle">refresh</span>`) + `<div class="panel-ic">${sinamaPaneli()}</div>`;
     } else if (D.yanPanel === 'dersler') {
@@ -870,6 +875,7 @@
     if (r.hata) { bildir(r.hata, true); return false; }
     D.proje.guvenilir = r.guvenilir;
     cizKisitliSerit(); guncelle('durum');
+    if (D.yanPanel === 'git') gitYukle();
     if (guven) bildir('Projeye güvenildi; kod çalıştırılabilir.');
     return r.guvenilir === guven;
   }
@@ -1012,6 +1018,60 @@
     imleciGuncelle();
     bildir('Değişiklik uygulandı (Ctrl+Z ile geri alabilirsiniz).');
     return true;
+  }
+
+  const GIT_DURUM = { M: ['D', 'değişti'], A: ['E', 'eklendi'], D: ['S', 'silindi'], R: ['A', 'yeniden adlandırıldı'], '?': ['Y', 'yeni (takip edilmiyor)'], U: ['Ç', 'çakışma'], C: ['K', 'kopyalandı'] };
+
+  /** Git paneli: değişiklikler, hazırlama, işleme (commit), gönderme/çekme, son işlemeler. */
+  function gitPaneli() {
+    const G = D.git;
+    if (!G) { gitYukle(); return '<div class="panel-not">Yükleniyor…</div>'; }
+    if (G.guvensiz) return `<div class="panel-not">Kısıtlı modda Git paneli kapalı: Git, deponun kendi ayarlarındaki komutları çalıştırabilir.</div><div class="dugme birincil" style="margin-top:10px" data-e="projeyeGuven">Projeye güven</div>`;
+    if (G.hata) return `<div class="panel-not">${kac(G.hata)}</div>`;
+    if (!G.depo) return `<div class="panel-not">Bu proje bir Git deposu değil. Git, kodunuzun her hâlini saklar ve GitHub'a göndermenizi sağlar.</div><div class="dugme birincil" style="margin-top:10px" data-e="gitBaslat">${S('add')}Depo başlat</div>`;
+    const hazir = G.degisiklikler.filter(d => d.hazir), bekleyen = G.degisiklikler.filter(d => !d.hazir);
+    const oge = (d) => {
+      const [harf, ad] = GIT_DURUM[d.durum] || [d.durum, d.durum];
+      const eylem = d.hazir
+        ? `<span class="simge" title="Hazırlıktan çıkar" data-e="gitHazirla" data-a="-${kac(d.yol)}">remove</span>`
+        : `<span class="simge" title="Değişikliği at" data-e="gitAt" data-a="${d.durum === '?' ? '?' : ''}${kac(d.yol)}">restore</span><span class="simge" title="Hazırla" data-e="gitHazirla" data-a="+${kac(d.yol)}">add</span>`;
+      return `<div class="git-oge" data-e="gitFark" data-a="${d.hazir ? 1 : 0}${kac(d.yol)}" title="${kac(d.yol)} · ${ad}"><span class="esnek">${kac(sonParca(d.yol))}<span class="git-klasor">${kac(d.yol.includes('/') ? d.yol.slice(0, d.yol.lastIndexOf('/')) : '')}</span></span><span class="git-eylem">${eylem}</span><span class="git-harf g-${d.durum === '?' ? 'Y' : d.durum}">${harf}</span></div>`;
+    };
+    const bolum = (ad, l, hepsi) => l.length ? `<div class="git-bolum"><span class="esnek">${ad} (${l.length})</span>${hepsi}</div>${l.map(oge).join('')}` : '';
+    const yon = (G.onde ? ` ↑${G.onde}` : '') + (G.geride ? ` ↓${G.geride}` : '');
+    return `<div class="git-dal">${S('fork_right')}<b>${kac(G.dal || '?')}</b><span>${yon}</span></div>
+      <textarea id="gitMesaj" data-g="gitMesaj" class="metin-girdi git-mesaj" rows="2" placeholder="Ne değişti? (Ctrl+Enter: işle)">${kac(D.gitMesaj || '')}</textarea>
+      <div class="dugme birincil git-isle ${G.degisiklikler.length ? '' : 'pasif'}" data-e="gitIsle">${S('check')}İşle (commit)</div>
+      ${bolum('Hazırlanan', hazir, `<span class="simge" title="Hepsini hazırlıktan çıkar" data-e="gitHazirla" data-a="-*">remove</span>`)}
+      ${bolum('Değişiklikler', bekleyen, `<span class="simge" title="Hepsini hazırla" data-e="gitHazirla" data-a="+*">add</span>`)}
+      ${G.degisiklikler.length ? '' : '<div class="panel-not">Değişiklik yok.</div>'}
+      ${G.gecmis?.length ? `<div class="git-bolum" style="margin-top:14px"><span class="esnek">Son işlemeler</span></div>${G.gecmis.map(c => `<div class="git-islem" title="${kac(c.yazar)} · ${kac(c.zaman)}"><span class="mono">${kac(c.kisa)}</span> ${kac(c.mesaj)}<span class="git-zaman">${kac(c.zaman)}</span></div>`).join('')}` : ''}`;
+  }
+
+  async function gitYukle() {
+    if (!D.proje) return;
+    const r = await api('/api/git/durum?' + sorgu({ kok: D.proje.yol })).catch(e => ({ hata: e.message }));
+    D.git = r;
+    if (r.depo && r.dal) D.proje.dal = r.dal;
+    if (D.yanPanel === 'git') cizYanPanel();
+    guncelle('durum');
+  }
+
+  async function gitIslem(yol, govde, basari) {
+    const r = await api(yol, { kok: D.proje.yol, ...govde }).catch(e => ({ hata: e.message }));
+    if (r.hata) { bildir(r.hata, true); D.altPanel = true; D.altSekme = 'cikti'; D.cikti.push({ t: r.hata, c: 'err' }); guncelle('alt'); }
+    else if (basari) bildir(typeof basari === 'function' ? basari(r) : basari);
+    await gitYukle();
+    return !r.hata;
+  }
+
+  /** Birleşik farkı satır satır renklendirir. */
+  function farkHtml(f) {
+    if (!f.trim()) return '<div class="panel-not">Fark yok (yalnızca dosya kipi değişmiş olabilir).</div>';
+    return f.split('\n').filter(s => !/^(diff --git|index |new file mode|deleted file mode|similarity|rename )/.test(s)).map(s => {
+      const c = s.startsWith('@@') ? 'f-baslik' : s.startsWith('+++') || s.startsWith('---') ? 'f-dosya' : s[0] === '+' ? 'f-ekle' : s[0] === '-' ? 'f-sil' : '';
+      return `<div class="${c}">${kac(s) || ' '}</div>`;
+    }).join('');
   }
 
   /** Sınamalar paneli (Test Gezgini): *_sına.ohc dosyalarındaki sına_ işlevleri. */
@@ -1802,7 +1862,7 @@
     }
     if (!(await degisiklikleriKoru())) return;
     if (D.calisma) await durdur();
-    D.proje = bilgi; D.kisitliSeritKapali = false; D.sinamalar = null; D.sinamaSonuc = {};
+    D.proje = bilgi; D.kisitliSeritKapali = false; D.sinamalar = null; D.sinamaSonuc = {}; D.git = null; D.gitMesaj = '';
     D.onizleme = null;
     D.sekmeler = []; D.etkin = null; D.sorunlar = []; D.uyarilar = []; D.terminal = []; D.cikti = [];
     D.kapaliKlasorler = new Set(); D.calisma = null; D.menu = null; D.modal = null;
@@ -2712,8 +2772,53 @@
       if (e.target.closest('.acilir-menu')) return;
       D.menu = D.menu === ad ? null : ad; guncelle('baslik');
     },
-    yanPanelSec(p) { D.yanPanel = p; guncelle('etkinlik', 'yan'); if (p === 'ara') $('#araMetin')?.focus(); if (p === 'eklentiler') paketleriYukle(); if (p === 'sinamalar') sinamalariYukle(); },
+    yanPanelSec(p) { D.yanPanel = p; guncelle('etkinlik', 'yan'); if (p === 'ara') $('#araMetin')?.focus(); if (p === 'eklentiler') paketleriYukle(); if (p === 'sinamalar') sinamalariYukle(); if (p === 'git') gitYukle(); },
     sinamalariYukle() { sinamalariYukle(); },
+    gitYukle() { gitYukle(); },
+    gitBaslat() { gitIslem('/api/git/baslat', {}, 'Git deposu başlatıldı.'); },
+    gitCek() { gitIslem('/api/git/cek', {}, r => r.mesaj).then(ok => ok && Promise.all(D.sekmeler.map(async s => { if (s.icerik !== s.kayitli) return; const d = await api('/api/dosya?' + sorgu({ yol: tamYol(s.yol) })); if (!d.hata && !d.ikili) s.icerik = s.kayitli = d.icerik; })).then(() => guncelle('kod', 'sekmeler'))); },
+    gitGonder() { gitIslem('/api/git/gonder', {}, r => r.mesaj); },
+    gitHazirla(a) {
+      const geri = a[0] === '-', yol = a.slice(1);
+      const yollar = yol === '*' ? D.git.degisiklikler.filter(d => d.hazir === geri).map(d => d.yol) : [yol];
+      if (yollar.length) gitIslem('/api/git/hazirla', { yollar, geri });
+    },
+    async gitAt(a) {
+      const takipsiz = a[0] === '?', yol = takipsiz ? a.slice(1) : a;
+      if (!confirm(takipsiz ? `“${yol}” yeni bir dosya: silinsin mi?\n\nSon hâli yerel geçmişte saklanır.` : `“${yol}” dosyasındaki değişiklikler atılsın mı (son işlenen hâline dönülür)?\n\nŞimdiki hâli yerel geçmişte saklanır.`)) return;
+      await tumunuKaydet();
+      if (await gitIslem('/api/git/at', { yol, takipsiz })) {
+        const s = D.sekmeler.find(x => x.yol === yol);
+        if (s) {
+          const d = await api('/api/dosya?' + sorgu({ yol: tamYol(yol) }));
+          if (d.hata) D.sekmeler = D.sekmeler.filter(x => x !== s); else if (!d.ikili) s.icerik = s.kayitli = d.icerik;
+          if (D.etkin === yol && d.hata) D.etkin = D.sekmeler[0]?.yol || null;
+          guncelle('sekmeler', 'kod');
+        }
+        agaciYukle().then(() => guncelle('yan'));
+      }
+    },
+    async gitIsle() {
+      const mesaj = (D.gitMesaj || '').trim();
+      if (!mesaj) { bildir('Ne değiştirdiğinizi anlatan bir mesaj yazın.', true); $('#gitMesaj')?.focus(); return; }
+      if (!(await tumunuKaydet())) return;
+      await gitYukle();
+      if (!D.git?.degisiklikler?.some(d => d.hazir)) {
+        if (!D.git?.degisiklikler?.length) return bildir('İşlenecek değişiklik yok.');
+        if (!confirm('Hazırlanmış değişiklik yok. Bütün değişiklikler hazırlanıp işlensin mi?')) return;
+        if (!(await gitIslem('/api/git/hazirla', { yollar: D.git.degisiklikler.map(d => d.yol), geri: false }))) return;
+      }
+      if (await gitIslem('/api/git/isle', { mesaj }, r => `İşlendi: ${r.mesaj}`)) { D.gitMesaj = ''; cizYanPanel(); }
+    },
+    async gitFark(a) {
+      const hazir = a[0] === '1', yol = a.slice(1);
+      D.modal = { tur: 'fark', yol, hazir, metin: null }; katmanlariCiz();
+      const r = await api('/api/git/fark?' + sorgu({ kok: D.proje.yol, yol, hazir: hazir ? '1' : '' })).catch(e => ({ hata: e.message }));
+      if (D.modal?.tur !== 'fark' || D.modal.yol !== yol) return;
+      if (r.hata) { D.modal = null; katmanlariCiz(); return bildir(r.hata, true); }
+      D.modal.metin = r.fark; katmanlariCiz();
+    },
+    farkDosyaAc() { const y = D.modal?.yol; D.modal = null; katmanlariCiz(); if (y) dosyaAc(y); },
     sinamalariCalistir() { sinamalariCalistir(); },
     sinamaDosyaCalistir(d) { sinamalariCalistir(d); },
     sinamaCalistir(a) { const i = a.lastIndexOf('|'); sinamalariCalistir(a.slice(0, i), a.slice(i + 1)); },
@@ -3038,6 +3143,7 @@
       }, 200);
     },
     degistirMetin(v) { D.degistirMetin = v; },
+    gitMesaj(v) { D.gitMesaj = v; },
     /** Öğren sayfasındaki yerleşik işlev listesini süzer (Türkçe harfsiz yazım da bulunur). */
     basvuruAra(v) {
       const sade = t => kucuk(t).replace(/[çğıöşü]/g, h => ({ ç: 'c', ğ: 'g', ı: 'i', ö: 'o', ş: 's', ü: 'u' })[h]).replace(/\u0307/g, '');
@@ -3102,6 +3208,7 @@
   });
   document.addEventListener('keydown', async e => {
     const ctrl = e.ctrlKey || e.metaKey;
+    if (e.target.id === 'gitMesaj' && e.key === 'Enter' && ctrl) { e.preventDefault(); EYLEM.gitIsle(); return; }
     if (e.target.id === 'terminalGirdi' && e.key === 'Enter' && D.calisma) {
       const metin = e.target.value;
       e.target.value = '';

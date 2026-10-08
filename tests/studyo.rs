@@ -957,3 +957,98 @@ fn guvenilmeyen_proje() {
     );
     assert_eq!(durum, 403);
 }
+
+#[test]
+fn git_paneli() {
+    use serde_json::json;
+    if Command::new("git").arg("--version").output().is_err() {
+        return;
+    }
+    let s = baslat_ortamli(
+        "git",
+        &[
+            ("GIT_AUTHOR_NAME", "Deneme"),
+            ("GIT_AUTHOR_EMAIL", "d@e.f"),
+            ("GIT_COMMITTER_NAME", "Deneme"),
+            ("GIT_COMMITTER_EMAIL", "d@e.f"),
+        ],
+    );
+    let konum = s.ev.join("Projeler");
+    let r = s.api(
+        "/api/proje/olustur",
+        json!({ "sablon": "konsol", "ad": "g", "konum": konum, "git": false, "ornek": false }),
+    );
+    assert!(r["hata"].is_null(), "{r}");
+    let kok = konum.join("g");
+    let durum = |s: &Sunucu| {
+        s.api_get(&format!(
+            "/api/git/durum?kok={}",
+            url_kodla(&kok.to_string_lossy())
+        ))
+    };
+    assert_eq!(durum(&s)["depo"], false);
+    assert_eq!(
+        s.api("/api/git/baslat", json!({ "kok": kok }))["tamam"],
+        true
+    );
+    let d = durum(&s);
+    assert_eq!(d["depo"], true, "{d}");
+    assert!(
+        d["degisiklikler"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|x| x["durum"] == "?"),
+        "{d}"
+    );
+    let r = s.api("/api/git/isle", json!({ "kok": kok, "mesaj": "" }));
+    assert!(r["hata"].is_string(), "{r}");
+    let r = s.api(
+        "/api/git/hazirla",
+        json!({ "kok": kok, "yollar": ["ana.ohc", "g.ohcproj", "BENİOKU.md"] }),
+    );
+    assert_eq!(r["tamam"], true, "{r}");
+    let r = s.api(
+        "/api/git/isle",
+        json!({ "kok": kok, "mesaj": "İlk işleme" }),
+    );
+    assert!(r["mesaj"].as_str().unwrap().ends_with("İlk işleme"), "{r}");
+
+    std::fs::write(kok.join("ana.ohc"), "1'i yaz.\n").unwrap();
+    let d = durum(&s);
+    assert_eq!(
+        d["degisiklikler"],
+        json!([{ "yol": "ana.ohc", "durum": "M", "hazir": false }]),
+        "{d}"
+    );
+    assert_eq!(d["gecmis"][0]["mesaj"], "İlk işleme", "{d}");
+    let f = s.api_get(&format!(
+        "/api/git/fark?kok={}&yol=ana.ohc",
+        url_kodla(&kok.to_string_lossy())
+    ));
+    assert!(f["fark"].as_str().unwrap().contains("+1'i yaz."), "{f}");
+    // Proje dışına çıkan yol reddedilir
+    let f = s.api_get(&format!(
+        "/api/git/fark?kok={}&yol=..%2F..%2Fx",
+        url_kodla(&kok.to_string_lossy())
+    ));
+    assert!(f["hata"].is_string(), "{f}");
+    // Değişikliği atmak: son işlenen hâl geri gelir
+    let r = s.api("/api/git/at", json!({ "kok": kok, "yol": "ana.ohc" }));
+    assert_eq!(r["tamam"], true, "{r}");
+    assert_ne!(
+        std::fs::read_to_string(kok.join("ana.ohc")).unwrap(),
+        "1'i yaz.\n"
+    );
+    assert_eq!(durum(&s)["degisiklikler"], json!([]));
+
+    // Güvenilmeyen projede Git paneli kapalı
+    let yabanci = s.ev.join("Indirilen");
+    std::fs::create_dir_all(&yabanci).unwrap();
+    s.api("/api/proje/ac", json!({ "yol": yabanci }));
+    let d = s.api_get(&format!(
+        "/api/git/durum?kok={}",
+        url_kodla(&yabanci.to_string_lossy())
+    ));
+    assert_eq!(d["guvensiz"], true, "{d}");
+}

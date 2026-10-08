@@ -35,6 +35,13 @@ kaldır** projeyi yeniden kısıtlı moda alır. Önceki sürümlerden kalan son
 istediniz", yanlış ek için ünlü uyumu, eski yazımlar için "şöyle yazın") **Sorunlar** listesinde
 hatanın yanında **Düzelt** düğmesi çıkar; tıklayınca öneri koda uygulanır (Ctrl+Z ile geri alınır).
 
+**Git paneli:** soldaki **Git** simgesi projenin değişikliklerini gösterir. Bir dosyaya tıklayınca
+farkı (eklenen ve silinen satırlar) açılır; **+** ile hazırlanır, geri ok ile değişiklik atılır
+(şimdiki hâl yerel geçmişte saklanır). Mesajı yazıp **İşle** (Ctrl+Enter) değişiklikleri kaydeder
+(commit); hiçbir şey hazırlanmadıysa hepsini işlemeyi önerir. Üstteki oklar uzak depoya gönderir
+(push) ve çeker (pull). Depo yoksa **Depo başlat** düğmesi çıkar. Git, deponun kendi ayarlarındaki
+komutları çalıştırabildiği için panel kısıtlı modda kapalıdır.
+
 **Sınamalar (Test Gezgini):** soldaki **Sınamalar** paneli projedeki `*_sına.ohc` dosyalarında
 adı `sına_` ile başlayan işlevleri listeler. Hepsini, bir dosyayı ya da tek bir sınamayı
 çalıştırabilirsiniz; kalan sınamanın yanında beklenen ve bulunan değer ile sınamanın çıktısı

@@ -835,3 +835,29 @@ details.tema-grup summary { cursor: pointer; }
 .sinama-ozet.gecti { color: var(--basari); }
 .sinama-ozet.kaldi { color: var(--hata); }
 .sinama-ornek { font: 11.5px var(--mono); background: var(--girdi); padding: 8px; border-radius: 6px; color: var(--yazi2); white-space: pre; overflow-x: auto; }
+.git-dal { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--yazi2); margin-bottom: 8px; }
+.git-dal .simge { font-size: 16px; color: var(--soluk3); }
+.git-mesaj { width: 100%; resize: vertical; font-family: inherit; line-height: 1.4; height: auto; }
+.git-isle { width: 100%; justify-content: center; margin: 6px 0 4px; }
+.git-bolum { display: flex; align-items: center; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--soluk3); margin: 10px 0 4px; }
+.git-bolum .simge { font-size: 16px; cursor: pointer; }
+.git-oge { display: flex; align-items: center; gap: 6px; padding: 3px 4px 3px 6px; border-radius: 4px; font-size: 12.5px; color: var(--yazi2); cursor: pointer; }
+.git-oge:hover { background: var(--girdi); }
+.git-oge .esnek { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.git-klasor { color: var(--soluk4); font-size: 11px; margin-left: 6px; }
+.git-eylem { display: none; gap: 2px; }
+.git-eylem .simge { font-size: 16px; color: var(--soluk2); }
+.git-eylem .simge:hover { color: var(--vurgu); }
+.git-oge:hover .git-eylem { display: flex; }
+.git-harf { font: 600 11px var(--mono); width: 14px; text-align: center; color: var(--sari); }
+.git-harf.g-A, .git-harf.g-Y { color: var(--basari); }
+.git-harf.g-D, .git-harf.g-U { color: var(--hata); }
+.git-islem { font-size: 12px; color: var(--ikincil); padding: 3px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.git-islem .mono { color: var(--soluk3); font-size: 11px; }
+.git-zaman { color: var(--soluk4); font-size: 11px; margin-left: 6px; }
+.fark { font: 12.5px/1.55 var(--mono); max-height: 60vh; overflow: auto; background: var(--koyu); border-radius: 8px; padding: 8px 0; }
+.fark > div { padding: 0 12px; white-space: pre; }
+.fark .f-ekle { background: color-mix(in srgb, var(--basari) 14%, transparent); color: var(--yazi); }
+.fark .f-sil { background: color-mix(in srgb, var(--hata) 14%, transparent); color: var(--yazi); }
+.fark .f-baslik { color: var(--mavi); margin-top: 6px; }
+.fark .f-dosya { color: var(--soluk3); }

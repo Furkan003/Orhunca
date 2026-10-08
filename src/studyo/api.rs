@@ -1,7 +1,7 @@
 //! Stüdyo arayüzünün çağırdığı JSON uç noktaları.
 
 use super::http::{Istek, Yanit};
-use super::{asistan, calisma, depo, gecmis, sablonlar, temalar};
+use super::{asistan, calisma, depo, gecmis, git, sablonlar, temalar};
 use crate::{agac, derleme};
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
@@ -133,6 +133,45 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
         ("POST", "/api/proje/olustur") => proje_olustur(&g),
         ("POST", "/api/proje/ac") => proje_ac(metin(&g, "yol")),
         ("POST", "/api/proje/klonla") => proje_klonla(metin(&g, "url"), metin(&g, "konum")),
+        ("GET", "/api/git/durum") => git_islemi(istek.sorgu("kok"), |k| {
+            git::durum(k).map(|mut d| {
+                if d["depo"] == true {
+                    d["gecmis"] = git::gecmis(k);
+                }
+                d
+            })
+        }),
+        ("GET", "/api/git/fark") => git_islemi(istek.sorgu("kok"), |k| {
+            git::fark(k, istek.sorgu("yol"), istek.sorgu("hazir") == "1")
+                .map(|f| json!({ "fark": f }))
+        }),
+        ("POST", "/api/git/hazirla") => git_islemi(metin(&g, "kok"), |k| {
+            let yollar: Vec<String> = g["yollar"]
+                .as_array()
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|y| y.as_str().map(str::to_string))
+                        .collect()
+                })
+                .unwrap_or_default();
+            git::hazirla(k, &yollar, g["geri"] == true).map(|_| json!({ "tamam": true }))
+        }),
+        ("POST", "/api/git/at") => git_islemi(metin(&g, "kok"), |k| {
+            git::degisikligi_at(k, metin(&g, "yol"), g["takipsiz"] == true)
+                .map(|_| json!({ "tamam": true }))
+        }),
+        ("POST", "/api/git/isle") => git_islemi(metin(&g, "kok"), |k| {
+            git::isle(k, metin(&g, "mesaj")).map(|m| json!({ "mesaj": m }))
+        }),
+        ("POST", "/api/git/gonder") => git_islemi(metin(&g, "kok"), |k| {
+            git::gonder(k).map(|m| json!({ "mesaj": m }))
+        }),
+        ("POST", "/api/git/cek") => git_islemi(metin(&g, "kok"), |k| {
+            git::cek(k).map(|m| json!({ "mesaj": m }))
+        }),
+        ("POST", "/api/git/baslat") => git_islemi(metin(&g, "kok"), |k| {
+            git::baslat(k).map(|_| json!({ "tamam": true }))
+        }),
         ("GET", "/api/sinamalar") => {
             let kok = PathBuf::from(istek.sorgu("kok"));
             if !izinli_mi(&kok) {
@@ -988,6 +1027,22 @@ fn guven_gerekli(yol: &Path, islem: &str) -> Option<Yanit> {
              Projeyi tanıyorsanız “Projeye güven” ile açabilirsiniz."
         ),
     })))
+}
+
+/// Git paneli: yalnızca açık ve güvenilen projelerde (Git deponun kendi ayarlarındaki
+/// komutları çalıştırabilir).
+fn git_islemi(kok: &str, f: impl FnOnce(&Path) -> Result<Value, String>) -> Yanit {
+    let kok = PathBuf::from(kok);
+    if !izinli_mi(&kok) {
+        return Yanit::hata(403, "bu klasöre erişim yok");
+    }
+    if let Some(y) = guven_gerekli(&kok, "Git paneli") {
+        return y;
+    }
+    match f(&kok) {
+        Ok(v) => Yanit::json(&v),
+        Err(e) => hata(e),
+    }
 }
 
 /// Sınamaları çalıştırır: `dosya` (göreli) ve `ad` verilmezse projedeki hepsi.

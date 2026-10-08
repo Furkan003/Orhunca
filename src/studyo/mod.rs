@@ -11,6 +11,7 @@ mod asistan;
 mod calisma;
 mod depo;
 mod gecmis;
+mod git;
 pub use depo::ayar_klasoru;
 mod http;
 pub mod sablonlar;
