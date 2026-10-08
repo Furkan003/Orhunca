@@ -34,6 +34,8 @@ pub struct Teshis {
     pub sutun: usize,
     pub mesaj: String,
     pub ipucu: Option<String>,
+    /// İpucundan çıkarılan otomatik düzeltme (Stüdyo'da "Düzelt", LSP'de quick fix)
+    pub duzeltme: Option<Box<crate::hizli_duzelt::Duzeltme>>,
 }
 
 impl DerlemeHatasi {
@@ -49,6 +51,15 @@ impl DerlemeHatasi {
             .get(h.konum.dosya)
             .map(|d| d.0.clone())
             .unwrap_or_default();
+        let duzeltme = dosyalar.get(h.konum.dosya).and_then(|d| {
+            crate::hizli_duzelt::duzeltme(
+                &d.1,
+                h.konum.satir,
+                h.konum.sutun,
+                h.gosterilecek_ipucu(),
+            )
+            .map(Box::new)
+        });
         DerlemeHatasi {
             metin: h.goster(dosyalar),
             teshis: Some(Teshis {
@@ -57,6 +68,7 @@ impl DerlemeHatasi {
                 sutun: h.konum.sutun,
                 ipucu: h.gosterilecek_ipucu().map(str::to_string),
                 mesaj: h.mesaj,
+                duzeltme,
             }),
         }
     }

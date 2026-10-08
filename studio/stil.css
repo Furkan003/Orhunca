@@ -807,3 +807,6 @@ details.tema-grup summary { cursor: pointer; }
 .gecmis-boyut { font-size: 11px; color: var(--soluk3); }
 .gecmis-sag { overflow: auto; min-width: 0; }
 .gecmis-onizleme { max-height: none; margin: 0; }
+.ara-degistir { margin-top: 6px; gap: 6px; }
+.ara-degistir .metin-girdi { flex: 1; min-width: 0; }
+.ara-secenek { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--yazi2); margin: 6px 0 2px; cursor: pointer; }

@@ -76,7 +76,7 @@
     kesmeler: ayarOku('kesmeler', {}),
     // Web projelerinde canlı önizleme: { kapi, adres, yol, durum: bekliyor|acik|hata|durdu, surum }
     onizleme: null, onizlemeAcik: true,
-    yanPanel: 'gezgin', araMetin: '', araSonuc: [],
+    yanPanel: 'gezgin', araMetin: '', araSonuc: [], degistirMetin: '', tamKelime: false,
     paketler: [], paketKaynagi: '', paketMesgul: false, paketDizini: null, paketDizinHatasi: '',
     menu: null, modal: null, bildirim: null,
     yaziBoyutu: ayarOku('yaziBoyutu', 13),
@@ -783,6 +783,8 @@
       for (const r of D.araSonuc) (gruplar[r.dosya] ||= []).push(r);
       const vurgu = t => { const i = kucuk(t).indexOf(kucuk(D.araMetin)); return i < 0 ? kac(t) : kac(t.slice(0, i)) + '<b>' + kac(t.slice(i, i + D.araMetin.length)) + '</b>' + kac(t.slice(i + D.araMetin.length)); };
       kap.innerHTML = baslik('ARA') + `<div class="panel-ic"><input id="araMetin" data-g="araMetin" class="metin-girdi" placeholder="Projede ara" value="${kac(D.araMetin)}" spellcheck="false" autocomplete="off">
+        <div class="yan-yana ara-degistir"><input id="degistirMetin" data-g="degistirMetin" class="metin-girdi" placeholder="Şununla değiştir" value="${kac(D.degistirMetin)}" spellcheck="false" autocomplete="off"><div class="kare-dugme simge ${D.araMetin ? '' : 'pasif'}" data-e="tumunuDegistir" title="Projedeki bütün dosyalarda değiştir">find_replace</div></div>
+        <label class="ara-secenek"><input type="checkbox" data-e="tamKelimeDegistir" ${D.tamKelime ? 'checked' : ''}>Yalnızca tam kelime</label>
         ${Object.entries(gruplar).map(([d, l]) => `<div><div class="ara-dosya">${dosyaSimgesi(d).gokturk ? `<span class="gokturk" style="color:var(--vurgu)">${GOKTURK}</span>` : S('description', '', 'font-size:15px')}${kac(d)}</div>${l.map(r => `<div class="ara-sonuc" data-e="konumaGit" data-a="${kac(r.dosya)}|${r.satir}">${vurgu(r.metin)}</div>`).join('')}</div>`).join('')}
         ${D.araMetin && !D.araSonuc.length ? '<div class="panel-not">Sonuç yok.</div>' : ''}</div>`;
     } else if (D.yanPanel === 'yapi') {
@@ -1506,7 +1508,7 @@
     const sekme = (id, ad) => `<span class="${D.altSekme === id ? 'etkin' : ''}" data-e="altSekme" data-a="${id}">${ad}</span>`;
     let icerik;
     if (D.altSekme === 'sorunlar') {
-      const hatalar = D.sorunlar.map((h, i) => `<div class="sorun" data-e="sorunaGit" data-a="${i}">${S('error')}<div><span>${kac(h.mesaj)}</span><span class="yer">${kac(h.dosya ? goreliYol(h.dosya) : '')}${h.satir ? `:${h.satir}:${h.sutun}` : ''}</span>${h.ipucu ? `<div class="ipucu">ipucu: ${kac(h.ipucu)}</div>` : ''}</div></div>`).join('');
+      const hatalar = D.sorunlar.map((h, i) => `<div class="sorun" data-e="sorunaGit" data-a="${i}">${S('error')}<div><span>${kac(h.mesaj)}</span><span class="yer">${kac(h.dosya ? goreliYol(h.dosya) : '')}${h.satir ? `:${h.satir}:${h.sutun}` : ''}</span>${h.ipucu ? `<div class="ipucu">ipucu: ${kac(h.ipucu)}</div>` : ''}</div>${h.duzeltme ? `<span class="duzelt" data-e="hataDuzelt" data-a="${i}" title="${kac(h.duzeltme.baslik)}">Düzelt</span>` : ''}</div>`).join('');
       const uyarilar = D.uyarilar.map((h, i) => `<div class="sorun uyari" data-e="uyariyaGit" data-a="${i}">${S('warning')}<div><span>${kac(h.mesaj)}</span><span class="yer">${kac(goreliYol(h.dosya))}:${h.satir}:${h.sutun}</span></div><span class="duzelt" data-e="uyariDuzelt" data-a="${i}">Düzelt</span></div>`).join('');
       icerik = hatalar + uyarilar || '<div class="tl dim">Sorun yok.</div>';
     } else {
@@ -2566,6 +2568,28 @@
       if (r.hata) return bildir(r.hata, true);
       m.icerik = r.icerik; katmanlariCiz();
     },
+    tamKelimeDegistir(_, el) { D.tamKelime = el.checked; GIRDI.araMetin(D.araMetin); },
+    async tumunuDegistir() {
+      const aranan = D.araMetin, yeni = D.degistirMetin || '';
+      if (!aranan || !D.proje) return;
+      const dosyaSayisi = new Set(D.araSonuc.map(r => r.dosya)).size;
+      if (!confirm(`Projedeki bütün dosyalarda “${aranan}” → “${yeni}” olarak değiştirilsin mi?${dosyaSayisi ? ` (${dosyaSayisi} dosya)` : ''}\n\nDosyaların önceki hâlleri yerel geçmişte saklanır.`)) return;
+      if (!(await tumunuKaydet())) return;
+      const r = await api('/api/degistir', { kok: D.proje.yol, aranan, yeni, tamKelime: D.tamKelime }).catch(e => ({ hata: e.message }));
+      if (r.hata) { bildir(r.hata, true); return; }
+      // Açık sekmeler diskteki yeni hâliyle yenilenir.
+      for (const yol of r.degisen) {
+        const s = D.sekmeler.find(x => x.yol === yol);
+        if (!s) continue;
+        const d = await api('/api/dosya?' + sorgu({ yol: tamYol(yol) }));
+        if (!d.hata && !d.ikili) s.icerik = s.kayitli = d.icerik;
+      }
+      bildir(r.sayi ? `${r.sayi} yer, ${r.degisen.length} dosyada değiştirildi.` : 'Değiştirilecek bir şey bulunamadı.');
+      fiilleriTopla();
+      guncelle('sekmeler', 'kod', 'yan');
+      GIRDI.araMetin(D.araMetin);
+      denetle();
+    },
     async gecmisGeriYukle() {
       const m = D.modal;
       if (m?.icerik == null) return;
@@ -2728,6 +2752,25 @@
       await dosyaAc(goreliYol(h.dosya));
       satiraGit(h.satir, h.sutun);
     },
+    async hataDuzelt(i, el, e) {
+      e.stopPropagation();
+      const h = D.sorunlar[+i];
+      const d = h && h.duzeltme;
+      if (!d) return;
+      await dosyaAc(goreliYol(h.dosya));
+      const ta = $('#kodAlani');
+      if (!ta) return;
+      const satirlar = ta.value.split('\n');
+      let konum = 0;
+      for (let k = 0; k < d.satir - 1; k++) konum += satirlar[k].length + 1;
+      // Sütun ve uzunluk karakter sayısıdır (Türkçe harfler tek karakter).
+      const satir = [...(satirlar[d.satir - 1] || '')];
+      konum += satir.slice(0, d.sutun - 1).join('').length;
+      const uzunluk = satir.slice(d.sutun - 1, d.sutun - 1 + d.uzunluk).join('').length;
+      ta.focus();
+      ta.setSelectionRange(konum, konum + uzunluk);
+      metinEkle(ta, d.yeni);
+    },
     async uyariDuzelt(i, el, e) {
       e.stopPropagation();
       const h = D.uyarilar[+i];
@@ -2887,10 +2930,11 @@
       clearTimeout(GIRDI._a);
       GIRDI._a = setTimeout(async () => {
         if (!v.trim()) { D.araSonuc = []; cizYanPanel(); return; }
-        const r = await api('/api/ara?' + sorgu({ kok: D.proje.yol, metin: v }));
+        const r = await api('/api/ara?' + sorgu({ kok: D.proje.yol, metin: v, tam: D.tamKelime ? '1' : '' }));
         if (D.araMetin === v) { D.araSonuc = r.sonuclar || []; cizYanPanel(); }
       }, 200);
     },
+    degistirMetin(v) { D.degistirMetin = v; },
   };
 
   // =====================================================================

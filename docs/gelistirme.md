@@ -53,7 +53,7 @@ orhunca çalıştır oyun.ohc --hedef web              # derler ve Node.js ile �
   ünlü uyumunu düzeltir (`5'a` → `5'e`, `3'den` → `3'ten`, `6'i` → `6'yı`). Sayılar okunuşlarına göre
   ek alır. `--denetle` dosyaları değiştirmeden denetler (CI için).
 - **Dil sunucusu (LSP):** `orhunca dil-sunucusu` — hatalar ve yazım uyarıları, üzerine gelince açıklama
-  (yerleşik işlevler, değişken tipleri), tamamlama, tanıma gitme, belge simgeleri, biçimlendirme.
+  (yerleşik işlevler, değişken tipleri), tamamlama, tanıma gitme, belge simgeleri, biçimlendirme, hızlı düzeltmeler (quick fix).
   LSP destekleyen her düzenleyiciyle (VS Code, Neovim, Helix, Zed…) çalışır.
 - **Yapay zekâ ajanları (MCP):** `orhunca mcp` aracılığıyla rehber, denetle, çalıştır ve biçimlendir
   araçları sunulur. Ayrıntılar: [yapay-zeka.md](yapay-zeka.md).

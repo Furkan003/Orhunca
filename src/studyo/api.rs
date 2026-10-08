@@ -119,7 +119,11 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
         ("GET", "/api/klasor") => klasor(istek.sorgu("yol")),
         ("GET", "/api/dosya") => dosya_oku(istek.sorgu("yol")),
         ("GET", "/api/agac") => agac(istek.sorgu("kok")),
-        ("GET", "/api/ara") => ara(istek.sorgu("kok"), istek.sorgu("metin")),
+        ("GET", "/api/ara") => ara(
+            istek.sorgu("kok"),
+            istek.sorgu("metin"),
+            istek.sorgu("tam") == "1",
+        ),
         ("GET", "/api/cikti") => cikti(istek.sorgu("kimlik"), istek.sorgu("konum")),
         ("POST", "/api/proje/olustur") => proje_olustur(&g),
         ("POST", "/api/proje/ac") => proje_ac(metin(&g, "yol")),
@@ -155,6 +159,12 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
             }
         }
         ("POST", "/api/dosya") => dosya_yaz(metin(&g, "yol"), metin(&g, "icerik")),
+        ("POST", "/api/degistir") => degistir(
+            metin(&g, "kok"),
+            metin(&g, "aranan"),
+            metin(&g, "yeni"),
+            g["tamKelime"].as_bool() == Some(true),
+        ),
         ("POST", "/api/dosya/yeni") => {
             dosya_yeni(metin(&g, "yol"), g["klasor"].as_bool() == Some(true))
         }
@@ -771,14 +781,70 @@ fn dosya_yeni(yol: &str, klasor: bool) -> Yanit {
     }
 }
 
-fn ara(kok: &str, aranan: &str) -> Yanit {
-    let kok = PathBuf::from(kok);
-    if !izinli_mi(&kok) {
-        return Yanit::hata(403, "bu klasöre erişim yok");
+/// Türkçeye uygun küçük harf: I → ı, İ → i. Karakter sayısını korur (eşleşme yerleri
+/// özgün metne aynen taşınabilsin diye).
+fn kucuk_harf(c: char) -> char {
+    match c {
+        'I' => 'ı',
+        'İ' => 'i',
+        _ => c.to_lowercase().next().unwrap_or(c),
     }
-    let aranan_k = aranan.to_lowercase();
-    let mut sonuclar = Vec::new();
-    fn gez(klasor: &Path, cikti: &mut Vec<PathBuf>) {
+}
+
+fn kelime_harfi(c: char) -> bool {
+    c.is_alphanumeric() || c == '_'
+}
+
+/// `aranan`ın satırdaki yerleri (karakter sırası olarak), büyük/küçük harf ayrımı yapmadan.
+fn eslesmeler(satir: &[char], aranan: &[char], tam_kelime: bool) -> Vec<usize> {
+    let mut yerler = Vec::new();
+    if aranan.is_empty() || satir.len() < aranan.len() {
+        return yerler;
+    }
+    let mut i = 0;
+    while i + aranan.len() <= satir.len() {
+        let uyar = satir[i..i + aranan.len()]
+            .iter()
+            .zip(aranan)
+            .all(|(a, b)| kucuk_harf(*a) == *b);
+        let sinirda = !tam_kelime
+            || ((i == 0 || !kelime_harfi(satir[i - 1]))
+                && satir
+                    .get(i + aranan.len())
+                    .is_none_or(|c| !kelime_harfi(*c)));
+        if uyar && sinirda {
+            yerler.push(i);
+            i += aranan.len();
+        } else {
+            i += 1;
+        }
+    }
+    yerler
+}
+
+/// Metindeki bütün eşleşmeleri `yeni` ile değiştirir; değişen metin ve değişiklik sayısı.
+fn metinde_degistir(icerik: &str, aranan: &str, yeni: &str, tam_kelime: bool) -> (String, usize) {
+    let aranan: Vec<char> = aranan.chars().map(kucuk_harf).collect();
+    let mut sonuc = String::with_capacity(icerik.len());
+    let mut sayi = 0;
+    for parca in icerik.split_inclusive('\n') {
+        let k: Vec<char> = parca.chars().collect();
+        let yerler = eslesmeler(&k, &aranan, tam_kelime);
+        let mut onceki = 0;
+        for y in &yerler {
+            sonuc.extend(&k[onceki..*y]);
+            sonuc.push_str(yeni);
+            onceki = y + aranan.len();
+        }
+        sonuc.extend(&k[onceki..]);
+        sayi += yerler.len();
+    }
+    (sonuc, sayi)
+}
+
+/// Projede aranacak dosyalar: gizli dosyalar, derleme çıktıları ve indirilen paketler hariç.
+fn proje_dosyalari(kok: &Path) -> Vec<PathBuf> {
+    fn gez(klasor: &Path, kok: &Path, cikti: &mut Vec<PathBuf>) {
         let Ok(okunan) = std::fs::read_dir(klasor) else {
             return;
         };
@@ -787,24 +853,49 @@ fn ara(kok: &str, aranan: &str) -> Yanit {
             if ad.starts_with('.') || ad == "cikti" || ad == "target" {
                 continue;
             }
-            if g.path().is_dir() {
-                gez(&g.path(), cikti);
+            if klasor == kok && ad == "paketler" {
+                continue;
+            }
+            let Ok(tur) = g.file_type() else { continue };
+            if tur.is_symlink() {
+                continue;
+            }
+            if tur.is_dir() {
+                gez(&g.path(), kok, cikti);
             } else {
                 cikti.push(g.path());
             }
         }
     }
     let mut dosyalar = Vec::new();
-    gez(&kok, &mut dosyalar);
+    gez(kok, kok, &mut dosyalar);
     dosyalar.sort();
-    'dis: for d in dosyalar {
+    dosyalar
+}
+
+fn goreli(kok: &Path, d: &Path) -> String {
+    d.strip_prefix(kok)
+        .unwrap_or(d)
+        .to_string_lossy()
+        .replace('\\', "/")
+}
+
+fn ara(kok: &str, aranan: &str, tam_kelime: bool) -> Yanit {
+    let kok = PathBuf::from(kok);
+    if !izinli_mi(&kok) {
+        return Yanit::hata(403, "bu klasöre erişim yok");
+    }
+    let aranan: Vec<char> = aranan.chars().map(kucuk_harf).collect();
+    let mut sonuclar = Vec::new();
+    'dis: for d in proje_dosyalari(&kok) {
         let Ok(icerik) = std::fs::read_to_string(&d) else {
             continue;
         };
         for (i, satir) in icerik.lines().enumerate() {
-            if !aranan_k.is_empty() && satir.to_lowercase().contains(&aranan_k) {
+            let k: Vec<char> = satir.chars().collect();
+            if !eslesmeler(&k, &aranan, tam_kelime).is_empty() {
                 sonuclar.push(json!({
-                    "dosya": d.strip_prefix(&kok).unwrap_or(&d).to_string_lossy().replace('\\', "/"),
+                    "dosya": goreli(&kok, &d),
                     "satir": i + 1,
                     "metin": satir.trim(),
                 }));
@@ -815,6 +906,37 @@ fn ara(kok: &str, aranan: &str) -> Yanit {
         }
     }
     Yanit::json(&json!({ "sonuclar": sonuclar }))
+}
+
+/// Projenin bütün dosyalarında bul ve değiştir. Her değişen dosyanın önceki hâli yerel
+/// geçmişe kaydedilir (geri alınabilsin diye).
+fn degistir(kok: &str, aranan: &str, yeni: &str, tam_kelime: bool) -> Yanit {
+    let kok = PathBuf::from(kok);
+    if !izinli_mi(&kok) {
+        return Yanit::hata(403, "bu klasöre erişim yok");
+    }
+    if aranan.is_empty() {
+        return hata("Aranacak metni yazın.");
+    }
+    let mut degisen = Vec::new();
+    let mut toplam = 0;
+    for d in proje_dosyalari(&kok) {
+        let Ok(icerik) = std::fs::read_to_string(&d) else {
+            continue;
+        };
+        let (yeni_icerik, sayi) = metinde_degistir(&icerik, aranan, yeni, tam_kelime);
+        if sayi == 0 {
+            continue;
+        }
+        gecmis::ilk_hali_sakla(&d);
+        if let Err(e) = std::fs::write(&d, &yeni_icerik) {
+            return hata(format!("{} kaydedilemedi: {e}", goreli(&kok, &d)));
+        }
+        gecmis::kaydet(&d, &yeni_icerik);
+        toplam += sayi;
+        degisen.push(goreli(&kok, &d));
+    }
+    Yanit::json(&json!({ "degisen": degisen, "sayi": toplam }))
 }
 
 fn paket_listesi(kok: &str) -> Yanit {
@@ -852,6 +974,10 @@ fn teshis_json(h: &derleme::DerlemeHatasi) -> Value {
         Some(t) => json!([{
             "dosya": t.dosya, "satir": t.satir, "sutun": t.sutun,
             "mesaj": t.mesaj, "ipucu": t.ipucu,
+            "duzeltme": t.duzeltme.as_ref().map(|d| json!({
+                "satir": d.satir, "sutun": d.sutun, "uzunluk": d.uzunluk,
+                "yeni": d.yeni, "baslik": d.baslik,
+            })),
         }]),
         None => json!([{ "dosya": "", "satir": 0, "sutun": 0, "mesaj": h.metin, "ipucu": null }]),
     }
@@ -1180,5 +1306,34 @@ fn derle(dosya: &str, hedef: &str) -> Yanit {
             "boyut": std::fs::metadata(&cikti).map(|m| m.len()).unwrap_or(0),
         })),
         Err(h) => Yanit::json(&json!({ "derleme_hatasi": h.metin, "hatalar": teshis_json(&h) })),
+    }
+}
+
+#[cfg(test)]
+mod sinamalar {
+    use super::*;
+
+    #[test]
+    fn bul_ve_degistir() {
+        let (m, n) = metinde_degistir(
+            "sayı = 1\nSAYI'yı yaz.\nsayılar = []\n",
+            "sayı",
+            "adet",
+            false,
+        );
+        assert_eq!(
+            (m.as_str(), n),
+            ("adet = 1\nadet'yı yaz.\nadetlar = []\n", 3)
+        );
+        let (m, n) = metinde_degistir("sayı = 1\nsayılar = [sayı]\n", "sayı", "adet", true);
+        assert_eq!((m.as_str(), n), ("adet = 1\nsayılar = [adet]\n", 2));
+        // Türkçe büyük harfler: IŞIK ve ışık aynı kelime; İl ve il aynı kelime
+        let (m, n) = metinde_degistir("IŞIK ışık İl il", "ışık", "x", false);
+        assert_eq!((m.as_str(), n), ("x x İl il", 2));
+        let (m, n) = metinde_degistir("İl il Il", "il", "y", true);
+        assert_eq!((m.as_str(), n), ("y y Il", 2));
+        let (m, n) = metinde_degistir("aaa", "a", "aa", false);
+        assert_eq!((m.as_str(), n), ("aaaaaa", 3));
+        assert_eq!(metinde_degistir("abc", "x", "y", false).1, 0);
     }
 }

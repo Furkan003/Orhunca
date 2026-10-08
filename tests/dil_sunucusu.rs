@@ -101,12 +101,45 @@ fn dil_sunucusu() {
         "{d}"
     );
 
+    // Hızlı düzelt: yanlış yazılmış değişken adı için quick fix
+    let yazim = "toplam = 5\ntoplm'u yaz.\n";
+    i.gonder(
+        json!({ "jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+        "textDocument": { "uri": uri, "version": 2 }, "contentChanges": [{ "text": yazim }] } }),
+    );
+    let d = i.bildirim_bekle("textDocument/publishDiagnostics", &uri);
+    let tani = d["diagnostics"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["data"]["duzeltme"].is_object())
+        .cloned()
+        .unwrap_or_else(|| panic!("{d}"));
+    let e = i.istek(
+        "textDocument/codeAction",
+        json!({ "textDocument": { "uri": uri }, "range": tani["range"],
+            "context": { "diagnostics": [tani] } }),
+    );
+    assert_eq!(e[0]["kind"], "quickfix", "{e}");
+    let degisiklik = &e[0]["edit"]["changes"][&uri][0];
+    assert_eq!(degisiklik["newText"], "toplam", "{e}");
+    assert_eq!(
+        degisiklik["range"]["start"],
+        json!({ "line": 1, "character": 0 }),
+        "{e}"
+    );
+    assert_eq!(
+        degisiklik["range"]["end"],
+        json!({ "line": 1, "character": 5 }),
+        "{e}"
+    );
+
     // Düzeltilmiş metin: hata kalmaz
     let duzgun =
         "sayılar = [3, 1]\n5'i sayılara ekle.\nsayıları sırala.\nuzunluk(sayılar)'ı yaz.\n";
     i.gonder(
         json!({ "jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
-        "textDocument": { "uri": uri, "version": 2 }, "contentChanges": [{ "text": duzgun }] } }),
+        "textDocument": { "uri": uri, "version": 3 }, "contentChanges": [{ "text": duzgun }] } }),
     );
     let d = i.bildirim_bekle("textDocument/publishDiagnostics", &uri);
     assert_eq!(d["diagnostics"], json!([]), "{d}");
@@ -159,7 +192,7 @@ fn dil_sunucusu() {
 
     // Biçimlendirme
     i.gonder(json!({ "jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
-        "textDocument": { "uri": uri, "version": 3 }, "contentChanges": [{ "text": "eğer doğru ise:\n  6'i yaz.\n" }] } }));
+        "textDocument": { "uri": uri, "version": 4 }, "contentChanges": [{ "text": "eğer doğru ise:\n  6'i yaz.\n" }] } }));
     let b = i.istek("textDocument/formatting", json!({ "textDocument": { "uri": uri }, "options": { "tabSize": 4, "insertSpaces": true } }));
     assert_eq!(b[0]["newText"], "eğer doğru ise:\n    6'yı yaz.\n");
 

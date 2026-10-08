@@ -813,3 +813,65 @@ fn yerel_gecmis() {
     let (durum, _) = s.istek("GET", "/api/gecmis?yol=%2Fetc%2Fpasswd", None, true);
     assert_eq!(durum, 403);
 }
+
+#[test]
+fn projede_degistir() {
+    use serde_json::json;
+    let s = baslat("degistir");
+    let konum = s.ev.join("Projeler");
+    let r = s.api(
+        "/api/proje/olustur",
+        json!({ "sablon": "konsol", "ad": "d", "konum": konum, "git": false, "ornek": false }),
+    );
+    assert!(r["hata"].is_null(), "{r}");
+    let kok = konum.join("d");
+    std::fs::write(kok.join("ana.ohc"), "sayı = 1\nsayılar = [sayı]\n").unwrap();
+    std::fs::create_dir_all(kok.join("alt")).unwrap();
+    std::fs::write(kok.join("alt/b.ohc"), "SAYI'yı yaz.\n").unwrap();
+    std::fs::create_dir_all(kok.join("paketler/p")).unwrap();
+    std::fs::write(kok.join("paketler/p/p.ohc"), "sayı = 2\n").unwrap();
+
+    let r = s.api_get(&format!(
+        "/api/ara?kok={}&metin=say%C4%B1&tam=1",
+        url_kodla(&kok.to_string_lossy())
+    ));
+    assert_eq!(r["sonuclar"].as_array().unwrap().len(), 3, "{r}");
+
+    let r = s.api(
+        "/api/degistir",
+        json!({ "kok": kok, "aranan": "sayı", "yeni": "adet", "tamKelime": true }),
+    );
+    assert_eq!(r["sayi"], 3, "{r}");
+    assert_eq!(r["degisen"], json!(["alt/b.ohc", "ana.ohc"]), "{r}");
+    assert_eq!(
+        std::fs::read_to_string(kok.join("ana.ohc")).unwrap(),
+        "adet = 1\nsayılar = [adet]\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(kok.join("alt/b.ohc")).unwrap(),
+        "adet'yı yaz.\n"
+    );
+    // İndirilen paketlere dokunulmaz; önceki hâl yerel geçmişte durur.
+    assert_eq!(
+        std::fs::read_to_string(kok.join("paketler/p/p.ohc")).unwrap(),
+        "sayı = 2\n"
+    );
+    let (_, g) = s.istek(
+        "GET",
+        &format!(
+            "/api/gecmis?yol={}",
+            url_kodla(&kok.join("ana.ohc").to_string_lossy())
+        ),
+        None,
+        true,
+    );
+    assert!(g.contains("zaman"), "{g}");
+    // Proje dışı klasör reddedilir
+    let (durum, _) = s.istek(
+        "POST",
+        "/api/degistir",
+        Some(&json!({ "kok": "/etc", "aranan": "a", "yeni": "b" }).to_string()),
+        true,
+    );
+    assert_eq!(durum, 403);
+}

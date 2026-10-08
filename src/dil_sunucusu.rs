@@ -116,6 +116,28 @@ fn karakter_sutun(satir: &str, utf16: usize) -> usize {
     satir.chars().count()
 }
 
+/// Tanıların taşıdığı düzeltmelerden "quick fix" eylemleri.
+fn hizli_duzeltmeler(p: &Value) -> Value {
+    let uri = p["textDocument"]["uri"].as_str().unwrap_or("");
+    let eylemler: Vec<Value> = p["context"]["diagnostics"]
+        .as_array()
+        .map(|l| l.as_slice())
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|t| {
+            let d = t["data"].get("duzeltme")?;
+            Some(json!({
+                "title": d["baslik"],
+                "kind": "quickfix",
+                "diagnostics": [t],
+                "isPreferred": true,
+                "edit": { "changes": { uri: [{ "range": d["range"], "newText": d["yeni"] }] } },
+            }))
+        })
+        .collect();
+    Value::Array(eylemler)
+}
+
 fn aralik(metin: &str, satir: usize, bas: usize, son: usize) -> Value {
     let s = metin.lines().nth(satir).unwrap_or("");
     json!({
@@ -517,11 +539,21 @@ impl Sunucu {
             .filter(|_| !gorunum)
         {
             let satir = u.konum.satir - 1;
+            let yer = aralik(
+                &metin,
+                satir,
+                u.konum.sutun - 1,
+                u.konum.sutun - 1 + u.uzunluk,
+            );
             tanilar.get_mut(uri).unwrap().push(json!({
-                "range": aralik(&metin, satir, u.konum.sutun - 1, u.konum.sutun - 1 + u.uzunluk),
+                "range": yer,
                 "severity": 2,
                 "source": "orhunca",
                 "message": u.mesaj,
+                // Hızlı düzelt (textDocument/codeAction) için
+                "data": { "duzeltme": {
+                    "range": yer, "yeni": u.duzeltme, "baslik": format!("'{}' yaz", u.duzeltme),
+                } },
             }));
         }
 
@@ -560,12 +592,21 @@ impl Sunucu {
                     if let Some(i) = &t.ipucu {
                         mesaj.push_str(&format!("\nipucu: {i}"));
                     }
-                    tanilar.entry(hedef).or_default().push(json!({
+                    let mut tani = json!({
                         "range": aralik(&kaynak, satir, bas, uzunluk.max(bas + 1)),
                         "severity": 1,
                         "source": "orhunca",
                         "message": mesaj,
-                    }));
+                    });
+                    if let Some(d) = &t.duzeltme {
+                        let b = d.sutun - 1;
+                        tani["data"] = json!({ "duzeltme": {
+                            "range": aralik(&kaynak, d.satir - 1, b, b + d.uzunluk),
+                            "yeni": d.yeni,
+                            "baslik": d.baslik,
+                        } });
+                    }
+                    tanilar.entry(hedef).or_default().push(tani);
                 } else {
                     tanilar.get_mut(uri).unwrap().push(json!({
                         "range": aralik(&metin, 0, 0, 0),
@@ -858,6 +899,7 @@ pub fn calistir() -> Result<(), String> {
                         "definitionProvider": true,
                         "documentSymbolProvider": true,
                         "documentFormattingProvider": true,
+                        "codeActionProvider": { "codeActionKinds": ["quickfix"] },
                     },
                     "serverInfo": { "name": "orhunca", "version": env!("CARGO_PKG_VERSION") },
                 }),
@@ -895,6 +937,7 @@ pub fn calistir() -> Result<(), String> {
             "textDocument/definition" => yanitla(kimlik.as_ref().unwrap(), s.tanima_git(p)),
             "textDocument/documentSymbol" => yanitla(kimlik.as_ref().unwrap(), s.simgeler(p)),
             "textDocument/formatting" => yanitla(kimlik.as_ref().unwrap(), s.bicimlendir(p)),
+            "textDocument/codeAction" => yanitla(kimlik.as_ref().unwrap(), hizli_duzeltmeler(p)),
             "shutdown" => {
                 kapaniyor = true;
                 yanitla(kimlik.as_ref().unwrap_or(&Value::Null), Value::Null);

@@ -23,6 +23,16 @@ içindeki kayıtlar birleşir). **Dosya → Yerel geçmiş…** ile bir hâli se
 **Bu hâle dön** ile geri getirebilirsiniz (Ctrl+Z ile geri alınır). Kaydetme başarısız olursa
 program çalıştırılmaz; ekrandaki kod ile çalışan kod her zaman aynıdır.
 
+**Hızlı düzelt:** derleyici bir düzeltme önerdiğinde (yanlış yazılmış bir isim için "bunu mu demek
+istediniz", yanlış ek için ünlü uyumu, eski yazımlar için "şöyle yazın") **Sorunlar** listesinde
+hatanın yanında **Düzelt** düğmesi çıkar; tıklayınca öneri koda uygulanır (Ctrl+Z ile geri alınır).
+
+**Projede bul ve değiştir:** **Ara** panelinde (soldaki büyüteç) aranan metnin altına yenisini yazıp
+**Tümünü değiştir** düğmesine basın. Büyük/küçük harf ayrımı yapılmaz ve Türkçeye uygundur (`IŞIK` ile
+`ışık` aynı kelimedir); **Yalnızca tam kelime** seçiliyse `sayı` aranınca `sayılar` değişmez. Gizli
+klasörler, `cikti/`, `target/` ve indirilen `paketler/` değiştirilmez. Açık dosyalar önce kaydedilir,
+değişen her dosyanın önceki hâli yerel geçmişe yazılır.
+
 Web projelerinde F5 sunucuyu başlatır ve sayfa sağdaki **canlı önizlemede** açılır. Kaydettiğinizde
 sunucu yeniden derlenir ve önizleme bulunduğu adreste yenilenir (yalnızca `statik/` dosyası
 değiştiyse sayfa yenilenir). Stüdyo kapanınca başlattığı sunucular da kapanır. Arayüz

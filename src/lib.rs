@@ -22,6 +22,7 @@ pub mod etkilesim;
 pub mod goc;
 pub mod guncelleme;
 pub mod hata;
+pub mod hizli_duzelt;
 pub mod ios;
 pub mod mcp;
 pub mod on_kutuphane;
