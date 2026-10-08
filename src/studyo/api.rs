@@ -172,6 +172,8 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
         ("POST", "/api/git/baslat") => git_islemi(metin(&g, "kok"), |k| {
             git::baslat(k).map(|_| json!({ "tamam": true }))
         }),
+        ("POST", "/api/basvurular") => basvurular(&g),
+        ("POST", "/api/adlandir") => adlandir(&g),
         ("GET", "/api/sinamalar") => {
             let kok = PathBuf::from(istek.sorgu("kok"));
             if !izinli_mi(&kok) {
@@ -1043,6 +1045,76 @@ fn git_islemi(kok: &str, f: impl FnOnce(&Path) -> Result<Value, String>) -> Yani
         Ok(v) => Yanit::json(&v),
         Err(e) => hata(e),
     }
+}
+
+/// İmlecin üzerindeki ismin projedeki başvuruları (Ara panelinin sonuç biçiminde).
+fn basvurular(g: &Value) -> Yanit {
+    let dosya = PathBuf::from(metin(g, "dosya"));
+    if !izinli_mi(&dosya) {
+        return Yanit::hata(403, "bu dosyaya erişim yok");
+    }
+    let kaynaklar = crate::referans::diskten(&dosya);
+    let satir = g["satir"].as_u64().unwrap_or(0) as usize;
+    let sutun = g["sutun"].as_u64().unwrap_or(0) as usize;
+    let Some((ad, yerler)) = crate::referans::bul(&kaynaklar, satir, sutun) else {
+        return hata("Burada başvurusu aranabilecek bir isim yok.");
+    };
+    let kok = derleme::proje_koku(&dosya);
+    let kok = std::fs::canonicalize(&kok).unwrap_or(kok);
+    let sonuclar: Vec<Value> = yerler
+        .iter()
+        .map(|y| {
+            let (yol, m) = &kaynaklar[y.dosya];
+            json!({
+                "dosya": yol.strip_prefix(&kok).unwrap_or(yol).to_string_lossy().replace('\\', "/"),
+                "satir": y.satir + 1,
+                "metin": m.lines().nth(y.satir).unwrap_or("").trim(),
+                "tanim": y.tanim,
+            })
+        })
+        .collect();
+    Yanit::json(&json!({ "ad": ad, "sonuclar": sonuclar }))
+}
+
+/// İsmi projenin bütün dosyalarında yeniden adlandırır; dosyaların önceki hâlleri yerel geçmişe.
+fn adlandir(g: &Value) -> Yanit {
+    let dosya = PathBuf::from(metin(g, "dosya"));
+    if !izinli_mi(&dosya) {
+        return Yanit::hata(403, "bu dosyaya erişim yok");
+    }
+    let yeni = metin(g, "yeni").trim();
+    if let Err(e) = crate::referans::gecerli_ad(yeni) {
+        return hata(e);
+    }
+    let kaynaklar = crate::referans::diskten(&dosya);
+    let satir = g["satir"].as_u64().unwrap_or(0) as usize;
+    let sutun = g["sutun"].as_u64().unwrap_or(0) as usize;
+    let Some((ad, yerler)) = crate::referans::bul(&kaynaklar, satir, sutun) else {
+        return hata("Burada yeniden adlandırılabilecek bir isim yok.");
+    };
+    let degisiklikler = crate::referans::yeniden_adlandir(&yerler, yeni);
+    let kok = derleme::proje_koku(&dosya);
+    let kok = std::fs::canonicalize(&kok).unwrap_or(kok);
+    let mut degisen = Vec::new();
+    for (i, (yol, m)) in kaynaklar.iter().enumerate() {
+        let bu: Vec<_> = degisiklikler.iter().filter(|d| d.0 == i).collect();
+        if bu.is_empty() || !izinli_mi(yol) {
+            continue;
+        }
+        let yeni_metin = crate::referans::uygula(m, &bu);
+        gecmis::ilk_hali_sakla(yol);
+        if let Err(e) = std::fs::write(yol, &yeni_metin) {
+            return hata(format!("{} kaydedilemedi: {e}", yol.display()));
+        }
+        gecmis::kaydet(yol, &yeni_metin);
+        degisen.push(
+            yol.strip_prefix(&kok)
+                .unwrap_or(yol)
+                .to_string_lossy()
+                .replace('\\', "/"),
+        );
+    }
+    Yanit::json(&json!({ "ad": ad, "yeni": yeni, "sayi": yerler.len(), "degisen": degisen }))
 }
 
 /// Sınamaları çalıştırır: `dosya` (göreli) ve `ad` verilmezse projedeki hepsi.

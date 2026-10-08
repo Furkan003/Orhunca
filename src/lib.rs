@@ -30,6 +30,7 @@ pub mod on_kutuphane;
 pub mod oneriler;
 pub mod paket;
 pub mod paket_denetim;
+pub mod referans;
 pub mod sablon;
 pub mod sinama;
 pub mod sozcuk;

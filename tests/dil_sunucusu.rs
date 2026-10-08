@@ -190,6 +190,42 @@ fn dil_sunucusu() {
     );
     assert_eq!(g["range"]["start"]["line"], 0, "{g}");
 
+    // Başvurular ve yeniden adlandırma (bitişik ek: sayılara → notlara)
+    let r = i.istek(
+        "textDocument/references",
+        json!({ "textDocument": { "uri": uri }, "position": { "line": 0, "character": 2 },
+            "context": { "includeDeclaration": true } }),
+    );
+    let satirlar: Vec<u64> = r
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|x| x["range"]["start"]["line"].as_u64().unwrap())
+        .collect();
+    assert_eq!(satirlar, vec![0, 1, 2, 3], "{r}");
+    let h = i.istek(
+        "textDocument/prepareRename",
+        json!({ "textDocument": { "uri": uri }, "position": { "line": 1, "character": 6 } }),
+    );
+    assert_eq!(h["placeholder"], "sayılar", "{h}");
+    let a = i.istek(
+        "textDocument/rename",
+        json!({ "textDocument": { "uri": uri }, "position": { "line": 0, "character": 2 }, "newName": "notlar" }),
+    );
+    let d = a["changes"][&uri].as_array().unwrap();
+    assert!(d.iter().any(|x| x["newText"] == "notlara"), "{a}");
+    assert_eq!(d.len(), 4, "{a}");
+    let a = i.istek(
+        "textDocument/rename",
+        json!({ "textDocument": { "uri": uri }, "position": { "line": 0, "character": 2 }, "newName": "eğer" }),
+    );
+    assert!(
+        a.is_null(),
+        "ayrılmış kelimeye adlandırma reddedilmeli: {a}"
+    );
+    let w = i.istek("workspace/symbol", json!({ "query": "" }));
+    assert!(w.is_array(), "{w}");
+
     // Biçimlendirme
     i.gonder(json!({ "jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
         "textDocument": { "uri": uri, "version": 4 }, "contentChanges": [{ "text": "eğer doğru ise:\n  6'i yaz.\n" }] } }));

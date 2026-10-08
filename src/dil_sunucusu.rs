@@ -100,12 +100,12 @@ pub fn yol_uri(yol: &Path) -> String {
 }
 
 /// Karakter sırası (0'dan) → UTF-16 birimi (LSP'nin varsayılanı)
-fn utf16_sutun(satir: &str, karakter: usize) -> usize {
+pub(crate) fn utf16_sutun(satir: &str, karakter: usize) -> usize {
     satir.chars().take(karakter).map(char::len_utf16).sum()
 }
 
 /// UTF-16 birimi → karakter sırası
-fn karakter_sutun(satir: &str, utf16: usize) -> usize {
+pub(crate) fn karakter_sutun(satir: &str, utf16: usize) -> usize {
     let mut toplam = 0;
     for (i, c) in satir.chars().enumerate() {
         if toplam >= utf16 {
@@ -173,7 +173,7 @@ fn kelime_bul(satir: &str, karakter: usize) -> Option<(String, usize, usize)> {
 // Bilgi kaynakları
 // ---------------------------------------------------------------------------
 
-const ANAHTAR_KELIMELER: &[(&str, &str)] = &[
+pub(crate) const ANAHTAR_KELIMELER: &[(&str, &str)] = &[
     ("eğer", "Koşul: `eğer x 4'ten büyükse:` · `eğer a == b ise:`"),
     ("değilse", "Koşul tutmadığında çalışan blok; `değilse eğer ...:` ile zincirlenebilir."),
     ("ise", "Koşulun sonu: `eğer x > 3 ise:` (isteğe bağlı)"),
@@ -233,7 +233,7 @@ const TIP_ADLARI: &[(&str, &str)] = &[
     ),
 ];
 
-fn girinti(satir: &str) -> usize {
+pub(crate) fn girinti(satir: &str) -> usize {
     satir
         .chars()
         .take_while(|c| *c == ' ' || *c == '\t')
@@ -241,7 +241,7 @@ fn girinti(satir: &str) -> usize {
 }
 
 /// Kendi kapsamı olan üst düzey blok başlığı (işlev, fiil, web yolu, bileşen).
-fn kapsam_basligi(govde: &str) -> bool {
+pub(crate) fn kapsam_basligi(govde: &str) -> bool {
     [
         "işlev ",
         "fiil ",
@@ -348,16 +348,16 @@ fn kapsamli_tanim(metin: &str, satir_no: usize, ad: &str) -> Option<(usize, usiz
     None
 }
 
-struct Tanim {
-    tur: &'static str,
-    ad: String,
-    satir: usize,
-    bas: usize,
-    metin: String,
+pub(crate) struct Tanim {
+    pub tur: &'static str,
+    pub ad: String,
+    pub satir: usize,
+    pub bas: usize,
+    pub metin: String,
 }
 
 /// Belgedeki işlev, fiil, sabit tanımları ve değişkenlerin ilk atamaları
-fn tanimlar(metin: &str) -> Vec<Tanim> {
+pub(crate) fn tanimlar(metin: &str) -> Vec<Tanim> {
     let mut cikti = Vec::new();
     for (i, satir) in metin.lines().enumerate() {
         let govde = satir.trim_start();
@@ -509,6 +509,168 @@ struct Sunucu {
 }
 
 impl Sunucu {
+    /// Belge ve projesindeki öteki .ohc dosyaları (açık olanların düzenleyicideki hâliyle);
+    /// ilk öğe belgenin kendisidir. URI'ler aynı sırayla döner.
+    fn proje_kaynaklari(&self, uri: &str) -> (Vec<(PathBuf, String)>, Vec<String>) {
+        let mut kaynaklar = Vec::new();
+        let mut urler = Vec::new();
+        let Some(metin) = self.belgeler.get(uri) else {
+            return (kaynaklar, urler);
+        };
+        let yol = uri_yol(uri).unwrap_or_default();
+        kaynaklar.push((yol.clone(), metin.clone()));
+        urler.push(uri.to_string());
+        let ortulu = self.ortulu();
+        let tam = std::fs::canonicalize(&yol).unwrap_or(yol.clone());
+        let kok = derleme::proje_koku(&yol);
+        fn gez(k: &Path, l: &mut Vec<PathBuf>, derinlik: usize) {
+            let Ok(g) = std::fs::read_dir(k) else { return };
+            for x in g.flatten() {
+                let ad = x.file_name().to_string_lossy().into_owned();
+                if ad.starts_with('.') || matches!(ad.as_str(), "cikti" | "target" | "paketler") {
+                    continue;
+                }
+                let p = x.path();
+                if p.is_dir() && derinlik < 8 {
+                    gez(&p, l, derinlik + 1);
+                } else if p.extension().is_some_and(|e| e == "ohc") {
+                    l.push(p);
+                }
+            }
+        }
+        let mut dosyalar = Vec::new();
+        if kok.join(".ohcproj").exists() || derleme::proje_dosyasi(&kok).is_some() {
+            gez(&kok, &mut dosyalar, 0);
+        } else if let Some(k) = yol.parent() {
+            // Proje dosyası yoksa yalnızca aynı klasör
+            gez(k, &mut dosyalar, 8);
+        }
+        dosyalar.sort();
+        for d in dosyalar.into_iter().take(500) {
+            let t = std::fs::canonicalize(&d).unwrap_or(d.clone());
+            if t == tam {
+                continue;
+            }
+            let icerik = match ortulu.get(&t) {
+                Some(m) => m.clone(),
+                None => match std::fs::read_to_string(&d) {
+                    Ok(m) => m,
+                    Err(_) => continue,
+                },
+            };
+            urler.push(yol_uri(&t));
+            kaynaklar.push((t, icerik));
+        }
+        (kaynaklar, urler)
+    }
+
+    fn konum(p: &Value, metin: &str) -> (usize, usize) {
+        let satir_no = p["position"]["line"].as_u64().unwrap_or(0) as usize;
+        let satir = metin.lines().nth(satir_no).unwrap_or("");
+        let sutun = karakter_sutun(
+            satir,
+            p["position"]["character"].as_u64().unwrap_or(0) as usize,
+        );
+        (satir_no, sutun)
+    }
+
+    fn basvurular(&self, p: &Value) -> Value {
+        let uri = p["textDocument"]["uri"].as_str().unwrap_or("");
+        let (kaynaklar, urler) = self.proje_kaynaklari(uri);
+        let Some((_, metin)) = kaynaklar.first() else {
+            return Value::Null;
+        };
+        let (satir, sutun) = Self::konum(p, metin);
+        let Some((_, yerler)) = crate::referans::bul(&kaynaklar, satir, sutun) else {
+            return Value::Null;
+        };
+        let tanim_dahil = p["context"]["includeDeclaration"].as_bool() != Some(false);
+        Value::Array(
+            yerler
+                .iter()
+                .filter(|y| tanim_dahil || !y.tanim)
+                .map(|y| {
+                    json!({ "uri": urler[y.dosya], "range": aralik(&kaynaklar[y.dosya].1, y.satir, y.bas, y.son) })
+                })
+                .collect(),
+        )
+    }
+
+    fn adlandirma_hazirla(&self, p: &Value) -> Value {
+        let uri = p["textDocument"]["uri"].as_str().unwrap_or("");
+        let (kaynaklar, _) = self.proje_kaynaklari(uri);
+        let Some((_, metin)) = kaynaklar.first() else {
+            return Value::Null;
+        };
+        let (satir, sutun) = Self::konum(p, metin);
+        let Some((ad, yerler)) = crate::referans::bul(&kaynaklar, satir, sutun) else {
+            return Value::Null;
+        };
+        match yerler
+            .iter()
+            .find(|y| y.dosya == 0 && y.satir == satir && y.bas <= sutun && sutun <= y.son)
+        {
+            Some(y) => json!({ "range": aralik(metin, y.satir, y.bas, y.son), "placeholder": ad }),
+            None => Value::Null,
+        }
+    }
+
+    fn yeniden_adlandir(&self, p: &Value) -> Result<Value, String> {
+        let uri = p["textDocument"]["uri"].as_str().unwrap_or("");
+        let yeni = p["newName"].as_str().unwrap_or("").trim();
+        crate::referans::gecerli_ad(yeni)?;
+        let (kaynaklar, urler) = self.proje_kaynaklari(uri);
+        let Some((_, metin)) = kaynaklar.first() else {
+            return Ok(Value::Null);
+        };
+        let (satir, sutun) = Self::konum(p, metin);
+        let (_, yerler) = crate::referans::bul(&kaynaklar, satir, sutun)
+            .ok_or("Burada yeniden adlandırılabilecek bir isim yok.")?;
+        let mut degisiklikler: serde_json::Map<String, Value> = serde_json::Map::new();
+        for (dosya, satir, bas, son, yeni_metin) in crate::referans::yeniden_adlandir(&yerler, yeni)
+        {
+            let e = degisiklikler
+                .entry(urler[dosya].clone())
+                .or_insert_with(|| json!([]));
+            e.as_array_mut().unwrap().push(json!({
+                "range": aralik(&kaynaklar[dosya].1, satir, bas, son),
+                "newText": yeni_metin,
+            }));
+        }
+        Ok(json!({ "changes": degisiklikler }))
+    }
+
+    fn calisma_alani_simgeleri(&self, p: &Value) -> Value {
+        let sorgu = p["query"].as_str().unwrap_or("").to_lowercase();
+        let Some(uri) = self.belgeler.keys().next() else {
+            return json!([]);
+        };
+        let (kaynaklar, urler) = self.proje_kaynaklari(uri);
+        let mut l = Vec::new();
+        for (i, (_, m)) in kaynaklar.iter().enumerate() {
+            for t in tanimlar(m) {
+                if t.tur == "değişken" || !t.ad.to_lowercase().contains(&sorgu) {
+                    continue;
+                }
+                let tur = match t.tur {
+                    "işlev" => 12,
+                    "fiil" => 6,
+                    "sabit" => 14,
+                    "model" => 23,
+                    "seçenek" => 10,
+                    "yol" => 7,
+                    "bileşen" => 5,
+                    _ => 13,
+                };
+                l.push(json!({
+                    "name": t.ad, "kind": tur, "containerName": t.tur,
+                    "location": { "uri": urler[i], "range": aralik(m, t.satir, t.bas, t.bas + t.ad.chars().count()) },
+                }));
+            }
+        }
+        Value::Array(l)
+    }
+
     fn ortulu(&self) -> HashMap<PathBuf, String> {
         self.belgeler
             .iter()
@@ -897,6 +1059,9 @@ pub fn calistir() -> Result<(), String> {
                         "hoverProvider": true,
                         "completionProvider": { "triggerCharacters": [] },
                         "definitionProvider": true,
+                        "referencesProvider": true,
+                        "renameProvider": { "prepareProvider": true },
+                        "workspaceSymbolProvider": true,
                         "documentSymbolProvider": true,
                         "documentFormattingProvider": true,
                         "codeActionProvider": { "codeActionKinds": ["quickfix"] },
@@ -938,6 +1103,18 @@ pub fn calistir() -> Result<(), String> {
             "textDocument/documentSymbol" => yanitla(kimlik.as_ref().unwrap(), s.simgeler(p)),
             "textDocument/formatting" => yanitla(kimlik.as_ref().unwrap(), s.bicimlendir(p)),
             "textDocument/codeAction" => yanitla(kimlik.as_ref().unwrap(), hizli_duzeltmeler(p)),
+            "textDocument/references" => yanitla(kimlik.as_ref().unwrap(), s.basvurular(p)),
+            "textDocument/prepareRename" => {
+                yanitla(kimlik.as_ref().unwrap(), s.adlandirma_hazirla(p))
+            }
+            "textDocument/rename" => match s.yeniden_adlandir(p) {
+                Ok(d) => yanitla(kimlik.as_ref().unwrap(), d),
+                Err(e) => gonder(&json!({
+                    "jsonrpc": "2.0", "id": kimlik,
+                    "error": { "code": -32803, "message": e },
+                })),
+            },
+            "workspace/symbol" => yanitla(kimlik.as_ref().unwrap(), s.calisma_alani_simgeleri(p)),
             "shutdown" => {
                 kapaniyor = true;
                 yanitla(kimlik.as_ref().unwrap_or(&Value::Null), Value::Null);

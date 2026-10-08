@@ -298,7 +298,7 @@
   // =====================================================================
   const MENULER = [
     { ad: 'Dosya', ogeler: [['Yeni dosya…', '', 'yeniDosyaModal'], ['Yeni klasör…', '', 'yeniKlasorModal'], '-', ['Kaydet', 'Ctrl+S', 'kaydet'], ['Tümünü kaydet', 'Ctrl+Alt+S', 'tumunuKaydet'], ['Yerel geçmiş…', '', 'gecmisModal'], ['Projeye güveni kaldır (kısıtlı mod)', '', 'guveniKaldir'], '-', ['Başlangıç ekranı', '', 'baslangicaDon'], ['Projeyi kapat', '', 'projeyiKapat'], '-', ["Stüdyo'yu kapat", '', 'studyoyuKapat']] },
-    { ad: 'Düzen', ogeler: [['Geri al', 'Ctrl+Z', 'geriAl'], ['Yinele', 'Ctrl+Y', 'yinele'], '-', ['Kes', 'Ctrl+X', 'kes'], ['Kopyala', 'Ctrl+C', 'kopyala'], ['Yapıştır', 'Ctrl+V', 'yapistir'], '-', ['Satırı yorum yap', 'Ctrl+/', 'yorumYap'], ['Biçimlendir', 'Ctrl+⇧+F', 'bicimlendir']] },
+    { ad: 'Düzen', ogeler: [['Geri al', 'Ctrl+Z', 'geriAl'], ['Yinele', 'Ctrl+Y', 'yinele'], '-', ['Kes', 'Ctrl+X', 'kes'], ['Kopyala', 'Ctrl+C', 'kopyala'], ['Yapıştır', 'Ctrl+V', 'yapistir'], '-', ['Satırı yorum yap', 'Ctrl+/', 'yorumYap'], ['Biçimlendir', 'Ctrl+⇧+F', 'bicimlendir'], '-', ['Yeniden adlandır…', 'F2', 'yenidenAdlandir'], ['Bütün başvurular', '⇧+F12', 'basvurulariBul']] },
     { ad: 'Seçim', ogeler: [['Tümünü seç', 'Ctrl+A', 'tumunuSec'], ['Satırı seç', 'Ctrl+L', 'satiriSec'], ['Satırı çoğalt', 'Ctrl+⇧+D', 'satiriCogalt']] },
     { ad: 'Görünüm', ogeler: [['Gezgin', '', 'panelGezgin'], ['Ara', '', 'panelAra'], ['Yapı', '', 'panelYapi'], ['Çalıştır', '', 'panelCalistir'], '-', ['Alt paneli göster/gizle', 'Ctrl+J', 'altPanelAcKapa'], ['Yapay zekâ asistanı', 'Ctrl+I', 'asistanAcKapa'], '-', ['Python karşılığını göster', '', 'ceviriPython'], ['JavaScript karşılığını göster', '', 'ceviriJs'], '-', ['Yazıyı büyüt', 'Ctrl+=', 'yaziBuyut'], ['Yazıyı küçült', 'Ctrl+-', 'yaziKucult']] },
     { ad: 'Çalıştır', ogeler: [['Çalıştır', 'F5', 'calistir'], ['Hata ayıkla', 'F6', 'ayikla'], ['Adım adım göster', '', 'yavasCalistir'], ['Durdur', '⇧+F5', 'durdur'], ['Denetle', 'F7', 'denetleKomut'], '-', ['Kesme noktası ekle/kaldır', 'F9', 'kesmeImlec'], ['Devam', 'F5', 'ayDevam'], ['Üstünden adım', 'F10', 'ayUstunden'], ['İçine adım', 'F11', 'ayAdim'], ['Dışına adım', '⇧+F11', 'ayCik'], '-', ['Canlı önizlemeyi göster/gizle', '', 'onizlemeAcKapa'], ['Önizlemeyi tarayıcıda aç', '', 'onizlemeTarayici'], '-', ['Linux için derle', '', 'derleLinux'], ['Windows için derle', '', 'derleWindows'], ['Web için derle (WebAssembly)', '', 'derleWeb'], '-', ['Masaüstü uygulaması (Linux)', '', 'paketleLinux'], ['Masaüstü uygulaması (Windows)', '', 'paketleWindows'], ['Telefon uygulaması (Android)', '', 'paketleAndroid'], ['Telefon uygulaması (iPhone)', '', 'paketleIos']] },
@@ -2718,6 +2718,41 @@
       if (r.hata) return bildir(r.hata, true);
       m.icerik = r.icerik; katmanlariCiz();
     },
+    /** Shift+F12: imlecin üzerindeki ismin projedeki başvuruları Ara panelinde listelenir. */
+    async basvurulariBul() {
+      const s = etkinSekme();
+      if (!s || s.ikili || !s.yol.endsWith('.ohc')) return;
+      if (!(await tumunuKaydet())) return;
+      const r = await api('/api/basvurular', { dosya: tamYol(s.yol), satir: D.imlec.satir - 1, sutun: D.imlec.sutun - 1 }).catch(e => ({ hata: e.message }));
+      if (r.hata) return bildir(r.hata, true);
+      D.araMetin = r.ad; D.araSonuc = r.sonuclar; D.yanPanel = 'ara';
+      guncelle('etkinlik', 'yan');
+      bildir(`“${r.ad}”: ${r.sonuclar.length} başvuru`);
+    },
+    /** F2: ismi projenin bütün dosyalarında yeniden adlandırır (ekler ünlü uyumuna göre). */
+    async yenidenAdlandir() {
+      const s = etkinSekme();
+      if (!s || s.ikili || !s.yol.endsWith('.ohc')) return;
+      if (!(await tumunuKaydet())) return;
+      const konum = { dosya: tamYol(s.yol), satir: D.imlec.satir - 1, sutun: D.imlec.sutun - 1 };
+      const b = await api('/api/basvurular', konum).catch(e => ({ hata: e.message }));
+      if (b.hata) return bildir(b.hata, true);
+      const dosyalar = new Set(b.sonuclar.map(x => x.dosya)).size;
+      const yeni = (prompt(`“${b.ad}” için yeni ad (${b.sonuclar.length} yer, ${dosyalar} dosya; ekler yeni ada göre düzelir):`, b.ad) || '').trim();
+      if (!yeni || yeni === b.ad) return;
+      const r = await api('/api/adlandir', { ...konum, yeni }).catch(e => ({ hata: e.message }));
+      if (r.hata) return bildir(r.hata, true);
+      for (const yol of r.degisen) {
+        const t = D.sekmeler.find(x => x.yol === yol);
+        if (!t) continue;
+        const d = await api('/api/dosya?' + sorgu({ yol: tamYol(yol) }));
+        if (!d.hata && !d.ikili) t.icerik = t.kayitli = d.icerik;
+      }
+      fiilleriTopla();
+      guncelle('sekmeler', 'kod', 'yan');
+      denetle();
+      bildir(`“${r.ad}” → “${r.yeni}”: ${r.sayi} yer, ${r.degisen.length} dosya (önceki hâller yerel geçmişte).`);
+    },
     tamKelimeDegistir(_, el) { D.tamKelime = el.checked; GIRDI.araMetin(D.araMetin); },
     async tumunuDegistir() {
       const aranan = D.araMetin, yeni = D.degistirMetin || '';
@@ -3238,6 +3273,8 @@
       if (e.key === 'F10' && durdu) { e.preventDefault(); ayiklamaKomutu('ustunden'); return; }
       if (e.key === 'F11' && durdu) { e.preventDefault(); ayiklamaKomutu(e.shiftKey ? 'cik' : 'adim'); return; }
       if (e.key === 'F7') { e.preventDefault(); EYLEM.denetleKomut(); return; }
+      if (e.key === 'F2' && e.target.id === 'kodAlani') { e.preventDefault(); EYLEM.yenidenAdlandir(); return; }
+      if (e.key === 'F12' && e.shiftKey && e.target.id === 'kodAlani') { e.preventDefault(); EYLEM.basvurulariBul(); return; }
       if (ctrl && e.altKey && (e.key === 's' || e.key === 'S')) { e.preventDefault(); tumunuKaydet({ yenile: true }); return; }
       if (ctrl && (e.key === 's' || e.key === 'S')) { e.preventDefault(); kaydet(); return; }
       if (ctrl && (e.key === 'j' || e.key === 'J')) { e.preventDefault(); EYLEM.altPanelAcKapa(); return; }
