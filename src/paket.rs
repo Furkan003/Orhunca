@@ -1247,7 +1247,9 @@ pub fn komut(args: &[String]) -> Result<(), String> {
                 println!("{}", i.json());
             } else {
                 println!("ad:       {}\nsürüm:    {}\naçıklama: {}\nkaynak:   {}\nişleme:   {}\nözet:     {}",
-                    i.ad, i.surum, i.aciklama, i.kaynak, i.isleme, i.ozet);
+                    i.ad,
+                    if i.surum.is_empty() { "(paketin .ohcproj dosyasında yazmıyor)" } else { &i.surum },
+                    i.aciklama, i.kaynak, i.isleme, i.ozet);
                 if i.izinler.is_empty() {
                     println!("izinler:  yok (yalnızca hesaplama yapar)");
                 } else {
