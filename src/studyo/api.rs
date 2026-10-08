@@ -1341,7 +1341,7 @@ fn calistir(g: &Value) -> Yanit {
     // Hata ayıklama: her deyimde kanca; program Stüdyo'ya bağlanır.
     let ayiklama = g["ayikla"].as_bool().unwrap_or(false);
     let sonuc = if ayiklama {
-        derleme::derle_ayiklamali(&dosya, &program)
+        derleme::derle_ayiklamali(&dosya, &program, &kosullu_kesmeler(g))
     } else {
         derleme::derle(&dosya, &program, None).map(|_| Vec::new())
     };
@@ -1428,20 +1428,37 @@ fn cikti(kimlik: &str, konum: &str) -> Yanit {
 }
 
 /// `kesmeler: [{dosya, satir}]`
-fn kesme_noktalari(g: &Value) -> Vec<(String, usize)> {
+fn kosullu_kesmeler(g: &Value) -> Vec<crate::ayiklama::KosulluKesme> {
+    let metin_al = |v: &Value| {
+        v.as_str()
+            .map(str::trim)
+            .filter(|m| !m.is_empty())
+            .map(str::to_string)
+    };
     g["kesmeler"]
         .as_array()
         .map(|l| {
             l.iter()
                 .filter_map(|k| {
-                    Some((
-                        k["dosya"].as_str()?.to_string(),
-                        k["satir"].as_u64()? as usize,
-                    ))
+                    Some(crate::ayiklama::KosulluKesme {
+                        dosya: k["dosya"].as_str()?.to_string(),
+                        satir: k["satir"].as_u64()? as usize,
+                        kosul: metin_al(&k["kosul"]),
+                        gunluk: metin_al(&k["gunluk"]),
+                    })
                 })
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// Çalışma zamanına gönderilen kesme noktaları: günlük noktaları durmaz, koşullu kesmeler
+/// gizli deyimin satırında durur (bkz. ayiklama.rs).
+fn kesme_noktalari(g: &Value) -> Vec<(String, usize)> {
+    kosullu_kesmeler(g)
+        .into_iter()
+        .filter_map(|k| Some((k.dosya.clone(), k.calisma_zamani_satiri()?)))
+        .collect()
 }
 
 fn ayikla(g: &Value) -> Yanit {

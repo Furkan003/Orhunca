@@ -42,7 +42,26 @@ async function activate(baglam) {
       await e.document.save();
       terminalde(`${derleyici()} denetle "${e.document.fileName}"`);
     }),
-    vscode.commands.registerCommand('orhunca.studyo', () => terminalde(`${derleyici()} stüdyo`))
+    vscode.commands.registerCommand('orhunca.studyo', () => terminalde(`${derleyici()} stüdyo`)),
+    // Hata ayıklama: `orhunca ayıkla-dap` (Debug Adapter Protocol)
+    vscode.debug.registerDebugAdapterDescriptorFactory('orhunca', {
+      createDebugAdapterDescriptor: () => new vscode.DebugAdapterExecutable(derleyici(), ['ayıkla-dap']),
+    }),
+    vscode.debug.registerDebugConfigurationProvider('orhunca', {
+      // launch.json yokken F5: açık .ohc dosyası çalıştırılır.
+      resolveDebugConfiguration(_klasor, ayar) {
+        if (!ayar.type && !ayar.request && !ayar.name) {
+          const e = vscode.window.activeTextEditor;
+          if (e && e.document.languageId === 'orhunca') {
+            return { type: 'orhunca', request: 'launch', name: 'Orhunca', program: e.document.fileName };
+          }
+        }
+        if (!ayar.program) {
+          return vscode.window.showInformationMessage('Hata ayıklanacak bir .ohc dosyası açın.').then(() => undefined);
+        }
+        return ayar;
+      },
+    })
   );
   try {
     await istemci.start();

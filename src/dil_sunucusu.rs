@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 // JSON-RPC iletişimi
 // ---------------------------------------------------------------------------
 
-fn mesaj_oku(okuyucu: &mut impl BufRead) -> Option<Value> {
+pub(crate) fn mesaj_oku(okuyucu: &mut impl BufRead) -> Option<Value> {
     let mut uzunluk = None;
     loop {
         let mut satir = String::new();
@@ -35,7 +35,7 @@ fn mesaj_oku(okuyucu: &mut impl BufRead) -> Option<Value> {
     serde_json::from_slice(&govde).ok()
 }
 
-fn gonder(deger: &Value) {
+pub(crate) fn gonder(deger: &Value) {
     let govde = deger.to_string();
     let mut cikti = std::io::stdout().lock();
     let _ = write!(cikti, "Content-Length: {}\r\n\r\n{govde}", govde.len());

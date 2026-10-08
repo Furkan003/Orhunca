@@ -98,7 +98,14 @@ impl Ayiklayici {
                 let mut p = c.splitn(4, ' ');
                 let _sira = p.next();
                 let dosya: usize = p.next().and_then(|x| x.parse().ok()).unwrap_or(0);
-                let satir: usize = p.next().and_then(|x| x.parse().ok()).unwrap_or(0);
+                let mut satir: usize = p.next().and_then(|x| x.parse().ok()).unwrap_or(0);
+                if yer.is_none() {
+                    yer = Some((dosya, satir));
+                }
+                // Koşullu kesmenin gizli deyimi: asıl satır gösterilir.
+                if satir > crate::ayiklama::KAYDIRMA {
+                    satir -= crate::ayiklama::KAYDIRMA;
+                }
                 let islev = p.next().unwrap_or("").to_string();
                 // Windows'taki tam yolların `\\?\` öneki gösterilmez.
                 let yol = self
@@ -109,13 +116,13 @@ impl Ayiklayici {
                         y.strip_prefix(r"\\?\").map(str::to_string).unwrap_or(y)
                     })
                     .unwrap_or_default();
-                if yer.is_none() {
-                    yer = Some((dosya, satir));
-                }
                 d.yigin.push((islev, yol, satir));
             } else if let Some(v) = s.strip_prefix("deg ") {
                 let mut p = v.splitn(3, '\t');
                 let ad = p.next().unwrap_or("").to_string();
+                if ad == crate::ayiklama::GIZLI_DEGISKEN {
+                    continue;
+                }
                 let tip = p.next().unwrap_or("").to_string();
                 let deger = p.next().unwrap_or("").to_string();
                 d.degiskenler.push((ad, tip, deger));

@@ -9,7 +9,11 @@
 - Yazarken hata gösterimi ve ünlü uyumu uyarıları (`5'a` → `5'e`)
 - Üzerine gelince açıklama: yerleşik işlevler, anahtar kelimeler, değişken tipleri
 - Tamamlama ve kod parçacıkları (`eğer`, `her … için`, `işlev`, `fiil` …)
-- Biçimlendirme (Shift+Alt+F), tanıma gitme (F12), belge simgeleri
+- Biçimlendirme (Shift+Alt+F), tanıma gitme (F12), bütün başvurular (Shift+F12), yeniden
+  adlandırma (F2; ekler ünlü uyumuna göre düzelir), belge ve çalışma alanı simgeleri, hızlı düzeltmeler
+- **Hata ayıklama** (F5): kesme noktaları, koşullu kesme (sağ tık → Koşullu kesme noktası),
+  günlük noktaları (`i = {i}`), adım adım ilerleme, çağrı yığını ve değişkenler. `launch.json`
+  gerekmez; açık `.ohc` dosyası çalıştırılır. Bağdaştırıcı: `orhunca ayıkla-dap`.
 - **Orhunca: Çalıştır** (Ctrl+F5) ve **Orhunca: Stüdyo'yu aç** komutları
 
 ## Gereksinim
@@ -22,5 +26,5 @@ Ayarlar → **orhunca.derleyiciYolu** ile tam yolunu verin.
 ```sh
 npm install
 npx @vscode/vsce package
-code --install-extension orhunca-0.5.0.vsix
+code --install-extension orhunca-0.6.0.vsix
 ```

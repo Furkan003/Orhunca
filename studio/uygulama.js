@@ -74,6 +74,8 @@
     calisma: null, argumanlar: '',
     // Kesme noktaları: { tam dosya yolu: [satır, ...] }
     kesmeler: ayarOku('kesmeler', {}),
+    kesmeAyar: ayarOku('kesmeAyar', {}),
+    izlenenler: ayarOku('izlenenler', []),
     // Web projelerinde canlı önizleme: { kapi, adres, yol, durum: bekliyor|acik|hata|durdu, surum }
     onizleme: null, onizlemeAcik: true,
     yanPanel: 'gezgin', sinamalar: null, sinamaSonuc: {}, sinamaMesgul: null, araMetin: '', araSonuc: [], degistirMetin: '', tamKelime: false,
@@ -593,6 +595,11 @@
     if (m.tur === 'gorunum') return cizGorunum(kabuk);
     if (m.tur === 'ceviri') return cizCeviri(kabuk);
     if (m.tur === 'gecmis') return cizGecmis(kabuk);
+    if (m.tur === 'kesmeAyar') return kabuk(`Kesme noktası · ${sonParca(m.dosya)}:${m.satir}`, `
+      <div class="alan"><label>Koşul (boş bırakılırsa her geçişte durur)</label><input id="kesmeKosul" data-g="kesmeKosul" class="metin-girdi mono" value="${kac(m.kosul)}" placeholder="ör. i == 5 ya da toplam > 100" spellcheck="false" autocomplete="off"></div>
+      <div class="alan"><label>Günlük mesajı (yazılırsa durmaz, terminale yazar; {ifade} değeri ekler)</label><input id="kesmeGunluk" data-g="kesmeGunluk" class="metin-girdi mono" value="${kac(m.gunluk)}" placeholder="ör. i = {i}, toplam {toplam}" spellcheck="false" autocomplete="off"></div>
+      ${D.calisma?.ayikla ? '<div class="secenek-alt">Koşul ve günlük değişiklikleri hata ayıklama yeniden başlatılınca geçerli olur.</div>' : ''}`,
+      `<div class="dugme" data-e="kesmeAyarKaldir">${S('delete')}Kesme noktasını kaldır</div><div style="flex:1"></div><div class="dugme" data-e="modalKapat">İptal</div><div class="dugme birincil" data-e="kesmeAyarKaydet">Kaydet</div>`);
     if (m.tur === 'fark') return kabuk(`${m.yol} ${m.hazir ? '(hazırlanan)' : ''}`, `<div class="fark">${m.metin == null ? '<div class="donen kucuk"></div>' : farkHtml(m.metin)}</div>`,
       `<div class="dugme" data-e="modalKapat">Kapat</div><div class="dugme" data-e="farkDosyaAc">${S('open_in_new')}Dosyayı aç</div>`).replace('class="modal"', 'class="modal genis"');
     if (m.tur === 'ajan') return cizAjan(kabuk);
@@ -1197,14 +1204,18 @@
       ? ay.degiskenler.map(d => `<div class="ay-deg" title="${kac(d.ad + ': ' + d.tip + ' = ' + d.deger)}"><span class="ad">${kac(d.ad)}</span><span class="tip">${kac(d.tip)}</span><span class="deger">${kac(d.deger)}</span></div>`).join('')
       : '<div class="panel-not">Bu çerçevede değişken yok.</div>';
     const yigin = ay.yigin.map((c, i) => `<div class="ay-cerceve ${i === ay.cerceve ? 'secili' : ''}" data-e="cerceveSec" data-a="${i}"><span>${kac(c.islev)}</span><span class="yer">${kac(goreliYol(c.dosya))}:${c.satir}</span></div>`).join('');
-    return arac + ileti + `<div class="ay-baslik">DEĞİŞKENLER</div>${degiskenler}<div class="ay-baslik">ÇAĞRI YIĞINI</div>${yigin}` + kesmelerBolumu();
+    const izlenen = `<div class="ay-baslik">İZLENENLER</div>` + D.izlenenler.map((ad, i) => {
+      const d = ay.degiskenler.find(x => x.ad === ad);
+      return `<div class="ay-deg"><span class="ad">${kac(ad)}</span><span class="tip">${d ? kac(d.tip) : ''}</span><span class="deger">${d ? kac(d.deger) : '<i>bu çerçevede yok</i>'}</span><span class="simge ay-sil" title="Kaldır" data-e="izlemeKaldir" data-a="${i}">close</span></div>`;
+    }).join('') + `<input id="izlemeEkle" class="metin-girdi ay-izle" placeholder="Değişken adı + Enter" spellcheck="false" autocomplete="off">`;
+    return arac + ileti + izlenen + `<div class="ay-baslik">DEĞİŞKENLER</div>${degiskenler}<div class="ay-baslik">ÇAĞRI YIĞINI</div>${yigin}` + kesmelerBolumu();
   }
 
   function kesmelerBolumu() {
     const l = kesmeListesi();
     return `<div class="ay-baslik">KESME NOKTALARI</div>` + (l.length
-      ? l.map(k => `<div class="ay-cerceve" data-e="konumaGit" data-a="${kac(goreliYol(k.dosya))}|${k.satir}"><span>${kac(goreliYol(k.dosya).split('/').pop())}</span><span class="yer">satır ${k.satir}</span></div>`).join('')
-      : '<div class="panel-not">Satır numarasına tıklayarak ekleyin (F9).</div>');
+      ? l.map(k => `<div class="ay-cerceve" data-e="konumaGit" data-a="${kac(goreliYol(k.dosya))}|${k.satir}" title="Sağ tık satır numarasında: koşul ve günlük"><span>${kac(goreliYol(k.dosya).split('/').pop())}${k.gunluk ? ` <span class="ay-kosul">◆ ${kac(k.gunluk)}</span>` : k.kosul ? ` <span class="ay-kosul">eğer ${kac(k.kosul)}</span>` : ''}</span><span class="yer">satır ${k.satir}</span></div>`).join('')
+      : '<div class="panel-not">Satır numarasına tıklayarak ekleyin (F9). Sağ tık: koşullu kesme ya da günlük noktası.</div>');
   }
 
   const etkinSekme = () => D.sekmeler.find(s => s.yol === D.etkin);
@@ -1278,8 +1289,11 @@
     const no = $('#satirNolari');
     const kesmeler = D.kesmeler[tam] || [];
     if (no) [...no.children].forEach((d, i) => {
+      const a = kesmeler.includes(i + 1) ? D.kesmeAyar[tam + ':' + (i + 1)] : null;
       d.classList.toggle('hatali', benim.some(h => h.satir === i + 1));
       d.classList.toggle('kesme', kesmeler.includes(i + 1));
+      d.classList.toggle('kosullu', !!a?.kosul && !a?.gunluk);
+      d.classList.toggle('gunluk', !!a?.gunluk);
     });
     // Hata ayıklayıcının durduğu satır (seçili çağrı çerçevesi)
     const ay = $('#ayiklamaSatir'), yer = ayiklamaYeri();
@@ -1300,7 +1314,17 @@
   }
 
   function kesmeListesi() {
-    return Object.entries(D.kesmeler).flatMap(([dosya, l]) => l.map(satir => ({ dosya, satir })));
+    return Object.entries(D.kesmeler).flatMap(([dosya, l]) => l.map(satir => ({ dosya, satir, ...(D.kesmeAyar[dosya + ':' + satir] || {}) })));
+  }
+
+  /** Kesme noktası ayarı: koşul ve günlük mesajı (satır numarasına sağ tık). */
+  function kesmeAyarAc(satir) {
+    const s = etkinSekme();
+    if (!s || !satir) return;
+    const tam = normal(tamYol(s.yol)), a = D.kesmeAyar[tam + ':' + satir] || {};
+    D.modal = { tur: 'kesmeAyar', dosya: tam, satir, kosul: a.kosul || '', gunluk: a.gunluk || '' };
+    katmanlariCiz();
+    setTimeout(() => $('#kesmeKosul')?.focus(), 30);
   }
 
   function kesmeDegistir(satir) {
@@ -1308,7 +1332,7 @@
     if (!s || !satir) return;
     const tam = normal(tamYol(s.yol));
     const l = new Set(D.kesmeler[tam] || []);
-    if (l.has(satir)) l.delete(satir); else l.add(satir);
+    if (l.has(satir)) { l.delete(satir); delete D.kesmeAyar[tam + ':' + satir]; ayarYaz('kesmeAyar', D.kesmeAyar); } else l.add(satir);
     if (l.size) D.kesmeler[tam] = [...l].sort((a, b) => a - b); else delete D.kesmeler[tam];
     ayarYaz('kesmeler', D.kesmeler);
     isaretleriCiz();
@@ -2776,6 +2800,27 @@
       denetle();
     },
     projeyeGuven() { projeyeGuven(true); },
+    kesmeAyarKaydet() {
+      const m = D.modal;
+      if (m?.tur !== 'kesmeAyar') return;
+      const l = new Set(D.kesmeler[m.dosya] || []);
+      l.add(m.satir);
+      D.kesmeler[m.dosya] = [...l].sort((a, b) => a - b);
+      const kosul = m.kosul.trim(), gunluk = m.gunluk.trim();
+      if (kosul || gunluk) D.kesmeAyar[m.dosya + ':' + m.satir] = { ...(kosul && { kosul }), ...(gunluk && { gunluk }) };
+      else delete D.kesmeAyar[m.dosya + ':' + m.satir];
+      ayarYaz('kesmeler', D.kesmeler); ayarYaz('kesmeAyar', D.kesmeAyar);
+      D.modal = null; katmanlariCiz(); isaretleriCiz();
+      if (D.calisma?.ayikla) api('/api/ayikla', { kimlik: D.calisma.kimlik, komut: 'kesmeler', kesmeler: kesmeListesi() }).catch(() => null);
+      if (D.yanPanel === 'calistir') cizYanPanel();
+    },
+    kesmeAyarKaldir() {
+      const m = D.modal;
+      if (m?.tur !== 'kesmeAyar') return;
+      D.modal = null; katmanlariCiz();
+      if ((D.kesmeler[m.dosya] || []).includes(m.satir)) kesmeDegistir(m.satir);
+    },
+    izlemeKaldir(i) { D.izlenenler.splice(+i, 1); ayarYaz('izlenenler', D.izlenenler); cizYanPanel(); },
     async guveniKaldir() {
       if (!D.proje) return;
       if (D.proje.guvenilir === false) { bildir('Bu proje zaten kısıtlı modda.'); return; }
@@ -3179,6 +3224,8 @@
     },
     degistirMetin(v) { D.degistirMetin = v; },
     gitMesaj(v) { D.gitMesaj = v; },
+    kesmeKosul(v) { if (D.modal) D.modal.kosul = v; },
+    kesmeGunluk(v) { if (D.modal) D.modal.gunluk = v; },
     /** Öğren sayfasındaki yerleşik işlev listesini süzer (Türkçe harfsiz yazım da bulunur). */
     basvuruAra(v) {
       const sade = t => kucuk(t).replace(/[çğıöşü]/g, h => ({ ç: 'c', ğ: 'g', ı: 'i', ö: 'o', ş: 's', ü: 'u' })[h]).replace(/\u0307/g, '');
@@ -3208,6 +3255,12 @@
     const ad = el.dataset.e;
     if (D.menu && el.closest('.acilir-menu')) { D.menu = null; guncelle('baslik'); }
     EYLEM[ad]?.(el.dataset.a, el, e);
+  });
+  document.addEventListener('contextmenu', e => {
+    const satir = e.target.closest('#satirNolari > div');
+    if (!satir) return;
+    e.preventDefault();
+    kesmeAyarAc(+satir.dataset.a);
   });
   document.addEventListener('dblclick', e => {
     const el = e.target.closest('[data-ee]');
@@ -3244,6 +3297,12 @@
   document.addEventListener('keydown', async e => {
     const ctrl = e.ctrlKey || e.metaKey;
     if (e.target.id === 'gitMesaj' && e.key === 'Enter' && ctrl) { e.preventDefault(); EYLEM.gitIsle(); return; }
+    if ((e.target.id === 'kesmeKosul' || e.target.id === 'kesmeGunluk') && e.key === 'Enter') { e.preventDefault(); EYLEM.kesmeAyarKaydet(); return; }
+    if (e.target.id === 'izlemeEkle' && e.key === 'Enter') {
+      const ad = e.target.value.trim();
+      if (ad && !D.izlenenler.includes(ad)) { D.izlenenler.push(ad); ayarYaz('izlenenler', D.izlenenler); }
+      cizYanPanel(); setTimeout(() => $('#izlemeEkle')?.focus(), 0); return;
+    }
     if (e.target.id === 'terminalGirdi' && e.key === 'Enter' && D.calisma) {
       const metin = e.target.value;
       e.target.value = '';

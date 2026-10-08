@@ -1052,3 +1052,97 @@ fn git_paneli() {
     ));
     assert_eq!(d["guvensiz"], true, "{d}");
 }
+
+#[test]
+fn kosullu_kesme_ve_gunluk_noktasi() {
+    let s = baslat("kosullu");
+    let konum = s.ev.join("Projeler");
+    let r = s.api(
+        "/api/proje/olustur",
+        serde_json::json!({ "sablon": "konsol", "ad": "k", "konum": konum, "git": false, "ornek": false }),
+    );
+    assert!(r["hata"].is_null(), "{r}");
+    let proje = konum.join("k");
+    let dosya = proje.join("ana.ohc");
+    let kaynak = "işlev kare(n: sayı) -> sayı:\n    sonuç = n * n\n    döndür sonuç\n\ntoplam = 0\nher i için 1'den 5'e kadar:\n    toplam += kare(i)\ntoplam'ı yaz.\n";
+    s.api(
+        "/api/dosya",
+        serde_json::json!({ "yol": dosya, "icerik": kaynak }),
+    );
+
+    // Koşullu kesme (n == 3) ve günlük noktası
+    let r = s.api(
+        "/api/calistir",
+        serde_json::json!({ "dosya": dosya, "klasor": proje, "ayikla": true,
+            "kesmeler": [
+                { "dosya": dosya, "satir": 2, "kosul": "n == 3" },
+                { "dosya": dosya, "satir": 7, "gunluk": "i = {i}, toplam {toplam}" },
+            ] }),
+    );
+    let kimlik = r["kimlik"].as_u64().unwrap_or_else(|| panic!("{r}"));
+    let mut cikti = String::new();
+    let mut konum_ = 0;
+    let bas = Instant::now();
+    let d = loop {
+        let (_, g) = s.istek(
+            "GET",
+            &format!("/api/cikti?kimlik={kimlik}&konum={konum_}"),
+            None,
+            true,
+        );
+        let d: serde_json::Value = serde_json::from_str(&g).unwrap();
+        for p in d["parcalar"].as_array().unwrap() {
+            cikti.push_str(p["t"].as_str().unwrap());
+        }
+        konum_ = d["konum"].as_u64().unwrap();
+        if d["ayiklama"]["durdu"] == true || d["bitti"] == true {
+            break d;
+        }
+        assert!(bas.elapsed() < Duration::from_secs(20), "durmadı: {d}");
+        std::thread::sleep(Duration::from_millis(20));
+    };
+    let a = &d["ayiklama"];
+    assert_eq!(a["neden"], "kesme", "{d}");
+    assert_eq!(
+        a["yigin"][0]["satir"], 2,
+        "gizli deyimin satırı geri çevrilmeli: {a}"
+    );
+    let degiskenler = a["degiskenler"].as_array().unwrap();
+    assert!(
+        degiskenler
+            .iter()
+            .any(|v| v["ad"] == "n" && v["deger"] == "3"),
+        "{a}"
+    );
+    assert!(
+        degiskenler.iter().all(|v| v["ad"] != "ayıklama_durağı"),
+        "{a}"
+    );
+    // Günlük noktası durmadan yazar: ilk iki tur geçti
+    assert!(cikti.contains("◆ i = 1, toplam 0"), "{cikti}");
+    assert!(cikti.contains("◆ i = 2, toplam 1"), "{cikti}");
+    let _ = s.api(
+        "/api/ayikla",
+        serde_json::json!({ "kimlik": kimlik, "komut": "devam" }),
+    );
+
+    // Hatalı koşul derleme hatası verir
+    let r = s.api(
+        "/api/calistir",
+        serde_json::json!({ "dosya": dosya, "klasor": proje, "ayikla": true,
+            "kesmeler": [{ "dosya": dosya, "satir": 2, "kosul": "n == \"a\"" }] }),
+    );
+    assert!(r["derleme_hatasi"].is_string(), "{r}");
+    let r = s.api(
+        "/api/calistir",
+        serde_json::json!({ "dosya": dosya, "klasor": proje, "ayikla": true,
+            "kesmeler": [{ "dosya": dosya, "satir": 4, "kosul": "doğru" }] }),
+    );
+    assert!(
+        r["derleme_hatasi"]
+            .as_str()
+            .unwrap_or("")
+            .contains("deyime denk gelmiyor"),
+        "{r}"
+    );
+}

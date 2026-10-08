@@ -91,6 +91,15 @@ pub fn yukle_ortulu(
     dosya: &Path,
     ortulu: &HashMap<PathBuf, String>,
 ) -> Result<agac::Program, DerlemeHatasi> {
+    yukle_kesmeli(dosya, ortulu, &[])
+}
+
+/// Hata ayıklama için: koşullu kesme ve günlük noktaları programa yerleştirilir.
+pub fn yukle_kesmeli(
+    dosya: &Path,
+    ortulu: &HashMap<PathBuf, String>,
+    kesmeler: &[crate::ayiklama::KosulluKesme],
+) -> Result<agac::Program, DerlemeHatasi> {
     // Proje daha yeni bir dil sürümü için yazılmışsa anlaşılmaz hatalar yerine bunu söyle.
     let klasor = dosya
         .parent()
@@ -195,6 +204,8 @@ pub fn yukle_ortulu(
         .map_err(|h| DerlemeHatasi::konumlu(h, &dosyalar))?;
     crate::sinama::indir(&mut program, &dosyalar)
         .map_err(|h| DerlemeHatasi::konumlu(h, &dosyalar))?;
+    crate::ayiklama::yerlestir(&mut program, &dosyalar, kesmeler)
+        .map_err(|h| DerlemeHatasi::konumlu(h, &dosyalar))?;
     denetci::denetle(&mut program).map_err(|h| {
         DerlemeHatasi::konumlu(crate::sinama::hatayi_acikla(h, &dosyalar), &dosyalar)
     })?;
@@ -295,8 +306,13 @@ pub fn derle(dosya: &Path, cikti: &Path, hedef: Option<&str>) -> Result<(), Derl
 
 /// Hata ayıklayıcı için derler (her deyimde kanca; bkz. çalışma zamanındaki
 /// ohc_ay_satir). Derlemedeki kaynak dosyaların yollarını döndürür.
-pub fn derle_ayiklamali(dosya: &Path, cikti: &Path) -> Result<Vec<String>, DerlemeHatasi> {
-    derle_secenekli(dosya, cikti, None, true)
+pub fn derle_ayiklamali(
+    dosya: &Path,
+    cikti: &Path,
+    kesmeler: &[crate::ayiklama::KosulluKesme],
+) -> Result<Vec<String>, DerlemeHatasi> {
+    let program = yukle_kesmeli(dosya, &HashMap::new(), kesmeler)?;
+    programi_derle(program, dosya, cikti, None, true)
 }
 
 /// Bu bilgisayar için derler; `ortulu`daki dosyalar bellekten okunur (bkz. `yukle_ortulu`).

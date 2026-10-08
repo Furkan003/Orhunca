@@ -20,6 +20,7 @@ Kullanım:
   orhunca sına [dosya ya da klasör] [--ad parça] [--json]   (sınamaları çalıştırır: *_sına.ohc)
   orhunca başvuru [arama] [--md | --json]   (yerleşik işlevler: ör. orhunca başvuru tarih)
   orhunca mcp                 (yapay zekâ ajanları için MCP sunucusu, stdin/stdout)
+  orhunca ayıkla-dap          (düzenleyiciler için hata ayıklama bağdaştırıcısı, DAP)
   orhunca yeni <proje_adı> [--şablon konsol|web_sitesi|tam_yigin|web_api|...]
   orhunca paket ara [kelime] | ekle <ad | git-adresi>[#etiket] | yükle | güncelle | kaldır <ad> | listele
   orhunca paket bilgi <ad | git-adresi> [--json] | yayımla   (izinler, içerik özeti; paket mağazasına yayımlama)
@@ -83,6 +84,7 @@ fn ana() -> ExitCode {
         "düzelt" | "duzelt" => duzelt_komutu(kalan),
         "dil-sunucusu" | "lsp" => dil_sunucusu::calistir().map(|_| ExitCode::SUCCESS),
         "mcp" => orhunca::mcp::calistir().map(|_| ExitCode::SUCCESS),
+        "ayıkla-dap" | "ayikla-dap" | "dap" => orhunca::dap::calistir().map(|_| ExitCode::SUCCESS),
         "çevir" | "cevir" => cevir_komutu(kalan).map(|_| ExitCode::SUCCESS),
         "sına" | "sina" | "test" => orhunca::sinama::komut(kalan).map(|tamam| {
             if tamam {
@@ -408,7 +410,7 @@ fn derle_komutu(args: &[String]) -> Result<(), String> {
             .cikti
             .clone()
             .unwrap_or_else(|| derleme::varsayilan_cikti(&s.dosya, None));
-        derleme::derle_ayiklamali(&s.dosya, &cikti).map_err(|h| h.metin)?;
+        derleme::derle_ayiklamali(&s.dosya, &cikti, &[]).map_err(|h| h.metin)?;
         println!("derlendi: {}", cikti.display());
         return Ok(());
     }

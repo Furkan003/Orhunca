@@ -861,3 +861,9 @@ details.tema-grup summary { cursor: pointer; }
 .fark .f-sil { background: color-mix(in srgb, var(--hata) 14%, transparent); color: var(--yazi); }
 .fark .f-baslik { color: var(--mavi); margin-top: 6px; }
 .fark .f-dosya { color: var(--soluk3); }
+.satir-nolari div.kesme.kosullu::before { background: oklch(0.75 0.15 70); }
+.satir-nolari div.kesme.gunluk::before { border-radius: 2px; transform: rotate(45deg) scale(0.85); background: oklch(0.72 0.12 255); }
+.ay-kosul { color: var(--soluk3); font-family: var(--mono); font-size: 11px; }
+.ay-izle { width: 100%; margin: 4px 0 2px; height: 28px; font-size: 12px; }
+.ay-sil { font-size: 14px; color: var(--soluk4); cursor: pointer; margin-left: 4px; }
+.ay-sil:hover { color: var(--hata); }

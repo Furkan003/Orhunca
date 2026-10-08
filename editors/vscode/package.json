@@ -1,8 +1,8 @@
 {
   "name": "orhunca",
   "displayName": "Orhunca",
-  "description": "Türkçe tabanlı programlama dili Orhunca için sözdizimi renklendirme, hata gösterimi, tamamlama ve biçimlendirme; .ohchtml görünümleri",
-  "version": "0.5.0",
+  "description": "Türkçe tabanlı programlama dili Orhunca için sözdizimi renklendirme, hata gösterimi, tamamlama ve biçimlendirme, hata ayıklama (kesme noktaları, koşullu kesme, günlük noktası); .ohchtml görünümleri",
+  "version": "0.6.0",
   "publisher": "orhunca",
   "license": "MIT",
   "repository": {
@@ -15,7 +15,8 @@
   "categories": [
     "Programming Languages",
     "Formatters",
-    "Linters"
+    "Linters",
+    "Debuggers"
   ],
   "keywords": [
     "orhunca",
@@ -26,7 +27,9 @@
   "main": "./extension.js",
   "activationEvents": [
     "onLanguage:orhunca",
-    "onLanguage:orhunca-html"
+    "onLanguage:orhunca-html",
+    "onDebugResolve:orhunca",
+    "onDebugDynamicConfigurations:orhunca"
   ],
   "contributes": {
     "languages": [
@@ -127,7 +130,72 @@
         "editor.insertSpaces": true,
         "editor.formatOnSave": false
       }
-    }
+    },
+    "breakpoints": [
+      {
+        "language": "orhunca"
+      }
+    ],
+    "debuggers": [
+      {
+        "type": "orhunca",
+        "label": "Orhunca",
+        "languages": [
+          "orhunca"
+        ],
+        "configurationAttributes": {
+          "launch": {
+            "required": [
+              "program"
+            ],
+            "properties": {
+              "program": {
+                "type": "string",
+                "description": "Çalıştırılacak .ohc dosyası ya da proje klasörü",
+                "default": "${file}"
+              },
+              "args": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Programın argümanları",
+                "default": []
+              },
+              "cwd": {
+                "type": "string",
+                "description": "Çalışma klasörü (varsayılan: dosyanın klasörü)"
+              },
+              "stopOnEntry": {
+                "type": "boolean",
+                "description": "İlk satırda dur",
+                "default": false
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "type": "orhunca",
+            "request": "launch",
+            "name": "Orhunca: bu dosyayı çalıştır",
+            "program": "${file}"
+          }
+        ],
+        "configurationSnippets": [
+          {
+            "label": "Orhunca: Çalıştır ve hata ayıkla",
+            "description": "Bir .ohc dosyasını hata ayıklayıcıyla çalıştırır",
+            "body": {
+              "type": "orhunca",
+              "request": "launch",
+              "name": "Orhunca",
+              "program": "^\"\\${file}\""
+            }
+          }
+        ]
+      }
+    ]
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"

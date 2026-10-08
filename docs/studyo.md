@@ -35,6 +35,13 @@ kaldır** projeyi yeniden kısıtlı moda alır. Önceki sürümlerden kalan son
 istediniz", yanlış ek için ünlü uyumu, eski yazımlar için "şöyle yazın") **Sorunlar** listesinde
 hatanın yanında **Düzelt** düğmesi çıkar; tıklayınca öneri koda uygulanır (Ctrl+Z ile geri alınır).
 
+**Koşullu kesme, günlük noktası ve izleme:** satır numarasına sağ tıklayınca kesme noktasına koşul
+(`i == 7`, `toplam > 100`) ya da günlük mesajı (`i = {i}, toplam {toplam}`) yazılır. Koşullu kesme
+yalnızca koşul doğruyken durur; günlük noktası durmadan terminale `◆ i = 3, toplam 6` yazar.
+Koşullar o satırın değişkenlerini görür ve derlenirken denetlenir. Hata ayıklama panelindeki
+**İzlenenler** bölümüne yazılan değişkenler her durakta en üstte gösterilir. Aynı özellikler VS
+Code'da da vardır (eklentiyle F5; `orhunca ayıkla-dap`).
+
 **Yeniden adlandır ve başvurular:** imleç bir ismin (değişken, işlev, fiil, model, sabit) üzerindeyken
 **F2** onu projenin bütün dosyalarında yeniden adlandırır; isme bitişik ekler yeni adın ünlü
 uyumuna göre düzelir (`sayılara` → `kişilere`, `toplam'ı` → `sonuç'u`). Kapsam bilinir: bir işlevin
