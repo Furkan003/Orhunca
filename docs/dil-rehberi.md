@@ -169,6 +169,8 @@ kullan "araçlar/fiyat.ohc"       # yol, bu dosyanın klasörüne göredir
 sabit KDV_ORANI = 0.20           # her yerden (işlevlerden de) görülür
 ```
 `kullan` ile eklenen dosyalarda yalnızca işlev, fiil ve sabit tanımları olabilir. `pi` hazır bir sabittir.
+İşlev, sabit ve durum adları bütün dosyalarda ortaktır; yerel değişkenler ve parametreler yalnızca
+kendi dosyalarında bilinir (bir dosyadaki `tüm` değişkeni, başka bir dosyadaki `tümü` adını etkilemez).
 
 ### C kütüphaneleri
 

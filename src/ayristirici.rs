@@ -153,10 +153,14 @@ enum KosulTuru {
 }
 
 /// Tüm dosyalarda ortak tanımlar.
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct Tanimlar {
     /// Tanımlı isimler (değişkenler, parametreler, işlevler): ek çözümlemesi için.
     sozluk: Sozluk,
+    /// Her dosyadan görülen isimler (işlevler, sabitler, durumlar). Yerel değişkenler ve
+    /// parametreler yalnızca kendi dosyalarının sözlüğüne girer: bir paketin `tüm`
+    /// değişkeni başka bir dosyadaki `tümü` yazımını belirsiz yapmasın.
+    genel: Sozluk,
     /// Kullanıcının `fiil` ile tanımladığı fiiller.
     fiiller: HashSet<String>,
     /// `model` ile tanımlanan (ve yerleşik) modellerin adları.
@@ -202,16 +206,24 @@ pub fn ayristir_cok(mut dosyalar: Vec<Vec<Sozcuk>>, sablonlar: Vec<Sablon>) -> S
     if !sablonlar.is_empty() {
         for ad in ["model", "içerik", "başlık"] {
             t.sozluk.ekle(ad);
+            t.genel.ekle(ad);
         }
         for s in &sablonlar {
             for ad in s.parametre_adlari() {
                 t.sozluk.ekle(&ad);
+                t.genel.ekle(&ad);
             }
         }
     }
     let t = Rc::new(t);
+    let tek_dosya = dosyalar.len() <= 2;
     let mut program = Program::default();
     for (i, sozcukler) in dosyalar.into_iter().enumerate() {
+        let t = if tek_dosya {
+            Rc::clone(&t)
+        } else {
+            Rc::new(dosya_tanimlari(&t, &sozcukler))
+        };
         let mut a = Ayristirici::yeni(&t, sozcukler);
         a.program(&mut program, i > 0)?;
     }
@@ -292,13 +304,25 @@ pub fn kullanilanlar(sozcukler: &[Sozcuk]) -> Vec<(String, Konum)> {
         .collect()
 }
 
+/// Bir dosyanın sözlüğü: ortak isimler ve dosyanın kendi yerel isimleri.
+fn dosya_tanimlari(t: &Tanimlar, sozcukler: &[Sozcuk]) -> Tanimlar {
+    let mut d = t.clone();
+    d.sozluk = t.genel.clone();
+    for ad in sozluk_kur(sozcukler).sozluk.isimler() {
+        d.sozluk.ekle(ad);
+    }
+    d
+}
+
 /// Programdaki tüm tanımlı isimleri (atama hedefleri, döngü değişkenleri,
 /// işlevler ve parametreleri) toplayarak ek çözümleme sözlüğünü kurar. Kullanıcı
 /// fiillerini, modelleri ve model alanlarını da toplar.
 fn sozluk_kur(s: &[Sozcuk]) -> Tanimlar {
     let mut t = Tanimlar::default();
     let sozluk = &mut t.sozluk;
+    let genel = &mut t.genel;
     sozluk.ekle("pi");
+    genel.ekle("pi");
     t.alanlar.ekle("kimlik");
     let fiiller = &mut t.fiiller;
     let kelime = |i: usize| match s.get(i).map(|s| &s.tok) {
@@ -430,12 +454,14 @@ fn sozluk_kur(s: &[Sozcuk]) -> Tanimlar {
         if s[i].tok == Tok::Kelime("sabit".into()) || s[i].tok == Tok::Kelime("durum".into()) {
             if let Some(k) = kelime(i + 1) {
                 sozluk.ekle(k);
+                genel.ekle(k);
             }
         }
         if s[i].tok == Tok::Kelime("işlev".into()) || s[i].tok == Tok::Kelime("bileşen".into()) {
             // Model işlevinin adı yalnızca `nesne.ad()` biçiminde kullanılır.
             if let (Some(ad), false) = (kelime(i + 1), model_islevinde) {
                 sozluk.ekle(ad);
+                genel.ekle(ad);
             }
             // Parametreler: parantez içinde virgülle ayrılmış parçaların ilk kelimesi.
             // Adsız işlevde (`işlev(x) -> ...`) parantez hemen gelir.

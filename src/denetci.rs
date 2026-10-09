@@ -59,6 +59,9 @@ pub struct Denetci {
     bekleyen: HashMap<String, Islev>,
     /// Denetimi bitmiş işlevler
     biten: HashMap<String, Islev>,
+    /// Ön kütüphane işlevi denetleniyor: yerel adları kullanıcının işlev, sabit,
+    /// model ve durum adlarıyla çakışmaz.
+    on_kutuphanede: bool,
 }
 
 pub fn denetle(p: &mut Program) -> Sonuc<()> {
@@ -84,6 +87,7 @@ pub fn denetle(p: &mut Program) -> Sonuc<()> {
         yakalanan: Vec::new(),
         bekleyen: HashMap::new(),
         biten: HashMap::new(),
+        on_kutuphanede: false,
         arayuz_programi: p.arayuz_programi(),
     };
     for (ad, deger) in p.sabitler.iter_mut() {
@@ -640,8 +644,10 @@ impl Denetci {
             self.dongu,
             self.cevre.take(),
             std::mem::take(&mut self.yakalanan),
+            self.on_kutuphanede,
         );
         self.dongu = 0;
+        self.on_kutuphanede = on_kutuphane::on_kutuphane_mi(ad);
         let sonuc = self.islev_govdesi(&mut f);
         (
             self.kapsam,
@@ -654,6 +660,7 @@ impl Denetci {
             self.dongu,
             self.cevre,
             self.yakalanan,
+            self.on_kutuphanede,
         ) = eski;
         self.biten.insert(ad.to_string(), f);
         sonuc
@@ -952,6 +959,10 @@ impl Denetci {
                     genislet(deger, bildirilen);
                     t = bildirilen.clone();
                     deger.tip = t.clone();
+                }
+                if self.on_kutuphanede {
+                    self.ata(hedef, t, *konum)?;
+                    return Ok(());
                 }
                 if self.sabitler.contains_key(hedef.as_str()) {
                     return Err(Hata::yeni(

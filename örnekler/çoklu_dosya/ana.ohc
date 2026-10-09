@@ -1,5 +1,6 @@
 # Başka dosyalardaki işlev, fiil ve sabitler `kullan` ile alınır.
 kullan "araçlar/fiyat.ohc"
+kullan "araçlar/sayaç.ohc"
 
 sepet = {"kalem": 12.5, "defter": 30, "silgi": 4.75}
 ara_toplam = 0.0
@@ -8,3 +9,6 @@ her ürün için sepetten:
 "Ara toplam: " + ara_toplam'ı yaz.
 "KDV dahil: " + (ara_toplam'a kdv_ekle)'yi yaz.
 "Mağaza: " + MAĞAZA'yı yaz.
+tümü = ["kalem", "defter", "silgi"]
+n = harf_sayısı(tümü)
+"Harf sayısı: " + n'yi yaz.

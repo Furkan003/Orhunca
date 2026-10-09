@@ -1,0 +1,7 @@
+# Yerel değişkenler yalnızca kendi dosyalarında bilinir: buradaki `tüm`, ana dosyadaki
+# `tümü` adını "tüm'ü" okumasıyla belirsiz yapmaz.
+işlev harf_sayısı(l: liste<metin>) -> sayı:
+    tüm = 0
+    her s için l'den:
+        tüm += uzunluk(s)
+    döndür tüm

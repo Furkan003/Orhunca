@@ -1,0 +1,7 @@
+# Kullanıcının işlev adları ön kütüphanenin yerel değişkenleriyle çakışmaz.
+işlev k(x: sayı) -> sayı:
+    döndür x * 2
+
+k(21)'i yaz.
+kaçır("<a & b>")'yı yaz.
+küçük_harf("IŞIK")'ı yaz.
