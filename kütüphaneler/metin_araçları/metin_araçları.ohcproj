@@ -1,0 +1,4 @@
+ad = "metin_araçları"
+sürüm = "1.0.0"
+giriş = "metin_araçları.ohc"
+açıklama = "Slug (adres metni), kısaltma, başlık biçimi, Levenshtein benzerliği, 'bunu mu demek istediniz', maskeleme, satır kaydırma, HTML temizleme"

@@ -1,0 +1,211 @@
+# metin_araçları: günlük metin işlemleri (Türkçe harflere uygun).
+#   kullan "metin_araçları"
+#   slug("Çay Bahçesi & Kahve")'yı yaz.         # cay-bahcesi-kahve
+#   kısalt("Uzun bir haber metni…", 20)'yi yaz.
+#   başlık_biçimi("istanbul ılık bir gün")'ü yaz.  # İstanbul Ilık Bir Gün
+#   en_benzer("ankra", ["Ankara", "Antalya"])'yı yaz.  # Ankara
+#   maskele("5321234567", 3, 2)'yi yaz.         # 532*****67
+
+# Türkçe harfleri ASCII karşılıklarına çevirir: "Çağrı Işık" → "Cagri Isik"
+işlev ascii_yap(m: metin) -> metin:
+    s = m
+    her ç için [["ç", "c"], ["Ç", "C"], ["ğ", "g"], ["Ğ", "G"], ["ı", "i"], ["İ", "I"], ["ö", "o"], ["Ö", "O"], ["ş", "s"], ["Ş", "S"], ["ü", "u"], ["Ü", "U"], ["â", "a"], ["Â", "A"], ["î", "i"], ["û", "u"]]'den:
+        s = değiştir(s, ç[0], ç[1])
+    döndür s
+
+işlev harf_ya_da_rakam_mı(c: metin) -> mantık:
+    döndür büyük_harf(c) != küçük_harf(c) veya içerir("0123456789", c)
+
+# Adreslerde kullanılan metin: "Çay Bahçesi & Kahve!" → "cay-bahcesi-kahve"
+işlev slug(m: metin) -> metin:
+    s = ascii_yap(küçük_harf(m))
+    p: liste<metin> = []
+    tire = yanlış
+    her c için harfler(s)'den:
+        eğer içerir("abcdefghijklmnopqrstuvwxyz0123456789", c) ise:
+            eğer tire ve uzunluk(p) > 0 ise:
+                "-"'yi p'ye ekle.
+            c'yi p'ye ekle.
+            tire = yanlış
+        değilse:
+            tire = doğru
+    döndür birleştir(p, "")
+
+# En çok `n` karakter; kelimenin ortasından kesmez, sonuna "…" ekler
+işlev kısalt(m: metin, n: sayı) -> metin:
+    h = harfler(m)
+    eğer uzunluk(h) <= n ise:
+        döndür m
+    eğer n < 2 ise:
+        döndür "…"
+    kes = n - 1
+    i = kes
+    i > 0 ve h[i] != " " olduğu sürece:
+        i -= 1
+    eğer i > kes // 2 ise:
+        kes = i
+    döndür kırp(birleştir(parça(h, 0, kes), "")) + "…"
+
+# "istanbul ılık bir gün" → "İstanbul Ilık Bir Gün" (Türkçe büyük harf kurallarıyla)
+işlev başlık_biçimi(m: metin) -> metin:
+    p: liste<metin> = []
+    her k için böl(m, " ")'den:
+        eğer k == "" ise:
+            ""'yi p'ye ekle.
+        değilse:
+            h = harfler(k)
+            (büyük_harf(h[0]) + küçük_harf(birleştir(parça(h, 1, uzunluk(h) - 1), "")))'yi p'ye ekle.
+    döndür birleştir(p, " ")
+
+# Yalnızca ilk harf büyük: "MERHABA DÜNYA" → "Merhaba dünya"
+işlev cümle_biçimi(m: metin) -> metin:
+    h = harfler(kırp(m))
+    eğer uzunluk(h) == 0 ise:
+        döndür ""
+    döndür büyük_harf(h[0]) + küçük_harf(birleştir(parça(h, 1, uzunluk(h) - 1), ""))
+
+# Türkçe büyük/küçük harf farkı gözetmeden eşit mi: "İSTANBUL" ve "istanbul"
+işlev aynı_mı(a: metin, b: metin) -> mantık:
+    döndür küçük_harf(kırp(a)) == küçük_harf(kırp(b))
+
+# "Ayşe Nur Yılmaz" → "ANY"
+işlev baş_harfler(m: metin) -> metin:
+    p: liste<metin> = []
+    her k için böl(m, " ")'den:
+        eğer k != "" ise:
+            büyük_harf(harfler(k)[0])'ı p'ye ekle.
+    döndür birleştir(p, "")
+
+# ---------------------------------------------------------------------------
+# Benzerlik
+
+# Levenshtein uzaklığı: birini ötekine çevirmek için gereken en az ekleme/silme/değiştirme
+işlev levenshtein(a: metin, b: metin) -> sayı:
+    x = harfler(a)
+    y = harfler(b)
+    n = uzunluk(x)
+    m = uzunluk(y)
+    önceki: liste<sayı> = []
+    her j için 0'dan m'ye kadar:
+        j'yi önceki'ye ekle.
+    her i için 1'den n'ye kadar:
+        şimdiki = [i]
+        her j için 1'den m'ye kadar:
+            maliyet = 1
+            eğer x[i - 1] == y[j - 1] ise:
+                maliyet = 0
+            en_az_ = önceki[j] + 1
+            eğer şimdiki[j - 1] + 1 < en_az_ ise:
+                en_az_ = şimdiki[j - 1] + 1
+            eğer önceki[j - 1] + maliyet < en_az_ ise:
+                en_az_ = önceki[j - 1] + maliyet
+            en_az_'ı şimdiki'ye ekle.
+        önceki = şimdiki
+    döndür önceki[m]
+
+# 0 (hiç benzemiyor) – 1 (aynı); büyük/küçük harf ve Türkçe harf farkı gözetilmez
+işlev benzerlik(a: metin, b: metin) -> ondalık:
+    x = küçük_harf(kırp(a))
+    y = küçük_harf(kırp(b))
+    en_uzun = uzunluk(harfler(x))
+    eğer uzunluk(harfler(y)) > en_uzun ise:
+        en_uzun = uzunluk(harfler(y))
+    eğer en_uzun == 0 ise:
+        döndür 1.0
+    döndür 1.0 - ondalık(levenshtein(x, y)) / ondalık(en_uzun)
+
+# "Bunu mu demek istediniz?": listedeki en benzer öğe (benzerlik 0,5'ten azsa "")
+işlev en_benzer(aranan: metin, liste_: liste<metin>) -> metin:
+    en_iyi = ""
+    puan = 0.5
+    her ö için liste_'den:
+        b = benzerlik(aranan, ö)
+        eğer b > puan veya (b == puan ve en_iyi == "") ise:
+            puan = b
+            en_iyi = ö
+    döndür en_iyi
+
+# ---------------------------------------------------------------------------
+# Biçim
+
+# Baştan ve sondan belirtilen kadar karakter görünür kalır: maskele("5321234567", 3, 2)
+işlev maskele(m: metin, baş: sayı, son: sayı) -> metin:
+    h = harfler(m)
+    n = uzunluk(h)
+    eğer baş + son >= n ise:
+        döndür m
+    döndür birleştir(parça(h, 0, baş), "") + tekrarla("*", n - baş - son) + birleştir(parça(h, n - son, son), "")
+
+# E-postayı gizler: "ayse.yilmaz@ornek.com" → "a*********z@ornek.com"
+işlev e_posta_maskele(adres: metin) -> metin:
+    p = böl(adres, "@")
+    eğer uzunluk(p) != 2 ise:
+        döndür adres
+    n = uzunluk(harfler(p[0]))
+    eğer n <= 2 ise:
+        döndür tekrarla("*", n) + "@" + p[1]
+    döndür maskele(p[0], 1, 1) + "@" + p[1]
+
+# Soldan doldurur: doldur_sol("7", 3, "0") → "007"
+işlev doldur_sol(m: metin, n: sayı, dolgu: metin) -> metin:
+    k = n - uzunluk(harfler(m))
+    eğer k <= 0 veya dolgu == "" ise:
+        döndür m
+    döndür tekrarla(dolgu, k) + m
+
+işlev doldur_sağ(m: metin, n: sayı, dolgu: metin) -> metin:
+    k = n - uzunluk(harfler(m))
+    eğer k <= 0 veya dolgu == "" ise:
+        döndür m
+    döndür m + tekrarla(dolgu, k)
+
+# Metni en çok `genişlik` karakterlik satırlara böler (kelimeler bölünmez)
+işlev satırlara_böl(m: metin, genişlik: sayı) -> liste<metin>:
+    satırlar_: liste<metin> = []
+    şimdiki = ""
+    her k için böl(m, "")'den:
+        eğer şimdiki == "" ise:
+            şimdiki = k
+        değilse eğer uzunluk(harfler(şimdiki)) + 1 + uzunluk(harfler(k)) <= genişlik ise:
+            şimdiki = şimdiki + " " + k
+        değilse:
+            şimdiki'yi satırlar_'a ekle.
+            şimdiki = k
+    eğer şimdiki != "" ise:
+        şimdiki'yi satırlar_'a ekle.
+    döndür satırlar_
+
+işlev kelime_sayısı(m: metin) -> sayı:
+    döndür uzunluk(böl(m, ""))
+
+# Okuma süresi (dakikada 200 kelime): "3 dk"
+işlev okuma_süresi(m: metin) -> metin:
+    dk = (kelime_sayısı(m) + 199) // 200
+    eğer dk < 1 ise:
+        dk = 1
+    döndür metin(dk) + " dk"
+
+# HTML etiketlerini atar, &amp; gibi temel karakter adlarını çözer
+işlev html_temizle(m: metin) -> metin:
+    p: liste<metin> = []
+    içeride = yanlış
+    her c için harfler(m)'den:
+        eğer c == "<" ise:
+            içeride = doğru
+        değilse eğer c == ">" ise:
+            içeride = yanlış
+            " "'yu p'ye ekle.
+        değilse eğer içeride == yanlış ise:
+            c'yi p'ye ekle.
+    s = birleştir(p, "")
+    her ç için [["&lt;", "<"], ["&gt;", ">"], ["&quot;", "\""], ["&#39;", "'"], ["&nbsp;", " "], ["&amp;", "&"]]'den:
+        s = değiştir(s, ç[0], ç[1])
+    döndür birleştir(böl(s, ""), " ")
+
+# Tersten de aynı mı okunuyor (boşluk, noktalama ve harf büyüklüğü gözetilmez)?
+işlev palindrom_mu(m: metin) -> mantık:
+    p: liste<metin> = []
+    her c için harfler(küçük_harf(m))'den:
+        eğer harf_ya_da_rakam_mı(c) ise:
+            c'yi p'ye ekle.
+    döndür uzunluk(p) > 0 ve birleştir(p, "") == birleştir(ters(p), "")

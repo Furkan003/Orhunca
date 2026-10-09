@@ -1,0 +1,42 @@
+kullan "metin_araçları.ohc"
+
+işlev sına_slug():
+    eşit_olmalı(slug("Çay Bahçesi & Kahve!"), "cay-bahcesi-kahve")
+    eşit_olmalı(slug("  İSTANBUL'da Güzel Bir Gün  "), "istanbul-da-guzel-bir-gun")
+    eşit_olmalı(slug("2026 Yılı Raporu"), "2026-yili-raporu")
+    eşit_olmalı(ascii_yap("Çağrı Işık Öğüş"), "Cagri Isik Ogus")
+
+işlev sına_kısalt():
+    eşit_olmalı(kısalt("Kısa", 10), "Kısa")
+    eşit_olmalı(kısalt("Orhunca ile yazılmış güzel bir program", 20), "Orhunca ile…")
+    eşit_olmalı(uzunluk(harfler(kısalt("aaaaaaaaaaaaaaaaaaaaaaaaa", 10))), 10)
+
+işlev sına_biçim():
+    eşit_olmalı(başlık_biçimi("istanbul ılık bir gün"), "İstanbul Ilık Bir Gün")
+    eşit_olmalı(cümle_biçimi("MERHABA DÜNYA"), "Merhaba dünya")
+    doğrula(aynı_mı("İSTANBUL", "istanbul"))
+    doğrula(aynı_mı("ISPARTA", "ısparta"))
+    eşit_olmalı(baş_harfler("ayşe nur yılmaz"), "ANY")
+
+işlev sına_benzerlik():
+    eşit_olmalı(levenshtein("kitten", "sitting"), 3)
+    eşit_olmalı(levenshtein("", "abc"), 3)
+    eşit_olmalı(levenshtein("çiçek", "çiçek"), 0)
+    eşit_olmalı(levenshtein("ağaç", "agac"), 2)
+    eşit_olmalı(en_benzer("ankra", ["İzmir", "Ankara", "Antalya"]), "Ankara")
+    eşit_olmalı(en_benzer("xyz", ["İzmir", "Ankara"]), "")
+    doğrula(benzerlik("Orhunca", "orhunca") == 1.0)
+
+işlev sına_maske_ve_doldurma():
+    eşit_olmalı(maskele("5321234567", 3, 2), "532*****67")
+    eşit_olmalı(e_posta_maskele("ayse.yilmaz@ornek.com"), "a*********z@ornek.com")
+    eşit_olmalı(doldur_sol("7", 3, "0"), "007")
+    eşit_olmalı(doldur_sağ("ad", 5, "."), "ad...")
+
+işlev sına_satırlar_ve_html():
+    eşit_olmalı(satırlara_böl("bir iki üç dört beş", 8), ["bir iki", "üç dört", "beş"])
+    eşit_olmalı(kelime_sayısı("  bir   iki üç "), 3)
+    eşit_olmalı(okuma_süresi("kısa metin"), "1 dk")
+    eşit_olmalı(html_temizle("<p>Merhaba <b>dünya</b> &amp; herkes</p>"), "Merhaba dünya & herkes")
+    doğrula(palindrom_mu("Ey Edip, Adana'da pide ye!"))
+    doğrula(palindrom_mu("Orhunca") == yanlış)

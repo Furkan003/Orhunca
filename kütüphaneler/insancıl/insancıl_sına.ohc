@@ -1,0 +1,78 @@
+kullan "insancıl.ohc"
+
+işlev sına_sayı_yazıyla():
+    eşit_olmalı(sayı_yazıyla(0), "sıfır")
+    eşit_olmalı(sayı_yazıyla(7), "yedi")
+    eşit_olmalı(sayı_yazıyla(10), "on")
+    eşit_olmalı(sayı_yazıyla(100), "yüz")
+    eşit_olmalı(sayı_yazıyla(1000), "bin")
+    eşit_olmalı(sayı_yazıyla(1234), "bin iki yüz otuz dört")
+    eşit_olmalı(sayı_yazıyla(2026), "iki bin yirmi altı")
+    eşit_olmalı(sayı_yazıyla(101001), "yüz bir bin bir")
+    eşit_olmalı(sayı_yazıyla(1000000), "bir milyon")
+    eşit_olmalı(sayı_yazıyla(3000000005), "üç milyar beş")
+    eşit_olmalı(sayı_yazıyla(-45), "eksi kırk beş")
+
+işlev sına_para_yazıyla():
+    eşit_olmalı(para_yazıyla(1250.5), "bin iki yüz elli lira elli kuruş")
+    eşit_olmalı(para_yazıyla(1.0), "bir lira")
+    eşit_olmalı(para_yazıyla(0.99), "sıfır lira doksan dokuz kuruş")
+
+işlev sına_sıra_sayısı():
+    eşit_olmalı(sıra_sayısı(1), "birinci")
+    eşit_olmalı(sıra_sayısı(2), "ikinci")
+    eşit_olmalı(sıra_sayısı(3), "üçüncü")
+    eşit_olmalı(sıra_sayısı(4), "dördüncü")
+    eşit_olmalı(sıra_sayısı(6), "altıncı")
+    eşit_olmalı(sıra_sayısı(9), "dokuzuncu")
+    eşit_olmalı(sıra_sayısı(10), "onuncu")
+    eşit_olmalı(sıra_sayısı(23), "yirmi üçüncü")
+    eşit_olmalı(sıra_sayısı(40), "kırkıncı")
+    eşit_olmalı(sıra_sayısı(100), "yüzüncü")
+    eşit_olmalı(sıra_sayısı(1000), "bininci")
+
+işlev sına_ekler():
+    eşit_olmalı(ek_ekle("Ayşe", "yönelme"), "Ayşe'ye")
+    eşit_olmalı(ek_ekle("Ahmet", "ayrılma"), "Ahmet'ten")
+    eşit_olmalı(ek_ekle("Ankara", "bulunma"), "Ankara'da")
+    eşit_olmalı(ek_ekle("Ali", "belirtme"), "Ali'yi")
+    eşit_olmalı(ek_ekle("Oğuz", "belirtme"), "Oğuz'u")
+    eşit_olmalı(ek_ekle("Ümit", "vasıta"), "Ümit'le")
+    eşit_olmalı(ek_ekle("İzmir", "yönelme"), "İzmir'e")
+    eşit_olmalı(ek_ekle("2026", "bulunma"), "2026'da")
+    eşit_olmalı(ek_ekle("3", "ayrılma"), "3'ten")
+    eşit_olmalı(ek_ekle("ev", "bulunma"), "evde")
+    eşit_olmalı(çoğul("kitap"), "kitaplar")
+    eşit_olmalı(çoğul("göz"), "gözler")
+
+işlev sına_liste_ve_boyut():
+    eşit_olmalı(liste_yazısı(["elma", "armut", "muz"]), "elma, armut ve muz")
+    eşit_olmalı(liste_yazısı(["çay"]), "çay")
+    eşit_olmalı(dosya_boyutu(500), "500 bayt")
+    eşit_olmalı(dosya_boyutu(1536000), "1,5 MB")
+    eşit_olmalı(dosya_boyutu(2048), "2 KB")
+    eşit_olmalı(kısa_sayı(999), "999")
+    eşit_olmalı(kısa_sayı(1250), "1,3 bin")
+    eşit_olmalı(kısa_sayı(3400000), "3,4 milyon")
+    eşit_olmalı(kısa_sayı(-2000000000), "-2 milyar")
+
+işlev sına_zaman():
+    eşit_olmalı(süre_önce(20), "az önce")
+    eşit_olmalı(süre_önce(300), "5 dakika önce")
+    eşit_olmalı(süre_önce(7200), "2 saat önce")
+    eşit_olmalı(süre_önce(86400), "dün")
+    eşit_olmalı(süre_önce(3 * 86400), "3 gün önce")
+    eşit_olmalı(süre_önce(14 * 86400), "2 hafta önce")
+    eşit_olmalı(süre_sonra(86400), "yarın")
+    eşit_olmalı(süre_sonra(400 * 86400), "1 yıl sonra")
+    eşit_olmalı(göreli_zaman(1000.0, 1300.0), "5 dakika önce")
+    eşit_olmalı(süre_yazısı(3725), "1 saat 2 dakika")
+    eşit_olmalı(süre_yazısı(172800), "2 gün")
+    eşit_olmalı(süre_yazısı(45), "45 saniye")
+
+işlev sına_roma():
+    eşit_olmalı(roma_rakamı(14), "XIV")
+    eşit_olmalı(roma_rakamı(2026), "MMXXVI")
+    eşit_olmalı(roma_rakamından("XIV"), 14)
+    eşit_olmalı(roma_rakamından("mmxxvi"), 2026)
+    eşit_olmalı(roma_rakamından("IIII"), 0)

@@ -1,0 +1,4 @@
+ad = "doğrula_tr"
+sürüm = "1.0.0"
+giriş = "doğrula_tr.ohc"
+açıklama = "Türkiye'ye özgü doğrulamalar: T.C. kimlik no, vergi no, IBAN, telefon, plaka, posta kodu; e-posta, kart (Luhn) ve şifre gücü"

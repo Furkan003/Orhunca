@@ -1,0 +1,72 @@
+kullan "doğrula_tr.ohc"
+
+# Beklenen değerler, aynı algoritmaların Python ile yazılmış hâlinden alındı.
+işlev sına_tc_kimlik():
+    her no için ["10000000146", "31773402760", "28263739000", "54530684780", "100 000 001 46"]'den:
+        doğrula(tc_kimlik_geçerli_mi(no), no)
+    her no için ["10000000147", "01234567890", "1000000014", "1000000014a", ""]'den:
+        doğrula(tc_kimlik_geçerli_mi(no) == yanlış, no)
+
+işlev sına_vergi_no():
+    her no için ["0170167551", "7250720004", "1205969803"]'den:
+        doğrula(vergi_no_geçerli_mi(no), no)
+    doğrula(vergi_no_geçerli_mi("0170167552") == yanlış)
+    doğrula(vergi_no_geçerli_mi("123") == yanlış)
+
+işlev sına_iban():
+    doğrula(iban_geçerli_mi("TR330006100519786457841326"))
+    doğrula(iban_geçerli_mi("tr33 0006 1005 1978 6457 8413 26"))
+    doğrula(iban_geçerli_mi("DE89370400440532013000"))
+    doğrula(iban_geçerli_mi("TR330006100519786457841327") == yanlış)
+    doğrula(iban_geçerli_mi("TR3300061005197864578413") == yanlış)
+    eşit_olmalı(iban_biçimle("tr330006100519786457841326"), "TR33 0006 1005 1978 6457 8413 26")
+
+işlev sına_telefon():
+    eşit_olmalı(telefon_biçimle("+90 532 123 45 67"), "0532 123 45 67")
+    eşit_olmalı(telefon_biçimle("0090(532)1234567"), "0532 123 45 67")
+    eşit_olmalı(telefon_biçimle("905321234567"), "0532 123 45 67")
+    eşit_olmalı(telefon_uluslararası("0532 123 45 67"), "+905321234567")
+    doğrula(cep_telefonu_mu("05321234567"))
+    doğrula(telefon_geçerli_mi("0212 555 12 34"))
+    doğrula(cep_telefonu_mu("0212 555 12 34") == yanlış)
+    doğrula(telefon_geçerli_mi("12345") == yanlış)
+    doğrula(telefon_geçerli_mi("0632 123 45 67") == yanlış)
+
+işlev sına_plaka():
+    doğrula(plaka_geçerli_mi("34 ABC 123"))
+    doğrula(plaka_geçerli_mi("06a1234"))
+    doğrula(plaka_geçerli_mi("35 AB 1234"))
+    doğrula(plaka_geçerli_mi("82 A 1234") == yanlış)
+    doğrula(plaka_geçerli_mi("34 ABC 1234") == yanlış)
+    doğrula(plaka_geçerli_mi("34 QW 123") == yanlış)
+    eşit_olmalı(plaka_biçimle("34abc123"), "34 ABC 123")
+
+işlev sına_posta_ve_eposta():
+    doğrula(posta_kodu_geçerli_mi("34000"))
+    doğrula(posta_kodu_geçerli_mi("99000") == yanlış)
+    doğrula(e_posta_geçerli_mi("ayse.yilmaz@ornek.com.tr"))
+    doğrula(e_posta_geçerli_mi("ayse@ornek") == yanlış)
+    doğrula(e_posta_geçerli_mi("ayse@@ornek.com") == yanlış)
+    doğrula(e_posta_geçerli_mi("ay se@ornek.com") == yanlış)
+    doğrula(e_posta_geçerli_mi(".ayse@ornek.com") == yanlış)
+    doğrula(url_geçerli_mi("https://orhunca.org/indir?s=1"))
+    doğrula(url_geçerli_mi("http://localhost:3000/"))
+    doğrula(url_geçerli_mi("javascript:alert(1)") == yanlış)
+    doğrula(url_geçerli_mi("https://") == yanlış)
+
+işlev sına_kart():
+    doğrula(kart_no_geçerli_mi("4111 1111 1111 1111"))
+    doğrula(kart_no_geçerli_mi("5555-5555-5555-4444"))
+    doğrula(kart_no_geçerli_mi("4111111111111112") == yanlış)
+    eşit_olmalı(kart_türü("4111111111111111"), "Visa")
+    eşit_olmalı(kart_türü("5555555555554444"), "Mastercard")
+    eşit_olmalı(kart_türü("378282246310005"), "American Express")
+    eşit_olmalı(kart_türü("9792030000000000"), "Troy")
+    eşit_olmalı(kart_gizle("4111111111111111"), "**** **** **** 1111")
+
+işlev sına_şifre():
+    eşit_olmalı(şifre_eksikleri("abc"), ["en az 8 karakter olmalı", "en az bir büyük harf içermeli", "en az bir rakam içermeli"])
+    doğrula(şifre_güçlü_mü("Çiçek2026"))
+    eşit_olmalı(şifre_puanı("12345678"), 0)
+    eşit_olmalı(şifre_gücü_yazısı("Kalem-Defter-2026!"), "çok güçlü")
+    eşit_olmalı(şifre_gücü_yazısı("abcdefgh"), "zayıf")

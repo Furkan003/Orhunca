@@ -1,0 +1,327 @@
+# insancıl: değerleri insanların okuduğu gibi Türkçe yazar.
+#   kullan "insancıl"
+#   sayı_yazıyla(1234)'ü yaz.               # bin iki yüz otuz dört
+#   para_yazıyla(1250.5)'i yaz.             # bin iki yüz elli lira elli kuruş
+#   sıra_sayısı(23)'ü yaz.                  # yirmi üçüncü
+#   süre_önce(300)'ü yaz.                   # 5 dakika önce
+#   dosya_boyutu(1536000)'i yaz.            # 1,5 MB
+#   liste_yazısı(["elma", "armut", "muz"])'u yaz.   # elma, armut ve muz
+#   ek_ekle("Ayşe", "yönelme")'yi yaz.      # Ayşe'ye
+
+# ---------------------------------------------------------------------------
+# Sayıları yazıyla
+
+işlev birler() -> liste<metin>:
+    döndür ["", "bir", "iki", "üç", "dört", "beş", "altı", "yedi", "sekiz", "dokuz"]
+
+işlev onlar() -> liste<metin>:
+    döndür ["", "on", "yirmi", "otuz", "kırk", "elli", "altmış", "yetmiş", "seksen", "doksan"]
+
+# 0–999 arası (0 için "")
+işlev üçlü_yazı(n: sayı) -> metin:
+    p: liste<metin> = []
+    y = n // 100
+    eğer y == 1 ise:
+        "yüz"'ü p'ye ekle.
+    değilse eğer y > 1 ise:
+        (birler()[y] + " yüz")'ü p'ye ekle.
+    eğer (n // 10) % 10 > 0 ise:
+        onlar()[(n // 10) % 10]'ı p'ye ekle.
+    eğer n % 10 > 0 ise:
+        birler()[n % 10]'ı p'ye ekle.
+    döndür birleştir(p, " ")
+
+# Tamsayıyı yazıyla: 1234 → "bin iki yüz otuz dört", -5 → "eksi beş"
+işlev sayı_yazıyla(n: sayı) -> metin:
+    eğer n == 0 ise:
+        döndür "sıfır"
+    eğer n < 0 ise:
+        eğer n < -999999999999999999 ise:
+            döndür "eksi çok büyük sayı"
+        döndür "eksi " + sayı_yazıyla(-n)
+    basamaklar = ["", "bin", "milyon", "milyar", "trilyon", "katrilyon", "kentilyon"]
+    p: liste<metin> = []
+    k = n
+    i = 0
+    k > 0 olduğu sürece:
+        üç = k % 1000
+        eğer üç > 0 ise:
+            parça_ = üçlü_yazı(üç)
+            eğer i == 1 ve üç == 1 ise:
+                parça_ = ""
+            eğer i > 0 ise:
+                parça_ = kırp(parça_ + " " + basamaklar[i])
+            parça_'yı p'ye ekle.
+        k = k // 1000
+        i += 1
+    döndür birleştir(ters(p), " ")
+
+# Para yazıyla (faturalar ve çekler için): 1250.5 → "bin iki yüz elli lira elli kuruş"
+işlev para_yazıyla(tutar: ondalık) -> metin:
+    kuruş_toplam = yuvarla(mutlak(tutar) * 100.0)
+    lira = kuruş_toplam // 100
+    kuruş = kuruş_toplam % 100
+    s = sayı_yazıyla(lira) + " lira"
+    eğer kuruş > 0 ise:
+        s = s + " " + sayı_yazıyla(kuruş) + " kuruş"
+    eğer tutar < 0.0 ve kuruş_toplam > 0 ise:
+        s = "eksi " + s
+    döndür s
+
+# ---------------------------------------------------------------------------
+# Ünlü uyumu ve ekler
+
+işlev ünlü_mü(c: metin) -> mantık:
+    döndür içerir("aeıioöuüAEIİOÖUÜ", c)
+
+# Kelimenin son ünlüsü (yoksa "e")
+işlev son_ünlü(kelime: metin) -> metin:
+    h = harfler(küçük_harf(kelime))
+    her i için 1'den uzunluk(h)'ye kadar:
+        c = h[uzunluk(h) - i]
+        eğer ünlü_mü(c) ise:
+            döndür c
+    döndür "e"
+
+# İki yönlü uyum: a / e
+işlev ikili_ünlü(kelime: metin) -> metin:
+    eğer içerir("aıou", son_ünlü(kelime)) ise:
+        döndür "a"
+    döndür "e"
+
+# Dört yönlü uyum: ı / i / u / ü
+işlev dörtlü_ünlü(kelime: metin) -> metin:
+    s = son_ünlü(kelime)
+    eğer s == "a" veya s == "ı" ise:
+        döndür "ı"
+    eğer s == "e" veya s == "i" ise:
+        döndür "i"
+    eğer s == "o" veya s == "u" ise:
+        döndür "u"
+    döndür "ü"
+
+# Sert ünsüzle bitiyor mu (fıstıkçı şahap: f s t k ç ş h p)?
+işlev sert_mi(kelime: metin) -> mantık:
+    h = harfler(küçük_harf(kelime))
+    eğer uzunluk(h) == 0 ise:
+        döndür yanlış
+    döndür içerir("fstkçşhp", h[uzunluk(h) - 1])
+
+işlev ünlüyle_bitiyor_mu(kelime: metin) -> mantık:
+    h = harfler(kelime)
+    döndür uzunluk(h) > 0 ve ünlü_mü(h[uzunluk(h) - 1])
+
+# Sıra sayısı: 1 → "birinci", 4 → "dördüncü", 23 → "yirmi üçüncü"
+işlev sıra_sayısı(n: sayı) -> metin:
+    y = sayı_yazıyla(n)
+    eğer biter(y, "dört") ise:
+        döndür parça(y, 0, uzunluk(y) - 4) + "dördüncü"
+    v = dörtlü_ünlü(y)
+    eğer ünlüyle_bitiyor_mu(y) ise:
+        döndür y + "nc" + v
+    döndür y + v + "nc" + v
+
+# Kısa sıra yazısı: 3 → "3."
+işlev sıra_kısa(n: sayı) -> metin:
+    döndür metin(n) + "."
+
+# Bir kelimenin söylenişi (sayılar okunduğu gibi): "2026" → "yirmi altı"
+işlev söyleniş(kelime: metin) -> metin:
+    k = kırp(kelime)
+    eğer sayı_mı(k) ise:
+        döndür sayı_yazıyla(sayı(k))
+    döndür k
+
+# İsme hâl eki: hâl "belirtme" (-i), "yönelme" (-e), "bulunma" (-de), "ayrılma" (-den),
+# "vasıta" (-le). Özel adlar ve sayılar kesme işaretiyle ayrılır: "Ayşe'ye", "Ahmet'ten",
+# "2026'da". Küçük harfle başlayan kelimelere ek bitişik eklenir: "kitaba" değil "kitapa"
+# gibi yumuşama yapılmaz (kelime değişmez; özel adlar için tasarlanmıştır).
+işlev ek_ekle(isim: metin, hal: metin) -> metin:
+    s = söyleniş(isim)
+    a = ikili_ünlü(s)
+    ı = dörtlü_ünlü(s)
+    ünlü = ünlüyle_bitiyor_mu(s)
+    ek = ""
+    eğer hal == "belirtme" ise:
+        ek = ı
+        eğer ünlü ise:
+            ek = "y" + ı
+    değilse eğer hal == "yönelme" ise:
+        ek = a
+        eğer ünlü ise:
+            ek = "y" + a
+    değilse eğer hal == "bulunma" ise:
+        ek = "d" + a
+        eğer sert_mi(s) ise:
+            ek = "t" + a
+    değilse eğer hal == "ayrılma" ise:
+        ek = "d" + a + "n"
+        eğer sert_mi(s) ise:
+            ek = "t" + a + "n"
+    değilse eğer hal == "vasıta" ise:
+        ek = "l" + a
+        eğer ünlü ise:
+            ek = "yl" + a
+    değilse:
+        hata_ver("insancıl: hâl belirtme, yönelme, bulunma, ayrılma ya da vasıta olmalı ('" + hal + "')")
+    ilk = harfler(isim)
+    özel = uzunluk(ilk) > 0 ve (büyük_harf(ilk[0]) == ilk[0] ve küçük_harf(ilk[0]) != ilk[0])
+    eğer özel veya sayı_mı(kırp(isim)) ise:
+        döndür isim + "'" + ek
+    döndür isim + ek
+
+# Çoğul: "kitap" → "kitaplar", "ev" → "evler"
+işlev çoğul(kelime: metin) -> metin:
+    döndür kelime + "l" + ikili_ünlü(kelime) + "r"
+
+# "3 kitap" (Türkçede sayıdan sonra çoğul eki gelmez); 0 için "hiç kitap yok" yerine "0 kitap"
+işlev sayılı(adet: sayı, kelime: metin) -> metin:
+    döndür metin(adet) + " " + kelime
+
+# ---------------------------------------------------------------------------
+# Liste ve sayılar
+
+# ["elma", "armut", "muz"] → "elma, armut ve muz"
+işlev liste_yazısı(l: liste<metin>) -> metin:
+    n = uzunluk(l)
+    eğer n == 0 ise:
+        döndür ""
+    eğer n == 1 ise:
+        döndür l[0]
+    döndür birleştir(parça(l, 0, n - 1), ", ") + " ve " + l[n - 1]
+
+işlev bir_ondalıklı(x: ondalık) -> metin:
+    y = yuvarla(x * 10.0)
+    eğer y % 10 == 0 ise:
+        döndür metin(y // 10)
+    döndür metin(y // 10) + "," + metin(y % 10)
+
+# 1536000 → "1,5 MB" (1 KB = 1024 bayt)
+işlev dosya_boyutu(bayt: sayı) -> metin:
+    eğer bayt < 1024 ise:
+        döndür metin(bayt) + " bayt"
+    birimler = ["KB", "MB", "GB", "TB", "PB"]
+    x = ondalık(bayt) / 1024.0
+    i = 0
+    x >= 1024.0 ve i < 4 olduğu sürece:
+        x = x / 1024.0
+        i += 1
+    döndür bir_ondalıklı(x) + " " + birimler[i]
+
+# 1250 → "1,3 bin", 3400000 → "3,4 milyon" (sosyal medya sayıları gibi)
+işlev kısa_sayı(n: sayı) -> metin:
+    m = mutlak(n)
+    işaret = ""
+    eğer n < 0 ise:
+        işaret = "-"
+    eğer m < 1000 ise:
+        döndür metin(n)
+    birimler = ["bin", "milyon", "milyar", "trilyon"]
+    x = ondalık(m) / 1000.0
+    i = 0
+    x >= 999.95 ve i < 3 olduğu sürece:
+        x = x / 1000.0
+        i += 1
+    döndür işaret + bir_ondalıklı(x) + " " + birimler[i]
+
+# ---------------------------------------------------------------------------
+# Zaman
+
+# 3725 → "1 saat 2 dakika" (en büyük iki birim)
+işlev süre_yazısı(saniye: sayı) -> metin:
+    s = mutlak(saniye)
+    eğer s < 60 ise:
+        döndür metin(s) + " saniye"
+    adlar = ["gün", "saat", "dakika", "saniye"]
+    boylar = [86400, 3600, 60, 1]
+    p: liste<metin> = []
+    her i için 0'dan 3'e kadar:
+        eğer uzunluk(p) < 2 ise:
+            k = s // boylar[i]
+            s = s % boylar[i]
+            eğer k > 0 ise:
+                (metin(k) + " " + adlar[i])'yı p'ye ekle.
+            değilse eğer uzunluk(p) > 0 ise:
+                # Arada boş birim varsa ikinci birim yazılmaz: "2 gün" (2 gün 0 saat değil)
+                (p[0])'ı p'ye ekle.
+    eğer uzunluk(p) == 2 ve p[0] == p[1] ise:
+        döndür p[0]
+    döndür birleştir(p, " ")
+
+# Göreli zaman, en uygun tek birimle: 45 → "az", 300 → "5 dakika", 90000 → "1 gün"
+işlev göreli_birim(saniye: sayı) -> metin:
+    s = mutlak(saniye)
+    eğer s < 45 ise:
+        döndür ""
+    eğer s < 3600 ise:
+        döndür metin(en_büyük([1, yuvarla(ondalık(s) / 60.0)])) + " dakika"
+    eğer s < 86400 ise:
+        döndür metin(yuvarla(ondalık(s) / 3600.0)) + " saat"
+    eğer s < 7 * 86400 ise:
+        döndür metin(yuvarla(ondalık(s) / 86400.0)) + " gün"
+    eğer s < 30 * 86400 ise:
+        döndür metin(yuvarla(ondalık(s) / 604800.0)) + " hafta"
+    eğer s < 365 * 86400 ise:
+        döndür metin(en_büyük([1, yuvarla(ondalık(s) / 2592000.0)])) + " ay"
+    döndür metin(yuvarla(ondalık(s) / 31536000.0)) + " yıl"
+
+# 300 → "5 dakika önce", 20 → "az önce", 86400 → "dün"
+işlev süre_önce(saniye: sayı) -> metin:
+    b = göreli_birim(saniye)
+    eğer b == "" ise:
+        döndür "az önce"
+    eğer b == "1 gün" ise:
+        döndür "dün"
+    döndür b + " önce"
+
+# 300 → "5 dakika sonra", 86400 → "yarın"
+işlev süre_sonra(saniye: sayı) -> metin:
+    b = göreli_birim(saniye)
+    eğer b == "" ise:
+        döndür "birazdan"
+    eğer b == "1 gün" ise:
+        döndür "yarın"
+    döndür b + " sonra"
+
+# İki zaman damgası (zaman() değerleri) arasında: olay geçmişteyse "… önce", gelecekteyse "… sonra"
+işlev göreli_zaman(olay: ondalık, şimdi: ondalık) -> metin:
+    fark = yuvarla(olay - şimdi)
+    eğer fark < 0 ise:
+        döndür süre_önce(-fark)
+    döndür süre_sonra(fark)
+
+# ---------------------------------------------------------------------------
+# Roma rakamları
+
+işlev roma_rakamı(n: sayı) -> metin:
+    eğer n < 1 veya n > 3999 ise:
+        hata_ver("insancıl: Roma rakamı 1 ile 3999 arasında olmalı (" + n + ")")
+    değerler = [1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1]
+    simgeler = ["M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I"]
+    k = n
+    p: liste<metin> = []
+    her i için 0'dan 12'ye kadar:
+        k >= değerler[i] olduğu sürece:
+            simgeler[i]'yi p'ye ekle.
+            k -= değerler[i]
+    döndür birleştir(p, "")
+
+# "XIV" → 14 (geçersizse 0)
+işlev roma_rakamından(r: metin) -> sayı:
+    d = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100, "D": 500, "M": 1000}
+    # Roma rakamları Latin harfleridir: "i" büyüyünce "İ" değil "I" olur
+    y = büyük_harf(değiştir(kırp(r), "i", "I"))
+    h = harfler(y)
+    t = 0
+    her i için 0'dan uzunluk(h) - 1'e kadar:
+        eğer içerir(d, h[i]) == yanlış ise:
+            döndür 0
+        v = d[h[i]]
+        eğer i + 1 < uzunluk(h) ve içerir(d, h[i + 1]) ve d[h[i + 1]] > v ise:
+            t -= v
+        değilse:
+            t += v
+    # Yalnızca kurallı yazımlar kabul edilir (IIII, VX gibi değil)
+    eğer t < 1 veya t > 3999 veya roma_rakamı(t) != y ise:
+        döndür 0
+    döndür t
