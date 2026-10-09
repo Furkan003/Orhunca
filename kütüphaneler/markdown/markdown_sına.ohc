@@ -1,0 +1,34 @@
+kullan "markdown.ohc"
+
+işlev sına_başlık_ve_paragraf():
+    eşit_olmalı(markdown_html("# Merhaba Dünya"), "<h1 id=\"merhaba-dunya\">Merhaba Dünya</h1>")
+    eşit_olmalı(markdown_html("### Üçüncü düzey"), "<h3 id=\"ucuncu-duzey\">Üçüncü düzey</h3>")
+    eşit_olmalı(markdown_html("bir\niki\n\nüç"), "<p>bir\niki</p>\n<p>üç</p>")
+    eşit_olmalı(markdown_html("satır  \nsonu"), "<p>satır<br>\nsonu</p>")
+    eşit_olmalı(markdown_html("#etiket değil"), "<p>#etiket değil</p>")
+
+işlev sına_satır_içi():
+    eşit_olmalı(markdown_html("**kalın** ve *eğik* ve ~~çizik~~"), "<p><strong>kalın</strong> ve <em>eğik</em> ve <del>çizik</del></p>")
+    eşit_olmalı(markdown_html("`a * b` ve 2 * 3 * 4"), "<p><code>a * b</code> ve 2 * 3 * 4</p>")
+    eşit_olmalı(markdown_html("[Orhunca](https://orhunca.org)"), "<p><a href=\"https://orhunca.org\" rel=\"noopener\">Orhunca</a></p>")
+    eşit_olmalı(markdown_html("![logo](resim/logo.png)"), "<p><img src=\"resim/logo.png\" alt=\"logo\"></p>")
+    eşit_olmalı(markdown_html("[il](https://tr.wikipedia.org/wiki/Ankara_(il))"), "<p><a href=\"https://tr.wikipedia.org/wiki/Ankara_(il)\" rel=\"noopener\">il</a></p>")
+
+işlev sına_güvenlik():
+    eşit_olmalı(markdown_html("<script>alert(1)</script>"), "<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>")
+    eşit_olmalı(markdown_html("[tıkla](javascript:alert(1))"), "<p><a href=\"#\">tıkla</a></p>")
+    eşit_olmalı(markdown_html("[x](\" onmouseover=\"alert(1))"), "<p><a href=\"&quot; onmouseover=&quot;alert(1)\">x</a></p>")
+
+işlev sına_listeler():
+    eşit_olmalı(markdown_html("- bir\n- iki\n  - iç içe"), "<ul><li>bir</li><li>iki<ul><li>iç içe</li></ul></li></ul>")
+    eşit_olmalı(markdown_html("3. üç\n4. dört"), "<ol start=\"3\"><li>üç</li><li>dört</li></ol>")
+    eşit_olmalı(markdown_html("- [ ] yapılacak\n- [x] bitti"), "<ul><li><input type=\"checkbox\" disabled> yapılacak</li><li><input type=\"checkbox\" checked disabled> bitti</li></ul>")
+
+işlev sına_bloklar():
+    eşit_olmalı(markdown_html("> alıntı"), "<blockquote><p>alıntı</p></blockquote>")
+    eşit_olmalı(markdown_html("```py\nprint(\"<a>\")\n```"), "<pre><code class=\"language-py\">print(&quot;&lt;a&gt;&quot;)</code></pre>")
+    eşit_olmalı(markdown_html("---"), "<hr>")
+    eşit_olmalı(markdown_html("| A | B |\n|---|:-:|\n| 1 | 2 |"), "<table><thead><tr><th>A</th><th style=\"text-align:center\">B</th></tr></thead><tbody><tr><td>1</td><td style=\"text-align:center\">2</td></tr></tbody></table>")
+
+işlev sına_düz_metin():
+    eşit_olmalı(markdown_düz_metin("# Başlık\n\n**Kalın** & [bağ](x)"), "Başlık Kalın & bağ")

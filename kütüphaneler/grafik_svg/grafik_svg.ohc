@@ -1,0 +1,300 @@
+# grafik_svg: web sayfalarına konan SVG grafikler (JavaScript gerekmez).
+#   kullan "grafik_svg"
+#   @ham(çubuk_grafiği("Aylık satış", ["Oca", "Şub", "Mar"], [120.0, 95.5, 140.0]))
+#   @ham(çizgi_grafiği("Sıcaklık", ["Pzt", "Sal", "Çar"], ["İzmir", "Ankara"], [[24.0, 26.0, 25.0], [15.0, 17.0, 14.0]]))
+#   @ham(halka_grafiği("Bütçe", ["Kira", "Gıda", "Ulaşım"], [8000.0, 4500.0, 1500.0]))
+#   @ham(grafik_tablosu("Aylık satış", ["Oca", "Şub", "Mar"], [120.0, 95.5, 140.0]))
+#
+# Renkler renk körlüğüne göre doğrulanmış sıralı bir paletten gelir (her seri hep aynı rengi
+# alır); koyu temada ayrı tonlar kullanılır. Değerler fareyle üzerine gelince görünür.
+
+# ---------------------------------------------------------------------------
+# Ortak parçalar
+
+işlev gr_renk_sayısı() -> sayı:
+    döndür 8
+
+# Grafiğin stilleri: açık ve koyu tema (sayfanın renk düzenine uyar)
+işlev grafik_stili() -> metin:
+    açık = "--g-zemin:#fcfcfb;--g-yazi:#0b0b0b;--g-yazi2:#52514e;--g-izgara:#e4e3df;--g-eksen:#b5b4ae;--g-1:#2a78d6;--g-2:#eb6834;--g-3:#1baf7a;--g-4:#eda100;--g-5:#e87ba4;--g-6:#008300;--g-7:#6250d6;--g-8:#e34948"
+    koyu = "--g-zemin:#1a1a19;--g-yazi:#f0efec;--g-yazi2:#c3c2b7;--g-izgara:#33332f;--g-eksen:#5c5b55;--g-1:#3987e5;--g-2:#d95926;--g-3:#199e70;--g-4:#c98500;--g-5:#d55181;--g-6:#008300;--g-7:#9085e9;--g-8:#e66767"
+    döndür "<style>.grafik{" + açık + ";font-family:system-ui,-apple-system,'Segoe UI',sans-serif}@media (prefers-color-scheme:dark){:root:where(:not([data-theme=light])) .grafik,svg.grafik:root{" + koyu + "}}:root[data-theme=dark] .grafik,[data-bs-theme=dark] .grafik{" + koyu + "}.grafik .baslik{font-size:15px;font-weight:600;fill:var(--g-yazi)}.grafik .etiket{font-size:12px;fill:var(--g-yazi2)}.grafik .deger{font-size:11px;fill:var(--g-yazi)}.grafik .izgara{stroke:var(--g-izgara);stroke-width:1}.grafik .eksen{stroke:var(--g-eksen);stroke-width:1}.grafik .isaret:hover{opacity:.8}</style>"
+
+işlev gr_seri_rengi(i: sayı) -> metin:
+    döndür "var(--g-" + metin(i % gr_renk_sayısı() + 1) + ")"
+
+# Eksen ve değer yazısı: 1500 → "1.500", 2.5 → "2,5"
+işlev gr_sayı_etiketi(x: ondalık) -> metin:
+    y = yuvarla(x * 10.0)
+    işaret = ""
+    eğer y < 0 ise:
+        işaret = "-"
+        y = -y
+    tam = y // 10
+    kesir = y % 10
+    r = metin(tam)
+    p: liste<metin> = []
+    uzunluk(r) > 3 olduğu sürece:
+        parça(r, uzunluk(r) - 3, 3)'ü p'ye ekle.
+        r = parça(r, 0, uzunluk(r) - 3)
+    r'yi p'ye ekle.
+    s = işaret + birleştir(ters(p), ".")
+    eğer kesir != 0 ise:
+        s = s + "," + metin(kesir)
+    döndür s
+
+# Okunaklı eksen adımı: 1, 2, 5 × 10^k
+işlev gr_güzel_adım(aralık: ondalık, adım_sayısı: sayı) -> ondalık:
+    eğer aralık <= 0.0 ise:
+        döndür 1.0
+    ham = aralık / ondalık(adım_sayısı)
+    kuvvet = ondalık(yuvarla(logaritma(ham, 10.0) - 0.5))
+    taban = üs(10.0, kuvvet)
+    f = ham / taban
+    eğer f <= 1.0 ise:
+        döndür taban
+    eğer f <= 2.0 ise:
+        döndür taban * 2.0
+    eğer f <= 5.0 ise:
+        döndür taban * 5.0
+    döndür taban * 10.0
+
+işlev gr_en_büyük_değer(l: liste<ondalık>) -> ondalık:
+    m = 0.0
+    her x için l'den:
+        eğer x > m ise:
+            m = x
+    döndür m
+
+işlev gr_en_küçük_değer(l: liste<ondalık>) -> ondalık:
+    m = 0.0
+    her x için l'den:
+        eğer x < m ise:
+            m = x
+    döndür m
+
+işlev gr_kısalt_etiket(m: metin, n: sayı) -> metin:
+    h = harfler(m)
+    eğer uzunluk(h) <= n ise:
+        döndür m
+    döndür birleştir(parça(h, 0, n - 1), "") + "…"
+
+# Sayıyı SVG koordinatı olarak yazar (bir ondalık, nokta ile)
+işlev gr_koord(x: ondalık) -> metin:
+    y = yuvarla(x * 10.0)
+    eğer y % 10 == 0 ise:
+        döndür metin(y // 10)
+    işaret = ""
+    eğer y < 0 ise:
+        işaret = "-"
+        y = -y
+    döndür işaret + metin(y // 10) + "." + metin(y % 10)
+
+işlev gr_başlangıç(başlık: metin, genişlik: sayı, yükseklik: sayı) -> metin:
+    döndür "<svg class=\"grafik\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 " + genişlik + " " + yükseklik + "\" width=\"100%\" style=\"max-width:" + genişlik + "px\" role=\"img\" aria-label=\"" + kaçır(başlık) + "\">" + grafik_stili() + "<rect width=\"100%\" height=\"100%\" rx=\"8\" fill=\"var(--g-zemin)\"/><text class=\"baslik\" x=\"16\" y=\"26\">" + kaçır(başlık) + "</text>"
+
+# Y ekseni: ızgara çizgileri ve yazıları; [alt, üst] sınırlarını döndürür
+işlev gr_y_ekseni(p: liste<metin>, en_az: ondalık, en_çok: ondalık, sol: ondalık, sağ: ondalık, üst: ondalık, alt: ondalık) -> liste<ondalık>:
+    adım = gr_güzel_adım(en_çok - en_az, 5)
+    a = ondalık(yuvarla(en_az / adım - 0.4999)) * adım
+    b = ondalık(yuvarla(en_çok / adım + 0.4999)) * adım
+    eğer b <= a ise:
+        b = a + adım
+    v = a
+    v <= b + adım / 2.0 olduğu sürece:
+        y = alt - (v - a) / (b - a) * (alt - üst)
+        sınıf = "izgara"
+        eğer mutlak(v) < adım / 1000.0 ise:
+            sınıf = "eksen"
+        ("<line class=\"" + sınıf + "\" x1=\"" + gr_koord(sol) + "\" x2=\"" + gr_koord(sağ) + "\" y1=\"" + gr_koord(y) + "\" y2=\"" + gr_koord(y) + "\"/>")'yi p'ye ekle.
+        ("<text class=\"etiket\" x=\"" + gr_koord(sol - 8.0) + "\" y=\"" + gr_koord(y + 4.0) + "\" text-anchor=\"end\">" + gr_sayı_etiketi(v) + "</text>")'yi p'ye ekle.
+        v = v + adım
+    döndür [a, b]
+
+# ---------------------------------------------------------------------------
+# Çubuk grafiği (tek seri)
+
+işlev çubuk_grafiği_ayarlı(başlık: metin, etiketler: liste<metin>, değerler: liste<ondalık>, genişlik: sayı, yükseklik: sayı) -> metin:
+    n = uzunluk(değerler)
+    eğer n == 0 veya n != uzunluk(etiketler) ise:
+        hata_ver("grafik_svg: etiket ve değer sayısı aynı olmalı ve en az bir değer olmalı")
+    sol = 56.0
+    sağ = ondalık(genişlik) - 16.0
+    üst = 48.0
+    alt = ondalık(yükseklik) - 36.0
+    p = [gr_başlangıç(başlık, genişlik, yükseklik)]
+    sınır = gr_y_ekseni(p, gr_en_küçük_değer(değerler), gr_en_büyük_değer(değerler), sol, sağ, üst, alt)
+    a = sınır[0]
+    b = sınır[1]
+    y_sıfır = alt - (0.0 - a) / (b - a) * (alt - üst)
+    dilim = (sağ - sol) / ondalık(n)
+    gen = dilim * 0.6
+    eğer gen > 56.0 ise:
+        gen = 56.0
+    r = 4.0
+    eğer gen < 10.0 ise:
+        r = gen / 2.5
+    her i için 0'dan n - 1'e kadar:
+        v = değerler[i]
+        x = sol + dilim * ondalık(i) + (dilim - gen) / 2.0
+        y = alt - (v - a) / (b - a) * (alt - üst)
+        boy = mutlak(y_sıfır - y)
+        rr = r
+        eğer rr > boy ise:
+            rr = boy
+        # Uç yuvarlak, taban düz: çubuk sıfır çizgisinden çıkar
+        yol = ""
+        eğer v >= 0.0 ise:
+            yol = "M" + gr_koord(x) + "," + gr_koord(y_sıfır) + "V" + gr_koord(y + rr) + "Q" + gr_koord(x) + "," + gr_koord(y) + " " + gr_koord(x + rr) + "," + gr_koord(y) + "H" + gr_koord(x + gen - rr) + "Q" + gr_koord(x + gen) + "," + gr_koord(y) + " " + gr_koord(x + gen) + "," + gr_koord(y + rr) + "V" + gr_koord(y_sıfır) + "Z"
+        değilse:
+            yol = "M" + gr_koord(x) + "," + gr_koord(y_sıfır) + "V" + gr_koord(y - rr) + "Q" + gr_koord(x) + "," + gr_koord(y) + " " + gr_koord(x + rr) + "," + gr_koord(y) + "H" + gr_koord(x + gen - rr) + "Q" + gr_koord(x + gen) + "," + gr_koord(y) + " " + gr_koord(x + gen) + "," + gr_koord(y - rr) + "V" + gr_koord(y_sıfır) + "Z"
+        ("<path class=\"isaret\" fill=\"" + gr_seri_rengi(0) + "\" d=\"" + yol + "\"><title>" + kaçır(etiketler[i]) + ": " + gr_sayı_etiketi(v) + "</title></path>")'yi p'ye ekle.
+        # Az çubukta değerler doğrudan yazılır
+        eğer n <= 12 ise:
+            ty = y - 6.0
+            eğer v < 0.0 ise:
+                ty = y + 14.0
+            ("<text class=\"deger\" x=\"" + gr_koord(x + gen / 2.0) + "\" y=\"" + gr_koord(ty) + "\" text-anchor=\"middle\">" + gr_sayı_etiketi(v) + "</text>")'yi p'ye ekle.
+        ("<text class=\"etiket\" x=\"" + gr_koord(x + gen / 2.0) + "\" y=\"" + gr_koord(alt + 18.0) + "\" text-anchor=\"middle\">" + kaçır(gr_kısalt_etiket(etiketler[i], 12)) + "</text>")'yi p'ye ekle.
+    "</svg>"'yi p'ye ekle.
+    döndür birleştir(p, "")
+
+işlev çubuk_grafiği(başlık: metin, etiketler: liste<metin>, değerler: liste<ondalık>) -> metin:
+    döndür çubuk_grafiği_ayarlı(başlık, etiketler, değerler, 640, 320)
+
+# ---------------------------------------------------------------------------
+# Çizgi grafiği (bir ya da daha çok seri)
+
+işlev çizgi_grafiği_ayarlı(başlık: metin, etiketler: liste<metin>, seri_adları: liste<metin>, seriler: liste<liste<ondalık>>, genişlik: sayı, yükseklik: sayı) -> metin:
+    n = uzunluk(etiketler)
+    eğer uzunluk(seriler) == 0 veya uzunluk(seriler) != uzunluk(seri_adları) ise:
+        hata_ver("grafik_svg: seri adı ve seri sayısı aynı olmalı")
+    eğer uzunluk(seriler) > gr_renk_sayısı() ise:
+        hata_ver("grafik_svg: en çok 8 seri gösterilebilir; fazlasını 'Diğer' altında toplayın ya da ayrı grafiklere bölün")
+    her s için seriler'den:
+        eğer uzunluk(s) != n ise:
+            hata_ver("grafik_svg: her serinin değer sayısı etiket sayısıyla aynı olmalı")
+    tümü: liste<ondalık> = []
+    her s için seriler'den:
+        her x için s'den:
+            x'i tümü'ne ekle.
+    çok = uzunluk(seriler) > 1
+    sol = 56.0
+    sağ = ondalık(genişlik) - 16.0
+    eğer çok ve uzunluk(seriler) <= 4 ise:
+        sağ = ondalık(genişlik) - 90.0
+    üst = 48.0
+    eğer çok ise:
+        üst = 64.0
+    alt = ondalık(yükseklik) - 36.0
+    p = [gr_başlangıç(başlık, genişlik, yükseklik)]
+    sınır = gr_y_ekseni(p, gr_en_küçük_değer(tümü), gr_en_büyük_değer(tümü), sol, sağ, üst, alt)
+    a = sınır[0]
+    b = sınır[1]
+    adım_x = 0.0
+    eğer n > 1 ise:
+        adım_x = (sağ - sol) / ondalık(n - 1)
+    # X ekseni yazıları (çoksa seyrekleştirilir)
+    seyrek = 1
+    n / seyrek > 12 olduğu sürece:
+        seyrek += 1
+    her i için 0'dan n - 1'e kadar:
+        eğer i % seyrek == 0 ise:
+            ("<text class=\"etiket\" x=\"" + gr_koord(sol + adım_x * ondalık(i)) + "\" y=\"" + gr_koord(alt + 18.0) + "\" text-anchor=\"middle\">" + kaçır(gr_kısalt_etiket(etiketler[i], 10)) + "</text>")'yi p'ye ekle.
+    # Açıklama (iki ve daha çok seride)
+    eğer çok ise:
+        lx = 16.0
+        her j için 0'dan uzunluk(seriler) - 1'e kadar:
+            ("<rect x=\"" + gr_koord(lx) + "\" y=\"38\" width=\"10\" height=\"10\" rx=\"2\" fill=\"" + gr_seri_rengi(j) + "\"/><text class=\"etiket\" x=\"" + gr_koord(lx + 14.0) + "\" y=\"47\">" + kaçır(seri_adları[j]) + "</text>")'yi p'ye ekle.
+            lx = lx + 28.0 + ondalık(uzunluk(harfler(seri_adları[j]))) * 7.0
+    her j için 0'dan uzunluk(seriler) - 1'e kadar:
+        s = seriler[j]
+        noktalar: liste<metin> = []
+        her i için 0'dan n - 1'e kadar:
+            (gr_koord(sol + adım_x * ondalık(i)) + "," + gr_koord(alt - (s[i] - a) / (b - a) * (alt - üst)))'yi noktalar'a ekle.
+        ("<polyline fill=\"none\" stroke=\"" + gr_seri_rengi(j) + "\" stroke-width=\"2\" stroke-linejoin=\"round\" stroke-linecap=\"round\" points=\"" + birleştir(noktalar, " ") + "\"/>")'yi p'ye ekle.
+        # İşaretler (fareyle değer görünür); zemin halkası üst üste binen çizgileri ayırır
+        her i için 0'dan n - 1'e kadar:
+            x = sol + adım_x * ondalık(i)
+            y = alt - (s[i] - a) / (b - a) * (alt - üst)
+            yarıçap = "4"
+            eğer n > 20 ise:
+                yarıçap = "2.5"
+            ("<circle class=\"isaret\" cx=\"" + gr_koord(x) + "\" cy=\"" + gr_koord(y) + "\" r=\"" + yarıçap + "\" fill=\"" + gr_seri_rengi(j) + "\" stroke=\"var(--g-zemin)\" stroke-width=\"2\"><title>" + kaçır(seri_adları[j]) + " · " + kaçır(etiketler[i]) + ": " + gr_sayı_etiketi(s[i]) + "</title></circle>")'yi p'ye ekle.
+        # Az seride serinin adı çizginin sonuna yazılır
+        eğer çok ve uzunluk(seriler) <= 4 ve n > 0 ise:
+            ("<text class=\"etiket\" x=\"" + gr_koord(sağ + 8.0) + "\" y=\"" + gr_koord(alt - (s[n - 1] - a) / (b - a) * (alt - üst) + 4.0) + "\">" + kaçır(gr_kısalt_etiket(seri_adları[j], 11)) + "</text>")'yi p'ye ekle.
+    "</svg>"'yi p'ye ekle.
+    döndür birleştir(p, "")
+
+işlev çizgi_grafiği(başlık: metin, etiketler: liste<metin>, seri_adları: liste<metin>, seriler: liste<liste<ondalık>>) -> metin:
+    döndür çizgi_grafiği_ayarlı(başlık, etiketler, seri_adları, seriler, 640, 320)
+
+# ---------------------------------------------------------------------------
+# Halka grafiği (bütünün parçaları). 6'dan fazla parça "Diğer" altında toplanır.
+
+işlev halka_grafiği(başlık: metin, etiketler: liste<metin>, değerler: liste<ondalık>) -> metin:
+    n = uzunluk(değerler)
+    eğer n == 0 veya n != uzunluk(etiketler) ise:
+        hata_ver("grafik_svg: etiket ve değer sayısı aynı olmalı ve en az bir değer olmalı")
+    ad: liste<metin> = []
+    dğ: liste<ondalık> = []
+    diğer = 0.0
+    her i için 0'dan n - 1'e kadar:
+        eğer değerler[i] < 0.0 ise:
+            hata_ver("grafik_svg: halka grafiğinde değerler eksi olamaz")
+        eğer i < 5 veya n == 6 ise:
+            etiketler[i]'yi ad'a ekle.
+            değerler[i]'yi dğ'ye ekle.
+        değilse:
+            diğer = diğer + değerler[i]
+    eğer n > 6 ise:
+        "Diğer"'i ad'a ekle.
+        diğer'i dğ'ye ekle.
+    toplam = 0.0
+    her x için dğ'den:
+        toplam = toplam + x
+    p = [gr_başlangıç(başlık, 560, 300)]
+    cx = 150.0
+    cy = 165.0
+    r1 = 105.0
+    r2 = 62.0
+    tam_tur = 6.283185307179586
+    açı = -tam_tur / 4.0
+    her i için 0'dan uzunluk(dğ) - 1'e kadar:
+        eğer toplam > 0.0 ve dğ[i] > 0.0 ise:
+            pay = dğ[i] / toplam
+            son = açı + pay * tam_tur
+            büyük_yay = "0"
+            eğer pay > 0.5 ise:
+                büyük_yay = "1"
+            yol = ""
+            eğer pay >= 0.9999 ise:
+                # Tek parça: tam halka
+                yol = "M" + gr_koord(cx + r1) + "," + gr_koord(cy) + "A" + gr_koord(r1) + "," + gr_koord(r1) + " 0 1 1 " + gr_koord(cx - r1) + "," + gr_koord(cy) + "A" + gr_koord(r1) + "," + gr_koord(r1) + " 0 1 1 " + gr_koord(cx + r1) + "," + gr_koord(cy) + "M" + gr_koord(cx + r2) + "," + gr_koord(cy) + "A" + gr_koord(r2) + "," + gr_koord(r2) + " 0 1 0 " + gr_koord(cx - r2) + "," + gr_koord(cy) + "A" + gr_koord(r2) + "," + gr_koord(r2) + " 0 1 0 " + gr_koord(cx + r2) + "," + gr_koord(cy) + "Z"
+            değilse:
+                yol = birleştir(["M", gr_koord(cx + r1 * kosinüs(açı)), ",", gr_koord(cy + r1 * sinüs(açı)), "A", gr_koord(r1), ",", gr_koord(r1), " 0 ", büyük_yay, " 1 ", gr_koord(cx + r1 * kosinüs(son)), ",", gr_koord(cy + r1 * sinüs(son)), "L", gr_koord(cx + r2 * kosinüs(son)), ",", gr_koord(cy + r2 * sinüs(son)), "A", gr_koord(r2), ",", gr_koord(r2), " 0 ", büyük_yay, " 0 ", gr_koord(cx + r2 * kosinüs(açı)), ",", gr_koord(cy + r2 * sinüs(açı)), "Z"], "")
+            yüzde = gr_sayı_etiketi(pay * 100.0)
+            # Parçalar arasında zemin renginde 2 piksellik boşluk
+            ("<path class=\"isaret\" fill=\"" + gr_seri_rengi(i) + "\" stroke=\"var(--g-zemin)\" stroke-width=\"2\" fill-rule=\"evenodd\" d=\"" + yol + "\"><title>" + kaçır(ad[i]) + ": " + gr_sayı_etiketi(dğ[i]) + " (%" + yüzde + ")</title></path>")'yi p'ye ekle.
+            açı = son
+    ("<text class=\"baslik\" x=\"" + gr_koord(cx) + "\" y=\"" + gr_koord(cy + 5.0) + "\" text-anchor=\"middle\">" + gr_sayı_etiketi(toplam) + "</text>")'yi p'ye ekle.
+    # Açıklama: renk, ad, değer ve yüzde (renk tek başına bilgi taşımaz)
+    her i için 0'dan uzunluk(dğ) - 1'e kadar:
+        y = 70.0 + ondalık(i) * 30.0
+        yüzde = "0"
+        eğer toplam > 0.0 ise:
+            yüzde = gr_sayı_etiketi(dğ[i] / toplam * 100.0)
+        ("<rect x=\"290\" y=\"" + gr_koord(y - 10.0) + "\" width=\"12\" height=\"12\" rx=\"3\" fill=\"" + gr_seri_rengi(i) + "\"/><text class=\"etiket\" x=\"310\" y=\"" + gr_koord(y) + "\">" + kaçır(gr_kısalt_etiket(ad[i], 16)) + "</text><text class=\"deger\" x=\"540\" y=\"" + gr_koord(y) + "\" text-anchor=\"end\">" + gr_sayı_etiketi(dğ[i]) + " · %" + yüzde + "</text>")'yi p'ye ekle.
+    "</svg>"'yi p'ye ekle.
+    döndür birleştir(p, "")
+
+# ---------------------------------------------------------------------------
+# Tablo görünümü (ekran okuyucular ve yazdırma için grafiğin yanına konur)
+
+işlev grafik_tablosu(başlık: metin, etiketler: liste<metin>, değerler: liste<ondalık>) -> metin:
+    p = ["<table class=\"table grafik-tablosu\"><caption>" + kaçır(başlık) + "</caption><thead><tr><th scope=\"col\"></th><th scope=\"col\">Değer</th></tr></thead><tbody>"]
+    her i için 0'dan uzunluk(değerler) - 1'e kadar:
+        ("<tr><th scope=\"row\">" + kaçır(etiketler[i]) + "</th><td style=\"text-align:right\">" + gr_sayı_etiketi(değerler[i]) + "</td></tr>")'yi p'ye ekle.
+    "</tbody></table>"'yi p'ye ekle.
+    döndür birleştir(p, "")

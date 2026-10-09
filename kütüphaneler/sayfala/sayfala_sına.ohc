@@ -1,0 +1,27 @@
+kullan "sayfala.ohc"
+
+işlev sına_hesaplar():
+    eşit_olmalı(sayfa_sayısı(135, 20), 7)
+    eşit_olmalı(sayfa_sayısı(0, 20), 1)
+    eşit_olmalı(sayfa_sayısı(40, 20), 2)
+    eşit_olmalı(sayfa_düzelt(0, 7), 1)
+    eşit_olmalı(sayfa_düzelt(99, 7), 7)
+    eşit_olmalı(sayfa_oku("abc"), 1)
+    eşit_olmalı(sayfa_oku("3"), 3)
+    eşit_olmalı(sayfa_başı(2, 20), 20)
+    eşit_olmalı(sayfa_bilgisi(2, 20, 135), "21–40 / 135 kayıt")
+    eşit_olmalı(sayfa_bilgisi(7, 20, 135), "121–135 / 135 kayıt")
+    eşit_olmalı(parça([1, 2, 3, 4, 5], sayfa_başı(2, 2), 2), [3, 4])
+
+işlev sına_numaralar():
+    eşit_olmalı(sayfa_numaraları(10, 20, 2), [1, 0, 8, 9, 10, 11, 12, 0, 20])
+    eşit_olmalı(sayfa_numaraları(1, 5, 2), [1, 2, 3, 4, 5])
+    eşit_olmalı(sayfa_numaraları(5, 9, 1), [1, 0, 4, 5, 6, 0, 9])
+    eşit_olmalı(sayfa_numaraları(4, 9, 1), [1, 2, 3, 4, 5, 0, 9])
+
+işlev sına_html():
+    h = sayfalama_html(2, 3, "/ürünler?sayfa={}")
+    doğrula(içerir(h, "href=\"/ürünler?sayfa=1\" rel=\"prev\""))
+    doğrula(içerir(h, "aria-current=\"page\"><span class=\"page-link\">2</span>"))
+    doğrula(içerir(h, "href=\"/ürünler?sayfa=3\" rel=\"next\""))
+    eşit_olmalı(sayfalama_html(1, 1, "/x?s={}"), "")

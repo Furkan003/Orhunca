@@ -1,0 +1,4 @@
+ad = "markdown"
+sürüm = "1.0.0"
+giriş = "markdown.ohc"
+açıklama = "Markdown metnini güvenli HTML'ye çevirir: başlık, liste, tablo, kod, bağlantı, alıntı, görev listesi (blog, yorum, belge sayfaları için)"

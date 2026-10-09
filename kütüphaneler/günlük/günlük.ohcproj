@@ -1,0 +1,4 @@
+ad = "günlük"
+sürüm = "1.0.0"
+giriş = "günlük.ohc"
+açıklama = "Uygulama günlüğü (log): bilgi, uyarı, hata düzeyleri, zaman damgası, dosyaya ve ekrana yazma, JSON satırları"

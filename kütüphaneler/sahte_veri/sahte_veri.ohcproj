@@ -1,0 +1,4 @@
+ad = "sahte_veri"
+sürüm = "1.0.0"
+giriş = "sahte_veri.ohc"
+açıklama = "Deneme ve sunum için Türkçe sahte veri: ad, soyad, şehir, telefon, e-posta, adres, şirket, tarih, geçerli T.C. kimlik no, metin"

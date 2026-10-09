@@ -1,0 +1,10 @@
+kullan "günlük.ohc"
+
+işlev sına_satır():
+    eşit_olmalı(günlük_satırı("bilgi", "Sunucu başladı", "2026-10-09 14:30:05"), "2026-10-09 14:30:05 [BİLGİ] Sunucu başladı")
+    eşit_olmalı(günlük_satırı("uyarı", "iki\nsatır", "2026-10-09 14:30:05"), "2026-10-09 14:30:05 [UYARI] iki ⏎ satır")
+    eşit_olmalı(günlük_satırı("HATA", "x", "t"), "t [HATA] x")
+    eşit_olmalı(günlük_düzey_sırası("bilinmeyen"), 1)
+
+işlev sına_json_metin():
+    eşit_olmalı(günlük_json_metin("a\"b\nc"), "\"a\\\"b\\nc\"")

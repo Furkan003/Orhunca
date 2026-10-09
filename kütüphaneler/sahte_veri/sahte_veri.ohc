@@ -1,0 +1,131 @@
+# sahte_veri: deneme ve sunum için gerçekçi Türkçe veri.
+#   kullan "sahte_veri"
+#   her i için 1'den 50'ye kadar:
+#       Öğrenci(ad: sahte_tam_ad(), şehir: sahte_şehir(), telefon: sahte_telefon())'i kaydet.
+#
+# Üretilen kişiler gerçek değildir; T.C. kimlik numaraları yalnızca denetim hanesi açısından
+# geçerlidir (gerçek birine ait olup olmadığı bilinmez, gerçek işlemlerde kullanmayın).
+
+işlev sahte_seç(l: liste<metin>) -> metin:
+    döndür l[rastgele(0, uzunluk(l) - 1)]
+
+işlev sahte_kadın_adları() -> liste<metin>:
+    döndür ["Ayşe", "Fatma", "Zeynep", "Elif", "Emine", "Merve", "Esra", "Büşra", "Zehra", "Hatice", "Şeyma", "İrem", "Defne", "Ecrin", "Asel", "Nehir", "Ela", "Duru", "Gül", "Selin", "Özge", "Ceren", "Derya", "Melike", "Sude", "Yağmur", "Ezgi", "Buse", "Damla", "Nur"]
+
+işlev sahte_erkek_adları() -> liste<metin>:
+    döndür ["Mehmet", "Mustafa", "Ahmet", "Ali", "Hüseyin", "Hasan", "İbrahim", "Yusuf", "Murat", "Ömer", "Emre", "Burak", "Can", "Eymen", "Alparslan", "Göktuğ", "Kerem", "Mert", "Oğuz", "Serkan", "Tolga", "Umut", "Volkan", "Yiğit", "Çağrı", "Barış", "Furkan", "Kaan", "Efe", "Batuhan"]
+
+işlev sahte_soyadları() -> liste<metin>:
+    döndür ["Yılmaz", "Kaya", "Demir", "Şahin", "Çelik", "Yıldız", "Yıldırım", "Öztürk", "Aydın", "Özdemir", "Arslan", "Doğan", "Kılıç", "Aslan", "Çetin", "Kara", "Koç", "Kurt", "Özkan", "Şimşek", "Polat", "Korkmaz", "Erdoğan", "Güneş", "Aksoy", "Tekin", "Bulut", "Karaca", "Uçar", "Ünal"]
+
+işlev sahte_şehirler() -> liste<metin>:
+    döndür ["İstanbul", "Ankara", "İzmir", "Bursa", "Antalya", "Konya", "Adana", "Gaziantep", "Kayseri", "Eskişehir", "Samsun", "Trabzon", "Erzurum", "Diyarbakır", "Mersin", "Denizli", "Malatya", "Van", "Sakarya", "Muğla", "Edirne", "Çanakkale", "Rize", "Kars", "Şanlıurfa"]
+
+işlev sahte_ad() -> metin:
+    eğer rastgele(0, 1) == 0 ise:
+        döndür sahte_seç(sahte_kadın_adları())
+    döndür sahte_seç(sahte_erkek_adları())
+
+işlev sahte_kadın_adı() -> metin:
+    döndür sahte_seç(sahte_kadın_adları())
+
+işlev sahte_erkek_adı() -> metin:
+    döndür sahte_seç(sahte_erkek_adları())
+
+işlev sahte_soyad() -> metin:
+    döndür sahte_seç(sahte_soyadları())
+
+işlev sahte_tam_ad() -> metin:
+    döndür sahte_ad() + " " + sahte_soyad()
+
+işlev sahte_şehir() -> metin:
+    döndür sahte_seç(sahte_şehirler())
+
+işlev sahte_ascii_küçük(m: metin) -> metin:
+    s = küçük_harf(m)
+    her ç için [["ç", "c"], ["ğ", "g"], ["ı", "i"], ["ö", "o"], ["ş", "s"], ["ü", "u"], [" ", "."]]'den:
+        s = değiştir(s, ç[0], ç[1])
+    döndür s
+
+# Kişinin adından e-posta: "Ayşe Yılmaz" → "ayse.yilmaz42@ornek.com"
+işlev sahte_e_posta_adından(tam_ad_: metin) -> metin:
+    alanlar = ["ornek.com", "ornek.net", "ornek.org", "posta.ornek.com.tr"]
+    döndür sahte_ascii_küçük(tam_ad_) + metin(rastgele(1, 99)) + "@" + sahte_seç(alanlar)
+
+işlev sahte_e_posta() -> metin:
+    döndür sahte_e_posta_adından(sahte_tam_ad())
+
+# Cep telefonu: "0532 123 45 67"
+işlev sahte_telefon() -> metin:
+    önekler = ["530", "532", "533", "535", "536", "541", "542", "543", "544", "545", "505", "506", "507", "551", "552", "553", "554", "555"]
+    r = metin(rastgele(1000000, 9999999))
+    döndür birleştir(["0", sahte_seç(önekler), " ", parça(r, 0, 3), " ", parça(r, 3, 2), " ", parça(r, 5, 2)], "")
+
+işlev sahte_adres() -> metin:
+    sokaklar = ["Atatürk Cad.", "Cumhuriyet Cad.", "İnönü Sok.", "Gül Sok.", "Lale Sok.", "Menekşe Sok.", "Bahar Sok.", "Okul Cad.", "Çınar Sok.", "Deniz Cad."]
+    mahalleler = ["Yeni Mah.", "Merkez Mah.", "Cumhuriyet Mah.", "Fatih Mah.", "Bahçelievler Mah.", "Esentepe Mah.", "Kültür Mah.", "Barbaros Mah."]
+    döndür sahte_seç(mahalleler) + " " + sahte_seç(sokaklar) + " No: " + rastgele(1, 120) + " D: " + rastgele(1, 20) + ", " + sahte_şehir()
+
+işlev sahte_şirket() -> metin:
+    ilk = ["Anadolu", "Ege", "Marmara", "Doğu", "Güneş", "Yıldız", "Kardeşler", "Atlas", "Mavi", "Çınar", "Orhun", "Toros"]
+    alan = ["Yazılım", "Gıda", "Tekstil", "İnşaat", "Lojistik", "Enerji", "Danışmanlık", "Matbaacılık", "Elektronik", "Turizm"]
+    tür = ["A.Ş.", "Ltd. Şti.", "San. ve Tic. A.Ş."]
+    döndür sahte_seç(ilk) + " " + sahte_seç(alan) + " " + sahte_seç(tür)
+
+işlev sahte_meslek() -> metin:
+    döndür sahte_seç(["Öğretmen", "Mühendis", "Doktor", "Hemşire", "Avukat", "Muhasebeci", "Yazılımcı", "Aşçı", "Mimar", "Eczacı", "Grafiker", "Pilot", "Polis", "Esnaf", "Şoför", "Çiftçi"])
+
+işlev sahte_ürün() -> metin:
+    döndür sahte_seç(["Defter", "Kalem", "Silgi", "Çanta", "Matara", "Kulaklık", "Klavye", "Fare", "Lamba", "Kupa", "Termos", "Ajanda", "Hesap Makinesi", "Cetvel", "Boya Kalemi"])
+
+# 0,00 – üst arası fiyat (iki ondalık)
+işlev sahte_fiyat(üst: ondalık) -> ondalık:
+    döndür ondalık(rastgele(100, yuvarla(üst * 100.0))) / 100.0
+
+# Bugünden geriye en çok `gün_sayısı` gün içinde bir tarih: "2026-07-14"
+işlev sahte_geçmiş_tarih(gün_sayısı: sayı) -> metin:
+    döndür gün_ekle(bugün(), -rastgele(0, gün_sayısı))
+
+işlev sahte_gelecek_tarih(gün_sayısı: sayı) -> metin:
+    döndür gün_ekle(bugün(), rastgele(0, gün_sayısı))
+
+# En_az – en_çok yaş arasındaki biri için doğum tarihi
+işlev sahte_doğum_tarihi(en_az: sayı, en_çok: sayı) -> metin:
+    döndür gün_ekle(bugün(), -rastgele(en_az * 365, en_çok * 365 + 364))
+
+işlev sahte_not() -> sayı:
+    döndür rastgele(35, 100)
+
+# Denetim haneleri doğru T.C. kimlik numarası
+işlev sahte_tc_kimlik() -> metin:
+    d: liste<sayı> = [rastgele(1, 9)]
+    her i için 1'den 8'e kadar:
+        rastgele(0, 9)'u d'ye ekle.
+    tek = d[0] + d[2] + d[4] + d[6] + d[8]
+    çift = d[1] + d[3] + d[5] + d[7]
+    ((tek * 7 - çift) % 10 + 10) % 10'u d'ye ekle.
+    t = 0
+    her x için d'den:
+        t += x
+    (t % 10)'u d'ye ekle.
+    döndür birleştir(dönüştür(d, işlev(x) -> metin(x)), "")
+
+işlev sahte_kelimeler() -> liste<metin>:
+    döndür böl("güneş deniz yol kitap okul bahçe ağaç rüzgâr şehir dağ ırmak bulut yıldız kuş çiçek pencere masa kalem defter ışık zaman yaz kış bahar güz köprü sokak ev kapı anahtar harita gemi tren", " ")
+
+# Anlamsız ama Türkçe görünen cümle (lorem ipsum yerine)
+işlev sahte_cümle() -> metin:
+    k = sahte_kelimeler()
+    n = rastgele(5, 11)
+    p: liste<metin> = []
+    her i için 1'den n'ye kadar:
+        sahte_seç(k)'i p'ye ekle.
+    s = birleştir(p, " ")
+    h = harfler(s)
+    döndür büyük_harf(h[0]) + birleştir(parça(h, 1, uzunluk(h) - 1), "") + "."
+
+işlev sahte_paragraf(cümle_sayısı: sayı) -> metin:
+    p: liste<metin> = []
+    her i için 1'den cümle_sayısı'na kadar:
+        sahte_cümle()'yi p'ye ekle.
+    döndür birleştir(p, " ")

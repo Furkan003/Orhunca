@@ -14,7 +14,7 @@
 işlev code128_desenleri() -> liste<metin>:
     döndür böl("11011001100 11001101100 11001100110 10010011000 10010001100 10001001100 10011001000 10011000100 10001100100 11001001000 11001000100 11000100100 10110011100 10011011100 10011001110 10111001100 10011101100 10011100110 11001110010 11001011100 11001001110 11011100100 11001110100 11101101110 11101001100 11100101100 11100100110 11101100100 11100110100 11100110010 11011011000 11011000110 11000110110 10100011000 10001011000 10001000110 10110001000 10001101000 10001100010 11010001000 11000101000 11000100010 10110111000 10110001110 10001101110 10111011000 10111000110 10001110110 11101110110 11010001110 11000101110 11011101000 11011100010 11011101110 11101011000 11101000110 11100010110 11101101000 11101100010 11100011010 11101111010 11001000010 11110001010 10100110000 10100001100 10010110000 10010000110 10000101100 10000100110 10110010000 10110000100 10011010000 10011000010 10000110100 10000110010 11000010010 11001010000 11110111010 11000010100 10001111010 10100111100 10010111100 10010011110 10111100100 10011110100 10011110010 11110100100 11110010100 11110010010 11011011110 11011110110 11110110110 10101111000 10100011110 10001011110 10111101000 10111100010 11110101000 11110100010 10111011110 10111101110 11101011110 11110101110 11010000100 11010010000 11010011100", " ")
 
-işlev rakam_mı(c: sayı) -> mantık:
+işlev barkod_rakam_mı(c: sayı) -> mantık:
     döndür c >= 48 ve c <= 57
 
 # Code 128 değerleri (başlangıç, veri, denetim; bitiş hariç). Rakam dizileri yer kazanmak
@@ -33,7 +33,7 @@ işlev code128_değerleri(veri: metin) -> liste<sayı>:
     i < n olduğu sürece:
         # Önündeki rakam sayısı
         r = 0
-        i + r < n ve rakam_mı(k[i + r]) olduğu sürece:
+        i + r < n ve barkod_rakam_mı(k[i + r]) olduğu sürece:
             r += 1
         # C kümesi: başta ya da sonda en az 4, ortada en az 6 rakam (geçiş maliyetine değsin)
         sınır = 6
@@ -96,17 +96,17 @@ işlev ean_denetim_hanesi(rakamlar: metin) -> sayı:
             t += r
     döndür (10 - t % 10) % 10
 
-işlev yalnız_rakam_mı(m: metin) -> mantık:
+işlev barkod_yalnız_rakam_mı(m: metin) -> mantık:
     eğer m == "" ise:
         döndür yanlış
     her c için kodlar(m)'den:
-        eğer rakam_mı(c) == yanlış ise:
+        eğer barkod_rakam_mı(c) == yanlış ise:
             döndür yanlış
     döndür doğru
 
 # 12 haneye denetim hanesini ekler; 13 hane verilmişse denetler
 işlev ean13_tamamla(rakamlar: metin) -> metin:
-    eğer yalnız_rakam_mı(rakamlar) == yanlış ise:
+    eğer barkod_yalnız_rakam_mı(rakamlar) == yanlış ise:
         hata_ver("barkod: EAN-13 yalnızca rakamlardan oluşur ('" + rakamlar + "')")
     eğer uzunluk(rakamlar) == 12 ise:
         döndür rakamlar + ean_denetim_hanesi(rakamlar)
@@ -120,7 +120,7 @@ işlev ean13_tamamla(rakamlar: metin) -> metin:
 # EAN-13 / EAN-8 geçerli mi (uzunluk ve denetim hanesi)?
 işlev ean_geçerli_mi(rakamlar: metin) -> mantık:
     n = uzunluk(rakamlar)
-    eğer yalnız_rakam_mı(rakamlar) == yanlış veya (n != 13 ve n != 8) ise:
+    eğer barkod_yalnız_rakam_mı(rakamlar) == yanlış veya (n != 13 ve n != 8) ise:
         döndür yanlış
     döndür ean_denetim_hanesi(parça(rakamlar, 0, n - 1)) == sayı(rakamlar[n - 1])
 
@@ -153,7 +153,7 @@ işlev ean13_çubukları(rakamlar: metin) -> metin:
 
 işlev ean8_çubukları(rakamlar: metin) -> metin:
     r = rakamlar
-    eğer yalnız_rakam_mı(r) ve uzunluk(r) == 7 ise:
+    eğer barkod_yalnız_rakam_mı(r) ve uzunluk(r) == 7 ise:
         r = r + ean_denetim_hanesi(r)
     eğer ean_geçerli_mi(r) == yanlış veya uzunluk(r) != 8 ise:
         hata_ver("barkod: EAN-8 için 7 hane (ya da denetim hanesiyle 8) gerekir ('" + rakamlar + "')")

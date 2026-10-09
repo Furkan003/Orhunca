@@ -1,0 +1,104 @@
+# kimlik: benzersiz kimlikler üretir.
+#   kullan "kimlik"
+#   uuid()'yi yaz.                 # "3f6c2a1e-8b7d-4c5e-9a0b-1d2e3f4a5b6c"
+#   sıralı_kimlik()'i yaz.         # "01JA5K…" (oluşturulma sırasına göre sıralanır)
+#   kısa_kimlik(10)'u yaz.         # "V1StGXR8_Z"
+#   sayı_kodu(125)'i yaz.          # "21" (adres kısaltıcılar için)
+#
+# Not: Orhunca'nın rastgele() işlevi kriptografik değildir; bu kimlikler tahmin edilemez
+# olmak zorunda olmayan yerler (kayıt numarası, dosya adı, sipariş kodu) içindir. Şifre
+# sıfırlama bağlantısı gibi gizli belirteçler için kullanmayın.
+
+işlev kimlik_onaltılık_hane(x: sayı) -> metin:
+    döndür "0123456789abcdef"[x]
+
+# UUID sürüm 4 (rastgele), RFC 9562
+işlev uuid() -> metin:
+    p: liste<metin> = []
+    her i için 0'dan 31'e kadar:
+        x = rastgele(0, 15)
+        eğer i == 12 ise:
+            x = 4
+        eğer i == 16 ise:
+            x = 8 + rastgele(0, 3)
+        kimlik_onaltılık_hane(x)'i p'ye ekle.
+        eğer i == 7 veya i == 11 veya i == 15 veya i == 19 ise:
+            "-"'yi p'ye ekle.
+    döndür birleştir(p, "")
+
+işlev uuid_geçerli_mi(m: metin) -> mantık:
+    h = harfler(küçük_harf(kırp(m)))
+    eğer uzunluk(h) != 36 ise:
+        döndür yanlış
+    her i için 0'dan 35'e kadar:
+        eğer i == 8 veya i == 13 veya i == 18 veya i == 23 ise:
+            eğer h[i] != "-" ise:
+                döndür yanlış
+        değilse eğer içerir("0123456789abcdef", h[i]) == yanlış ise:
+            döndür yanlış
+    döndür doğru
+
+# Kısa, adreste güvenle kullanılabilen kimlik (A–Z, a–z, 0–9, _ ve -)
+işlev kısa_kimlik(uzunluk_: sayı) -> metin:
+    abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"
+    p: liste<metin> = []
+    her i için 1'den uzunluk_'a kadar:
+        abc[rastgele(0, 63)]'ü p'ye ekle.
+    döndür birleştir(p, "")
+
+# Okunması kolay kod: karışan harfler (0/O, 1/I/l) yok. Sipariş ve davet kodları için.
+işlev okunur_kod(uzunluk_: sayı) -> metin:
+    abc = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+    p: liste<metin> = []
+    her i için 1'den uzunluk_'a kadar:
+        abc[rastgele(0, 30)]'u p'ye ekle.
+    döndür birleştir(p, "")
+
+# ULID: 26 karakter, ilk 10'u milisaniye cinsinden zaman; metin olarak sıralanınca
+# oluşturulma sırasına dizilir (veritabanı kayıtları için iyi bir anahtar).
+işlev sıralı_kimlik() -> metin:
+    abc = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+    ms = yuvarla(zaman() * 1000.0)
+    z: liste<metin> = []
+    her i için 1'den 10'a kadar:
+        abc[ms % 32]'yi z'ye ekle.
+        ms = ms // 32
+    p = ters(z)
+    her i için 1'den 16'ya kadar:
+        abc[rastgele(0, 31)]'i p'ye ekle.
+    döndür birleştir(p, "")
+
+# ULID'nin zamanı (Unix saniyesi)
+işlev sıralı_kimlik_zamanı(k: metin) -> ondalık:
+    abc = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+    ms = 0
+    her c için harfler(parça(büyük_harf(değiştir(k, "i", "I")), 0, 10))'den:
+        ms = ms * 32 + bul(abc, c)
+    döndür ondalık(ms) / 1000.0
+
+# Sayıyı kısa koda çevirir (taban 62): 125 → "21". Adres kısaltıcı, davet bağlantısı.
+işlev sayı_kodu(n: sayı) -> metin:
+    abc = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+    eğer n < 0 ise:
+        hata_ver("kimlik: sayı_kodu negatif sayı alamaz")
+    eğer n == 0 ise:
+        döndür "0"
+    p: liste<metin> = []
+    k = n
+    k > 0 olduğu sürece:
+        abc[k % 62]'yi p'ye ekle.
+        k = k // 62
+    döndür birleştir(ters(p), "")
+
+# Koddan sayı ("21" → 125); geçersizse -1
+işlev koddan_sayı(kod: metin) -> sayı:
+    abc = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+    eğer kod == "" ise:
+        döndür -1
+    n = 0
+    her c için harfler(kod)'dan:
+        i = bul(abc, c)
+        eğer i < 0 ise:
+            döndür -1
+        n = n * 62 + i
+    döndür n

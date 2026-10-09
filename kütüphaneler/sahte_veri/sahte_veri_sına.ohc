@@ -1,0 +1,24 @@
+kullan "sahte_veri.ohc"
+kullan "../doğrula_tr/doğrula_tr.ohc"
+
+işlev sına_kişiler():
+    her i için 1'den 50'ye kadar:
+        a = sahte_tam_ad()
+        eşit_olmalı(uzunluk(böl(a, " ")), 2)
+        doğrula(e_posta_geçerli_mi(sahte_e_posta_adından(a)), sahte_e_posta_adından(a))
+        doğrula(cep_telefonu_mu(sahte_telefon()))
+        doğrula(tc_kimlik_geçerli_mi(sahte_tc_kimlik()))
+
+işlev sına_tarihler():
+    her i için 1'den 20'ye kadar:
+        doğrula(sahte_geçmiş_tarih(30) <= bugün())
+        doğrula(sahte_gelecek_tarih(30) >= bugün())
+        d = sahte_doğum_tarihi(18, 20)
+        doğrula(d <= gün_ekle(bugün(), -18 * 365))
+
+işlev sına_diğer():
+    f = sahte_fiyat(100.0)
+    doğrula(f >= 1.0 ve f <= 100.0)
+    doğrula(biter(sahte_cümle(), "."))
+    doğrula(sahte_adres() != "")
+    doğrula(içerir(sahte_şirket(), " "))

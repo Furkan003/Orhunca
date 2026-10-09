@@ -1,0 +1,28 @@
+kullan "kimlik.ohc"
+
+işlev sına_uuid():
+    u = uuid()
+    doğrula(uuid_geçerli_mi(u), u)
+    eşit_olmalı(u[14], "4")
+    doğrula(içerir("89ab", u[19]), u)
+    doğrula(uuid() != uuid())
+    doğrula(uuid_geçerli_mi("123") == yanlış)
+
+işlev sına_kısa():
+    eşit_olmalı(uzunluk(kısa_kimlik(21)), 21)
+    k = okunur_kod(8)
+    eşit_olmalı(uzunluk(k), 8)
+    her c için ["0", "O", "1", "I", "l"]'den:
+        doğrula(içerir(k, c) == yanlış)
+
+işlev sına_sıralı():
+    a = sıralı_kimlik()
+    eşit_olmalı(uzunluk(a), 26)
+    doğrula(mutlak(sıralı_kimlik_zamanı(a) - zaman()) < 5.0)
+
+işlev sına_sayı_kodu():
+    eşit_olmalı(sayı_kodu(0), "0")
+    eşit_olmalı(sayı_kodu(125), "21")
+    eşit_olmalı(koddan_sayı("21"), 125)
+    eşit_olmalı(koddan_sayı(sayı_kodu(9876543210)), 9876543210)
+    eşit_olmalı(koddan_sayı("a!"), -1)

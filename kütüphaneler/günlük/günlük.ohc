@@ -1,0 +1,80 @@
+# günlük: uygulamanın ne yaptığını kaydeder (sunucuda sorun ararken çok işe yarar).
+#   kullan "günlük"
+#   günlük_bilgi("Sunucu başladı")
+#   günlük_uyarı("Stok azaldı: " + ürün.ad)
+#   günlük_hata("Ödeme alınamadı: " + h)
+#
+# Satırlar "günlük.log" dosyasına eklenir: 2026-10-09 14:30:05 [BİLGİ] Sunucu başladı
+# Ortam değişkenleriyle (.env dosyasında) ayarlanır:
+#   GUNLUK_DOSYASI = kayitlar/uygulama.log   (boş bırakılırsa yalnızca ekrana yazılır: "-")
+#   GUNLUK_DUZEYI  = ayrıntı | bilgi | uyarı | hata   (bunun altındakiler yazılmaz; varsayılan bilgi)
+#   GUNLUK_BICIMI  = metin | json                     (json: her satır bir JSON nesnesi)
+#   GUNLUK_EKRAN   = evet | hayır                      (ekrana da yazılsın mı; varsayılan evet)
+
+işlev günlük_düzey_sırası(d: metin) -> sayı:
+    k = küçük_harf(kırp(d))
+    eğer k == "ayrıntı" veya k == "ayrinti" ise:
+        döndür 0
+    eğer k == "uyarı" veya k == "uyari" ise:
+        döndür 2
+    eğer k == "hata" ise:
+        döndür 3
+    döndür 1
+
+işlev günlük_dosyası() -> metin:
+    d = kırp(ortam("GUNLUK_DOSYASI"))
+    eğer d == "" ise:
+        döndür "günlük.log"
+    döndür d
+
+işlev günlük_json_metin(m: metin) -> metin:
+    s = değiştir(m, "\\", "\\\\")
+    s = değiştir(s, "\"", "\\\"")
+    s = değiştir(s, "\n", "\\n")
+    s = değiştir(s, "\r", "\\r")
+    s = değiştir(s, "\t", "\\t")
+    döndür "\"" + s + "\""
+
+# Günlük satırı (dosyaya yazılmadan): biçimi denetlemek ve sınamak için
+işlev günlük_satırı(düzey: metin, ileti: metin, zaman_: metin) -> metin:
+    etiket = ["AYRINTI", "BİLGİ", "UYARI", "HATA"][günlük_düzey_sırası(düzey)]
+    eğer küçük_harf(kırp(ortam("GUNLUK_BICIMI"))) == "json" ise:
+        döndür "{\"zaman\": " + günlük_json_metin(zaman_) + ", \"düzey\": " + günlük_json_metin(etiket) + ", \"ileti\": " + günlük_json_metin(ileti) + "}"
+    # Çok satırlı ileti tek satıra çekilir (dosyada her satır bir kayıt kalsın)
+    döndür zaman_ + " [" + etiket + "] " + değiştir(değiştir(ileti, "\r", ""), "\n", " ⏎ ")
+
+# Belirtilen düzeyde kayıt; düzey "ayrıntı", "bilgi", "uyarı" ya da "hata"
+işlev günlük_yaz(düzey: metin, ileti: metin):
+    eğer günlük_düzey_sırası(düzey) < günlük_düzey_sırası(ortam("GUNLUK_DUZEYI")) ise:
+        döndür
+    s = günlük_satırı(düzey, ileti, tarih())
+    eğer küçük_harf(kırp(ortam("GUNLUK_EKRAN"))) != "hayır" ise:
+        s'yi yaz.
+    d = günlük_dosyası()
+    eğer d != "-" ise:
+        dosyaya_ekle(d, s + "\n")
+
+işlev günlük_ayrıntı(ileti: metin):
+    günlük_yaz("ayrıntı", ileti)
+
+işlev günlük_bilgi(ileti: metin):
+    günlük_yaz("bilgi", ileti)
+
+işlev günlük_uyarı(ileti: metin):
+    günlük_yaz("uyarı", ileti)
+
+işlev günlük_hata(ileti: metin):
+    günlük_yaz("hata", ileti)
+
+# Günlük dosyasının son `n` satırı (yönetim sayfasında göstermek için)
+işlev günlük_son(n: sayı) -> liste<metin>:
+    d = günlük_dosyası()
+    eğer d == "-" veya dosya_var(d) == yanlış ise:
+        döndür []
+    s: liste<metin> = []
+    her satır için satırlar(dosya_oku(d))'dan:
+        eğer satır != "" ise:
+            satır'ı s'ye ekle.
+    eğer uzunluk(s) <= n ise:
+        döndür s
+    döndür parça(s, uzunluk(s) - n, n)

@@ -1,0 +1,86 @@
+# sayfala: uzun listeleri sayfa sayfa göstermek için.
+#   kullan "sayfala"
+#   al "/ürünler":
+#       hepsi = Ürün.hepsi()
+#       sayfa = sayfa_düzelt(sayı(değer(istek.sorgu, "sayfa", "1")), sayfa_sayısı(uzunluk(hepsi), 20))
+#       gösterilen = parça(hepsi, sayfa_başı(sayfa, 20), 20)
+#       … görünümde: @ham(sayfalama_html(sayfa, sayfa_sayısı(uzunluk(hepsi), 20), "/ürünler?sayfa={}"))
+
+# Toplam kayıt ve sayfa boyutundan sayfa sayısı (en az 1)
+işlev sayfa_sayısı(toplam: sayı, boyut: sayı) -> sayı:
+    eğer boyut < 1 ise:
+        hata_ver("sayfala: sayfa boyutu en az 1 olmalı")
+    eğer toplam <= 0 ise:
+        döndür 1
+    döndür (toplam + boyut - 1) // boyut
+
+# Sayfa numarasını 1 ile son sayfa arasına çeker (adresten gelen bozuk değerlere karşı)
+işlev sayfa_düzelt(sayfa: sayı, toplam_sayfa: sayı) -> sayı:
+    eğer sayfa < 1 ise:
+        döndür 1
+    eğer sayfa > toplam_sayfa ise:
+        döndür toplam_sayfa
+    döndür sayfa
+
+# Adresteki metinden sayfa numarası ("abc" ya da boşsa 1)
+işlev sayfa_oku(m: metin) -> sayı:
+    eğer sayı_mı(kırp(m)) ise:
+        döndür sayı(kırp(m))
+    döndür 1
+
+# Sayfanın ilk kaydının sırası (0'dan): parça(liste, sayfa_başı(s, 20), 20)
+işlev sayfa_başı(sayfa: sayı, boyut: sayı) -> sayı:
+    eğer sayfa < 1 ise:
+        döndür 0
+    döndür (sayfa - 1) * boyut
+
+# "21–40 / 135 kayıt"
+işlev sayfa_bilgisi(sayfa: sayı, boyut: sayı, toplam: sayı) -> metin:
+    eğer toplam <= 0 ise:
+        döndür "Kayıt yok"
+    baş = sayfa_başı(sayfa, boyut) + 1
+    son = baş + boyut - 1
+    eğer son > toplam ise:
+        son = toplam
+    döndür metin(baş) + "–" + metin(son) + " / " + metin(toplam) + " kayıt"
+
+# Gösterilecek sayfa numaraları; 0 "…" demektir: [1, 0, 4, 5, 6, 0, 20]
+işlev sayfa_numaraları(sayfa: sayı, toplam_sayfa: sayı, komşu: sayı) -> liste<sayı>:
+    l: liste<sayı> = []
+    her i için 1'den toplam_sayfa'ya kadar:
+        eğer i == 1 veya i == toplam_sayfa veya (i >= sayfa - komşu ve i <= sayfa + komşu) ise:
+            eğer uzunluk(l) > 0 ve l[uzunluk(l) - 1] != 0 ve i - l[uzunluk(l) - 1] > 1 ise:
+                # Arada tek sayfa kalıyorsa "…" yerine kendisi yazılır
+                eğer i - l[uzunluk(l) - 1] == 2 ise:
+                    (i - 1)'i l'ye ekle.
+                değilse:
+                    0'ı l'ye ekle.
+            i'yi l'ye ekle.
+    döndür l
+
+işlev sayfa_adresi(kalıp: metin, sayfa: sayı) -> metin:
+    döndür kaçır(değiştir(kalıp, "{}", metin(sayfa)))
+
+# Bootstrap uyumlu sayfa bağlantıları; `adres_kalıbı` içindeki {} sayfa numarasıyla değişir
+işlev sayfalama_html(sayfa: sayı, toplam_sayfa: sayı, adres_kalıbı: metin) -> metin:
+    eğer toplam_sayfa <= 1 ise:
+        döndür ""
+    s = sayfa_düzelt(sayfa, toplam_sayfa)
+    p = ["<nav aria-label=\"Sayfalar\"><ul class=\"pagination sayfalama\">"]
+    eğer s > 1 ise:
+        ("<li class=\"page-item\"><a class=\"page-link\" href=\"" + sayfa_adresi(adres_kalıbı, s - 1) + "\" rel=\"prev\">‹ Önceki</a></li>")'yi p'ye ekle.
+    değilse:
+        "<li class=\"page-item disabled\"><span class=\"page-link\">‹ Önceki</span></li>"'yi p'ye ekle.
+    her n için sayfa_numaraları(s, toplam_sayfa, 2)'den:
+        eğer n == 0 ise:
+            "<li class=\"page-item disabled\"><span class=\"page-link\">…</span></li>"'yi p'ye ekle.
+        değilse eğer n == s ise:
+            ("<li class=\"page-item active\" aria-current=\"page\"><span class=\"page-link\">" + n + "</span></li>")'yi p'ye ekle.
+        değilse:
+            ("<li class=\"page-item\"><a class=\"page-link\" href=\"" + sayfa_adresi(adres_kalıbı, n) + "\">" + n + "</a></li>")'yi p'ye ekle.
+    eğer s < toplam_sayfa ise:
+        ("<li class=\"page-item\"><a class=\"page-link\" href=\"" + sayfa_adresi(adres_kalıbı, s + 1) + "\" rel=\"next\">Sonraki ›</a></li>")'yi p'ye ekle.
+    değilse:
+        "<li class=\"page-item disabled\"><span class=\"page-link\">Sonraki ›</span></li>"'yi p'ye ekle.
+    "</ul></nav>"'ı p'ye ekle.
+    döndür birleştir(p, "")

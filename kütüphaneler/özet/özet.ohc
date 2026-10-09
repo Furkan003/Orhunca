@@ -70,11 +70,11 @@ işlev onaltılıktan(m: metin) -> liste<sayı>:
     k = kodlar(küçük_harf(m))
     i = 0
     i + 1 < uzunluk(k) olduğu sürece:
-        (hane_değeri(k[i]) * 16 + hane_değeri(k[i + 1]))'i b'ye ekle.
+        (özet_hane_değeri(k[i]) * 16 + özet_hane_değeri(k[i + 1]))'i b'ye ekle.
         i += 2
     döndür b
 
-işlev hane_değeri(c: sayı) -> sayı:
+işlev özet_hane_değeri(c: sayı) -> sayı:
     eğer c >= 48 ve c <= 57 ise:
         döndür c - 48
     eğer c >= 97 ve c <= 102 ise:
@@ -88,7 +88,7 @@ işlev sha_k() -> liste<sayı>:
     döndür [1116352408, 1899447441, 3049323471, 3921009573, 961987163, 1508970993, 2453635748, 2870763221, 3624381080, 310598401, 607225278, 1426881987, 1925078388, 2162078206, 2614888103, 3248222580, 3835390401, 4022224774, 264347078, 604807628, 770255983, 1249150122, 1555081692, 1996064986, 2554220882, 2821834349, 2952996808, 3210313671, 3336571891, 3584528711, 113926993, 338241895, 666307205, 773529912, 1294757372, 1396182291, 1695183700, 1986661051, 2177026350, 2456956037, 2730485921, 2820302411, 3259730800, 3345764771, 3516065817, 3600352804, 4094571909, 275423344, 430227734, 506948616, 659060556, 883997877, 958139571, 1322822218, 1537002063, 1747873779, 1955562222, 2024104815, 2227730452, 2361852424, 2428436474, 2756734187, 3204031479, 3329325298]
 
 # 32 bitlik sağa döndürme
-işlev döndür32(x: sayı, n: sayı) -> sayı:
+işlev özet_döndür32(x: sayı, n: sayı) -> sayı:
     döndür bit_ve(bit_veya(sağa_kaydır(x, n), sola_kaydır(x, 32 - n)), MASKE32)
 
 # Bir 64 baytlık bloğu (m[baş] … m[baş + 63]) sıkıştırıp `h` durumunu günceller.
@@ -100,8 +100,8 @@ işlev sha_sıkıştır(h: liste<sayı>, m: liste<sayı>, baş: sayı, w: liste<
     her t için 16'dan 63'e kadar:
         x = w[t - 15]
         y = w[t - 2]
-        s0 = bit_xor(bit_xor(döndür32(x, 7), döndür32(x, 18)), sağa_kaydır(x, 3))
-        s1 = bit_xor(bit_xor(döndür32(y, 17), döndür32(y, 19)), sağa_kaydır(y, 10))
+        s0 = bit_xor(bit_xor(özet_döndür32(x, 7), özet_döndür32(x, 18)), sağa_kaydır(x, 3))
+        s1 = bit_xor(bit_xor(özet_döndür32(y, 17), özet_döndür32(y, 19)), sağa_kaydır(y, 10))
         w[t] = bit_ve(w[t - 16] + s0 + w[t - 7] + s1, MASKE32)
     a = h[0]
     b = h[1]
@@ -112,10 +112,10 @@ işlev sha_sıkıştır(h: liste<sayı>, m: liste<sayı>, baş: sayı, w: liste<
     g = h[6]
     hh = h[7]
     her t için 0'dan 63'e kadar:
-        S1 = bit_xor(bit_xor(döndür32(e, 6), döndür32(e, 11)), döndür32(e, 25))
+        S1 = bit_xor(bit_xor(özet_döndür32(e, 6), özet_döndür32(e, 11)), özet_döndür32(e, 25))
         ch = bit_xor(bit_ve(e, f), bit_ve(bit_xor(e, MASKE32), g))
         t1 = hh + S1 + ch + k[t] + w[t]
-        S0 = bit_xor(bit_xor(döndür32(a, 2), döndür32(a, 13)), döndür32(a, 22))
+        S0 = bit_xor(bit_xor(özet_döndür32(a, 2), özet_döndür32(a, 13)), özet_döndür32(a, 22))
         maj = bit_xor(bit_xor(bit_ve(a, b), bit_ve(a, c)), bit_ve(b, c))
         hh = g
         g = f
@@ -137,7 +137,7 @@ işlev sha_sıkıştır(h: liste<sayı>, m: liste<sayı>, baş: sayı, w: liste<
 işlev sha_başlangıç() -> liste<sayı>:
     döndür [1779033703, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635, 1541459225]
 
-işlev sıfır_liste(n: sayı) -> liste<sayı>:
+işlev özet_sıfır_liste(n: sayı) -> liste<sayı>:
     l: liste<sayı> = []
     her i için 1'den n'ye kadar:
         0'ı l'ye ekle.
@@ -156,7 +156,7 @@ işlev sha_yaz(h: liste<sayı>, hedef: liste<sayı>, baş: sayı):
 işlev sha256_baytları(veri: liste<sayı>) -> liste<sayı>:
     k = sha_k()
     h = sha_başlangıç()
-    w = sıfır_liste(64)
+    w = özet_sıfır_liste(64)
     m = kopya(veri)
     bit_uzunluğu = uzunluk(veri) * 8
     128'i m'ye ekle.
@@ -168,7 +168,7 @@ işlev sha256_baytları(veri: liste<sayı>) -> liste<sayı>:
     blok < uzunluk(m) olduğu sürece:
         sha_sıkıştır(h, m, blok, w, k)
         blok += 64
-    sonuç = sıfır_liste(32)
+    sonuç = özet_sıfır_liste(32)
     sha_yaz(h, sonuç, 0)
     döndür sonuç
 
@@ -296,14 +296,14 @@ sabit ŞİFRE_TURU = 20000
 # bir kez hesaplanır; her turda yalnızca iki blok sıkıştırılır.
 işlev pbkdf2(şifre: liste<sayı>, tuz: liste<sayı>, tur: sayı) -> liste<sayı>:
     k = sha_k()
-    w = sıfır_liste(64)
+    w = özet_sıfır_liste(64)
     a = şifre
     eğer uzunluk(a) > 64 ise:
         a = sha256_baytları(a)
     a = kopya(a)
     uzunluk(a) < 64 olduğu sürece:
         0'ı a'ya ekle.
-    pad = sıfır_liste(64)
+    pad = özet_sıfır_liste(64)
     iç_durum = sha_başlangıç()
     her i için 0'dan 63'e kadar:
         pad[i] = bit_xor(a[i], 54)
@@ -321,11 +321,11 @@ işlev pbkdf2(şifre: liste<sayı>, tuz: liste<sayı>, tur: sayı) -> liste<say�
     u = hmac_baytları(şifre, ilk)
     t = kopya(u)
     # Sonraki turlarda ileti 32 bayttır: tek blok, uzunluk (64 + 32) * 8 = 768 bit.
-    blok = sıfır_liste(64)
+    blok = özet_sıfır_liste(64)
     blok[32] = 128
     blok[62] = 3
     blok[63] = 0
-    h = sıfır_liste(8)
+    h = özet_sıfır_liste(8)
     her tur_no için 2'den tur'a kadar:
         her i için 0'dan 31'e kadar:
             blok[i] = u[i]

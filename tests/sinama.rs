@@ -164,5 +164,33 @@ fn resmi_paketlerin_sinamalari_gecer() {
     let j: serde_json::Value = serde_json::from_slice(&c.stdout)
         .unwrap_or_else(|_| panic!("{}", String::from_utf8_lossy(&c.stderr)));
     assert_eq!(j["kaldi"], 0, "{j:#}");
-    assert!(j["gecti"].as_u64().unwrap() >= 19, "{j}");
+    assert!(j["gecti"].as_u64().unwrap() >= 60, "{j}");
+}
+
+#[test]
+fn resmi_paketler_birlikte_kullanilabilir() {
+    // Paketlerin yardımcı işlevleri ve yerel adları birbiriyle (ve kullanıcının `ad` gibi
+    // sık kullanılan değişken adlarıyla) çakışmamalı.
+    let kok = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("kütüphaneler");
+    let mut kod = String::new();
+    for g in std::fs::read_dir(&kok).unwrap() {
+        let yol = g.unwrap().path();
+        let ad = yol.file_name().unwrap().to_string_lossy().to_string();
+        let giris = yol.join(format!("{ad}.ohc"));
+        if giris.exists() {
+            kod += &format!("kullan \"{}\"\n", giris.display());
+        }
+    }
+    kod += "\nad = \"Ayşe\"\ntüm = 3\nad'ı yaz.\ntüm'ü yaz.\n";
+    let klasor = std::env::temp_dir().join(format!("orhunca-paketler-{}", std::process::id()));
+    std::fs::create_dir_all(&klasor).unwrap();
+    let dosya = klasor.join("hepsi.ohc");
+    std::fs::write(&dosya, kod).unwrap();
+    let c = Command::new(env!("CARGO_BIN_EXE_orhunca"))
+        .arg("denetle")
+        .arg(&dosya)
+        .output()
+        .unwrap();
+    let _ = std::fs::remove_dir_all(&klasor);
+    assert!(c.status.success(), "{}", String::from_utf8_lossy(&c.stderr));
 }

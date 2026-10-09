@@ -1,0 +1,32 @@
+kullan "grafik_svg.ohc"
+
+işlev sına_yardımcılar():
+    eşit_olmalı(gr_sayı_etiketi(1500.0), "1.500")
+    eşit_olmalı(gr_sayı_etiketi(2.5), "2,5")
+    eşit_olmalı(gr_sayı_etiketi(-1234567.0), "-1.234.567")
+    eşit_olmalı(gr_güzel_adım(100.0, 5), 20.0)
+    eşit_olmalı(gr_güzel_adım(7.0, 5), 2.0)
+    eşit_olmalı(gr_güzel_adım(0.9, 5), 0.2)
+    eşit_olmalı(gr_koord(12.34), "12.3")
+    eşit_olmalı(gr_koord(-3.0), "-3")
+
+işlev sına_çubuk():
+    s = çubuk_grafiği("Satış <2026>", ["Oca", "Şub"], [120.0, 95.5])
+    doğrula(başlar(s, "<svg class=\"grafik\""))
+    doğrula(içerir(s, "Satış &lt;2026&gt;"))
+    doğrula(içerir(s, "<title>Şub: 95,5</title>"))
+    doğrula(biter(s, "</svg>"))
+
+işlev sına_çizgi_ve_halka():
+    s = çizgi_grafiği("Sıcaklık", ["Pzt", "Sal"], ["İzmir", "Ankara"], [[24.0, 26.0], [15.0, 17.0]])
+    doğrula(içerir(s, "<title>Ankara · Sal: 17</title>"))
+    h = halka_grafiği("Bütçe", ["a", "b", "c", "d", "e", "f", "g"], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 4.0])
+    doğrula(içerir(h, ">Diğer<"))
+    doğrula(içerir(h, "%50"))
+
+işlev sına_hatalar():
+    dene:
+        çubuk_grafiği("x", ["a"], [1.0, 2.0])
+        doğrula(yanlış, "hata vermeliydi")
+    yakala h:
+        doğrula(içerir(h, "aynı olmalı"))

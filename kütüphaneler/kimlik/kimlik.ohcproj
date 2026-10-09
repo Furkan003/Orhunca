@@ -1,0 +1,4 @@
+ad = "kimlik"
+sürüm = "1.0.0"
+giriş = "kimlik.ohc"
+açıklama = "Benzersiz kimlikler: UUID (sürüm 4), zamana göre sıralanan ULID, kısa kimlik (nanoid) ve sayıları kısa koda çevirme"

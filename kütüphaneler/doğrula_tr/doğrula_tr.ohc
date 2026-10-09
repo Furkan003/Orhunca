@@ -8,7 +8,7 @@
 # Algoritmalar yalnızca biçimi ve denetim hanelerini sınar; numaranın gerçekten birine ait
 # olduğunu göstermez (bunun için resmi servisler gerekir).
 
-işlev yalnız_rakam_mı(m: metin) -> mantık:
+işlev tr_yalnız_rakam_mı(m: metin) -> mantık:
     eğer m == "" ise:
         döndür yanlış
     her c için kodlar(m)'den:
@@ -16,14 +16,14 @@ işlev yalnız_rakam_mı(m: metin) -> mantık:
             döndür yanlış
     döndür doğru
 
-işlev rakamlar(m: metin) -> liste<sayı>:
+işlev tr_rakamlar(m: metin) -> liste<sayı>:
     l: liste<sayı> = []
     her c için kodlar(m)'den:
         (c - 48)'i l'ye ekle.
     döndür l
 
 # Boşluk, tire, nokta ve parantezleri atar
-işlev sadeleştir(m: metin) -> metin:
+işlev tr_sadeleştir(m: metin) -> metin:
     s = kırp(m)
     her c için [" ", "-", ".", "(", ")", "/", "\t"]'den:
         s = değiştir(s, c, "")
@@ -33,10 +33,10 @@ işlev sadeleştir(m: metin) -> metin:
 # T.C. kimlik numarası: 11 hane, ilki 0 değil; 10. ve 11. haneler denetim hanesidir.
 
 işlev tc_kimlik_geçerli_mi(no: metin) -> mantık:
-    m = sadeleştir(no)
-    eğer uzunluk(m) != 11 veya yalnız_rakam_mı(m) == yanlış veya m[0] == "0" ise:
+    m = tr_sadeleştir(no)
+    eğer uzunluk(m) != 11 veya tr_yalnız_rakam_mı(m) == yanlış veya m[0] == "0" ise:
         döndür yanlış
-    d = rakamlar(m)
+    d = tr_rakamlar(m)
     tek = d[0] + d[2] + d[4] + d[6] + d[8]
     çift = d[1] + d[3] + d[5] + d[7]
     eğer ((tek * 7 - çift) % 10 + 10) % 10 != d[9] ise:
@@ -50,10 +50,10 @@ işlev tc_kimlik_geçerli_mi(no: metin) -> mantık:
 # Vergi kimlik numarası (VKN): 10 hane, son hane denetim hanesi (Gelir İdaresi algoritması)
 
 işlev vergi_no_geçerli_mi(no: metin) -> mantık:
-    m = sadeleştir(no)
-    eğer uzunluk(m) != 10 veya yalnız_rakam_mı(m) == yanlış ise:
+    m = tr_sadeleştir(no)
+    eğer uzunluk(m) != 10 veya tr_yalnız_rakam_mı(m) == yanlış ise:
         döndür yanlış
-    d = rakamlar(m)
+    d = tr_rakamlar(m)
     t = 0
     her i için 0'dan 8'e kadar:
         x = (d[i] + 9 - i) % 10
@@ -71,7 +71,7 @@ işlev vergi_no_geçerli_mi(no: metin) -> mantık:
 
 işlev iban_sadeleştir(iban: metin) -> metin:
     # Türkçe büyük harf dönüşümü "i"yi "İ" yapar; IBAN Latin harfleri kullanır.
-    döndür büyük_harf(değiştir(sadeleştir(iban), "i", "I"))
+    döndür büyük_harf(değiştir(tr_sadeleştir(iban), "i", "I"))
 
 işlev iban_geçerli_mi(iban: metin) -> mantık:
     m = iban_sadeleştir(iban)
@@ -108,7 +108,7 @@ işlev iban_biçimle(iban: metin) -> metin:
 
 # 10 haneli ulusal numara ("5321234567"); geçersizse ""
 işlev telefon_sadeleştir(no: metin) -> metin:
-    m = sadeleştir(no)
+    m = tr_sadeleştir(no)
     eğer başlar(m, "+90") ise:
         m = parça(m, 3, uzunluk(m) - 3)
     değilse eğer başlar(m, "0090") ise:
@@ -117,7 +117,7 @@ işlev telefon_sadeleştir(no: metin) -> metin:
         m = parça(m, 2, 10)
     eğer başlar(m, "0") ise:
         m = parça(m, 1, uzunluk(m) - 1)
-    eğer uzunluk(m) != 10 veya yalnız_rakam_mı(m) == yanlış ise:
+    eğer uzunluk(m) != 10 veya tr_yalnız_rakam_mı(m) == yanlış ise:
         döndür ""
     # Alan kodları 2, 3, 4 (sabit hat), 5 (cep) ve 8 (444, 850…) ile başlar
     eğer içerir("23458", m[0]) == yanlış ise:
@@ -136,14 +136,14 @@ işlev telefon_biçimle(no: metin) -> metin:
     m = telefon_sadeleştir(no)
     eğer m == "" ise:
         döndür no
-    döndür "0" + parça(m, 0, 3) + " " + parça(m, 3, 3) + " " + parça(m, 6, 2) + " " + parça(m, 8, 2)
+    döndür birleştir(["0", parça(m, 0, 3), " ", parça(m, 3, 3), " ", parça(m, 6, 2), " ", parça(m, 8, 2)], "")
 
 # Uluslararası biçim (SMS servisleri için): "+905321234567"
 işlev telefon_uluslararası(no: metin) -> metin:
     m = telefon_sadeleştir(no)
     eğer m == "" ise:
         döndür ""
-    döndür "+90" + m
+    döndür birleştir(["+90", m], "")
 
 # ---------------------------------------------------------------------------
 # Araç plakası: "34 ABC 123". İl kodu 01–81; harflerde Q, W, X ve Türkçe harfler yoktur.
@@ -165,7 +165,7 @@ işlev plaka_geçerli_mi(plaka: metin) -> mantık:
     il = p[0]
     harf = p[1]
     no = p[2]
-    eğer uzunluk(il) != 2 veya yalnız_rakam_mı(no) == yanlış ise:
+    eğer uzunluk(il) != 2 veya tr_yalnız_rakam_mı(no) == yanlış ise:
         döndür yanlış
     eğer sayı(il) < 1 veya sayı(il) > 81 ise:
         döndür yanlış
@@ -187,7 +187,7 @@ işlev plaka_biçimle(plaka: metin) -> metin:
 
 işlev posta_kodu_geçerli_mi(kod: metin) -> mantık:
     m = kırp(kod)
-    döndür uzunluk(m) == 5 ve yalnız_rakam_mı(m) ve sayı(parça(m, 0, 2)) >= 1 ve sayı(parça(m, 0, 2)) <= 81
+    döndür uzunluk(m) == 5 ve tr_yalnız_rakam_mı(m) ve sayı(parça(m, 0, 2)) >= 1 ve sayı(parça(m, 0, 2)) <= 81
 
 # ---------------------------------------------------------------------------
 # E-posta ve adres
@@ -232,10 +232,10 @@ işlev url_geçerli_mi(adres: metin) -> mantık:
 # Banka kartı: Luhn denetimi ve kart türü (kart numarası saklamayın; yalnızca biçim sınanır)
 
 işlev kart_no_geçerli_mi(no: metin) -> mantık:
-    m = sadeleştir(no)
-    eğer uzunluk(m) < 12 veya uzunluk(m) > 19 veya yalnız_rakam_mı(m) == yanlış ise:
+    m = tr_sadeleştir(no)
+    eğer uzunluk(m) < 12 veya uzunluk(m) > 19 veya tr_yalnız_rakam_mı(m) == yanlış ise:
         döndür yanlış
-    d = rakamlar(m)
+    d = tr_rakamlar(m)
     t = 0
     n = uzunluk(d)
     her i için 0'dan n - 1'e kadar:
@@ -249,8 +249,8 @@ işlev kart_no_geçerli_mi(no: metin) -> mantık:
 
 # "Visa", "Mastercard", "American Express", "Troy" ya da ""
 işlev kart_türü(no: metin) -> metin:
-    m = sadeleştir(no)
-    eğer yalnız_rakam_mı(m) == yanlış veya uzunluk(m) < 4 ise:
+    m = tr_sadeleştir(no)
+    eğer tr_yalnız_rakam_mı(m) == yanlış veya uzunluk(m) < 4 ise:
         döndür ""
     iki = sayı(parça(m, 0, 2))
     dört = sayı(parça(m, 0, 4))
@@ -266,7 +266,7 @@ işlev kart_türü(no: metin) -> metin:
 
 # Son dört hane dışını gizler: "**** **** **** 1234"
 işlev kart_gizle(no: metin) -> metin:
-    m = sadeleştir(no)
+    m = tr_sadeleştir(no)
     eğer uzunluk(m) < 4 ise:
         döndür m
     döndür "**** **** **** " + parça(m, uzunluk(m) - 4, 4)

@@ -1,0 +1,379 @@
+# markdown: Markdown → HTML (CommonMark'ın yaygın kullanılan kısmı ve GitHub tabloları).
+#   kullan "markdown"
+#   @ham(markdown_html(yazı.içerik))      # blog yazısı, yorum, BENİOKU sayfası
+#
+# Güvenlik: metindeki ham HTML her zaman kaçırılır (<script> çalışmaz) ve yalnızca http, https,
+# mailto ve göreli bağlantılara izin verilir; kullanıcı yorumlarını göstermek için güvenlidir.
+
+# ---------------------------------------------------------------------------
+# Satır içi öğeler
+
+işlev md_güvenli_adres(a: metin) -> metin:
+    k = küçük_harf(kırp(a))
+    eğer başlar(k, "http://") veya başlar(k, "https://") veya başlar(k, "mailto:") veya başlar(k, "/") veya başlar(k, "#") veya başlar(k, "./") veya başlar(k, "../") ise:
+        döndür kırp(a)
+    # "sayfa.html" gibi göreli adresler (":" içermeyen)
+    eğer içerir(k, ":") == yanlış ise:
+        döndür kırp(a)
+    döndür "#"
+
+# `ayraç` ile çevrili bölümleri etiketle sarar: **kalın** → <strong>kalın</strong>
+işlev md_sar(m: metin, ayraç: metin, etiket: metin) -> metin:
+    s = m
+    n = uzunluk(ayraç)
+    baş = 0
+    döngü = doğru
+    döngü olduğu sürece:
+        i = bul(parça(s, baş, uzunluk(s) - baş), ayraç)
+        eğer i < 0 ise:
+            döndür s
+        i += baş
+        j = bul(parça(s, i + n, uzunluk(s) - i - n), ayraç)
+        eğer j < 0 ise:
+            döndür s
+        j += i + n
+        iç = parça(s, i + n, j - i - n)
+        eğer iç == "" veya başlar(iç, " ") veya biter(iç, " ") ise:
+            baş = i + n
+        değilse:
+            yeni = "<" + etiket + ">" + iç + "</" + etiket + ">"
+            s = parça(s, 0, i) + yeni + parça(s, j + n, uzunluk(s) - j - n)
+            baş = i + uzunluk(yeni)
+    döndür s
+
+# [metin](adres) ve ![açıklama](adres)
+işlev md_bağlantılar(m: metin) -> metin:
+    s = m
+    baş = 0
+    döngü = doğru
+    döngü olduğu sürece:
+        i = bul(parça(s, baş, uzunluk(s) - baş), "[")
+        eğer i < 0 ise:
+            döndür s
+        i += baş
+        k = bul(parça(s, i, uzunluk(s) - i), "](")
+        eğer k < 0 ise:
+            döndür s
+        k += i
+        # Adresteki parantezler dengelenir: (https://tr.wikipedia.org/wiki/Ankara_(il))
+        son = -1
+        derinlik = 0
+        h = harfler(s)
+        her j için k + 2'den uzunluk(h) - 1'e kadar:
+            eğer son < 0 ise:
+                eğer h[j] == "(" ise:
+                    derinlik += 1
+                değilse eğer h[j] == ")" ise:
+                    eğer derinlik == 0 ise:
+                        son = j
+                    değilse:
+                        derinlik -= 1
+        eğer son < 0 ise:
+            döndür s
+        yazı = parça(s, i + 1, k - i - 1)
+        adres = md_güvenli_adres(parça(s, k + 2, son - k - 2))
+        resim = i > 0 ve parça(s, i - 1, 1) == "!"
+        eğer resim ise:
+            yeni = "<img src=\"" + adres + "\" alt=\"" + yazı + "\">"
+            s = parça(s, 0, i - 1) + yeni + parça(s, son + 1, uzunluk(s) - son - 1)
+            baş = i - 1 + uzunluk(yeni)
+        değilse:
+            dış = ""
+            eğer başlar(adres, "http") ise:
+                dış = " rel=\"noopener\""
+            yeni = "<a href=\"" + adres + "\"" + dış + ">" + yazı + "</a>"
+            s = parça(s, 0, i) + yeni + parça(s, son + 1, uzunluk(s) - son - 1)
+            baş = i + uzunluk(yeni)
+    döndür s
+
+# Kaçırılmış metinde biçimler
+işlev md_biçimler(m: metin) -> metin:
+    s = md_bağlantılar(m)
+    s = md_sar(s, "**", "strong")
+    s = md_sar(s, "__", "strong")
+    s = md_sar(s, "~~", "del")
+    s = md_sar(s, "*", "em")
+    döndür s
+
+# Bir satırın HTML'si: `kod` bölümleri olduğu gibi (kaçırılmış), gerisi biçimlenir
+işlev md_satır_içi(m: metin) -> metin:
+    p = böl(m, "`")
+    # Tek kalan ` işaretinin kendisi yazılır
+    eğer uzunluk(p) % 2 == 0 ise:
+        p[uzunluk(p) - 2] = p[uzunluk(p) - 2] + "`" + p[uzunluk(p) - 1]
+        p = parça(p, 0, uzunluk(p) - 1)
+    ç: liste<metin> = []
+    her i için 0'dan uzunluk(p) - 1'e kadar:
+        eğer i % 2 == 1 ise:
+            ("<code>" + kaçır(p[i]) + "</code>")'yu ç'ye ekle.
+        değilse:
+            md_biçimler(kaçır(p[i]))'i ç'ye ekle.
+    döndür birleştir(ç, "")
+
+# ---------------------------------------------------------------------------
+# Bloklar
+
+işlev md_girinti(s: metin) -> sayı:
+    h = harfler(s)
+    i = 0
+    i < uzunluk(h) ve h[i] == " " olduğu sürece:
+        i += 1
+    döndür i
+
+# "- ", "* ", "+ " ya da "12. " ile başlıyorsa işaretin uzunluğu, değilse 0
+işlev md_liste_işareti(s: metin, sıralı: mantık) -> sayı:
+    t = kırp(s)
+    eğer sıralı == yanlış ise:
+        eğer başlar(t, "- ") veya başlar(t, "* ") veya başlar(t, "+ ") ise:
+            döndür 2
+        döndür 0
+    h = harfler(t)
+    i = 0
+    i < uzunluk(h) ve içerir("0123456789", h[i]) olduğu sürece:
+        i += 1
+    eğer i > 0 ve i < 10 ve i + 1 < uzunluk(h) ve h[i] == "." ve h[i + 1] == " " ise:
+        döndür i + 2
+    döndür 0
+
+işlev md_yatay_çizgi_mi(s: metin) -> mantık:
+    t = değiştir(kırp(s), " ", "")
+    eğer uzunluk(t) < 3 ise:
+        döndür yanlış
+    her c için ["-", "*", "_"]'den:
+        eğer t == tekrarla(c, uzunluk(t)) ise:
+            döndür doğru
+    döndür yanlış
+
+işlev md_başlık_düzeyi(s: metin) -> sayı:
+    h = harfler(s)
+    i = 0
+    i < uzunluk(h) ve h[i] == "#" olduğu sürece:
+        i += 1
+    eğer i >= 1 ve i <= 6 ve (i == uzunluk(h) veya h[i] == " ") ise:
+        döndür i
+    döndür 0
+
+işlev md_kimlik_yap(m: metin) -> metin:
+    s = küçük_harf(m)
+    her ç için [["ç", "c"], ["ğ", "g"], ["ı", "i"], ["ö", "o"], ["ş", "s"], ["ü", "u"]]'den:
+        s = değiştir(s, ç[0], ç[1])
+    p: liste<metin> = []
+    tire = yanlış
+    her c için harfler(s)'den:
+        eğer içerir("abcdefghijklmnopqrstuvwxyz0123456789", c) ise:
+            eğer tire ve uzunluk(p) > 0 ise:
+                "-"'yi p'ye ekle.
+            c'yi p'ye ekle.
+            tire = yanlış
+        değilse:
+            tire = doğru
+    döndür birleştir(p, "")
+
+işlev md_tablo_ayıracı_mı(s: metin) -> mantık:
+    t = kırp(s)
+    eğer içerir(t, "-") == yanlış veya içerir(t, "|") == yanlış ise:
+        döndür yanlış
+    her c için harfler(t)'den:
+        eğer içerir("|-: ", c) == yanlış ise:
+            döndür yanlış
+    döndür doğru
+
+işlev md_hücreler(s: metin) -> liste<metin>:
+    t = kırp(s)
+    eğer başlar(t, "|") ise:
+        t = parça(t, 1, uzunluk(t) - 1)
+    eğer biter(t, "|") ise:
+        t = parça(t, 0, uzunluk(t) - 1)
+    l: liste<metin> = []
+    her h için böl(t, "|")'den:
+        kırp(h)'yi l'ye ekle.
+    döndür l
+
+işlev md_hizalamalar(s: metin) -> liste<metin>:
+    l: liste<metin> = []
+    her h için md_hücreler(s)'den:
+        eğer başlar(h, ":") ve biter(h, ":") ise:
+            " style=\"text-align:center\""'i l'ye ekle.
+        değilse eğer biter(h, ":") ise:
+            " style=\"text-align:right\""'i l'ye ekle.
+        değilse:
+            ""'yi l'ye ekle.
+    döndür l
+
+işlev md_tablo(satırlar_: liste<metin>) -> metin:
+    hiza = md_hizalamalar(satırlar_[1])
+    ç = ["<table>", "<thead><tr>"]
+    başlıklar = md_hücreler(satırlar_[0])
+    her i için 0'dan uzunluk(başlıklar) - 1'e kadar:
+        h = ""
+        eğer i < uzunluk(hiza) ise:
+            h = hiza[i]
+        ("<th" + h + ">" + md_satır_içi(başlıklar[i]) + "</th>")'yi ç'ye ekle.
+    "</tr></thead><tbody>"'u ç'ye ekle.
+    her r için 2'den uzunluk(satırlar_) - 1'e kadar:
+        "<tr>"'yi ç'ye ekle.
+        hs = md_hücreler(satırlar_[r])
+        her i için 0'dan uzunluk(başlıklar) - 1'e kadar:
+            h = ""
+            eğer i < uzunluk(hiza) ise:
+                h = hiza[i]
+            değer_ = ""
+            eğer i < uzunluk(hs) ise:
+                değer_ = hs[i]
+            ("<td" + h + ">" + md_satır_içi(değer_) + "</td>")'yi ç'ye ekle.
+        "</tr>"'yi ç'ye ekle.
+    "</tbody></table>"'yi ç'ye ekle.
+    döndür birleştir(ç, "")
+
+işlev md_liste_html(satırlar_: liste<metin>, sıralı: mantık) -> metin:
+    öğeler: liste<liste<metin>> = []
+    her s için satırlar_'dan:
+        eğer md_girinti(s) < 2 ve md_liste_işareti(s, sıralı) > 0 ise:
+            [s]'yi öğeler'e ekle.
+        değilse eğer uzunluk(öğeler) > 0 ise:
+            s'yi öğeler[uzunluk(öğeler) - 1]'e ekle.
+    etiket = "ul"
+    baş_etiketi = "<ul>"
+    eğer sıralı ise:
+        etiket = "ol"
+        ilk = kırp(satırlar_[0])
+        no = sayı(parça(ilk, 0, md_liste_işareti(ilk, doğru) - 2))
+        baş_etiketi = "<ol>"
+        eğer no != 1 ise:
+            baş_etiketi = "<ol start=\"" + no + "\">"
+    ç = [baş_etiketi]
+    her ö için öğeler'den:
+        ilk = kırp(ö[0])
+        içerik = parça(ilk, md_liste_işareti(ilk, sıralı), uzunluk(ilk) - md_liste_işareti(ilk, sıralı))
+        önek = ""
+        eğer başlar(içerik, "[ ] ") ise:
+            önek = "<input type=\"checkbox\" disabled> "
+            içerik = parça(içerik, 4, uzunluk(içerik) - 4)
+        değilse eğer başlar(içerik, "[x] ") veya başlar(içerik, "[X] ") ise:
+            önek = "<input type=\"checkbox\" checked disabled> "
+            içerik = parça(içerik, 4, uzunluk(içerik) - 4)
+        alt: liste<metin> = []
+        devam: liste<metin> = []
+        her j için 1'den uzunluk(ö) - 1'e kadar:
+            eğer md_girinti(ö[j]) >= 2 ise:
+                parça(ö[j], 2, uzunluk(ö[j]) - 2)'yi alt'a ekle.
+            değilse:
+                kırp(ö[j])'yi devam'a ekle.
+        eğer uzunluk(devam) > 0 ise:
+            içerik = içerik + " " + birleştir(devam, " ")
+        iç = önek + md_satır_içi(içerik)
+        eğer uzunluk(alt) > 0 ise:
+            iç = iç + markdown_bloklar(alt)
+        ("<li>" + iç + "</li>")'yi ç'ye ekle.
+    ("</" + etiket + ">")'yi ç'ye ekle.
+    döndür birleştir(ç, "")
+
+işlev markdown_bloklar(satırlar_: liste<metin>) -> metin:
+    ç: liste<metin> = []
+    paragraf: liste<metin> = []
+    i = 0
+    n = uzunluk(satırlar_)
+    i < n olduğu sürece:
+        s = satırlar_[i]
+        t = kırp(s)
+        blok_başı = t == "" veya başlar(t, "```") veya md_başlık_düzeyi(t) > 0 veya md_yatay_çizgi_mi(t) veya başlar(t, ">") veya (md_girinti(s) < 2 ve (md_liste_işareti(s, yanlış) > 0 veya md_liste_işareti(s, doğru) > 0)) veya (içerir(t, "|") ve i + 1 < n ve md_tablo_ayıracı_mı(satırlar_[i + 1]))
+        eğer blok_başı ve uzunluk(paragraf) > 0 ise:
+            md_paragraf_html(paragraf)'ı ç'ye ekle.
+            paragraf = []
+        eğer t == "" ise:
+            i += 1
+        değilse eğer başlar(t, "```") ise:
+            dil = kırp(parça(t, 3, uzunluk(t) - 3))
+            kod: liste<metin> = []
+            i += 1
+            i < n ve başlar(kırp(satırlar_[i]), "```") == yanlış olduğu sürece:
+                satırlar_[i]'yi kod'a ekle.
+                i += 1
+            i += 1
+            sınıf = ""
+            eğer dil != "" ise:
+                sınıf = " class=\"language-" + kaçır(dil) + "\""
+            ("<pre><code" + sınıf + ">" + kaçır(birleştir(kod, "\n")) + "</code></pre>")'yi ç'ye ekle.
+        değilse eğer md_başlık_düzeyi(t) > 0 ise:
+            d = md_başlık_düzeyi(t)
+            yazı = kırp(parça(t, d, uzunluk(t) - d))
+            ("<h" + d + " id=\"" + md_kimlik_yap(yazı) + "\">" + md_satır_içi(yazı) + "</h" + d + ">")'yi ç'ye ekle.
+            i += 1
+        değilse eğer md_yatay_çizgi_mi(t) ise:
+            "<hr>"'yi ç'ye ekle.
+            i += 1
+        değilse eğer başlar(t, ">") ise:
+            alıntı: liste<metin> = []
+            i < n ve başlar(kırp(satırlar_[i]), ">") olduğu sürece:
+                a = kırp(satırlar_[i])
+                a = parça(a, 1, uzunluk(a) - 1)
+                eğer başlar(a, " ") ise:
+                    a = parça(a, 1, uzunluk(a) - 1)
+                a'yı alıntı'ya ekle.
+                i += 1
+            ("<blockquote>" + markdown_bloklar(alıntı) + "</blockquote>")'yu ç'ye ekle.
+        değilse eğer md_girinti(s) < 2 ve (md_liste_işareti(s, yanlış) > 0 veya md_liste_işareti(s, doğru) > 0) ise:
+            sıralı = md_liste_işareti(s, doğru) > 0
+            liste_: liste<metin> = []
+            i < n olduğu sürece:
+                y = satırlar_[i]
+                eğer kırp(y) == "" ise:
+                    # Boş satırdan sonra liste sürüyorsa devam edilir
+                    eğer i + 1 < n ve (md_girinti(satırlar_[i + 1]) >= 2 veya md_liste_işareti(satırlar_[i + 1], sıralı) > 0) ise:
+                        i += 1
+                        sürdür
+                    dur
+                eğer md_girinti(y) < 2 ve md_liste_işareti(y, sıralı) == 0 ve (md_liste_işareti(y, sıralı == yanlış) > 0 veya md_başlık_düzeyi(kırp(y)) > 0 veya başlar(kırp(y), ">") veya başlar(kırp(y), "```")) ise:
+                    dur
+                y'yi liste_'ye ekle.
+                i += 1
+            md_liste_html(liste_, sıralı)'yı ç'ye ekle.
+        değilse eğer içerir(t, "|") ve i + 1 < n ve md_tablo_ayıracı_mı(satırlar_[i + 1]) ise:
+            tablo_satırları = [s, satırlar_[i + 1]]
+            i += 2
+            i < n ve içerir(satırlar_[i], "|") ve kırp(satırlar_[i]) != "" olduğu sürece:
+                satırlar_[i]'yi tablo_satırları'na ekle.
+                i += 1
+            md_tablo(tablo_satırları)'nı ç'ye ekle.
+        değilse:
+            s'yi paragraf'a ekle.
+            i += 1
+    eğer uzunluk(paragraf) > 0 ise:
+        md_paragraf_html(paragraf)'ı ç'ye ekle.
+    döndür birleştir(ç, "\n")
+
+işlev md_paragraf_html(satırlar_: liste<metin>) -> metin:
+    p: liste<metin> = []
+    her i için 0'dan uzunluk(satırlar_) - 1'e kadar:
+        s = satırlar_[i]
+        kır = (biter(s, "  ") veya biter(s, "\\")) ve i < uzunluk(satırlar_) - 1
+        t = kırp(s)
+        eğer biter(t, "\\") ise:
+            t = parça(t, 0, uzunluk(t) - 1)
+        y = md_satır_içi(t)
+        eğer kır ise:
+            y = y + "<br>"
+        y'yi p'ye ekle.
+    döndür "<p>" + birleştir(p, "\n") + "</p>"
+
+# Markdown metnini HTML'ye çevirir
+işlev markdown_html(md: metin) -> metin:
+    döndür markdown_bloklar(böl(değiştir(değiştir(md, "\r\n", "\n"), "\t", "    "), "\n"))
+
+# Markdown'dan düz metin (önizleme, arama, meta açıklama için)
+işlev markdown_düz_metin(md: metin) -> metin:
+    h = markdown_html(md)
+    p: liste<metin> = []
+    içeride = yanlış
+    her c için harfler(h)'den:
+        eğer c == "<" ise:
+            içeride = doğru
+        değilse eğer c == ">" ise:
+            içeride = yanlış
+            " "'yu p'ye ekle.
+        değilse eğer içeride == yanlış ise:
+            c'yi p'ye ekle.
+    s = birleştir(p, "")
+    her ç için [["&lt;", "<"], ["&gt;", ">"], ["&quot;", "\""], ["&#39;", "'"], ["&amp;", "&"]]'den:
+        s = değiştir(s, ç[0], ç[1])
+    döndür birleştir(böl(s, ""), " ")

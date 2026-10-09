@@ -10,6 +10,66 @@
       "ad": "geometri",
       "açıklama": "Daire, üçgen, dikdörtgen, küre ve silindirin alan, çevre ve hacim hesapları",
       "kaynak": "github:Furkan003/Orhunca#:kütüphaneler/geometri"
+    },
+    {
+      "ad": "karekod",
+      "açıklama": "QR kod (karekod) üretir: SVG, terminal ve web sayfası için; Wi-Fi, kartvizit, e-posta, SMS ve konum içerikleri",
+      "kaynak": "github:Furkan003/Orhunca#:kütüphaneler/karekod"
+    },
+    {
+      "ad": "barkod",
+      "açıklama": "Barkod üretir: Code 128 (ürün kodu, kargo, demirbaş) ve EAN-13 / EAN-8 (market ürünleri), SVG olarak",
+      "kaynak": "github:Furkan003/Orhunca#:kütüphaneler/barkod"
+    },
+    {
+      "ad": "özet",
+      "açıklama": "SHA-256, HMAC, Base64, CRC32 ve tuzlu şifre karması (giriş sistemleri için)",
+      "kaynak": "github:Furkan003/Orhunca#:kütüphaneler/özet"
+    },
+    {
+      "ad": "doğrula_tr",
+      "açıklama": "Türkiye'ye özgü doğrulamalar: T.C. kimlik no, vergi no, IBAN, telefon, plaka, posta kodu; e-posta, kart (Luhn) ve şifre gücü",
+      "kaynak": "github:Furkan003/Orhunca#:kütüphaneler/doğrula_tr"
+    },
+    {
+      "ad": "insancıl",
+      "açıklama": "Sayı ve parayı yazıyla, sıra sayıları, '5 dakika önce', dosya boyutu, Roma rakamı ve isimlere doğru Türkçe ekler",
+      "kaynak": "github:Furkan003/Orhunca#:kütüphaneler/insancıl"
+    },
+    {
+      "ad": "metin_araçları",
+      "açıklama": "Slug (adres metni), kısaltma, başlık biçimi, Levenshtein benzerliği, 'bunu mu demek istediniz', maskeleme, satır kaydırma, HTML temizleme",
+      "kaynak": "github:Furkan003/Orhunca#:kütüphaneler/metin_araçları"
+    },
+    {
+      "ad": "markdown",
+      "açıklama": "Markdown metnini güvenli HTML'ye çevirir: başlık, liste, tablo, kod, bağlantı, alıntı, görev listesi (blog, yorum, belge sayfaları için)",
+      "kaynak": "github:Furkan003/Orhunca#:kütüphaneler/markdown"
+    },
+    {
+      "ad": "sayfala",
+      "açıklama": "Web listelerinde sayfalama: sayfa hesapları, '21–40 / 135 kayıt' bilgisi ve Bootstrap uyumlu sayfa bağlantıları",
+      "kaynak": "github:Furkan003/Orhunca#:kütüphaneler/sayfala"
+    },
+    {
+      "ad": "kimlik",
+      "açıklama": "Benzersiz kimlikler: UUID (sürüm 4), zamana göre sıralanan ULID, kısa kimlik (nanoid) ve sayıları kısa koda çevirme",
+      "kaynak": "github:Furkan003/Orhunca#:kütüphaneler/kimlik"
+    },
+    {
+      "ad": "sahte_veri",
+      "açıklama": "Deneme ve sunum için Türkçe sahte veri: ad, soyad, şehir, telefon, e-posta, adres, şirket, tarih, geçerli T.C. kimlik no, metin",
+      "kaynak": "github:Furkan003/Orhunca#:kütüphaneler/sahte_veri"
+    },
+    {
+      "ad": "günlük",
+      "açıklama": "Uygulama günlüğü (log): bilgi, uyarı, hata düzeyleri, zaman damgası, dosyaya ve ekrana yazma, JSON satırları",
+      "kaynak": "github:Furkan003/Orhunca#:kütüphaneler/günlük"
+    },
+    {
+      "ad": "grafik_svg",
+      "açıklama": "Web sayfaları ve raporlar için SVG grafikler: çubuk, çizgi ve halka; renk körlüğüne uygun palet, koyu tema, tablo görünümü",
+      "kaynak": "github:Furkan003/Orhunca#:kütüphaneler/grafik_svg"
     }
   ]
 }
