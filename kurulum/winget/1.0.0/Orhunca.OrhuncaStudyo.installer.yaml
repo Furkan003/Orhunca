@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+
+PackageIdentifier: Orhunca.OrhuncaStudyo
+PackageVersion: 1.0.0
+InstallerLocale: tr-TR
+MinimumOSVersion: 10.0.17763.0
+InstallerType: nullsoft
+Scope: user
+InstallModes:
+- interactive
+- silent
+UpgradeBehavior: install
+Commands:
+- orhunca
+FileExtensions:
+- ohc
+- ohcproj
+Installers:
+- Architecture: x64
+  InstallerUrl: https://github.com/Furkan003/Orhunca/releases/download/v1.0.0/Orhunca-Studyo-Windows-Kurulum.exe
+  InstallerSha256: 66A0910440DECE42889B9A52D4A85BCB476FC983DD8AAFAB1887F749C77E94CD
+ManifestType: installer
+ManifestVersion: 1.6.0

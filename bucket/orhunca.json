@@ -1,12 +1,12 @@
 {
-    "version": "0.11.0",
+    "version": "1.0.0",
     "description": "Orhunca: Türkçe programlama dili (orhunca komutu ve tarayıcıda açılan Orhunca Stüdyo)",
     "homepage": "https://furkan003.github.io/Orhunca/",
     "license": "MIT",
     "architecture": {
         "64bit": {
-            "url": "https://github.com/Furkan003/Orhunca/releases/download/v0.11.0/orhunca-windows-x86_64.zip",
-            "hash": "e2faa9bfda73d995efb15f6d585def782bf10632bc8ffd4c3f15e3961d3a7378"
+            "url": "https://github.com/Furkan003/Orhunca/releases/download/v1.0.0/orhunca-windows-x86_64.zip",
+            "hash": "510860e14e9b3222f4c7c7b41436607f2fa4397db8b4503fe6157d12cb2d5efd"
         }
     },
     "bin": "orhunca.exe",

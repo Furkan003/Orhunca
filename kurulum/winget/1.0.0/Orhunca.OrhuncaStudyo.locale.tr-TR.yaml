@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
+
+PackageIdentifier: Orhunca.OrhuncaStudyo
+PackageVersion: 1.0.0
+PackageLocale: tr-TR
+Publisher: Orhunca
+PublisherUrl: https://github.com/Furkan003/Orhunca
+PublisherSupportUrl: https://github.com/Furkan003/Orhunca/issues
+PackageName: Orhunca Stüdyo
+PackageUrl: https://furkan003.github.io/Orhunca/
+License: MIT
+LicenseUrl: https://github.com/Furkan003/Orhunca/blob/HEAD/LICENSE
+ShortDescription: Türkçe programlama dili ve geliştirme ortamı
+Description: Orhunca, anahtar kelimeleri Türkçe olan ve cümleleri Türkçe gibi kurulan bir programlama dilidir. Orhunca Stüdyo; düzenleyici, hata ayıklayıcı, dersler ve canlı önizleme içerir.
+Tags:
+- programlama-dili
+- turkce
+- egitim
+- derleyici
+ReleaseNotesUrl: https://github.com/Furkan003/Orhunca/releases/tag/v1.0.0
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0
