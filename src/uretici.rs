@@ -1253,7 +1253,7 @@ impl Uretici<'_, '_> {
                 } else {
                     self.b.ins().ushr(d[0], d[1])
                 };
-                let gecerli = self.b.ins().icmp_imm(IntCC::UnsignedLessThan, d[1], 64);
+                let gecerli = self.b.ins().icmp_imm_u(IntCC::UnsignedLessThan, d[1], 64);
                 let sifir = self.sabit(0);
                 Some(self.b.ins().select(gecerli, r, sifir))
             }
