@@ -406,6 +406,8 @@ h1, h2 { margin: 0; }
 .ay-cerceve:hover { background: var(--girdi); }
 .ay-cerceve.secili { background: var(--girdi); color: var(--yazi); }
 .ay-cerceve .yer { color: var(--soluk3); font-family: var(--mono); font-size: 11px; }
+.parantez { position: absolute; height: 19px; margin-top: 1px; border: 1px solid var(--soluk3); border-radius: 2px; pointer-events: none; box-sizing: border-box; }
+.parantez.eslesmeyen { border-color: var(--hata); background: oklch(0.75 0.14 25 / 0.15); }
 .etkin-satir { position: absolute; left: 0; right: 0; height: 21px; background: var(--girdi); pointer-events: none; }
 .hata-cizgi {
   position: absolute; height: 21px; pointer-events: none;

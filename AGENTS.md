@@ -9,6 +9,8 @@ Orhunca ile **program yazmak** için bu dosya değil, [docs/yapay-zeka.md](docs/
 - `src/`: Rust derleyicisi. Sırasıyla `sozcuk.rs` → `ayristirici.rs` → `denetci.rs` → `uretici.rs`
   (Cranelift) / `wasm_uretici.rs` dosyalarından geçer. `derleme.rs` bunları bir araya getirir.
 - `src/studyo/` ve `studio/`: Stüdyo'nun sunucusu (Rust) ve arayüzü (düz JS/CSS, derleme adımı yok).
+  Arayüzün bölümleri `studio/moduller/*.js` dosyalarındadır; `studio/index.html`deki sırayla
+  yüklenir ve en üst düzeydeki tanımları ortaktır. `studio/uygulama.js` en son yüklenip başlatır.
 - `runtime/orhunca_rt.c`: C çalışma zamanı. `runtime/ön_kütüphane.ohc` ise Orhunca ile yazılmış
   ön kütüphanedir.
 - `öz/`: Orhunca ile yazılmış ayrıştırıcı (öz-barındırma). `öz/ayrıştırıcı.ohc` dosyasındaki yerleşik

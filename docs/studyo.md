@@ -98,7 +98,8 @@ programı çalıştırıp çıktısını beklenenle karşılaştırır; tamamlan
 web sitesinde de okunabilir.
 
 **Kolaylıklar:** yazarken tamamlama (Ctrl+Boşluk; kesme işaretinden sonra ifadenin doğru hâl eki
-önerilir: `sayılar'` → `'ı`), **adım adım gösterim** (program her satırda kendiliğinden durup ilerler,
+önerilir: `sayılar'` → `'ı`), parantez ve tırnakların kendiliğinden kapanması ve eşleşen parantezin
+işaretlenmesi, satırı yukarı/aşağı taşıma (Alt+↑/↓), satıra gitme (Ctrl+G), **adım adım gösterim** (program her satırda kendiliğinden durup ilerler,
 değişkenler güncellenir; sınıfta göstermek için), Ayarlar'da **açık tema** (projektör için), klavyeyle
 tam kullanım ve ekran okuyucu desteği.
 

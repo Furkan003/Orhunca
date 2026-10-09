@@ -125,7 +125,9 @@ başlarken çalışma zamanına kaydedilir.
 
 Stüdyo: `src/studyo/` (yerel HTTP sunucusu, proje/dosya API'si, program çalıştırıcı, şablonlar —
 web şablonlarının dosyaları `src/studyo/sablon_dosyalari/`) ve `studio/` (arayüz: HTML, CSS,
-bağımlılıksız JavaScript; `build.rs` ile ikili dosyaya gömülür).
+bağımlılıksız JavaScript; `build.rs` ile ikili dosyaya gömülür). Arayüz `studio/moduller/` altında
+bölümlere ayrılmıştır (durum, renklendirme, kod alanı, paneller, asistan, eylemler...); dosyalar
+`index.html`deki sırayla yüklenen düz betiklerdir ve en üst düzeydeki tanımları ortaktır.
 
 `runtime/orhunca_rt.c`: yazdırma, metin, liste ve sözlük işlemleri, çöp toplayıcı, model kayıtları
 (JSON), doğrulama ve olay döngülü HTTP/1.1 sunucusu (Windows'ta Winsock; HTTPS için OpenSSL çalışırken yüklenir). Toplayıcı "tutucu" bir

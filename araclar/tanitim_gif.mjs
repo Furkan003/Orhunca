@@ -30,8 +30,9 @@ const adres = await new Promise((t) => {
     if (m) t(m[0]);
   });
 });
-const taban = adres.split('/?')[0];
-const anahtar = new URL(adres).searchParams.get('anahtar');
+// Adres: http://127.0.0.1:KAPI/#anahtar=... (anahtar # sonrasındadır)
+const taban = adres.split(/\/[#?]/)[0];
+const anahtar = new URLSearchParams(adres.split(/[#?]/)[1]).get('anahtar');
 const r = await fetch(taban + '/api/proje/olustur', {
   method: 'POST',
   headers: { 'X-Orhunca-Anahtar': anahtar, 'Content-Type': 'application/json' },

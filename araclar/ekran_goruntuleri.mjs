@@ -58,8 +58,9 @@ const adres = await new Promise((tamam) => {
     if (m) tamam(m[0]);
   });
 });
-const taban = adres.split('/?')[0];
-const anahtar = new URL(adres).searchParams.get('anahtar');
+// Adres: http://127.0.0.1:KAPI/#anahtar=... (anahtar # sonrasındadır)
+const taban = adres.split(/\/[#?]/)[0];
+const anahtar = new URLSearchParams(adres.split(/[#?]/)[1]).get('anahtar');
 const api = async (yol, govde) => {
   const r = await fetch(taban + yol, {
     method: 'POST',
