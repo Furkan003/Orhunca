@@ -44,7 +44,15 @@ const WASM_EKLERI: &[(&str, usize, bool)] = &[
 
 /// Arayüz programlarının JavaScript'ten içe aktardığı işlevler (`ui` modülü):
 /// çizim sırasında öğe ağacını kurar. Değerler bellekteki metinlerin adresidir.
-const UI_ISLEVLERI: &[(&str, usize)] = &[("ac", 1), ("ozellik", 2), ("olay", 2), ("kapat", 0)];
+const UI_ISLEVLERI: &[(&str, usize)] = &[
+    ("ac", 1),
+    ("ozellik", 2),
+    ("olay", 2),
+    ("kapat", 0),
+    ("ertele", 1),
+];
+/// `arka planda:` bloklarının olay işlevlerindeki adı (olay_sirasi anahtarı).
+const ARKA_PLAN: &str = "arka planda";
 
 /// Oyun komutları (`oy` modülü; JavaScript oyun alanına çizer): Orhunca adı,
 /// içe aktarma adı, parametre sayısı (i64), değer döndürür mü.
@@ -287,8 +295,11 @@ pub fn uret(p: &Program) -> Result<Vec<u8>, String> {
     let arayuz_var = p.islevler.iter().any(|f| f.arayuz && f.ad == ARAYUZ_ISLEVI);
     // Olay blokları ayrı işlevlere çevrilir; çizimde tabloya göre çağrılırlar.
     let mut olaylar = Vec::new();
-    for f in p.islevler.iter().filter(|f| f.arayuz) {
-        olaylari_topla(&f.govde, &mut olaylar, &mut o.olay_sirasi);
+    if arayuz_var {
+        for f in &p.islevler {
+            olaylari_topla(&f.govde, &mut olaylar, &mut o.olay_sirasi);
+        }
+        olaylari_topla(&p.ana, &mut olaylar, &mut o.olay_sirasi);
     }
 
     let mut ice = ImportSection::new();
@@ -359,9 +370,11 @@ pub fn uret(p: &Program) -> Result<Vec<u8>, String> {
         islevler.function(t); // ohc_ciz
         let t = o.tur_ekle(&[ValType::I32, ValType::I32], &[]);
         islevler.function(t); // ohc_olay
+        let t = o.tur_ekle(&[ValType::I32], &[]);
+        islevler.function(t); // ohc_ertelenen
     }
     o.govde_tablo_basi = olaylar.len() as u32;
-    o.govde_islev_basi = ana_sirasi + if arayuz_var { 3 } else { 1 };
+    o.govde_islev_basi = ana_sirasi + if arayuz_var { 4 } else { 1 };
 
     let mut kod = CodeSection::new();
     for f in p.islevler.iter().chain(&olaylar) {
@@ -395,6 +408,7 @@ pub fn uret(p: &Program) -> Result<Vec<u8>, String> {
     if arayuz_var {
         kod.function(&ciz_islevi(&o));
         kod.function(&olay_islevi(&o, olay_turu));
+        kod.function(&ertelenen_islevi(&o, olay_turu));
     }
     // `dene:` blokları (sırayla; iç içe olanlar sona eklenir)
     let mut uretilen = 0;
@@ -462,6 +476,7 @@ pub fn uret(p: &Program) -> Result<Vec<u8>, String> {
     if arayuz_var {
         disa.export("ohc_ciz", ExportKind::Func, ana_sirasi + 1);
         disa.export("ohc_olay", ExportKind::Func, ana_sirasi + 2);
+        disa.export("ohc_ertelenen", ExportKind::Func, ana_sirasi + 3);
     }
     if !govde_islevleri.is_empty() {
         disa.export("ohc_tablo", ExportKind::Table, 0);
@@ -518,6 +533,9 @@ fn olaylari_topla(
                     sira.insert((o.konum, olay.ad.clone()), olaylar.len() as u32);
                     olaylar.push(olay_islevi_kur(olay, olaylar.len()));
                 }
+                for olay in o.baglama.iter().chain(&o.olay) {
+                    olaylari_topla(&olay.govde, olaylar, sira);
+                }
                 olaylari_topla(&o.cocuklar, olaylar, sira);
             }
             Deyim::Eger { govde, degilse, .. } => {
@@ -530,6 +548,15 @@ fn olaylari_topla(
             Deyim::Dene { govde, yakala, .. } => {
                 olaylari_topla(govde, olaylar, sira);
                 olaylari_topla(yakala, olaylar, sira);
+            }
+            Deyim::ArkaPlan {
+                olay: Some(olay),
+                konum,
+                ..
+            } => {
+                sira.insert((*konum, ARKA_PLAN.into()), olaylar.len() as u32);
+                olaylar.push(olay_islevi_kur(olay, olaylar.len()));
+                olaylari_topla(&olay.govde, olaylar, sira);
             }
             _ => {}
         }
@@ -640,6 +667,53 @@ fn olay_islevi(o: &Ortak, olay_turu: u32) -> Function {
         },
         K::End,
     ]);
+    for k in &kod {
+        f.instruction(k);
+    }
+    f
+}
+
+/// `ohc_ertelenen(sıra)`: `arka planda:` bloğunu (ertelenenler listesindeki kaydı)
+/// yakalanan değerlerle çalıştırır, sonra kaydın değerlerini bırakır.
+fn ertelenen_islevi(o: &Ortak, olay_turu: u32) -> Function {
+    let liste_al = o.calisma["ohc_liste_al"].0;
+    let liste_koy = o.calisma["ohc_liste_koy"].0;
+    let yuva = (o.olay_yuvasi + 1) * 8;
+    let mut f = Function::new([(1, ValType::I32)]);
+    let sira = |tek: bool| {
+        let mut v = vec![
+            K::GlobalGet(G_GENEL),
+            K::I64Load(bellek(yuva)),
+            K::LocalGet(0),
+            K::I64ExtendI32U,
+            K::I64Const(1),
+            K::I64Shl,
+        ];
+        if tek {
+            v.extend([K::I64Const(1), K::I64Or]);
+        }
+        v
+    };
+    let mut kod = sira(false);
+    kod.extend([
+        K::I64Const(0),
+        K::Call(liste_al),
+        K::I32WrapI64,
+        K::LocalSet(1),
+    ]);
+    kod.extend(sira(true));
+    kod.extend([
+        K::I64Const(0),
+        K::Call(liste_al),
+        K::I64Const(0),
+        K::LocalGet(1),
+        K::CallIndirect {
+            type_index: olay_turu,
+            table_index: 0,
+        },
+    ]);
+    kod.extend(sira(true));
+    kod.extend([K::I64Const(0), K::I64Const(0), K::Call(liste_koy), K::End]);
     for k in &kod {
         f.instruction(k);
     }
@@ -994,10 +1068,18 @@ impl Uretici<'_> {
             K::GlobalGet(G_TEPE),
             K::GlobalSet(G_GENEL),
             K::GlobalGet(G_TEPE),
-            K::I32Const(((self.o.olay_yuvasi + 1) * 8) as i32),
+            K::I32Const(((self.o.olay_yuvasi + 2) * 8) as i32),
             K::I32Add,
             K::GlobalSet(G_TEPE),
         ]);
+        // `arka planda:` bloklarının bekleyenler listesi
+        if self.o.ui.contains_key("ertele") {
+            giris.extend([
+                K::GlobalGet(G_GENEL),
+                K::Call(c("ohc_liste_yeni")),
+                K::I64Store(bellek((self.o.olay_yuvasi + 1) * 8)),
+            ]);
+        }
     }
 
     fn metin_sabiti(&mut self, m: &str) {
@@ -1369,6 +1451,12 @@ impl Uretici<'_> {
                 });
                 self.e(K::Return);
             }
+            Deyim::ArkaPlan {
+                olay: Some(olay),
+                konum,
+                ..
+            } => self.ertele(olay, *konum)?,
+            Deyim::ArkaPlan { .. } => return Err("arka planda bloğu denetlenmemiş".into()),
             Deyim::Dene {
                 govde,
                 degisken,
@@ -1626,6 +1714,51 @@ impl Uretici<'_> {
         }
         self.cz("ohc_liste_ekle");
         self.ui("olay");
+        Ok(())
+    }
+
+    /// `arka planda:`: bloğun işlevini ve yakalanan değerleri bekleyenler listesine
+    /// ekler; JavaScript ekran çizildikten sonra `ohc_ertelenen(sıra)` ile çalıştırır.
+    fn ertele(&mut self, olay: &Olay, konum: Konum) -> Result<(), String> {
+        let tablo = *self
+            .o
+            .olay_sirasi
+            .get(&(konum, ARKA_PLAN.to_string()))
+            .ok_or("arka plan işlevi bulunamadı")?;
+        let yakalanan = if olay.yakalananlar.is_empty() {
+            None
+        } else {
+            self.cz("ohc_liste_yeni");
+            let l = self.sakla(false);
+            for (ad, _) in &olay.yakalananlar {
+                self.yukle(l);
+                self.degisken_oku(ad)?;
+                self.cz("ohc_liste_ekle");
+            }
+            Some(l)
+        };
+        let g = (self.o.olay_yuvasi + 1) * 8;
+        self.e(K::GlobalGet(G_GENEL));
+        self.e(K::I64Load(bellek(g)));
+        self.cz("ohc_liste_uzunluk");
+        self.sabit(1);
+        self.e(K::I64ShrU);
+        self.e(K::I32WrapI64);
+        self.e(K::GlobalGet(G_GENEL));
+        self.e(K::I64Load(bellek(g)));
+        self.sabit(tablo as i64);
+        self.cz("ohc_liste_ekle");
+        self.e(K::GlobalGet(G_GENEL));
+        self.e(K::I64Load(bellek(g)));
+        match yakalanan {
+            Some(l) => {
+                self.yukle(l);
+                self.birak(l);
+            }
+            None => self.sabit(0),
+        }
+        self.cz("ohc_liste_ekle");
+        self.ui("ertele");
         Ok(())
     }
 

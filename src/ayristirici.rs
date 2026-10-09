@@ -1741,6 +1741,33 @@ impl Ayristirici {
                 "'yakala' bir 'dene' bloğundan hemen sonra gelmeli",
             ));
         }
+        if self.kelime_mi("arka")
+            && *self.bak_n(1) == Tok::Kelime("planda".into())
+            && *self.bak_n(2) == Tok::Op(":")
+        {
+            self.ilerle();
+            self.ilerle();
+            let govde = self.blok()?;
+            let bitince = if self.kelime_mi("bitince") && *self.bak_n(1) == Tok::Op(":") {
+                self.ilerle();
+                self.blok()?
+            } else {
+                Vec::new()
+            };
+            return Ok(Deyim::ArkaPlan {
+                govde,
+                bitince,
+                olay: None,
+                konum,
+            });
+        }
+        if self.kelime_mi("bitince") && *self.bak_n(1) == Tok::Op(":") {
+            return Err(Hata::yeni(
+                konum,
+                "'bitince' bir 'arka planda' bloğundan hemen sonra gelmeli",
+            )
+            .ipucu("arka planda:\n    ...\nbitince:\n    ..."));
+        }
         if self.kelime_mi("döndür") {
             self.ilerle();
             let deger = if self.deyim_sonu_mu() {

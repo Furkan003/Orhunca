@@ -79,6 +79,8 @@ yakala hata:
   `işlev özet() -> metin:` tanımlanır, alanlara `bu.ad` ile erişilir, `k.özet()` ile çağrılır.
 - Adsız işlev: `süz(l, işlev(x) -> x > 10)`, `dönüştür(l, işlev(x) -> x * 2)`, `biri_mi`, `hepsi_mi`,
   `sırala(kişiler, işlev(k) -> k.yaş)` (yerinde, anahtara göre). Başka yerde kullanılmaz.
+- Arayüzde uzun iş: olay bloğunda `arka planda:` (ekran önce çizilir) ve `bitince:` (sonucu durum
+  değişkenine yazar); blok yerel değişkenlerin kopyasıyla çalışır.
 - Arayüz programı (tarayıcı, masaüstü, telefon): `durum sayaç = 0` ve `arayüz:` bloğu;
   `düğme("Artır") tıklanınca:`, `yazı(...)`, `giriş(ad)`.
 - Web sunucusu: `al "/":` bloğunda `döndür "<h1>Merhaba</h1>"`; POST için `gönder "/yol":`.

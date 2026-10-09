@@ -1118,7 +1118,23 @@ fn kosullu_kesme_ve_gunluk_noktasi() {
         degiskenler.iter().all(|v| v["ad"] != "ayıklama_durağı"),
         "{a}"
     );
-    // Günlük noktası durmadan yazar: ilk iki tur geçti
+    // Günlük noktası durmadan yazar: ilk iki tur geçti. Çıktı, durma bildiriminden
+    // biraz sonra okunmuş olabilir.
+    let bas = Instant::now();
+    while !cikti.contains("◆ i = 2") && bas.elapsed() < Duration::from_secs(5) {
+        std::thread::sleep(Duration::from_millis(20));
+        let (_, g) = s.istek(
+            "GET",
+            &format!("/api/cikti?kimlik={kimlik}&konum={konum_}"),
+            None,
+            true,
+        );
+        let d: serde_json::Value = serde_json::from_str(&g).unwrap();
+        for p in d["parcalar"].as_array().unwrap() {
+            cikti.push_str(p["t"].as_str().unwrap());
+        }
+        konum_ = d["konum"].as_u64().unwrap();
+    }
     assert!(cikti.contains("◆ i = 1, toplam 0"), "{cikti}");
     assert!(cikti.contains("◆ i = 2, toplam 1"), "{cikti}");
     let _ = s.api(

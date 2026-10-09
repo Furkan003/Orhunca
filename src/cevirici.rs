@@ -906,6 +906,19 @@ impl Cevirici {
                 self.yaz(m);
             }
             Deyim::Oge(_) => {}
+            // Arayüz programında ertelenen blok; çeviride sırayla çalışır.
+            Deyim::ArkaPlan {
+                govde,
+                bitince,
+                olay,
+                ..
+            } => match olay {
+                Some(o) => self.govde_ana(&o.govde),
+                None => {
+                    self.govde_ana(govde);
+                    self.govde_ana(bitince);
+                }
+            },
             Deyim::Dene {
                 govde,
                 degisken,

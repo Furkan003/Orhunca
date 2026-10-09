@@ -81,6 +81,26 @@ arayüz:
     yazı(uzunluk(kayıtlar) + " kayıt", sınıf: "uyarı-kutusu")
 ```
 
+**Arka planda iş:** uzun süren bir iş `arka planda:` bloğuna yazılınca önce ekran çizilir
+(ör. "Hesaplanıyor…" yazısı görünür), blok ondan sonra çalışır; isteğe bağlı `bitince:` bloğu
+iş bitince çalışır ve ekran yeniden çizilir. Blok, başladığı andaki yerel değişkenlerin
+kopyalarıyla çalışır; sonucu durum değişkenlerine yazar.
+
+```orhunca
+düğme("Hesapla") tıklanınca:
+    çalışıyor = doğru
+    sınır = üst_sınır
+    arka planda:
+        sayı_ = asal_sayısı(sınır)
+    bitince:
+        sonuç = metin(sayı_) + " asal sayı"
+        çalışıyor = yanlış
+```
+
+Blok tarayıcının tek iş parçacığında çalışır: iş sürerken sayfa yine bekler, ama kullanıcı işin
+başladığını görür. Konsol ve web sunucusu programlarında `arka planda:` blokları sırayla çalışır.
+Örnek: [örnekler/arayüz/arka_plan.ohc](../örnekler/arayüz/arka_plan.ohc).
+
 ![Orhunca Stüdyo — arayüz uygulaması canlı önizlemede](ekran/arayuz.png)
 
 ### Masaüstü uygulaması olarak paketleme

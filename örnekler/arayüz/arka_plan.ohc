@@ -1,0 +1,35 @@
+# Arka planda iş: düğmeye basınca önce "Hesaplanıyor…" görünür, hesap ekran
+# çizildikten sonra yapılır, `bitince:` bloğu sonucu yazar.
+durum üst_sınır = 20000
+durum sonuç = ""
+durum çalışıyor = yanlış
+
+işlev asal_mı(n: sayı) -> mantık:
+    eğer n < 2 ise:
+        döndür yanlış
+    i = 2
+    i * i <= n olduğu sürece:
+        eğer n % i == 0 ise:
+            döndür yanlış
+        i += 1
+    döndür doğru
+
+arayüz:
+    başlık("Asal sayılar")
+    yazı("Üst sınır: " + üst_sınır)
+    kaydırıcı(üst_sınır, 1000, 100000)
+    eğer çalışıyor ise:
+        yazı("Hesaplanıyor…", renk: "gri")
+    değilse eğer sonuç != "" ise:
+        yazı(sonuç, kalın: doğru)
+    düğme("Hesapla") tıklanınca:
+        çalışıyor = doğru
+        sınır = üst_sınır
+        arka planda:
+            sayı_ = 0
+            her n için 2'den sınır'a kadar:
+                eğer asal_mı(n) ise:
+                    sayı_ += 1
+        bitince:
+            sonuç = metin(sınır) + "'e kadar " + metin(sayı_) + " asal sayı var"
+            çalışıyor = yanlış

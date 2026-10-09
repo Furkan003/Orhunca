@@ -227,6 +227,17 @@ fn deyim(d: &Deyim, g: usize, s: &mut String) {
             satir(s, g, "yakala");
             blok(yakala, g + 2, s);
         }
+        Deyim::ArkaPlan {
+            govde,
+            bitince,
+            konum,
+            ..
+        } => {
+            satir(s, g, &format!("arkaplan{}", k(*konum)));
+            blok(govde, g + 2, s);
+            satir(s, g, "bitince");
+            blok(bitince, g + 2, s);
+        }
     }
 }
 

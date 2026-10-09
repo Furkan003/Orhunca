@@ -933,6 +933,7 @@ impl Uretici<'_, '_> {
                     "arayüz öğeleri yalnızca WebAssembly hedefinde (--hedef web) derlenir".into(),
                 )
             }
+            Deyim::ArkaPlan { .. } => return Err("arka planda bloğu denetlenmemiş".into()),
         }
         Ok(())
     }

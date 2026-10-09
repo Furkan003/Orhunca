@@ -27,6 +27,9 @@ struct Imza {
 }
 
 pub struct Denetci {
+    /// Arayüz programında `arka planda:` blokları ekran çizildikten sonra çalışır;
+    /// öteki programlarda sırayla.
+    arayuz_programi: bool,
     imzalar: HashMap<String, Imza>,
     /// Dönüş tipi bilinmeden çağrıldığı için `sayı` varsayılan işlevler.
     varsayilan: HashMap<String, Konum>,
@@ -81,6 +84,7 @@ pub fn denetle(p: &mut Program) -> Sonuc<()> {
         yakalanan: Vec::new(),
         bekleyen: HashMap::new(),
         biten: HashMap::new(),
+        arayuz_programi: p.arayuz_programi(),
     };
     for (ad, deger) in p.sabitler.iter_mut() {
         d.ifade(deger)?;
@@ -885,6 +889,46 @@ impl Denetci {
     }
 
     fn deyim(&mut self, d: &mut Deyim) -> Sonuc<()> {
+        if let Deyim::ArkaPlan {
+            govde,
+            bitince,
+            olay,
+            konum,
+        } = d
+        {
+            if self.arayuzde {
+                return Err(Hata::yeni(
+                    *konum,
+                    "'arka planda' arayüz çizilirken kullanılamaz; bir olayın içinde kullanın",
+                )
+                .ipucu("düğme(\"Yükle\") tıklanınca:\n    arka planda:\n        ..."));
+            }
+            let mut tum = std::mem::take(govde);
+            tum.append(bitince);
+            if self.arayuz_programi {
+                // Blok, çevredeki yerel değişkenlerin o anki kopyalarıyla sonra çalışır.
+                let mut o = Olay {
+                    ad: "arka planda".into(),
+                    govde: tum,
+                    yakalananlar: Vec::new(),
+                    yereller: Vec::new(),
+                    konum: *konum,
+                };
+                self.olay_denetle(&mut o)?;
+                *olay = Some(Box::new(o));
+                return Ok(());
+            }
+            let k = *konum;
+            *d = Deyim::Eger {
+                kosul: Ifade {
+                    tur: IfadeTuru::Mantik(true),
+                    konum: k,
+                    tip: Tip::Mantik,
+                },
+                govde: tum,
+                degilse: Vec::new(),
+            };
+        }
         match d {
             Deyim::Atama {
                 hedef,
@@ -936,7 +980,7 @@ impl Denetci {
                         return Err(Hata::yeni(
                             *konum,
                             format!(
-                                "olay bloğunda '{hedef}' değiştirilemez: öğe çizilirken alınmış bir kopyadır"
+                                "'{hedef}' burada değiştirilemez: olay ve 'arka planda' blokları çevredeki değişkenlerin kopyasıyla çalışır"
                             ),
                         )
                         .ipucu("kalıcı değerler için durum değişkeni kullanın: durum ad = ..."));
@@ -1226,6 +1270,8 @@ impl Denetci {
                 }
                 self.blok(yakala)?;
             }
+            // Arayüz programında yukarıda denetlendi.
+            Deyim::ArkaPlan { .. } => {}
         }
         Ok(())
     }

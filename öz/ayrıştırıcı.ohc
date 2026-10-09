@@ -1307,6 +1307,18 @@ işlev deyim(a: Ayrıştırıcı) -> Deyim:
         döndür dene_(a)
     eğer yakala_başı_mı(a) ise:
         hata_s(a, k, "'yakala' bir 'dene' bloğundan hemen sonra gelmeli", "-")
+    # `arka planda:` ... `bitince:` ...
+    eğer kelime_mi(a, "arka") ve s_kelime(bak_n(a, 1), "planda") ve s_op(bak_n(a, 2), ":") ise:
+        ilerle(a)
+        ilerle(a)
+        d = yeni_deyim("arkaplan", "", k.satır, k.sütun)
+        d.gövde = blok(a)
+        eğer kelime_mi(a, "bitince") ve s_op(bak_n(a, 1), ":") ise:
+            ilerle(a)
+            d.diğer = blok(a)
+        döndür d
+    eğer kelime_mi(a, "bitince") ve s_op(bak_n(a, 1), ":") ise:
+        hata_s(a, k, "'bitince' bir 'arka planda' bloğundan hemen sonra gelmeli", "arka planda:\n    ...\nbitince:\n    ...")
     eğer kelime_mi(a, "döndür") ise:
         ilerle(a)
         d = yeni_deyim("döndür", "", k.satır, k.sütun)
@@ -2283,6 +2295,8 @@ işlev deyim_dökümü(d: Deyim, g: sayı) -> metin:
         eğer d.olay_var ise:
             m = m + döküm_satırı(g + 2, "olay" + yer(d.olay_satır, d.olay_sütun) + " " + d.olay_adı) + blok_dökümü(d.diğer, g + 4)
         döndür m + blok_dökümü(d.gövde, g + 2)
+    eğer t == "arkaplan" ise:
+        döndür döküm_satırı(g, "arkaplan" + y) + blok_dökümü(d.gövde, g + 2) + döküm_satırı(g, "bitince") + blok_dökümü(d.diğer, g + 2)
     # dene
     döndür döküm_satırı(g, "dene" + y + " " + d.ad) + blok_dökümü(d.gövde, g + 2) + döküm_satırı(g, "yakala") + blok_dökümü(d.diğer, g + 2)
 

@@ -406,7 +406,12 @@
       fare_basili: () => (OYUN.fare.basili ? 1n : 0n),
     };
 
+    // `arka planda:` blokları: ekran çizildikten sonra sırayla çalışır (aşağıda kurulur).
+    let ertelenen = () => {};
     const ui = {
+      ertele(no) {
+        setTimeout(() => ertelenen(no), 0);
+      },
       ac(p) {
         const d = { tur: metin(p), oz: {}, olay: {}, cocuk: [] };
         yigin[yigin.length - 1].cocuk.push(d);
@@ -480,6 +485,16 @@
       } catch (h) {
         durdu = true;
         return hataKodu(h);
+      }
+    };
+    ertelenen = (no) => {
+      if (durdu) return;
+      try {
+        prog.exports.ohc_ertelenen(no);
+        ciz();
+      } catch (h) {
+        durdu = true;
+        hataKodu(h);
       }
     };
     if (s.arayuzKoku) dom = domCizici(s.arayuzKoku, tetikle);

@@ -113,6 +113,22 @@ const senaryolar = {
     esit(gosterge(), '-0.25', 'eksi');
     esit(u.ogeler('düğme').length, 17, 'düğme sayısı');
   },
+  async 'arka_plan'() {
+    const u = await uygulama('arka_plan');
+    u.bagla('kaydırıcı', 0, '1000');
+    u.tikla('düğme', 'Hesapla');
+    // Önce ekran çizilir; hesap sonra yapılır.
+    esit(u.yazilar(), ['Üst sınır: 1000', 'Hesaplanıyor…'], 'hesaplanıyor');
+    await new Promise((r) => setTimeout(r, 20));
+    esit(u.yazilar(), ['Üst sınır: 1000', "1000'e kadar 168 asal sayı var"], 'sonuç');
+    // Blok, başladığı andaki değerlerin kopyasıyla çalışır.
+    u.bagla('kaydırıcı', 0, '100');
+    u.tikla('düğme', 'Hesapla');
+    u.bagla('kaydırıcı', 0, '5000');
+    await new Promise((r) => setTimeout(r, 20));
+    esit(u.yazilar(), ['Üst sınır: 5000', "100'e kadar 25 asal sayı var"], 'kopya');
+    esit(u.uygulama.durdu(), false, 'hata yok');
+  },
 };
 
 (async () => {

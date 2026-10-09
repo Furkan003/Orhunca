@@ -542,6 +542,7 @@ impl<'a> Uretici<'a> {
             Deyim::Oge(_) => {
                 return Err("arayüz öğeleri PHP'ye çevrilemez".into());
             }
+            Deyim::ArkaPlan { .. } => return Err("arka planda bloğu denetlenmemiş".into()),
             Deyim::Dene {
                 govde,
                 degisken: dg,

@@ -281,6 +281,10 @@ const HATALI_PROGRAMLAR: &[&str] = &[
     "l = [1]\nsüz(l, işlev(x, x) -> x)'i yaz.\n",
     "l = [1]\nsüz(l, işlev(eğer) -> 1)'i yaz.\n",
     "l = [1]\nsırala(l, işlev(x) -> x\n",
+    "bitince:\n    x = 1\n",
+    "arka planda:\nx = 1\n",
+    "arka planda:\n    x = 1\nbitince:\ny = 2\n",
+    "arka planda x = 1\n",
 ];
 
 #[test]

@@ -472,6 +472,22 @@ ipucu: x 4'ten büyükse
 ```
 Çalışma hataları da Türkçedir ve satır numarası verir (sıfıra bölme, liste sınırı...).
 
+### Arka planda
+
+`arka planda:` bloğu (ve isteğe bağlı `bitince:` bloğu), arayüz programlarında ekran çizildikten
+sonra çalışır; böylece "Yükleniyor…" gibi durumlar görünür. Konsol ve sunucu programlarında
+sırayla çalışır. Ayrıntılar: [arayüz rehberi](arayuz.md).
+
+```
+düğme("Yükle") tıklanınca:
+    yükleniyor = doğru
+    arka planda:
+        veri = http_al(adres)
+    bitince:
+        sonuç = veri
+        yükleniyor = yanlış
+```
+
 ### Hata yakalama
 
 ```

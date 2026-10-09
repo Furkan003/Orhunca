@@ -254,6 +254,16 @@ pub enum Deyim {
         yakala: Vec<Deyim>,
         konum: Konum,
     },
+    /// `arka planda:` ... (isteğe bağlı) `bitince:` ... Arayüz programlarında blok, ekran
+    /// çizildikten sonra çevredeki yerel değişkenlerin kopyalarıyla çalışır (denetçi
+    /// `olay`ı doldurur, `govde` ve `bitince` boşalır); öteki programlarda sırayla çalışır
+    /// (denetçi deyimi `eğer doğru ise:` bloğuna çevirir).
+    ArkaPlan {
+        govde: Vec<Deyim>,
+        bitince: Vec<Deyim>,
+        olay: Option<Box<Olay>>,
+        konum: Konum,
+    },
 }
 
 impl Deyim {
@@ -265,6 +275,7 @@ impl Deyim {
             | Deyim::HerAralik { konum, .. }
             | Deyim::HerListe { konum, .. }
             | Deyim::Dene { konum, .. }
+            | Deyim::ArkaPlan { konum, .. }
             | Deyim::Dondur(_, konum)
             | Deyim::Dur(konum)
             | Deyim::Surdur(konum) => *konum,
@@ -407,6 +418,20 @@ pub fn gecen_adlar(govde: &[Deyim]) -> Vec<String> {
                     }
                     blok(yakala, adlar)
                 }
+                Deyim::ArkaPlan {
+                    govde,
+                    bitince,
+                    olay,
+                    ..
+                } => {
+                    blok(govde, adlar);
+                    blok(bitince, adlar);
+                    if let Some(o) = olay {
+                        for (ad, _) in &o.yakalananlar {
+                            ekle(adlar, ad);
+                        }
+                    }
+                }
             }
         }
     }
@@ -508,6 +533,18 @@ pub fn ifadeleri_gez(govde: &mut [Deyim], f: &mut dyn FnMut(&mut Ifade)) {
                 ifadeleri_gez(govde, f);
                 ifadeleri_gez(yakala, f)
             }
+            Deyim::ArkaPlan {
+                govde,
+                bitince,
+                olay,
+                ..
+            } => {
+                ifadeleri_gez(govde, f);
+                ifadeleri_gez(bitince, f);
+                if let Some(o) = olay {
+                    ifadeleri_gez(&mut o.govde, f);
+                }
+            }
         }
     }
 }
@@ -523,6 +560,7 @@ pub fn dene_var(govde: &[Deyim]) -> bool {
         Deyim::Oge(o) => {
             dene_var(&o.cocuklar) || o.olay.iter().chain(&o.baglama).any(|x| dene_var(&x.govde))
         }
+        Deyim::ArkaPlan { govde, bitince, .. } => dene_var(govde) || dene_var(bitince),
         _ => false,
     })
 }

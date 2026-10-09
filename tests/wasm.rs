@@ -332,7 +332,7 @@ fn arayuz_hatalari_turkce() {
         ),
         (
             "arayüz:\n    her i için 1'den 3'e kadar:\n        düğme(\"a\") tıklanınca:\n            i = 5\n",
-            "olay bloğunda 'i' değiştirilemez",
+            "'i' burada değiştirilemez: olay ve 'arka planda' blokları",
         ),
         (
             "durum l = []\narayüz:\n    yazı(\"a\")\n",
