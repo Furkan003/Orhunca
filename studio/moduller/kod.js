@@ -347,11 +347,14 @@
     ta.addEventListener('mouseleave', () => baloncukGoster(null));
     ta.addEventListener('keydown', e => {
       const v = ta.value, bas = ta.selectionStart, son = ta.selectionEnd;
+      // Kendiliğinden açılan listede Enter yeni satırdır (yazılan kelime sessizce değişmesin);
+      // öneriyi Tab seçer. Oklarla seçim yapıldıysa ya da liste Ctrl+Boşluk ile açıldıysa Enter da seçer.
+      if (TAMAMLA && e.key === 'Enter' && !TAMAMLA.secildi) tamamlamaKapat();
       if (TAMAMLA && ['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].includes(e.key)) {
         e.preventDefault();
         if (e.key === 'Escape') tamamlamaKapat();
-        else if (e.key === 'ArrowDown') { TAMAMLA.secili = (TAMAMLA.secili + 1) % TAMAMLA.liste.length; tamamlamaCiz(); }
-        else if (e.key === 'ArrowUp') { TAMAMLA.secili = (TAMAMLA.secili + TAMAMLA.liste.length - 1) % TAMAMLA.liste.length; tamamlamaCiz(); }
+        else if (e.key === 'ArrowDown') { TAMAMLA.secili = (TAMAMLA.secili + 1) % TAMAMLA.liste.length; TAMAMLA.secildi = true; tamamlamaCiz(); }
+        else if (e.key === 'ArrowUp') { TAMAMLA.secili = (TAMAMLA.secili + TAMAMLA.liste.length - 1) % TAMAMLA.liste.length; TAMAMLA.secildi = true; tamamlamaCiz(); }
         else tamamlamaUygula(ta, TAMAMLA.secili);
         return;
       }

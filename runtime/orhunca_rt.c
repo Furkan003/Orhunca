@@ -116,7 +116,10 @@ static int cgi_hatali;
 
 #define YIGIN_TASTI "çok derin özyineleme: işlevler birbirini bitmeyecek kadar çok çağırıyor (bitiş koşulunu denetleyin)"
 
+static void veri_kilidi_birak(void);
+
 static void hata(int64_t satir, const char *mesaj) {
+    veri_kilidi_birak(); /* yakalanan bir hata kilidi açık bırakmasın */
     fflush(stdout);
     snprintf(son_mesaj, sizeof son_mesaj, "%s", mesaj);
     if (satir > 0)
@@ -2393,7 +2396,14 @@ static int dosya_tasi(const char *eski, const char *yeni) {
     wchar_t a[1024], b[1024];
     if (!MultiByteToWideChar(CP_UTF8, 0, eski, -1, a, 1024)) return 0;
     if (!MultiByteToWideChar(CP_UTF8, 0, yeni, -1, b, 1024)) return 0;
-    return MoveFileExW(a, b, MOVEFILE_REPLACE_EXISTING) != 0;
+    /* Hedefi o an başka bir program okuyorsa Windows taşımayı reddeder; kısa süre yeniden denenir. */
+    for (int deneme = 0; deneme < 150; deneme++) {
+        if (MoveFileExW(a, b, MOVEFILE_REPLACE_EXISTING)) return 1;
+        DWORD e = GetLastError();
+        if (e != ERROR_ACCESS_DENIED && e != ERROR_SHARING_VIOLATION && e != ERROR_LOCK_VIOLATION) return 0;
+        Sleep(20);
+    }
+    return 0;
 #else
     return rename(eski, yeni) == 0;
 #endif
@@ -2409,6 +2419,74 @@ static char *veri_dosyasi(ModelBilgisi *m) {
     t_yaz(&t, m->ad);
     t_yaz(&t, ".json");
     return t.v;
+}
+
+/*
+ * Kaydetme ve silme "oku → değiştir → yaz" adımlarından oluşur. Aynı veri klasörünü
+ * kullanan iki program bunu aynı anda yaparsa biri ötekinin kaydını silebilir. Bu yüzden
+ * bu adımlar <Model>.json.kilit dosyası üzerinde süreçler arası bir kilitle yapılır.
+ * Kilit alınamazsa (ör. salt okunur klasör) eskisi gibi kilitsiz devam edilir.
+ */
+#ifdef _WIN32
+static HANDLE veri_kilidi = INVALID_HANDLE_VALUE;
+#elif !defined(__wasm__)
+static int veri_kilidi = -1;
+#endif
+
+static void veri_kilidi_birak(void) {
+#ifdef _WIN32
+    if (veri_kilidi != INVALID_HANDLE_VALUE) {
+        OVERLAPPED o = {0};
+        UnlockFileEx(veri_kilidi, 0, 1, 0, &o);
+        CloseHandle(veri_kilidi);
+        veri_kilidi = INVALID_HANDLE_VALUE;
+    }
+#elif !defined(__wasm__)
+    if (veri_kilidi >= 0) {
+        close(veri_kilidi); /* kilit de bırakılır */
+        veri_kilidi = -1;
+    }
+#endif
+}
+
+static void veri_kilitle(ModelBilgisi *m) {
+    veri_kilidi_birak();
+    klasor_olustur(veri_klasoru());
+    char *yol = veri_dosyasi(m);
+    Tampon t = {0};
+    t_yaz(&t, yol);
+    t_yaz(&t, ".kilit");
+    free(yol);
+#ifdef _WIN32
+    wchar_t w[1024];
+    if (MultiByteToWideChar(CP_UTF8, 0, t.v, -1, w, 1024)) {
+        HANDLE h = CreateFileW(w, GENERIC_READ | GENERIC_WRITE,
+                               FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_ALWAYS,
+                               FILE_ATTRIBUTE_NORMAL, NULL);
+        if (h != INVALID_HANDLE_VALUE) {
+            OVERLAPPED o = {0};
+            if (LockFileEx(h, LOCKFILE_EXCLUSIVE_LOCK, 0, 1, 0, &o))
+                veri_kilidi = h;
+            else
+                CloseHandle(h);
+        }
+    }
+#elif !defined(__wasm__)
+    int fd = open(t.v, O_RDWR | O_CREAT | O_CLOEXEC, 0666);
+    if (fd >= 0) {
+        struct flock k = {0};
+        k.l_type = F_WRLCK;
+        k.l_whence = SEEK_SET;
+        int r;
+        while ((r = fcntl(fd, F_SETLKW, &k)) != 0 && errno == EINTR) {
+        }
+        if (r == 0)
+            veri_kilidi = fd;
+        else
+            close(fd);
+    }
+#endif
+    free(t.v);
 }
 
 /* Modelin tüm kayıtlarını okur (dosya yoksa boş liste). */
@@ -2478,16 +2556,29 @@ static void kayitlari_yaz(ModelBilgisi *m, int64_t liste, int64_t satir) {
         json_yaz(&t, l->ogeler[i], KOD_MODEL, 1);
     }
     t_yaz(&t, l->uzunluk ? "\n]\n" : "]\n");
+    /* Geçici dosyanın adı programa özgüdür; iki program aynı geçici dosyaya yazmaz. */
     Tampon g = {0};
     t_yaz(&g, yol);
-    t_yaz(&g, ".yeni");
+    char ek[48];
+#ifdef _WIN32
+    snprintf(ek, sizeof ek, ".%lu.yeni", (unsigned long)GetCurrentProcessId());
+#elif defined(__wasm__)
+    snprintf(ek, sizeof ek, ".yeni");
+#else
+    snprintf(ek, sizeof ek, ".%ld.yeni", (long)getpid());
+#endif
+    t_yaz(&g, ek);
     FILE *f = dosya_ac(g.v, "wb");
     int ok = f && fwrite(t.v, 1, t.n, f) == t.n;
     if (f && fclose(f) != 0) ok = 0;
     if (ok) ok = dosya_tasi(g.v, yol);
     if (!ok) {
-        char mesaj[600];
-        snprintf(mesaj, sizeof mesaj, "'%.400s' yazılamadı: %s", yol, strerror(errno));
+        char mesaj[700];
+        ohc_dosya_sil((int64_t)(intptr_t)g.v);
+        snprintf(mesaj, sizeof mesaj,
+                 "'%.400s' yazılamadı (klasöre yazma izni olmayabilir ya da dosya başka bir programda "
+                 "açık olabilir)",
+                 yol);
         free(t.v);
         free(g.v);
         free(yol);
@@ -2520,11 +2611,16 @@ int64_t ohc_model_var(int64_t tanim, int64_t kimlik, int64_t satir) {
 
 int64_t ohc_model_sil(int64_t tanim, int64_t kimlik, int64_t satir) {
     ModelBilgisi *m = model_bilgisi(M(tanim));
+    veri_kilitle(m);
     int64_t liste = kayitlari_oku(m, satir);
     int64_t i = kayit_sirasi(liste, kimlik);
-    if (i < 0) return 0;
+    if (i < 0) {
+        veri_kilidi_birak();
+        return 0;
+    }
     ohc_liste_sil(liste, i, satir);
     kayitlari_yaz(m, liste, satir);
+    veri_kilidi_birak();
     return 1;
 }
 
@@ -2541,6 +2637,7 @@ int64_t ohc_model_kaydet(int64_t n, int64_t satir) {
                      m->alanlar[i].ad);
             hata(satir, mesaj);
         }
+    veri_kilitle(m);
     int64_t liste = kayitlari_oku(m, satir);
     int64_t kimlik = ALAN(n, 0);
     int64_t i = kimlik > 0 ? kayit_sirasi(liste, kimlik) : -1;
@@ -2557,6 +2654,7 @@ int64_t ohc_model_kaydet(int64_t n, int64_t satir) {
     else
         ohc_liste_ekle(liste, n);
     kayitlari_yaz(m, liste, satir);
+    veri_kilidi_birak();
     return kimlik;
 }
 

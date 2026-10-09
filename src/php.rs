@@ -969,8 +969,10 @@ return [
 ];
 ";
 
-/// `cikti/php/` klasörünü hazırlar.
-pub fn hazirla(giris: &Path) -> Result<PathBuf, String> {
+/// `cikti/php/` klasörünü hazırlar. `veriyle` verilirse projedeki `veri/*.json` kayıtları
+/// da kopyalanır (tablolar ilk açılışta bunlardan doldurulur); varsayılan olarak
+/// bilgisayardaki deneme verisi yayına gitmez.
+pub fn hazirla(giris: &Path, veriyle: bool) -> Result<PathBuf, String> {
     let kok = crate::derleme::proje_koku(giris);
     let program = crate::derleme::yukle(giris).map_err(|h| h.metin)?;
     if program.arayuz_programi() {
@@ -1005,18 +1007,8 @@ pub fn hazirla(giris: &Path) -> Result<PathBuf, String> {
         crate::yayinla::klasor_kopyala(&statik, &cikti)?;
     }
     // Orhunca'nın kendi sunucusunun kayıtları: tablolar ilk açılışta bunlardan doldurulur.
-    let veri = kok.join("veri");
-    if veri.is_dir() {
-        if let Ok(g) = std::fs::read_dir(&veri) {
-            for d in g.flatten() {
-                let p = d.path();
-                if p.extension().is_some_and(|e| e == "json")
-                    && !cikti.join("veri").join(d.file_name()).exists()
-                {
-                    let _ = std::fs::copy(&p, cikti.join("veri").join(d.file_name()));
-                }
-            }
-        }
+    if veriyle {
+        crate::cgi::json_kayitlari_kopyala(&kok.join("veri"), &cikti.join("veri"))?;
     }
     let yaz = |ad: &str, icerik: &str| {
         std::fs::write(cikti.join(ad), icerik).map_err(|e| format!("{ad} yazılamadı: {e}"))

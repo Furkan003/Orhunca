@@ -25,8 +25,8 @@ Kullanım:
   orhunca paket ara [kelime] | ekle <ad | git-adresi>[#etiket] | yükle | güncelle | kaldır <ad> | listele
   orhunca paket bilgi <ad | git-adresi> [--json] | yayımla   (izinler, içerik özeti; paket mağazasına yayımlama)
   orhunca yayınla [kullanıcı@sunucu] [--alan ornek.com] [--kapı 3000] [--klasör /srv/ad] [--ssh-kapı 22]
-  orhunca yayınla --php   (yalnızca PHP ve MySQL sunan barındırmalar: cikti/php/ public_html'e yüklenir)
-  orhunca yayınla --cgi [--kaynakla]   (paylaşımlı hosting: cikti/cgi/ klasörü public_html'e yüklenir)
+  orhunca yayınla --php [--veriyle]   (yalnızca PHP ve MySQL sunan barındırmalar: cikti/php/ public_html'e yüklenir)
+  orhunca yayınla --cgi [--kaynakla] [--veriyle]   (paylaşımlı hosting: cikti/cgi/ klasörü public_html'e yüklenir)
   orhunca stüdyo [--kapı 7313] [--tarayıcı-açma]
   orhunca güncelle [--denetle]
   orhunca sürüm
@@ -282,13 +282,17 @@ fn yayinla_komutu(args: &[String]) -> Result<(), String> {
         ssh_kapi: None,
     };
     let mut dosya = None;
-    let (mut cgi, mut kaynakla, mut php) = (false, false, false);
+    let (mut cgi, mut kaynakla, mut php, mut veriyle) = (false, false, false, false);
     let mut i = 0;
     while i < args.len() {
-        if matches!(args[i].as_str(), "--cgi" | "--kaynakla" | "--php") {
+        if matches!(
+            args[i].as_str(),
+            "--cgi" | "--kaynakla" | "--php" | "--veriyle"
+        ) {
             cgi |= args[i] == "--cgi";
             kaynakla |= args[i] == "--kaynakla";
             php |= args[i] == "--php";
+            veriyle |= args[i] == "--veriyle";
             i += 1;
             continue;
         }
@@ -330,7 +334,7 @@ fn yayinla_komutu(args: &[String]) -> Result<(), String> {
                     .into(),
             );
         }
-        let k = orhunca::php::hazirla(&giris)?;
+        let k = orhunca::php::hazirla(&giris, veriyle)?;
         println!(
             "PHP klasörü hazır: {}\n\n\
              Klasörün İÇİNDEKİLERİ (gizli .htaccess dosyası dahil) barındırmanın public_html\n\
@@ -341,6 +345,12 @@ fn yayinla_komutu(args: &[String]) -> Result<(), String> {
             k.display()
         );
         return Ok(());
+    }
+    if veriyle && !cgi && !php {
+        return Err(
+            "--veriyle yalnızca --cgi ve --php ile kullanılır (sunucuya yayınlamada veriler sunucuda kalır)"
+                .into(),
+        );
     }
     if kaynakla && !cgi {
         return Err("--kaynakla yalnızca --cgi ile kullanılır".into());
@@ -353,7 +363,7 @@ fn yayinla_komutu(args: &[String]) -> Result<(), String> {
                     .into(),
             );
         }
-        let k = orhunca::cgi::hazirla(&giris, kaynakla)?;
+        let k = orhunca::cgi::hazirla(&giris, kaynakla, veriyle)?;
         println!(
             "Paylaşımlı hosting klasörü hazır: {}\n\n\
              Klasörün İÇİNDEKİLERİ (gizli .htaccess dosyası dahil) barındırmanın public_html\n\

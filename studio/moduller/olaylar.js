@@ -107,4 +107,9 @@
   window.addEventListener('beforeunload', e => {
     if (D.sekmeler.some(s => !s.ikili && s.icerik !== s.kayitli)) { e.preventDefault(); e.returnValue = ''; }
   });
+  // Sekme kapanırken yanıt bekleyen asistan isteği sunucuda da durdurulur.
+  window.addEventListener('pagehide', () => {
+    if (!D.asistan.bekliyor) return;
+    fetch('/api/asistan/durdur', { method: 'POST', keepalive: true, headers: { 'X-Orhunca-Anahtar': ANAHTAR || '', 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {});
+  });
 

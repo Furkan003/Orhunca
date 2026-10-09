@@ -76,6 +76,10 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
             Ok(d) => Yanit::json(&d),
             Err(e) => hata(e),
         },
+        ("POST", "/api/asistan/durdur") => {
+            asistan::durdur();
+            Yanit::json(&json!({ "tamam": true }))
+        }
         ("POST", "/api/asistan/sor") => match asistan::sor(
             &g,
             g["proje"]

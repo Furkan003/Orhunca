@@ -83,16 +83,17 @@
     for (const a of ANAHTAR_KELIMELER) adlar.set(a, 'anahtar kelime');
     for (const y of D.yerlesikler) adlar.set(y.ad, y.kullanim);
     for (const m of v.matchAll(KELIME_RE)) if (!adlar.has(m[0]) && m[0].length > 1) adlar.set(m[0], 'isim');
-    // Türkçe harfsiz yazılan önek de eşleşir: `deg` → `değilse`, `eger` → `eğer`.
-    const asciiOnek = asciiYap(onek);
-    const liste = [...adlar].filter(([a]) => a !== onek && (a.startsWith(onek) || asciiYap(a).startsWith(asciiOnek)))
+    // Türkçe harfsiz yazılan önek de eşleşir: `deg` → `değilse`, `eger` → `eğer`. Önekte Türkçe
+    // harf varsa kullanıcının klavyesi Türkçedir; o zaman harfi harfine eşleşir (`şı` → `sil` değil).
+    const asciiOnek = asciiYap(onek), turkceOnek = asciiOnek !== onek;
+    const liste = [...adlar].filter(([a]) => a !== onek && (a.startsWith(onek) || (!turkceOnek && asciiYap(a).startsWith(asciiOnek))))
       .sort((a, b) => (a[0].startsWith(onek) ? 0 : 1) - (b[0].startsWith(onek) ? 0 : 1) || (a[1] === 'isim' ? 0 : 1) - (b[1] === 'isim' ? 0 : 1) || a[0].length - b[0].length || a[0].localeCompare(b[0], 'tr'))
       .slice(0, 8).map(([ad, ayrinti]) => ({ ad, yazilan: onek, ayrinti, tur: 'isim' }));
-    tamamlamaAc(ta, liste, k - onek.length);
+    tamamlamaAc(ta, liste, k - onek.length, zorla);
   }
-  function tamamlamaAc(ta, liste, bas) {
+  function tamamlamaAc(ta, liste, bas, zorla = false) {
     if (!liste.length) { tamamlamaKapat(); return; }
-    TAMAMLA = { liste, secili: 0, bas };
+    TAMAMLA = { liste, secili: 0, bas, secildi: zorla };
     tamamlamaCiz();
   }
   function tamamlamaCiz() {
@@ -104,7 +105,8 @@
     const satir = once.split('\n').length, sutun = TAMAMLA.bas - once.lastIndexOf('\n') - 1;
     kutu.style.top = (4 + satir * 21) + 'px';
     kutu.style.left = (56 + sutun * karakterGenisligi) + 'px';
-    kutu.innerHTML = TAMAMLA.liste.map((x, i) => `<div class="tamamla-oge ${i === TAMAMLA.secili ? 'secili' : ''}" data-i="${i}"><span class="tamamla-ad">${x.tur === 'ek' ? "'" : ''}${kac(x.ad)}</span><span class="tamamla-ayrinti">${kac(x.ayrinti)}</span></div>`).join('');
+    kutu.innerHTML = TAMAMLA.liste.map((x, i) => `<div class="tamamla-oge ${i === TAMAMLA.secili ? 'secili' : ''}" data-i="${i}"><span class="tamamla-ad">${x.tur === 'ek' ? "'" : ''}${kac(x.ad)}</span><span class="tamamla-ayrinti">${kac(x.ayrinti)}</span></div>`).join('')
+      + `<div class="tamamla-ipucu">${TAMAMLA.secildi ? 'Enter ya da Tab: seç' : 'Tab: seç · Enter: yeni satır'} · Esc: kapat</div>`;
     kutu.querySelectorAll('.tamamla-oge').forEach(o => o.addEventListener('mousedown', e => { e.preventDefault(); tamamlamaUygula(ta, +o.dataset.i); }));
   }
   function tamamlamaUygula(ta, i) {

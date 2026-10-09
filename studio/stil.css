@@ -635,6 +635,7 @@ h1, h2 { margin: 0; }
 .tamamla-oge.secili { background: var(--vurgu-17); }
 .tamamla-ad { font-family: var(--mono); color: var(--yazi); }
 .tamamla-ayrinti { margin-left: auto; color: var(--soluk3); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px; }
+.tamamla-ipucu { padding: 3px 8px; border-top: 1px solid var(--cizgi); font-size: 10.5px; color: var(--soluk3); }
 .ay-yavas { white-space: nowrap; display: flex; align-items: center; gap: 8px; margin: 2px 0 4px; padding: 6px 8px; border-radius: 8px; background: var(--vurgu-10); color: var(--yazi2); font-size: 12.5px; }
 .ay-yavas .simge { font-size: 20px; cursor: pointer; color: var(--vurgu); }
 .ay-yavas select { margin-left: auto; background: var(--girdi); border: 1px solid var(--girdi-kenar); border-radius: 6px; color: var(--yazi); font-size: 12px; padding: 2px 4px; }
@@ -735,6 +736,10 @@ details.tema-grup summary { cursor: pointer; }
 .asistan-oneri .asistan-kod { max-height: 200px; }
 .asistan-adim { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--soluk3); }
 .asistan-adim .simge { font-size: 15px; }
+.asistan-adim.hatali { color: var(--hata); }
+.asistan-derlenmiyor { display: flex; gap: 6px; margin: 6px 0; padding: 8px; border: 1px solid var(--hata); border-radius: 6px; color: var(--hata); font-size: 12px; }
+.asistan-derlenmiyor .simge { font-size: 16px; }
+.asistan-derlenmiyor pre { margin: 4px 0 0; white-space: pre-wrap; font-size: 11px; color: var(--yazi); max-height: 120px; overflow: auto; }
 .asistan-oneri { border: 1px solid var(--vurgu); border-radius: 10px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
 .asistan-oneri-baslik { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12.5px; }
 .asistan-oneri .dugme.kucuk { padding: 5px 12px; font-size: 12.5px; display: flex; align-items: center; gap: 6px; }

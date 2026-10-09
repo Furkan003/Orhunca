@@ -53,8 +53,9 @@ RewriteRule ^ orhunca.cgi [L]
 /// Veri klasörü ikinci bir önlemle de kapatılır (.htaccess yönlendirmesi çalışmasa bile).
 const HTACCESS_KAPALI: &str = "Require all denied\n";
 
-/// `cikti/cgi/` klasörünü hazırlar.
-pub fn hazirla(giris: &Path, kaynakla: bool) -> Result<PathBuf, String> {
+/// `cikti/cgi/` klasörünü hazırlar. `veriyle` verilirse projedeki `veri/*.json` kayıtları
+/// da kopyalanır; varsayılan olarak bilgisayardaki deneme verisi yayına gitmez.
+pub fn hazirla(giris: &Path, kaynakla: bool, veriyle: bool) -> Result<PathBuf, String> {
     let kok = derleme::proje_koku(giris);
     let program = derleme::yukle(giris).map_err(|h| h.metin)?;
     if program.arayuz_programi() {
@@ -73,6 +74,9 @@ pub fn hazirla(giris: &Path, kaynakla: bool) -> Result<PathBuf, String> {
     let yaz =
         |ad: &str, icerik: &[u8]| std::fs::write(cikti.join(ad), icerik).map_err(|e| e.to_string());
     yaz("veri/.htaccess", HTACCESS_KAPALI.as_bytes())?;
+    if veriyle {
+        json_kayitlari_kopyala(&kok.join("veri"), &cikti.join("veri"))?;
+    }
     if kaynakla {
         kaynaklari_kopyala(&kok, &kok, &cikti)?;
         // Giriş dosyası index.ohc değilse adres çubuğunda görünmesin diye index.ohc olur.
@@ -105,6 +109,21 @@ pub fn hazirla(giris: &Path, kaynakla: bool) -> Result<PathBuf, String> {
     }
     izinleri_ayarla(&cikti)?;
     Ok(cikti)
+}
+
+/// `veri/*.json` model kayıtlarını yayın klasörüne kopyalar (`--veriyle`).
+pub fn json_kayitlari_kopyala(kaynak: &Path, hedef: &Path) -> Result<(), String> {
+    let Ok(g) = std::fs::read_dir(kaynak) else {
+        return Ok(());
+    };
+    for d in g.flatten() {
+        let p = d.path();
+        if p.extension().is_some_and(|e| e == "json") && !hedef.join(d.file_name()).exists() {
+            std::fs::copy(&p, hedef.join(d.file_name()))
+                .map_err(|e| format!("'{}' kopyalanamadı: {e}", p.display()))?;
+        }
+    }
+    Ok(())
 }
 
 /// Projenin kaynakları (derleme çıktıları, yerel veriler ve gizli dosyalar hariç).

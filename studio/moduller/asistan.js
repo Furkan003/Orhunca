@@ -20,11 +20,17 @@
       const kod = parca.replace(/^[^\n]*\n/, '').replace(/\n$/, '');
       const orhunca = !dil || dil === 'orhunca' || dil === 'ohc';
       const no = blok++;
+      // Stüdyo yanıttaki her Orhunca bloğunu derleyip denetler (bkz. asistan.rs kod_denetimi).
+      const denetim = mesaj === undefined ? null : D.asistan.mesajlar[mesaj]?.bloklar?.[no];
+      const bozuk = orhunca && denetim?.gecti === false;
       // Orhunca kod bloğu dosyaya yazılabilir (araç kullanamayan modeller için de).
-      const dugmeler = mesaj === undefined ? '' : `<div class="asistan-blok-dugmeleri">${orhunca ? `<span data-e="asistanBlokUygula" data-a="${mesaj}:${no}" title="Bu kodu açık dosyaya yaz">${S('done')}Uygula</span>` : ''}<span data-e="asistanBlokKopyala" data-a="${mesaj}:${no}" title="Kopyala">${S('content_copy')}Kopyala</span></div>`;
-      return `<div class="asistan-blok"><pre class="asistan-kod" ${orhunca ? 'data-orhunca' : ''}>${kac(kod)}</pre>${dugmeler}</div>`;
+      const dugmeler = mesaj === undefined ? '' : `<div class="asistan-blok-dugmeleri">${orhunca ? `<span data-e="asistanBlokUygula" data-a="${mesaj}:${no}" title="Bu kodu açık dosyaya yaz">${bozuk ? S('warning') + 'Yine de uygula' : S('done') + 'Uygula'}</span>` : ''}<span data-e="asistanBlokKopyala" data-a="${mesaj}:${no}" title="Kopyala">${S('content_copy')}Kopyala</span></div>`;
+      return `<div class="asistan-blok"><pre class="asistan-kod" ${orhunca ? 'data-orhunca' : ''}>${kac(kod)}</pre>${bozuk ? asistanDerlenmiyor(denetim) : ''}${dugmeler}</div>`;
     }).join('');
   }
+  /** Asistanın verdiği kod derlenmiyorsa gösterilen uyarı. */
+  const asistanDerlenmiyor = d => `<div class="asistan-derlenmiyor">${S('error')}<div><b>Bu kod derlenmiyor.</b> Uygularsanız dosyanız çalışmaz hâle gelir.<pre>${kac(d.hata || '')}</pre></div></div>`;
+
   /** Asistan iletisindeki n. kod bloğu. */
   const asistanBlogu = (md, n) => (md.split(/```/).filter((_, i) => i % 2)[n] || '').replace(/^[^\n]*\n/, '').replace(/\n$/, '') + '\n';
 
@@ -97,12 +103,13 @@
     const mesajlar = A.mesajlar.map((m, i) => m.rol === 'kullanici'
       ? `<div class="asistan-mesaj kullanici">${kac(m.metin)}</div>`
       : `<div class="asistan-mesaj">
-          ${(m.adimlar || []).map(a => { const [simge, ad] = ADIMLAR[a.ad] || ADIMLAR.dosyayi_degistir; return `<div class="asistan-adim">${S(simge)}${ad}</div>`; }).join('')}
+          ${(m.adimlar || []).map(a => { const [simge, ad] = ADIMLAR[a.ad] || ADIMLAR.dosyayi_degistir; return a.hatali ? `<div class="asistan-adim hatali" title="${kac((a.sonuc || '').slice(0, 300))}">${S('error')}${ad}: hata buldu</div>` : `<div class="asistan-adim">${S(simge)}${ad}</div>`; }).join('')}
           <div class="asistan-metin">${mdAsistan(m.metin || '', i)}</div>
           ${m.aracsiz ? `<div class="asistan-adim" title="Araç kullanabilen bir model seçerseniz asistan kodu kendisi denetler ve çalıştırır.">${S('info')}Bu model araç kullanamıyor; kodu kendisi denetleyemedi.</div>` : ''}
           ${m.oneri ? `<div class="asistan-oneri"><div class="asistan-oneri-baslik">${S('edit_document')}<span class="esnek">${kac(m.oneri.aciklama || 'Dosya için öneri')}</span></div>
             <pre class="asistan-kod" data-orhunca>${kac(m.oneri.icerik)}</pre>
-            <div class="yan-yana" style="gap:6px">${m.uygulandi ? `<span class="panel-not">${S('check')} Uygulandı</span>` : `<div class="dugme birincil kucuk" data-e="asistanUygula" data-a="${i}">${S('done')}Uygula</div>`}<div class="dugme kucuk" data-e="asistanKopyala" data-a="${i}">${S('content_copy')}Kopyala</div></div></div>` : ''}
+            ${m.oneri_denetim?.gecti === false ? asistanDerlenmiyor(m.oneri_denetim) : ''}
+            <div class="yan-yana" style="gap:6px">${m.uygulandi ? `<span class="panel-not">${S('check')} Uygulandı</span>` : m.oneri_denetim?.gecti === false ? `<div class="dugme kucuk" data-e="asistanUygula" data-a="${i}">${S('warning')}Yine de uygula</div>` : `<div class="dugme birincil kucuk" data-e="asistanUygula" data-a="${i}">${S('done')}Uygula</div>`}<div class="dugme kucuk" data-e="asistanKopyala" data-a="${i}">${S('content_copy')}Kopyala</div></div></div>` : ''}
         </div>`).join('');
     return `<div class="panel-ic asistan-panel">${secim}
       <div class="asistan-mesajlar" id="asistanMesajlar">${mesajlar || `<div class="panel-not">Açık dosyanız soruyla birlikte gönderilir.</div>

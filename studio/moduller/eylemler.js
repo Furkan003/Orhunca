@@ -232,8 +232,8 @@
         if (sessiz !== true) cizAsistan();
         return false;
       }
-      // İlk kurulumda listenin başındaki (çoğunlukla en yeni) model seçilir.
-      if (!a.durum.model && a.modeller.length) a.durum = await api('/api/asistan/ayar', { model: a.modeller[0].kimlik });
+      // İlk kurulumda önerilen model (yerelde belleğe sığan), yoksa listenin başındaki (çoğunlukla en yeni) seçilir.
+      if (!a.durum.model && a.modeller.length) a.durum = await api('/api/asistan/ayar', { model: (a.modeller.find(m => m.varsayilan) || a.modeller[0]).kimlik });
       if (sessiz !== true) cizAsistan();
       return true;
     },
@@ -278,10 +278,14 @@
       if (istek !== a.istek) return;
       a.bekliyor = false;
       if (r.hata) { a.hata = r.hata; a.mesajlar.pop(); a.girdi = metin; }
-      else a.mesajlar.push({ rol: 'asistan', metin: r.yanit, adimlar: r.adimlar, oneri: r.oneri, aracsiz: r.aracsiz, dosya: s?.yol });
+      else a.mesajlar.push({ rol: 'asistan', metin: r.yanit, adimlar: r.adimlar, oneri: r.oneri, oneri_denetim: r.oneri_denetim, bloklar: r.bloklar, aracsiz: r.aracsiz, dosya: s?.yol });
       cizAsistan(); $('#asistanGirdi')?.focus();
     },
-    asistanDurdur() { const a = D.asistan; a.istek++; a.bekliyor = false; const son = a.mesajlar.pop(); a.girdi = son?.metin || ''; cizAsistan(); },
+    asistanDurdur() {
+      const a = D.asistan; a.istek++; a.bekliyor = false; const son = a.mesajlar.pop(); a.girdi = son?.metin || ''; cizAsistan();
+      // Sunucudaki model isteği de kesilir; yoksa yerel model yanıtı üretmeyi sürdürüp sonraki soruları bekletir.
+      api('/api/asistan/durdur', {}).catch(() => {});
+    },
     async ceviri(dil = 'python') {
       const s = etkinSekme();
       if (!s || s.ikili || uzanti(s.yol) !== 'ohc') return bildir('Önce bir Orhunca (.ohc) dosyası açın.', true);

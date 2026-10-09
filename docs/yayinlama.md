@@ -278,8 +278,10 @@ return [
 ```
 
 Her model bir tablo olur (`Ürün` → `Ürün` tablosu, `kimlik` birincil anahtar); tablolar ve sonradan
-eklenen alanlar kendiliğinden oluşturulur. Projede `veri/Ürün.json` gibi kayıt dosyaları varsa
-tablo ilk oluşturulduğunda içeri aktarılır.
+eklenen alanlar kendiliğinden oluşturulur. Bilgisayarınızdaki kayıtlar (`veri/Ürün.json` gibi)
+varsayılan olarak yayına **gitmez**; deneme ya da kişisel verilerin farkında olmadan sunucuya
+yüklenmemesi için. Bu kayıtlarla başlamak istiyorsanız `orhunca yayınla --php --veriyle` yazın;
+tablo ilk oluşturulduğunda içeri aktarılırlar. (`--cgi` için de `--veriyle` aynı biçimde çalışır.)
 
 **Yeniden yayınlamak.** Kodu değiştirince komutu yeniden çalıştırın ve `index.php` ile
 `orhunca/calisma.php` dosyalarını yükleyin. `orhunca/ayarlar.php` ve `veri/` yeniden yayınlamada

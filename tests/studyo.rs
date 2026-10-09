@@ -796,6 +796,65 @@ fn yapay_zeka_baska_saglayicilar() {
 }
 
 #[test]
+fn asistan_derlenmeyen_kodu_isaretler() {
+    // 1.0 test raporu, bulgu 6: derlenmeyen (Python) kod "denetlendi ✓" görünüp sessizce
+    // dosyaya yazılıyordu; düşünen modeller boş yanıt veriyordu; ilk model belleğe sığmıyordu.
+    use serde_json::json;
+    let (adres, istekler) = sahte_api(vec![
+        (
+            200,
+            json!({ "models": [
+                { "name": "qwen3.8:27b", "size": 17_000_000_000u64 },
+                { "name": "llama3.1:8b", "size": 4_900_000_000u64 },
+                { "name": "tinyllama:1b", "size": 600_000_000u64 },
+            ] }),
+        ),
+        (
+            200,
+            json!({ "done_reason": "stop", "message": { "role": "assistant", "content": "",
+                "tool_calls": [{ "function": { "name": "kodu_denetle", "arguments": { "kod": "if x:\n    print(1)\n" } } }] } }),
+        ),
+        // Düşünen model: içerik boş, yanıt "thinking" alanında kaldı
+        (
+            200,
+            json!({ "done_reason": "stop", "message": { "role": "assistant", "content": "", "thinking": "uzun düşünce" } }),
+        ),
+        (
+            200,
+            json!({ "done_reason": "stop", "message": { "role": "assistant",
+                "content": "İşte:\n```\nnotlar = [90, 80]\nif notlar:\n    print(notlar)\n```\n```orhunca\n\"tamam\"'ı yaz.\n```" } }),
+        ),
+    ]);
+    let s = baslat_ortamli("asistan-denetim", &[("ORHUNCA_ASISTAN_ADRESI", &adres)]);
+    s.api("/api/asistan/ayar", json!({ "saglayici": "ollama" }));
+    let (_, g) = s.istek("GET", "/api/asistan/modeller", None, true);
+    let g: serde_json::Value = serde_json::from_str(&g).unwrap();
+    let l = g["modeller"].as_array().unwrap();
+    assert_eq!(l[0]["kimlik"], "tinyllama:1b", "{g}");
+    assert_eq!(l[1]["varsayilan"], true, "{g}");
+    assert!(l[1]["ad"].as_str().unwrap().contains("GB"), "{g}");
+    let _ = istekler.recv().unwrap();
+
+    s.api("/api/asistan/ayar", json!({ "model": "llama3.1:8b" }));
+    let r = s.api(
+        "/api/asistan/sor",
+        json!({ "mesajlar": [{ "rol": "kullanici", "metin": "not ortalaması programı yaz" }] }),
+    );
+    assert_eq!(r["adimlar"][0]["hatali"], true, "{r}");
+    assert_eq!(r["bloklar"][0]["gecti"], false, "{r}");
+    assert!(
+        r["bloklar"][0]["hata"].as_str().unwrap().contains("if"),
+        "{r}"
+    );
+    assert_eq!(r["bloklar"][1]["gecti"], true, "{r}");
+    let _ = istekler.recv().unwrap();
+    let ikinci = istekler.recv().unwrap();
+    assert!(!ikinci.contains("\"think\":false"), "{ikinci}");
+    let ucuncu = istekler.recv().unwrap();
+    assert!(ucuncu.contains("\"think\":false"), "{ucuncu}");
+}
+
+#[test]
 fn yerel_gecmis() {
     use serde_json::json;
     let s = baslat("gecmis");

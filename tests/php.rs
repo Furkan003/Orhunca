@@ -355,3 +355,22 @@ al "/boş":
     drop(s);
     std::fs::remove_dir_all(&k).unwrap();
 }
+
+#[test]
+fn yerel_kayitlar_yalnizca_veriyle_kopyalanir() {
+    // 1.0 test raporu, bulgu 8: bilgisayardaki deneme verisi farkında olmadan yayına gidiyordu.
+    let k = klasor("veriyle");
+    orhunca(&k, &["yeni", "dukkan", "--şablon", "tam_yigin"]);
+    let p = k.join("dukkan");
+    std::fs::create_dir_all(p.join("veri")).unwrap();
+    std::fs::write(p.join("veri/Ürün.json"), "[]\n").unwrap();
+    for kip in ["--php", "--cgi"] {
+        let c = p.join("cikti").join(&kip[2..]);
+        orhunca(&p, &["yayınla", kip]);
+        assert!(!c.join("veri/Ürün.json").exists(), "{kip}");
+        let _ = std::fs::remove_dir_all(&c);
+        orhunca(&p, &["yayınla", kip, "--veriyle"]);
+        assert!(c.join("veri/Ürün.json").is_file(), "{kip}");
+    }
+    std::fs::remove_dir_all(&k).unwrap();
+}

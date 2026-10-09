@@ -13,7 +13,17 @@ use serde_json::{json, Value};
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::Stdio;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
+
+/// "Durdur"a basıldıkça (ya da Stüdyo sekmesi kapatılınca) artar; o an süren model istekleri
+/// kesilir. Böylece yerel model, kimsenin beklemediği bir yanıtı üretmeye devam etmez.
+static IPTAL: AtomicU64 = AtomicU64::new(0);
+
+/// Süren asistan isteklerini durdurur.
+pub fn durdur() {
+    IPTAL.fetch_add(1, Ordering::SeqCst);
+}
 
 const SISTEM: &str = "\
 Sen Orhunca Stüdyo'nun içindeki kodlama asistanısın. Orhunca, Türkçe dil bilgisine dayanan \
@@ -37,6 +47,8 @@ kullanıcı bloğun altındaki Uygula düğmesiyle kodu dosyasına yazabilir. A�
 değiştiriyorsan dosyanın yeni içeriğinin tamamını tek bir blokta ver.
 
 ";
+
+const DURDURULDU: &str = "Durduruldu.";
 
 /// Bir istekte en fazla bu kadar araç turu yapılır.
 const EN_COK_TUR: usize = 12;
@@ -433,6 +445,8 @@ struct Baglanti {
     s: &'static Saglayici,
     adres: String,
     anahtar: String,
+    /// Bağlantı kurulduğundaki iptal sayacı; değişirse istek kesilir.
+    nesil: u64,
 }
 
 impl Baglanti {
@@ -446,6 +460,7 @@ impl Baglanti {
             s,
             adres: adres(a, s),
             anahtar,
+            nesil: IPTAL.load(Ordering::SeqCst),
         })
     }
 
@@ -479,7 +494,9 @@ impl Baglanti {
         let mut komut = crate::komut("curl");
         komut
             .args(["-sS", "--connect-timeout", "15", "--max-time", "900"])
-            .args(["-w", "\n%{http_code}"])
+            .arg("-o")
+            .arg(gecici.join("yanit.json"))
+            .args(["-w", "%{http_code}"])
             .args(["-H", "content-type: application/json"]);
         for b in self.basliklar() {
             komut.args(["-H", b]);
@@ -509,6 +526,18 @@ impl Baglanti {
                     let _ = writeln!(g, "{b}");
                 }
             }
+            // Yanıt beklenirken "Durdur" denetlenir; kesilen bağlantıyla yerel model de durur.
+            loop {
+                if c.try_wait().map_err(|e| e.to_string())?.is_some() {
+                    break;
+                }
+                if IPTAL.load(Ordering::SeqCst) != self.nesil {
+                    let _ = c.kill();
+                    let _ = c.wait();
+                    return Err(DURDURULDU.into());
+                }
+                std::thread::sleep(Duration::from_millis(100));
+            }
             let c = c.wait_with_output().map_err(|e| e.to_string())?;
             if !c.status.success() {
                 let hata = String::from_utf8_lossy(&c.stderr).trim().to_string();
@@ -522,9 +551,12 @@ impl Baglanti {
                     _ => format!("İnternete bağlanılamadı: {hata}"),
                 });
             }
-            let metin = String::from_utf8_lossy(&c.stdout).into_owned();
-            let (govde, kod) = metin.rsplit_once('\n').unwrap_or(("", &metin));
-            let kod: u16 = kod.trim().parse().unwrap_or(0);
+            let kod: u16 = String::from_utf8_lossy(&c.stdout)
+                .trim()
+                .parse()
+                .unwrap_or(0);
+            let govde = std::fs::read_to_string(gecici.join("yanit.json")).unwrap_or_default();
+            let govde = govde.as_str();
             let v: Value = serde_json::from_str(govde).unwrap_or(Value::Null);
             if kod == 200 {
                 if v.is_null() {
@@ -622,14 +654,31 @@ pub fn modeller() -> Result<Value, String> {
         }
         Tur::Ollama => {
             let v = b.istek("/api/tags", None).map_err(temiz)?;
-            v["models"]
+            let mut l: Vec<(String, u64)> = v["models"]
                 .as_array()
                 .cloned()
                 .unwrap_or_default()
                 .into_iter()
                 .filter_map(|m| {
                     let ad = m["name"].as_str().or(m["model"].as_str())?;
-                    sohbet_modeli_mi(ad).then(|| json!({ "kimlik": ad, "ad": ad }))
+                    sohbet_modeli_mi(ad).then(|| (ad.to_string(), m["size"].as_u64().unwrap_or(0)))
+                })
+                .collect();
+            // Küçükten büyüğe: ilk seçilen model bilgisayarın belleğine sığsın.
+            l.sort_by_key(|(_, boyut)| *boyut);
+            let varsayilan = ollama_varsayilani(&l);
+            l.into_iter()
+                .enumerate()
+                .map(|(i, (ad, boyut))| {
+                    let gosterilen = if boyut > 0 {
+                        format!(
+                            "{ad} ({} GB)",
+                            format!("{:.1}", boyut as f64 / 1e9).replace('.', ",")
+                        )
+                    } else {
+                        ad.clone()
+                    };
+                    json!({ "kimlik": ad, "ad": gosterilen, "varsayilan": Some(i) == varsayilan })
                 })
                 .collect()
         }
@@ -662,6 +711,16 @@ pub fn modeller() -> Result<Value, String> {
         }
     };
     Ok(json!({ "modeller": liste }))
+}
+
+/// İlk kurulumda seçilecek yerel model: çoğu ekran kartına sığan (≤ 6 GB) en büyük model,
+/// yoksa en küçüğü. Liste küçükten büyüğe sıralıdır.
+fn ollama_varsayilani(l: &[(String, u64)]) -> Option<usize> {
+    if l.is_empty() {
+        return None;
+    }
+    let sigan = l.iter().rposition(|(_, b)| *b > 0 && *b <= 6_000_000_000);
+    Some(sigan.unwrap_or(0))
 }
 
 /// Araçların adı, açıklaması ve girdi şeması (sağlayıcıdan bağımsız).
@@ -740,8 +799,12 @@ fn araclar(tur: Tur) -> Value {
 fn arac_yurut(ad: &str, g: &Value, oneri: &mut Option<Value>) -> (String, bool) {
     let kod = g["kod"].as_str();
     match ad {
+        // Derleme hatası da bir sonuçtur (model okuyup düzeltir), ama adım başarısız sayılır.
         "kodu_denetle" if kod.is_some() => match ajan::denetle(kod, None) {
-            Ok(m) => (m, false),
+            Ok(m) => {
+                let hatali = m.starts_with("HATA");
+                (m, hatali)
+            }
             Err(e) => (e, true),
         },
         "kodu_calistir" if kod.is_some() => match ajan::calistir(
@@ -750,7 +813,10 @@ fn arac_yurut(ad: &str, g: &Value, oneri: &mut Option<Value>) -> (String, bool) 
             g["girdi"].as_str().unwrap_or(""),
             Duration::from_secs(10),
         ) {
-            Ok(c) => (c.metin(), false),
+            Ok(c) => {
+                let hatali = c.derleme_hatasi.is_some() || c.cikis_kodu.is_some_and(|k| k != 0);
+                (c.metin(), hatali)
+            }
             Err(e) => (e, true),
         },
         "arayuzu_dene" if kod.is_some() => {
@@ -823,8 +889,11 @@ impl Sonuc {
         } else {
             arac_yurut(ad, girdi, &mut self.oneri)
         };
-        self.adimlar
-            .push(json!({ "ad": ad, "sonuc": sonuc.chars().take(2000).collect::<String>() }));
+        self.adimlar.push(json!({
+            "ad": ad,
+            "sonuc": sonuc.chars().take(2000).collect::<String>(),
+            "hatali": hatali,
+        }));
         if hatali {
             format!("HATA: {sonuc}")
         } else {
@@ -889,7 +958,14 @@ pub fn sor(g: &Value, kisitli: bool) -> Result<Value, String> {
     }
     .map_err(|e| {
         let e = temiz(e);
-        if b.s.tur == Tur::Ollama && e.contains("not found") {
+        if b.s.yerel && bellek_hatasi_mi(&e) {
+            format!(
+                "Bu model bilgisayarınıza büyük geliyor (ekran kartı ya da sistem belleği yetmedi). \
+                 Listeden daha küçük bir model seçin (ör. 7-8 milyar parametreli, 4-6 GB'lık bir model).\n\
+                 Ayrıntı: {}",
+                e.chars().take(200).collect::<String>()
+            )
+        } else if b.s.tur == Tur::Ollama && e.contains("not found") {
             format!("{e}\nModel bu bilgisayarda yok; indirmek için: ollama pull {model}")
         } else if b.s.yerel && (e.contains("context") || e.contains("token")) {
             format!(
@@ -918,12 +994,78 @@ pub fn sor(g: &Value, kisitli: bool) -> Result<Value, String> {
             "(Model boş yanıt verdi.)".into()
         });
     }
+    let yanit = sonuc.metinler.join("\n\n");
+    // Asistanın verdiği kod son kez denetlenir: derlenmeyen kod "Uygula" ile sessizce
+    // dosyaya yazılmasın, kullanıcı uyarılsın.
+    let oneri_denetim = sonuc
+        .oneri
+        .as_ref()
+        .map(|o| kod_denetimi(o["icerik"].as_str().unwrap_or("")));
+    let bloklar: Vec<Value> = kod_bloklari(&yanit)
+        .into_iter()
+        .map(|(orhunca, kod)| {
+            if orhunca {
+                kod_denetimi(&kod)
+            } else {
+                Value::Null
+            }
+        })
+        .collect();
     Ok(json!({
-        "yanit": sonuc.metinler.join("\n\n"),
+        "yanit": yanit,
         "adimlar": sonuc.adimlar,
         "oneri": sonuc.oneri,
+        "oneri_denetim": oneri_denetim,
+        "bloklar": bloklar,
         "aracsiz": sonuc.aracsiz,
     }))
+}
+
+/// Yerel model sunucusunun "bellek yetmedi" hatası mı?
+fn bellek_hatasi_mi(e: &str) -> bool {
+    let e = e.to_lowercase();
+    [
+        "out of memory",
+        "out-of-memory",
+        "requires more system memory",
+        "cudamalloc",
+        "insufficient memory",
+        "failed to allocate",
+    ]
+    .iter()
+    .any(|k| e.contains(k))
+}
+
+/// Yanıttaki ``` kod blokları: (Orhunca mı, kod). Arayüzdeki bölmeyle aynı sırada.
+fn kod_bloklari(md: &str) -> Vec<(bool, String)> {
+    md.split("```")
+        .skip(1)
+        .step_by(2)
+        .map(|parca| {
+            let (dil, kod) = parca.split_once('\n').unwrap_or((parca, ""));
+            let dil = dil.trim().to_lowercase();
+            (
+                matches!(dil.as_str(), "" | "orhunca" | "ohc"),
+                kod.to_string(),
+            )
+        })
+        .collect()
+}
+
+/// Kodu derleyip { gecti, hata } döndürür. Projedeki başka dosyaları `kullan` eden kod tek
+/// başına derlenemeyeceğinden denetlenmez (null).
+fn kod_denetimi(kod: &str) -> Value {
+    if kod.trim().is_empty() || kod.lines().any(|s| s.trim_start().starts_with("kullan ")) {
+        return Value::Null;
+    }
+    match ajan::denetle(Some(kod), None) {
+        Ok(m) if !m.starts_with("HATA") => json!({ "gecti": true }),
+        Ok(m) => json!({
+            "gecti": false,
+            "hata": m.trim_start_matches("HATA").trim().chars().take(600).collect::<String>(),
+        }),
+        Err(e) => json!({ "gecti": false, "hata": e.chars().take(600).collect::<String>() }),
+    }
 }
 
 /// Anthropic Messages API ile araç döngüsü; son durma nedenini döndürür.
@@ -1031,11 +1173,15 @@ fn openai_sor(
         )
         .collect();
     let mut durma = String::new();
+    let mut dusunmesiz = false;
     for tur in 0..EN_COK_TUR {
         let mut govde = json!({ "model": model, "messages": mesajlar });
         if ollama {
             govde["stream"] = json!(false);
             govde["options"] = json!({ "num_ctx": OLLAMA_BAGLAM });
+            if dusunmesiz {
+                govde["think"] = json!(false);
+            }
         }
         if !sonuc.aracsiz {
             govde["tools"] = araclar(b.s.tur);
@@ -1071,8 +1217,22 @@ fn openai_sor(
             ));
         }
         durma = neden.unwrap_or("").to_string();
-        sonuc.metin(ileti["content"].as_str().unwrap_or(""));
+        let icerik = ileti["content"].as_str().unwrap_or("");
         let cagrilar = ileti["tool_calls"].as_array().cloned().unwrap_or_default();
+        // Düşünen modeller (qwen3, deepseek-r1…) bütün yanıtı "thinking" alanında bırakıp
+        // boş içerikle bitirebilir; o zaman bir kez düşünme kapalı olarak yeniden sorulur.
+        if ollama
+            && !dusunmesiz
+            && cagrilar.is_empty()
+            && dusunceyi_cikar(icerik).is_empty()
+            && ileti["thinking"]
+                .as_str()
+                .is_some_and(|d| !d.trim().is_empty())
+        {
+            dusunmesiz = true;
+            continue;
+        }
+        sonuc.metin(icerik);
         if cagrilar.is_empty() {
             break;
         }
@@ -1119,6 +1279,35 @@ fn openai_sor(
 #[cfg(test)]
 mod sinamalar {
     use super::*;
+
+    #[test]
+    fn yerel_varsayilan_model_bellege_sigar() {
+        let l = |b: &[u64]| b.iter().map(|x| ("m".to_string(), *x)).collect::<Vec<_>>();
+        assert_eq!(ollama_varsayilani(&l(&[])), None);
+        assert_eq!(
+            ollama_varsayilani(&l(&[1_300_000_000, 5_200_000_000, 17_000_000_000])),
+            Some(1)
+        );
+        assert_eq!(
+            ollama_varsayilani(&l(&[17_000_000_000, 20_000_000_000])),
+            Some(0)
+        );
+    }
+
+    #[test]
+    fn kod_bloklari_ve_denetim() {
+        let b = kod_bloklari(
+            "a\n```orhunca\n\"x\"'i yaz.\n```\nb\n```python\nprint(1)\n```\n```\nif x:\n```",
+        );
+        assert_eq!(b.len(), 3);
+        assert!(b[0].0 && !b[1].0 && b[2].0);
+        assert_eq!(kod_denetimi(&b[0].1)["gecti"], true);
+        assert_eq!(kod_denetimi(&b[2].1)["gecti"], false);
+        assert!(kod_denetimi("kullan \"a.ohc\"\n").is_null());
+        assert!(bellek_hatasi_mi(
+            "llama-server: model requires more system memory (17 GiB)"
+        ));
+    }
 
     #[test]
     fn dusunce_cikarilir() {

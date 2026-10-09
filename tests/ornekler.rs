@@ -334,6 +334,64 @@ fn on_kutuphane_programin_tanimlarindan_etkilenmez() {
 }
 
 #[test]
+fn ayni_veriye_birden_cok_program_yazabilir() {
+    // 1.0 test raporu, bulgu 1: aynı JSON veritabanına iki program aynı anda yazınca
+    // Windows'ta biri "yazılamadı" hatasıyla duruyor, kayıtların yarısı kayboluyordu.
+    let klasor = std::env::temp_dir().join(format!("orhunca-esz-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&klasor);
+    std::fs::create_dir_all(&klasor).unwrap();
+    let yazan = klasor.join("yazan.ohc");
+    std::fs::write(
+        &yazan,
+        "model Not:\n    puan: sayı\nher i için 1'den 30'e kadar:\n    n = Not(puan: i)\n    n'yi kaydet.\n",
+    )
+    .unwrap();
+    let okuyan = klasor.join("okuyan.ohc");
+    std::fs::write(
+        &okuyan,
+        "model Not:\n    puan: sayı\ntoplam = 0\nher i için 1'den 200'e kadar:\n    toplam += uzunluk(Not.hepsi())\n",
+    )
+    .unwrap();
+    let derle = |kaynak: &std::path::Path, ad: &str| {
+        let cikti = klasor.join(format!("{ad}{}", std::env::consts::EXE_SUFFIX));
+        let c = orhunca()
+            .arg("derle")
+            .arg(kaynak)
+            .arg("-o")
+            .arg(&cikti)
+            .output()
+            .unwrap();
+        assert!(c.status.success(), "{}", String::from_utf8_lossy(&c.stderr));
+        cikti
+    };
+    let (yazan, okuyan) = (derle(&yazan, "yazan"), derle(&okuyan, "okuyan"));
+    let mut surecler = Vec::new();
+    for p in [&yazan, &yazan, &yazan, &okuyan] {
+        surecler.push(
+            std::process::Command::new(p)
+                .env("ORHUNCA_VERI", klasor.join("veri"))
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+                .unwrap(),
+        );
+    }
+    for s in surecler {
+        let c = s.wait_with_output().unwrap();
+        assert!(c.status.success(), "{}", String::from_utf8_lossy(&c.stderr));
+    }
+    let veri = std::fs::read_to_string(klasor.join("veri/Not.json")).unwrap();
+    assert_eq!(veri.matches("\"kimlik\": ").count(), 90, "{veri}");
+    for k in 1..=90 {
+        assert!(
+            veri.contains(&format!("\"kimlik\": {k},")),
+            "kimlik {k} yok: {veri}"
+        );
+    }
+    let _ = std::fs::remove_dir_all(&klasor);
+}
+
+#[test]
 fn nan_ve_sonsuz_veriye_karismaz() {
     // Hata raporu B21: NaN doğrulamayı geçip kayıtta sessizce 0'a dönüşüyordu.
     let klasor = std::env::temp_dir().join(format!("orhunca-nan-{}", std::process::id()));
