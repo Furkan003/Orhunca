@@ -27,6 +27,11 @@
       "kaynak": "github:Furkan003/Orhunca#:kütüphaneler/özet"
     },
     {
+      "ad": "giriş",
+      "açıklama": "Web uygulamaları için üyelik: kayıt, giriş, çıkış, roller, şifre değiştirme ve sıfırlama, deneme sınırı, form anahtarı (CSRF)",
+      "kaynak": "github:Furkan003/Orhunca#:kütüphaneler/giriş"
+    },
+    {
       "ad": "doğrula_tr",
       "açıklama": "Türkiye'ye özgü doğrulamalar: T.C. kimlik no, vergi no, IBAN, telefon, plaka, posta kodu; e-posta, kart (Luhn) ve şifre gücü",
       "kaynak": "github:Furkan003/Orhunca#:kütüphaneler/doğrula_tr"

@@ -550,7 +550,8 @@ bir dosya (adı `_sına.ohc` ile biten ya da `sınama_` ile başlayan) baştan s
 çalışır; ilk kalan satırda durur. Birden çok sınamayı ayrı ayrı görmek için işlevlere bölün.
 
 `orhunca sına` projedeki bütün sınamaları çalıştırır; her sınama ayrı denenir, birinin hatası
-ötekileri durdurmaz. `orhunca sına hesap_sına.ohc --ad toplama` yalnızca adında "toplama" geçenleri,
+ötekileri durdurmaz. Her sınama kendi boş veri klasörüyle çalışır: kaydedilen modeller
+projenin gerçek `veri/` klasörüne dokunmaz. `orhunca sına hesap_sına.ohc --ad toplama` yalnızca adında "toplama" geçenleri,
 `--json` sonucu makinenin okuyacağı biçimde verir. Bir sınama kalırsa çıkış kodu 1'dir (CI için).
 Stüdyo'da soldaki **Sınamalar** paneli sınamaları listeler; hepsini, bir dosyayı ya da tek bir
 sınamayı çalıştırır ve kalanların mesajını gösterir. `doğrula` ve `eşit_olmalı` sınama dosyası

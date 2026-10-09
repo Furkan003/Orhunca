@@ -276,6 +276,11 @@ pub const YERLESIKLER: &[Yerlesik] = &[
         "rastgele() → ondalık · rastgele(a, b) → sayı",
         "Rastgele sayı; a ve b dahil."
     ),
+    y!(
+        "güvenli_anahtar",
+        "güvenli_anahtar(bayt_sayısı) → metin",
+        "Tahmin edilemeyen rastgele anahtar (onaltılık; 16 bayt → 32 karakter). Oturum, şifre sıfırlama ve API anahtarları için; rastgele() bu işler için güvenli değildir."
+    ),
     // Zaman ve sistem
     y!(
         "zaman",

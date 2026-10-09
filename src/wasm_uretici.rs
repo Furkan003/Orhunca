@@ -2261,6 +2261,10 @@ impl Uretici<'_> {
                 self.cagri("ohc_bit", &d)?
             }
             "rastgele" if d.is_empty() => self.cagri("ohc_rastgele", &d)?,
+            "güvenli_anahtar" => {
+                d.push(satir);
+                self.cagri("ohc_guvenli_anahtar", &d)?
+            }
             "rastgele" => {
                 d.push(satir);
                 self.cagri("ohc_rastgele_aralik", &d)?

@@ -89,6 +89,7 @@ döngüler, fiiller, modeller) için: [dil rehberi](dil-rehberi.md).
 | `tanjant` | `tanjant(radyan) → ondalık` | Tanjant. |
 | `logaritma` | `logaritma(x) · logaritma(x, taban) → ondalık` | Doğal ya da verilen tabanda logaritma. |
 | `rastgele` | `rastgele() → ondalık · rastgele(a, b) → sayı` | Rastgele sayı; a ve b dahil. |
+| `güvenli_anahtar` | `güvenli_anahtar(bayt_sayısı) → metin` | Tahmin edilemeyen rastgele anahtar (onaltılık; 16 bayt → 32 karakter). Oturum, şifre sıfırlama ve API anahtarları için; rastgele() bu işler için güvenli değildir. |
 
 ## Zaman ve sistem
 

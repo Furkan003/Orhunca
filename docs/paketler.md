@@ -69,6 +69,7 @@ dosyalarındadır (`orhunca sına kütüphaneler`).
 | `karekod` | QR kod: SVG, terminal, `<img>` adresi | `karekod_svg`, `karekod_svg_ayarlı`, `karekod_resim_adresi`, `karekod_metin`, `karekod_matrisi`, `wifi_içeriği`, `kartvizit_içeriği`, `e_posta_içeriği`, `sms_içeriği`, `telefon_içeriği`, `konum_içeriği` |
 | `barkod` | Code 128, EAN-13, EAN-8 barkodları (SVG) | `code128_svg`, `ean13_svg`, `ean8_svg`, `ean13_tamamla`, `ean_geçerli_mi` |
 | `özet` | Karma ve kodlama; giriş sistemleri için şifre saklama | `sha256`, `hmac_sha256`, `base64_kodla`, `base64_çöz`, `base64_adres_kodla`, `crc32`, `şifre_karması`, `şifre_doğru_mu` |
+| `giriş` | Üyelik sistemi (özet paketini kullanır) | `kayıt_ol`, `giriş_yap`, `çıkış_yap`, `giriş_yapıldı_mı`, `oturumdaki_kullanıcı`, `rolü_var_mı`, `şifre_değiştir`, `sıfırlama_anahtarı_üret`, `şifreyi_sıfırla`, `form_anahtarı`, `form_anahtarı_doğru_mu` |
 | `doğrula_tr` | Türkiye'ye özgü form doğrulamaları | `tc_kimlik_geçerli_mi`, `vergi_no_geçerli_mi`, `iban_geçerli_mi`, `iban_biçimle`, `telefon_geçerli_mi`, `telefon_biçimle`, `plaka_geçerli_mi`, `posta_kodu_geçerli_mi`, `e_posta_geçerli_mi`, `url_geçerli_mi`, `kart_no_geçerli_mi`, `kart_türü`, `kart_gizle`, `şifre_eksikleri`, `şifre_gücü_yazısı` |
 | `insancıl` | Sayıları ve zamanı insanların okuyacağı biçime çevirir | `sayı_yazıyla`, `para_yazıyla`, `sıra_sayısı`, `ek_ekle`, `çoğul`, `sayılı`, `liste_yazısı`, `dosya_boyutu`, `kısa_sayı`, `süre_yazısı`, `süre_önce`, `göreli_zaman`, `roma_rakamı` |
 | `metin_araçları` | Metin işleme | `slug`, `ascii_yap`, `kısalt`, `başlık_biçimi`, `levenshtein`, `benzerlik`, `en_benzer`, `maskele`, `e_posta_maskele`, `satırlara_böl`, `okuma_süresi`, `html_temizle` |
@@ -94,8 +95,12 @@ kayıt = şifre_karması("gizli123")                                  # veritaba
 
 Notlar:
 
-- `özet` paketinin `şifre_karması` işlevi PBKDF2-SHA256 (20.000 tur, rastgele tuz) kullanır;
-  `kimlik` ve `sahte_veri` paketlerinin rastgele değerleri şifreleme amaçlı değildir.
+- `özet` paketinin `şifre_karması` işlevi PBKDF2-SHA256 (20.000 tur, tahmin edilemez tuz) kullanır;
+  `kimlik` paketinin kimlikleri de `güvenli_anahtar` ile üretilir. `sahte_veri` yalnızca deneme içindir.
+- `giriş` paketi `Kullanıcı` modelini tanımlar (ad, e_posta, rol …). İlk kayıt olan kullanıcının rolü
+  `yönetici`dir. Üst üste 5 hatalı denemede hesap 15 dakika kilitlenir; girişte oturum kimliği
+  yenilenir. Şifre sıfırlama anahtarı tek kullanımlıktır ve 1 saat geçerlidir; e-postayla göndermek
+  uygulamaya kalır.
 - `günlük` ayarları ortam değişkenleriyle yapılır: `GUNLUK_DOSYASI`, `GUNLUK_DUZEYI`
   (`ayrıntı`, `bilgi`, `uyarı`, `hata`), `GUNLUK_BICIMI=json`, `GUNLUK_EKRAN=hayır`.
 - `grafik_svg` renkleri renk körlüğüne uygun sabit sırayla verilir ve koyu temaya uyar; her grafik

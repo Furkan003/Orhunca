@@ -1431,6 +1431,14 @@ function o_model_sil_kimlik(string $sinif, int $kimlik): bool
     return $s->rowCount() > 0;
 }
 
+function o_guvenli_anahtar(int $n): string
+{
+    if ($n < 1 || $n > 512) {
+        o_hata('güvenli_anahtar: bayt sayısı 1 ile 512 arasında olmalı');
+    }
+    return bin2hex(random_bytes($n));
+}
+
 /** Ham SQL: modellerin tabloları önce hazırlanır; `?` yerlerine değerler bağlanır. */
 function o_sql_hazir(string $sorgu, ?OListe $degerler)
 {
@@ -1665,7 +1673,9 @@ function o_oturum_ac(): void
     session_start();
 }
 
-function o_oturum_yaz(OSozluk $o): void
+/** Oturum geri yazılır. Yol oturumu yeni bir sözlükle değiştirdiyse (`istek.oturum = {}`, ör. girişte)
+ * oturum kimliği yenilenir: önceden ele geçirilmiş kimlik girişten sonra işe yaramaz. */
+function o_oturum_yaz(OSozluk $o, bool $yenilendi = false): void
 {
     $veri = [];
     foreach ($o->o as [$k, $v]) {
@@ -1681,6 +1691,8 @@ function o_oturum_yaz(OSozluk $o): void
     }
     if (session_status() === PHP_SESSION_NONE) {
         o_oturum_ac();
+    } elseif ($yenilendi) {
+        session_regenerate_id(true);
     }
     $_SESSION['ohc'] = $veri;
 }
@@ -1761,10 +1773,11 @@ function o_sun(...$a): void
         return;
     }
     $istek = o_istek_yap($yol, $secilen[1]);
+    $ilk_oturum = $istek->oturum;
     ob_start();
     $y = ($secilen[0])($istek);
     ob_end_clean();
-    o_oturum_yaz($istek->oturum);
+    o_oturum_yaz($istek->oturum, $istek->oturum !== $ilk_oturum);
     if ($y === null) {
         http_response_code(204);
         ini_set('default_mimetype', '');

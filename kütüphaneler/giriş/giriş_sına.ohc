@@ -1,0 +1,68 @@
+kullan "giriş.ohc"
+
+işlev sına_kayıt_ve_giriş():
+    sil_hepsi()
+    eşit_olmalı(kayıt_ol("Ayşe", "Ayse@Ornek.COM", "gizli1234"), "")
+    eşit_olmalı(kullanıcı_bul("ayse@ornek.com").ad, "Ayşe")
+    eşit_olmalı(kullanıcı_bul("ayse@ornek.com").rol, "yönetici")
+    eşit_olmalı(kayıt_ol("Ali", "AYSE@ornek.com", "baska1234"), "Bu e-posta adresiyle kayıtlı bir hesap var.")
+    eşit_olmalı(kayıt_ol("Ali", "ali@ornek", "baska1234"), "E-posta geçerli bir e-posta adresi olmalı")
+    eşit_olmalı(kayıt_ol("Ali", "ali@ornek.com", "kısa1"), "Şifre en az 8 karakter olmalı.")
+    eşit_olmalı(kayıt_ol("Ali", "ali@ornek.com", "yalnizharf"), "Şifrede en az bir rakam olmalı.")
+    eşit_olmalı(kayıt_ol("Ali", "ali@ornek.com", "baska1234"), "")
+    eşit_olmalı(kullanıcı_bul("ali@ornek.com").rol, "üye")
+    # Şifre açık hâliyle saklanmaz
+    doğrula(değil içerir(kullanıcı_bul("ali@ornek.com").şifre_karması, "baska1234"))
+
+    i = İstek()
+    doğrula(değil giriş_yapıldı_mı(i))
+    eşit_olmalı(giriş_yap(i, "ali@ornek.com", "yanlis1234"), "E-posta ya da şifre yanlış.")
+    eşit_olmalı(giriş_yap(i, "yok@ornek.com", "baska1234"), "E-posta ya da şifre yanlış.")
+    eşit_olmalı(giriş_yap(i, " ALI@ornek.com ", "baska1234"), "")
+    doğrula(giriş_yapıldı_mı(i))
+    eşit_olmalı(oturumdaki_kullanıcı(i).ad, "Ali")
+    doğrula(değil rolü_var_mı(i, "yönetici"))
+    çıkış_yap(i)
+    doğrula(değil giriş_yapıldı_mı(i))
+
+işlev sına_deneme_sınırı():
+    sil_hepsi()
+    kayıt_ol("Can", "can@ornek.com", "parola1234")
+    i = İstek()
+    her n için 1'den 5'e kadar:
+        giriş_yap(i, "can@ornek.com", "yanlis1234")
+    # Kilitliyken doğru şifre de kabul edilmez
+    doğrula(başlar(giriş_yap(i, "can@ornek.com", "parola1234"), "Çok fazla hatalı deneme"))
+    doğrula(değil giriş_yapıldı_mı(i))
+
+işlev sına_şifre_değiştir_ve_sıfırla():
+    sil_hepsi()
+    kayıt_ol("Ece", "ece@ornek.com", "ilksifre1")
+    k = kullanıcı_bul("ece@ornek.com")
+    eşit_olmalı(şifre_değiştir(k, "yanlis111", "yenisifre2"), "Mevcut şifre yanlış.")
+    eşit_olmalı(şifre_değiştir(k, "ilksifre1", "yenisifre2"), "")
+    eşit_olmalı(sıfırlama_anahtarı_üret("yok@ornek.com"), "")
+    a = sıfırlama_anahtarı_üret("ece@ornek.com")
+    eşit_olmalı(uzunluk(a), 48)
+    # Anahtarın kendisi saklanmaz
+    doğrula(kullanıcı_bul("ece@ornek.com").sıfırlama_özeti != a)
+    eşit_olmalı(şifreyi_sıfırla("x", "ucuncu333"), "Sıfırlama bağlantısı geçersiz.")
+    eşit_olmalı(şifreyi_sıfırla(a, "ucuncu333"), "")
+    # Tek kullanımlık
+    eşit_olmalı(şifreyi_sıfırla(a, "dorduncu4"), "Sıfırlama bağlantısı geçersiz.")
+    i = İstek()
+    eşit_olmalı(giriş_yap(i, "ece@ornek.com", "ucuncu333"), "")
+
+işlev sına_form_anahtarı():
+    i = İstek()
+    doğrula(değil form_anahtarı_doğru_mu(i))
+    a = form_anahtarı(i)
+    eşit_olmalı(form_anahtarı(i), a)
+    i.form["form_anahtarı"] = "uydurma"
+    doğrula(değil form_anahtarı_doğru_mu(i))
+    i.form["form_anahtarı"] = a
+    doğrula(form_anahtarı_doğru_mu(i))
+
+işlev sil_hepsi():
+    her k için Kullanıcı.hepsi()'nden:
+        k'yı sil.

@@ -5,22 +5,46 @@
 #   kısa_kimlik(10)'u yaz.         # "V1StGXR8_Z"
 #   sayı_kodu(125)'i yaz.          # "21" (adres kısaltıcılar için)
 #
-# Not: Orhunca'nın rastgele() işlevi kriptografik değildir; bu kimlikler tahmin edilemez
-# olmak zorunda olmayan yerler (kayıt numarası, dosya adı, sipariş kodu) içindir. Şifre
-# sıfırlama bağlantısı gibi gizli belirteçler için kullanmayın.
+# Rastgele kısımlar işletim sisteminin güvenli kaynağından (güvenli_anahtar) gelir; kimlikler
+# tahmin edilemez.
 
 işlev kimlik_onaltılık_hane(x: sayı) -> metin:
     döndür "0123456789abcdef"[x]
 
+işlev kimlik_hane_değeri(c: sayı) -> sayı:
+    eğer c <= 57 ise:
+        döndür c - 48
+    döndür c - 87
+
+# Tahmin edilemeyen n rastgele bayt (0–255)
+işlev kimlik_baytları(n: sayı) -> liste<sayı>:
+    h = kodlar(güvenli_anahtar(n))
+    b: liste<sayı> = []
+    her i için 0'dan n - 1'e kadar:
+        (kimlik_hane_değeri(h[2 * i]) * 16 + kimlik_hane_değeri(h[2 * i + 1]))'i b'ye ekle.
+    döndür b
+
+# 0 ile n - 1 arasında eşit olasılıklı rastgele sayılar (n ≤ 256): tam bölünmeyen
+# kısma düşen baytlar atılır, böylece hiçbir karakter daha sık çıkmaz.
+işlev kimlik_rastgeleler(adet: sayı, n: sayı) -> liste<sayı>:
+    sınır = 256 - 256 % n
+    s: liste<sayı> = []
+    uzunluk(s) adet'ten küçük olduğu sürece:
+        her b için kimlik_baytları(adet)'tan:
+            eğer b < sınır ve uzunluk(s) < adet ise:
+                (b % n)'yi s'ye ekle.
+    döndür s
+
 # UUID sürüm 4 (rastgele), RFC 9562
 işlev uuid() -> metin:
+    r = kimlik_rastgeleler(32, 16)
     p: liste<metin> = []
     her i için 0'dan 31'e kadar:
-        x = rastgele(0, 15)
+        x = r[i]
         eğer i == 12 ise:
             x = 4
         eğer i == 16 ise:
-            x = 8 + rastgele(0, 3)
+            x = 8 + x % 4
         kimlik_onaltılık_hane(x)'i p'ye ekle.
         eğer i == 7 veya i == 11 veya i == 15 veya i == 19 ise:
             "-"'yi p'ye ekle.
@@ -42,16 +66,16 @@ işlev uuid_geçerli_mi(m: metin) -> mantık:
 işlev kısa_kimlik(uzunluk_: sayı) -> metin:
     abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"
     p: liste<metin> = []
-    her i için 1'den uzunluk_'a kadar:
-        abc[rastgele(0, 63)]'ü p'ye ekle.
+    her x için kimlik_rastgeleler(uzunluk_, 64)'ten:
+        abc[x]'i p'ye ekle.
     döndür birleştir(p, "")
 
 # Okunması kolay kod: karışan harfler (0/O, 1/I/l) yok. Sipariş ve davet kodları için.
 işlev okunur_kod(uzunluk_: sayı) -> metin:
     abc = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
     p: liste<metin> = []
-    her i için 1'den uzunluk_'a kadar:
-        abc[rastgele(0, 30)]'u p'ye ekle.
+    her x için kimlik_rastgeleler(uzunluk_, 31)'den:
+        abc[x]'i p'ye ekle.
     döndür birleştir(p, "")
 
 # ULID: 26 karakter, ilk 10'u milisaniye cinsinden zaman; metin olarak sıralanınca
@@ -64,8 +88,8 @@ işlev sıralı_kimlik() -> metin:
         abc[ms % 32]'yi z'ye ekle.
         ms = ms // 32
     p = ters(z)
-    her i için 1'den 16'ya kadar:
-        abc[rastgele(0, 31)]'i p'ye ekle.
+    her x için kimlik_rastgeleler(16, 32)'den:
+        abc[x]'i p'ye ekle.
     döndür birleştir(p, "")
 
 # ULID'nin zamanı (Unix saniyesi)

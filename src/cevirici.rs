@@ -1582,6 +1582,10 @@ impl Cevirici {
                     ithal(self, "os");
                     atom(format!("os.path.exists({})", a[0]))
                 }
+                ("güvenli_anahtar", 1) => {
+                    ithal(self, "secrets");
+                    atom(format!("secrets.token_hex({})", a[0]))
+                }
                 ("sql_sorgu" | "sql_çalıştır", 1 | 2) => {
                     ithal(self, "os");
                     ithal(self, "sqlite3");
@@ -1792,6 +1796,10 @@ impl Cevirici {
                 ("zaman", 0) => atom("Date.now() / 1000".into()),
                 ("oku", 0) => atom("prompt(\"\")".into()),
                 ("argümanlar", 0) => atom("process.argv.slice(2)".into()),
+                ("güvenli_anahtar", 1) => atom(format!(
+                    "require(\"crypto\").randomBytes({}).toString(\"hex\")",
+                    a[0]
+                )),
                 ("ortam", 1) => atom(format!("(process.env[{}] ?? \"\")", a[0])),
                 ("çık", 1) => atom(format!("process.exit({})", a[0])),
                 ("hata_ver", _) => atom(format!("throw new Error({})", a[0])),

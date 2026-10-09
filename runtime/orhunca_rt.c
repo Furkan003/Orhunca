@@ -854,6 +854,40 @@ static uint64_t rng(void) {
 
 int64_t ohc_rastgele(void) { return bitlere((double)(rng() >> 11) * (1.0 / 9007199254740992.0)); }
 
+/* İşletim sisteminin şifrelemeye uygun rastgele kaynağı; başarısızsa 0. */
+static int sistem_rastgele(unsigned char *b, size_t n) {
+#ifdef __wasm__
+    for (size_t i = 0; i < n; i++) {
+        int32_t tamam = 0;
+        b[i] = (unsigned char)js_guvenli_rastgele(&tamam);
+        if (!tamam) return 0;
+    }
+    return 1;
+#elif defined(_WIN32)
+    typedef BOOLEAN(WINAPI * RtlGenRandomT)(PVOID, ULONG);
+    HMODULE m = LoadLibraryA("advapi32.dll");
+    RtlGenRandomT f = m ? (RtlGenRandomT)(void *)GetProcAddress(m, "SystemFunction036") : NULL;
+    return f && f(b, (ULONG)n);
+#else
+    FILE *u = fopen("/dev/urandom", "rb");
+    if (!u) return 0;
+    int tamam = fread(b, 1, n, u) == n;
+    fclose(u);
+    return tamam;
+#endif
+}
+
+/* `güvenli_anahtar(n)`: n rastgele bayt, onaltılık (oturum ve şifre sıfırlama anahtarları için).
+ * rastgele()'nin aksine tahmin edilemez; güvenli kaynak yoksa hata verir. */
+int64_t ohc_guvenli_anahtar(int64_t n, int64_t satir) {
+    if (n < 1 || n > 512) hata(satir, "güvenli_anahtar: bayt sayısı 1 ile 512 arasında olmalı");
+    unsigned char b[512];
+    char s[1025];
+    if (!sistem_rastgele(b, (size_t)n)) hata(satir, "işletim sisteminin güvenli rastgele kaynağı kullanılamadı");
+    for (int64_t i = 0; i < n; i++) snprintf(s + 2 * i, 3, "%02x", b[i]);
+    return metin_yap(s, (size_t)(2 * n));
+}
+
 /* 64 × 64 bitlik çarpımın üst 64 biti */
 static uint64_t ust_carpim(uint64_t a, uint64_t b) {
     uint64_t a0 = (uint32_t)a, a1 = a >> 32, b0 = (uint32_t)b, b1 = b >> 32;
@@ -4002,20 +4036,7 @@ static SATIR_ICI_DEGIL int64_t yolu_calistir(int64_t (*islev)(int64_t), int64_t 
 /* ---------------------------------------------------------------------- */
 
 static void rastgele_baytlar(unsigned char *b, size_t n) {
-    int tamam = 0;
-#ifdef _WIN32
-    typedef BOOLEAN(WINAPI * RtlGenRandomT)(PVOID, ULONG);
-    HMODULE m = LoadLibraryA("advapi32.dll");
-    RtlGenRandomT f = m ? (RtlGenRandomT)(void *)GetProcAddress(m, "SystemFunction036") : NULL;
-    if (f && f(b, (ULONG)n)) tamam = 1;
-#else
-    FILE *u = fopen("/dev/urandom", "rb");
-    if (u) {
-        tamam = fread(b, 1, n, u) == n;
-        fclose(u);
-    }
-#endif
-    if (!tamam)
+    if (!sistem_rastgele(b, n))
         for (size_t i = 0; i < n; i++) b[i] = (unsigned char)(rng() >> 56);
 }
 
@@ -4454,6 +4475,12 @@ static void istegi_isle(Yanit *y, char *v, size_t n, size_t govde_basi, const ch
                         cerez_ekle(&y->cerezler, OTURUM_CEREZI, "", tls, 1);
                     }
                 } else {
+                    /* Yol oturumu yeni bir sözlükle değiştirdiyse (ör. girişte `istek.oturum = {}`)
+                     * yeni bir kimlik verilir: önceden ele geçirilmiş kimlik girişten sonra işe yaramaz. */
+                    if (o && son_oturum != oturum) {
+                        oturum_sil(o);
+                        o = NULL;
+                    }
                     if (!o) {
                         /* Bellek sınırı: en eski oturum yer açar. */
                         if (oturum_sayisi >= EN_COK_OTURUM) {

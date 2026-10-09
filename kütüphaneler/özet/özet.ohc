@@ -342,9 +342,8 @@ işlev pbkdf2(şifre: liste<sayı>, tuz: liste<sayı>, tur: sayı) -> liste<say�
     döndür t
 
 işlev şifre_karması(şifre: metin) -> metin:
-    tuz: liste<sayı> = []
-    her i için 1'den 16'ya kadar:
-        rastgele(0, 255)'i tuz'a ekle.
+    # Tuz tahmin edilemez olmalı: işletim sisteminin güvenli rastgele kaynağından
+    tuz = onaltılıktan(güvenli_anahtar(16))
     karma = pbkdf2(utf8_baytları(şifre), tuz, ŞİFRE_TURU)
     döndür "pbkdf2-sha256$" + ŞİFRE_TURU + "$" + base64_baytları(tuz, yanlış) + "$" + base64_baytları(karma, yanlış)
 

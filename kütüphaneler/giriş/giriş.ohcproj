@@ -1,0 +1,7 @@
+ad = "giriş"
+sürüm = "1.0.0"
+giriş = "giriş.ohc"
+açıklama = "Web uygulamaları için üyelik: kayıt, giriş, çıkış, roller, şifre değiştirme ve sıfırlama, deneme sınırı, form anahtarı (CSRF)"
+
+[bağımlılıklar]
+özet = "github:Furkan003/Orhunca#:kütüphaneler/özet"

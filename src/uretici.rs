@@ -69,6 +69,7 @@ pub(crate) const CALISMA_ZAMANI: &[(&str, usize, bool)] = &[
     ("ohc_dosya_sil", 1, true),
     ("ohc_dosya_tasi", 2, true),
     ("ohc_sql_sorgu", 3, true),
+    ("ohc_guvenli_anahtar", 2, true),
     ("ohc_sql_calistir", 3, true),
     ("ohc_metin_parca", 3, true),
     ("ohc_liste_parca", 3, true),
@@ -1270,6 +1271,7 @@ impl Uretici<'_, '_> {
             }
             "rastgele" if d.is_empty() => self.cz("ohc_rastgele", &[]),
             "rastgele" => self.cz("ohc_rastgele_aralik", &[d[0], d[1], satir]),
+            "güvenli_anahtar" => self.cz("ohc_guvenli_anahtar", &[d[0], satir]),
             "zaman" => self.cz("ohc_zaman", &[]),
             "tarih" => self.cz("ohc_tarih", &[]),
             "bekle" => self.cz("ohc_bekle", d),

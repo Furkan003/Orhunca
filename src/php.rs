@@ -66,6 +66,7 @@ const YERLESIKLER: &[(&str, &str)] = &[
     ("tanjant", "o_tanjant"),
     ("logaritma", "o_logaritma"),
     ("rastgele", "o_rastgele"),
+    ("güvenli_anahtar", "o_guvenli_anahtar"),
     ("zaman", "o_zaman"),
     ("tarih", "o_tarih"),
     ("bekle", "o_bekle"),

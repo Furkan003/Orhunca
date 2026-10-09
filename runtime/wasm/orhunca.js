@@ -306,6 +306,12 @@
         }
       },
       rastgele_tohum: () => (Math.random() * 4294967296) >>> 0,
+      guvenli_rastgele(tamam) {
+        const c = globalThis.crypto;
+        if (!c || !c.getRandomValues) return 0;
+        sayiYaz(tamam, 1);
+        return c.getRandomValues(new Uint32Array(1))[0];
+      },
       arguman_sayisi: () => 1 + argumanlar.length,
       arguman: (i) => metinAyir(i === 0 ? 'program' : String(argumanlar[i - 1])),
       hata_yakala() {

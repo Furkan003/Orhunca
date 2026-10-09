@@ -37,6 +37,8 @@ JS(bekle) void js_bekle(double saniye);
  * açıklaması. Desteklenmiyorsa 0. */
 JS(http) char *js_http(const char *yontem, const char *adres, const char *govde, int32_t gn, const char *basliklar, int32_t *n, int32_t *durum);
 JS(rastgele_tohum) uint32_t js_rastgele_tohum(void);
+/* Şifrelemeye uygun 32 rastgele bit (crypto.getRandomValues); yoksa 0 döner ve *tamam 0 olur. */
+JS(guvenli_rastgele) uint32_t js_guvenli_rastgele(int32_t *tamam);
 JS(arguman_sayisi) int32_t js_arguman_sayisi(void); /* program adı dahil */
 JS(arguman) char *js_arguman(int32_t sira);         /* malloc'lu */
 /* Çalışma hatası: bir `dene:` bloğunun içindeysek JavaScript istisnası fırlatır

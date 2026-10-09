@@ -2126,6 +2126,7 @@ impl Denetci {
             ("bit_ve" | "bit_veya" | "bit_xor" | "sola_kaydır" | "sağa_kaydır", [Sayi, Sayi]) => Sayi,
             ("rastgele", []) => Ondalik,
             ("rastgele", [Sayi, Sayi]) => Sayi,
+            ("güvenli_anahtar", [Sayi]) => Metin,
             ("zaman", []) => Ondalik,
             ("tarih" | "oku", []) => Metin,
             ("bekle", [x]) if x.sayisal() => {

@@ -1,0 +1,199 @@
+# giriş: web uygulamaları için üyelik sistemi.
+#   kullan "giriş"
+#
+#   gönder "/kayıt":
+#       hata = kayıt_ol(istek.form["ad"], istek.form["e_posta"], istek.form["şifre"])
+#       ...
+#   gönder "/giriş":
+#       hata = giriş_yap(istek, istek.form["e_posta"], istek.form["şifre"])
+#       eğer hata == "" ise:
+#           döndür yönlendir("/panel")
+#   al "/panel":
+#       eğer değil giriş_yapıldı_mı(istek) ise:
+#           döndür yönlendir("/giriş")
+#       k = oturumdaki_kullanıcı(istek)
+#   al "/çıkış":
+#       çıkış_yap(istek)
+#
+# Güvenlik:
+# - Şifreler özet paketinin şifre_karması işleviyle (PBKDF2-SHA256, tuzlu) saklanır; şifrenin
+#   kendisi hiçbir yerde tutulmaz.
+# - Üst üste 5 hatalı denemede hesap 15 dakika kilitlenir. Hata mesajı, e-postanın kayıtlı olup
+#   olmadığını belli etmez.
+# - Girişte oturum kimliği yenilenir. Formlar için form_anahtarı(istek) / form_anahtarı_doğru_mu(istek).
+# - Şifre sıfırlama anahtarı tek kullanımlıktır, 1 saat geçerlidir ve yalnızca özeti saklanır.
+
+kullan "../özet/özet.ohc"
+
+model Kullanıcı:
+    ad: metin, zorunlu, en_fazla 80
+    e_posta: metin, zorunlu, e_posta, etiket "E-posta"
+    şifre_karması: metin
+    rol: metin = "üye"
+    kayıt_zamanı: ondalık
+    son_giriş: ondalık
+    hatalı_deneme: sayı
+    kilit_bitişi: ondalık
+    sıfırlama_özeti: metin
+    sıfırlama_bitişi: ondalık
+
+sabit GİRİŞ_EN_ÇOK_DENEME = 5
+sabit GİRİŞ_KİLİT_SÜRESİ = 900.0
+sabit GİRİŞ_SIFIRLAMA_SÜRESİ = 3600.0
+sabit GİRİŞ_OTURUM_ANAHTARI = "giriş_kimlik"
+sabit GİRİŞ_FORM_ANAHTARI = "giriş_form_anahtarı"
+sabit GİRİŞ_YANLIŞ = "E-posta ya da şifre yanlış."
+# Kayıtlı olmayan e-postayla denemede de bir şifre denetlenir; yanıt süresi hesabın varlığını
+# belli etmesin diye (rastgele bir şifrenin karması).
+sabit GİRİŞ_SAHTE_KARMA = "pbkdf2-sha256$20000$1uKYrgv2TguRX90gKapHwA==$Y07VqsjHq5k31WI7wDz5xaBTpaOAim65aKOc4KGO3J4="
+
+# E-posta adresi küçük harfle saklanır (Türkçe I → ı dönüşümü yapılmadan, yalnızca A–Z).
+işlev e_posta_sadeleştir(e_posta: metin) -> metin:
+    k = kodlar(kırp(e_posta))
+    her i için 0'dan uzunluk(k) - 1'e kadar:
+        eğer k[i] >= 65 ve k[i] <= 90 ise:
+            k[i] = k[i] + 32
+    döndür kodlardan(k)
+
+# Şifre kuralı: en az 8 karakter, en az bir harf ve bir rakam. Uygunsa boş metin döner.
+işlev şifre_sorunu(şifre: metin) -> metin:
+    eğer uzunluk(şifre) < 8 ise:
+        döndür "Şifre en az 8 karakter olmalı."
+    eğer uzunluk(şifre) > 200 ise:
+        döndür "Şifre en fazla 200 karakter olabilir."
+    harf_var = yanlış
+    rakam_var = yanlış
+    her c için harfler(şifre)'den:
+        eğer kod(c) >= 48 ve kod(c) <= 57 ise:
+            rakam_var = doğru
+        değilse eğer büyük_harf(c) != küçük_harf(c) ise:
+            harf_var = doğru
+    eğer değil harf_var ise:
+        döndür "Şifrede en az bir harf olmalı."
+    eğer değil rakam_var ise:
+        döndür "Şifrede en az bir rakam olmalı."
+    döndür ""
+
+# E-postayla kayıtlı kullanıcı; yoksa kimliği 0 olan boş kullanıcı.
+işlev kullanıcı_bul(e_posta: metin) -> Kullanıcı:
+    aranan = e_posta_sadeleştir(e_posta)
+    her k için Kullanıcı.hepsi()'nden:
+        eğer k.e_posta == aranan ise:
+            döndür k
+    döndür Kullanıcı()
+
+# Yeni hesap açar. Başarılıysa boş metin, değilse Türkçe hata mesajı döner.
+işlev kayıt_ol(ad: metin, e_posta: metin, şifre: metin) -> metin:
+    k = Kullanıcı(ad: kırp(ad), e_posta: e_posta_sadeleştir(e_posta))
+    eğer değil k.geçerli_mi() ise:
+        döndür k.hatalar()[0]
+    sorun = şifre_sorunu(şifre)
+    eğer sorun != "" ise:
+        döndür sorun
+    eğer kullanıcı_bul(k.e_posta).kimlik != 0 ise:
+        döndür "Bu e-posta adresiyle kayıtlı bir hesap var."
+    k.şifre_karması = şifre_karması(şifre)
+    k.kayıt_zamanı = zaman()
+    # İlk hesap yönetici olur (yönetim paneli için)
+    eğer uzunluk(Kullanıcı.hepsi()) == 0 ise:
+        k.rol = "yönetici"
+    k'yı kaydet.
+    döndür ""
+
+# E-posta ve şifreyi denetler, doğruysa kullanıcıyı oturuma alır. Başarılıysa boş metin döner.
+işlev giriş_yap(istek: İstek, e_posta: metin, şifre: metin) -> metin:
+    k = kullanıcı_bul(e_posta)
+    şimdi = zaman()
+    eğer k.kimlik == 0 ise:
+        şifre_doğru_mu(şifre, GİRİŞ_SAHTE_KARMA)
+        döndür GİRİŞ_YANLIŞ
+    eğer k.kilit_bitişi > şimdi ise:
+        dakika = yuvarla((k.kilit_bitişi - şimdi) / 60.0 + 0.5)
+        döndür "Çok fazla hatalı deneme yapıldı. " + dakika + " dakika sonra yeniden deneyin."
+    eğer değil şifre_doğru_mu(şifre, k.şifre_karması) ise:
+        k.hatalı_deneme += 1
+        eğer k.hatalı_deneme >= GİRİŞ_EN_ÇOK_DENEME ise:
+            k.hatalı_deneme = 0
+            k.kilit_bitişi = şimdi + GİRİŞ_KİLİT_SÜRESİ
+        k'yı kaydet.
+        döndür GİRİŞ_YANLIŞ
+    k.hatalı_deneme = 0
+    k.son_giriş = şimdi
+    k'yı kaydet.
+    # Yeni oturum sözlüğü: sunucu yeni bir oturum kimliği verir.
+    istek.oturum = {GİRİŞ_OTURUM_ANAHTARI: metin(k.kimlik)}
+    döndür ""
+
+işlev çıkış_yap(istek: İstek):
+    istek.oturum = {}
+
+işlev giriş_yapıldı_mı(istek: İstek) -> mantık:
+    döndür oturumdaki_kullanıcı(istek).kimlik != 0
+
+# Oturumdaki kullanıcı; giriş yapılmamışsa (ya da hesap silinmişse) kimliği 0 olan boş kullanıcı.
+işlev oturumdaki_kullanıcı(istek: İstek) -> Kullanıcı:
+    kimlik = değer(istek.oturum, GİRİŞ_OTURUM_ANAHTARI, "")
+    eğer değil sayı_mı(kimlik) ise:
+        döndür Kullanıcı()
+    döndür Kullanıcı.bul(sayı(kimlik))
+
+# Giriş yapan kullanıcının rolü verilen rol mü? ör. rolü_var_mı(istek, "yönetici")
+işlev rolü_var_mı(istek: İstek, rol: metin) -> mantık:
+    k = oturumdaki_kullanıcı(istek)
+    döndür k.kimlik != 0 ve k.rol == rol
+
+işlev şifre_değiştir(k: Kullanıcı, eski: metin, yeni: metin) -> metin:
+    eğer değil şifre_doğru_mu(eski, k.şifre_karması) ise:
+        döndür "Mevcut şifre yanlış."
+    sorun = şifre_sorunu(yeni)
+    eğer sorun != "" ise:
+        döndür sorun
+    k.şifre_karması = şifre_karması(yeni)
+    k.sıfırlama_özeti = ""
+    k'yı kaydet.
+    döndür ""
+
+# Şifre sıfırlama: anahtar e-postayla gönderilecek bağlantıya konur (ör. /sıfırla?anahtar=...).
+# Kayıtlı olmayan e-postada boş metin döner; kullanıcıya her durumda aynı mesajı gösterin.
+işlev sıfırlama_anahtarı_üret(e_posta: metin) -> metin:
+    k = kullanıcı_bul(e_posta)
+    eğer k.kimlik == 0 ise:
+        döndür ""
+    anahtar = güvenli_anahtar(24)
+    k.sıfırlama_özeti = sha256(anahtar)
+    k.sıfırlama_bitişi = zaman() + GİRİŞ_SIFIRLAMA_SÜRESİ
+    k'yı kaydet.
+    döndür anahtar
+
+işlev şifreyi_sıfırla(anahtar: metin, yeni: metin) -> metin:
+    eğer uzunluk(anahtar) != 48 ise:
+        döndür "Sıfırlama bağlantısı geçersiz."
+    özet_ = sha256(anahtar)
+    her k için Kullanıcı.hepsi()'nden:
+        eğer k.sıfırlama_özeti != "" ve k.sıfırlama_özeti == özet_ ise:
+            eğer k.sıfırlama_bitişi < zaman() ise:
+                döndür "Sıfırlama bağlantısının süresi dolmuş; yenisini isteyin."
+            sorun = şifre_sorunu(yeni)
+            eğer sorun != "" ise:
+                döndür sorun
+            k.şifre_karması = şifre_karması(yeni)
+            k.sıfırlama_özeti = ""
+            k.hatalı_deneme = 0
+            k.kilit_bitişi = 0.0
+            k'yı kaydet.
+            döndür ""
+    döndür "Sıfırlama bağlantısı geçersiz."
+
+# Form anahtarı (CSRF): formlara gizli alan olarak konur, gönderilince denetlenir.
+#   <input type="hidden" name="form_anahtarı" value="@form_anahtarı(istek)">
+#   eğer değil form_anahtarı_doğru_mu(istek) ise: döndür yanıt(400, "Geçersiz form")
+işlev form_anahtarı(istek: İstek) -> metin:
+    a = değer(istek.oturum, GİRİŞ_FORM_ANAHTARI, "")
+    eğer a == "" ise:
+        a = güvenli_anahtar(16)
+        istek.oturum[GİRİŞ_FORM_ANAHTARI] = a
+    döndür a
+
+işlev form_anahtarı_doğru_mu(istek: İstek) -> mantık:
+    a = değer(istek.oturum, GİRİŞ_FORM_ANAHTARI, "")
+    döndür a != "" ve değer(istek.form, "form_anahtarı", "") == a
