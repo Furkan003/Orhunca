@@ -1,0 +1,4 @@
+ad = "özet"
+sürüm = "1.0.0"
+giriş = "özet.ohc"
+açıklama = "SHA-256, HMAC, Base64, CRC32 ve tuzlu şifre karması (giriş sistemleri için)"

@@ -1,0 +1,367 @@
+# özet: özet (hash) işlevleri, Base64 ve şifre saklama.
+#   kullan "özet"
+#   sha256("merhaba")'yı yaz.                  # 64 haneli onaltılık metin
+#   k = şifre_karması("gizli123")               # veritabanına bu yazılır
+#   şifre_doğru_mu("gizli123", k)'yı yaz.      # doğru
+#
+# Metinler UTF-8 baytları üzerinden işlenir; sonuçlar başka dillerdeki karşılıklarıyla aynıdır.
+
+sabit MASKE32 = 4294967295
+
+# ---------------------------------------------------------------------------
+# UTF-8
+
+# Metnin UTF-8 baytları: "ğ" → [196, 159]
+işlev utf8_baytları(m: metin) -> liste<sayı>:
+    b: liste<sayı> = []
+    her c için kodlar(m)'den:
+        eğer c < 128 ise:
+            c'yi b'ye ekle.
+        değilse eğer c < 2048 ise:
+            (192 + c // 64)'ü b'ye ekle.
+            (128 + c % 64)'ü b'ye ekle.
+        değilse eğer c < 65536 ise:
+            (224 + c // 4096)'yı b'ye ekle.
+            (128 + (c // 64) % 64)'ü b'ye ekle.
+            (128 + c % 64)'ü b'ye ekle.
+        değilse:
+            (240 + c // 262144)'ü b'ye ekle.
+            (128 + (c // 4096) % 64)'ü b'ye ekle.
+            (128 + (c // 64) % 64)'ü b'ye ekle.
+            (128 + c % 64)'ü b'ye ekle.
+    döndür b
+
+# UTF-8 baytlarından metin (geçersiz baytlar � olur)
+işlev utf8_metni(b: liste<sayı>) -> metin:
+    k: liste<sayı> = []
+    i = 0
+    n = uzunluk(b)
+    i < n olduğu sürece:
+        x = b[i]
+        eğer x < 128 ise:
+            x'i k'ye ekle.
+            i += 1
+        değilse eğer x >= 192 ve x < 224 ve i + 1 < n ise:
+            ((x - 192) * 64 + b[i + 1] % 64)'ü k'ye ekle.
+            i += 2
+        değilse eğer x >= 224 ve x < 240 ve i + 2 < n ise:
+            ((x - 224) * 4096 + (b[i + 1] % 64) * 64 + b[i + 2] % 64)'ü k'ye ekle.
+            i += 3
+        değilse eğer x >= 240 ve i + 3 < n ise:
+            ((x - 240) * 262144 + (b[i + 1] % 64) * 4096 + (b[i + 2] % 64) * 64 + b[i + 3] % 64)'ü k'ye ekle.
+            i += 4
+        değilse:
+            65533'ü k'ye ekle.
+            i += 1
+    döndür kodlardan(k)
+
+# ---------------------------------------------------------------------------
+# Onaltılık (hex)
+
+işlev onaltılık(b: liste<sayı>) -> metin:
+    h = "0123456789abcdef"
+    parçalar: liste<metin> = []
+    her x için b'den:
+        (h[x // 16] + h[x % 16])'yı parçalar'a ekle.
+    döndür birleştir(parçalar, "")
+
+işlev onaltılıktan(m: metin) -> liste<sayı>:
+    b: liste<sayı> = []
+    k = kodlar(küçük_harf(m))
+    i = 0
+    i + 1 < uzunluk(k) olduğu sürece:
+        (hane_değeri(k[i]) * 16 + hane_değeri(k[i + 1]))'i b'ye ekle.
+        i += 2
+    döndür b
+
+işlev hane_değeri(c: sayı) -> sayı:
+    eğer c >= 48 ve c <= 57 ise:
+        döndür c - 48
+    eğer c >= 97 ve c <= 102 ise:
+        döndür c - 87
+    döndür 0
+
+# ---------------------------------------------------------------------------
+# SHA-256 (FIPS 180-4)
+
+işlev sha_k() -> liste<sayı>:
+    döndür [1116352408, 1899447441, 3049323471, 3921009573, 961987163, 1508970993, 2453635748, 2870763221, 3624381080, 310598401, 607225278, 1426881987, 1925078388, 2162078206, 2614888103, 3248222580, 3835390401, 4022224774, 264347078, 604807628, 770255983, 1249150122, 1555081692, 1996064986, 2554220882, 2821834349, 2952996808, 3210313671, 3336571891, 3584528711, 113926993, 338241895, 666307205, 773529912, 1294757372, 1396182291, 1695183700, 1986661051, 2177026350, 2456956037, 2730485921, 2820302411, 3259730800, 3345764771, 3516065817, 3600352804, 4094571909, 275423344, 430227734, 506948616, 659060556, 883997877, 958139571, 1322822218, 1537002063, 1747873779, 1955562222, 2024104815, 2227730452, 2361852424, 2428436474, 2756734187, 3204031479, 3329325298]
+
+# 32 bitlik sağa döndürme
+işlev döndür32(x: sayı, n: sayı) -> sayı:
+    döndür bit_ve(bit_veya(sağa_kaydır(x, n), sola_kaydır(x, 32 - n)), MASKE32)
+
+# Bir 64 baytlık bloğu (m[baş] … m[baş + 63]) sıkıştırıp `h` durumunu günceller.
+# `w` 64 öğelik çalışma listesidir (her çağrıda yeniden ayrılmasın diye dışarıdan verilir).
+işlev sha_sıkıştır(h: liste<sayı>, m: liste<sayı>, baş: sayı, w: liste<sayı>, k: liste<sayı>):
+    her t için 0'dan 15'e kadar:
+        j = baş + t * 4
+        w[t] = m[j] * 16777216 + m[j + 1] * 65536 + m[j + 2] * 256 + m[j + 3]
+    her t için 16'dan 63'e kadar:
+        x = w[t - 15]
+        y = w[t - 2]
+        s0 = bit_xor(bit_xor(döndür32(x, 7), döndür32(x, 18)), sağa_kaydır(x, 3))
+        s1 = bit_xor(bit_xor(döndür32(y, 17), döndür32(y, 19)), sağa_kaydır(y, 10))
+        w[t] = bit_ve(w[t - 16] + s0 + w[t - 7] + s1, MASKE32)
+    a = h[0]
+    b = h[1]
+    c = h[2]
+    d = h[3]
+    e = h[4]
+    f = h[5]
+    g = h[6]
+    hh = h[7]
+    her t için 0'dan 63'e kadar:
+        S1 = bit_xor(bit_xor(döndür32(e, 6), döndür32(e, 11)), döndür32(e, 25))
+        ch = bit_xor(bit_ve(e, f), bit_ve(bit_xor(e, MASKE32), g))
+        t1 = hh + S1 + ch + k[t] + w[t]
+        S0 = bit_xor(bit_xor(döndür32(a, 2), döndür32(a, 13)), döndür32(a, 22))
+        maj = bit_xor(bit_xor(bit_ve(a, b), bit_ve(a, c)), bit_ve(b, c))
+        hh = g
+        g = f
+        f = e
+        e = bit_ve(d + t1, MASKE32)
+        d = c
+        c = b
+        b = a
+        a = bit_ve(t1 + S0 + maj, MASKE32)
+    h[0] = bit_ve(h[0] + a, MASKE32)
+    h[1] = bit_ve(h[1] + b, MASKE32)
+    h[2] = bit_ve(h[2] + c, MASKE32)
+    h[3] = bit_ve(h[3] + d, MASKE32)
+    h[4] = bit_ve(h[4] + e, MASKE32)
+    h[5] = bit_ve(h[5] + f, MASKE32)
+    h[6] = bit_ve(h[6] + g, MASKE32)
+    h[7] = bit_ve(h[7] + hh, MASKE32)
+
+işlev sha_başlangıç() -> liste<sayı>:
+    döndür [1779033703, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635, 1541459225]
+
+işlev sıfır_liste(n: sayı) -> liste<sayı>:
+    l: liste<sayı> = []
+    her i için 1'den n'ye kadar:
+        0'ı l'ye ekle.
+    döndür l
+
+# Durumu 32 bayta yazar: hedef[baş] … hedef[baş + 31]
+işlev sha_yaz(h: liste<sayı>, hedef: liste<sayı>, baş: sayı):
+    her i için 0'dan 7'ye kadar:
+        x = h[i]
+        hedef[baş + i * 4] = sağa_kaydır(x, 24)
+        hedef[baş + i * 4 + 1] = bit_ve(sağa_kaydır(x, 16), 255)
+        hedef[baş + i * 4 + 2] = bit_ve(sağa_kaydır(x, 8), 255)
+        hedef[baş + i * 4 + 3] = bit_ve(x, 255)
+
+# Baytların SHA-256 özeti (32 bayt)
+işlev sha256_baytları(veri: liste<sayı>) -> liste<sayı>:
+    k = sha_k()
+    h = sha_başlangıç()
+    w = sıfır_liste(64)
+    m = kopya(veri)
+    bit_uzunluğu = uzunluk(veri) * 8
+    128'i m'ye ekle.
+    uzunluk(m) % 64 != 56 olduğu sürece:
+        0'ı m'ye ekle.
+    her i için 0'dan 7'ye kadar:
+        bit_ve(sağa_kaydır(bit_uzunluğu, (7 - i) * 8), 255)'i m'ye ekle.
+    blok = 0
+    blok < uzunluk(m) olduğu sürece:
+        sha_sıkıştır(h, m, blok, w, k)
+        blok += 64
+    sonuç = sıfır_liste(32)
+    sha_yaz(h, sonuç, 0)
+    döndür sonuç
+
+# Metnin SHA-256 özeti, onaltılık: sha256("abc") → "ba7816bf…"
+işlev sha256(m: metin) -> metin:
+    döndür onaltılık(sha256_baytları(utf8_baytları(m)))
+
+# ---------------------------------------------------------------------------
+# HMAC-SHA256 (RFC 2104): imzalı bağlantılar, API imzaları, oturum belirteçleri
+
+işlev hmac_baytları(anahtar: liste<sayı>, ileti: liste<sayı>) -> liste<sayı>:
+    a = anahtar
+    eğer uzunluk(a) > 64 ise:
+        a = sha256_baytları(a)
+    a = kopya(a)
+    uzunluk(a) < 64 olduğu sürece:
+        0'ı a'ya ekle.
+    iç: liste<sayı> = []
+    dış: liste<sayı> = []
+    her x için a'dan:
+        bit_xor(x, 54)'ü iç'e ekle.
+        bit_xor(x, 92)'yi dış'a ekle.
+    her x için ileti'den:
+        x'i iç'e ekle.
+    her x için sha256_baytları(iç)'ten:
+        x'i dış'a ekle.
+    döndür sha256_baytları(dış)
+
+işlev hmac_sha256(anahtar: metin, ileti: metin) -> metin:
+    döndür onaltılık(hmac_baytları(utf8_baytları(anahtar), utf8_baytları(ileti)))
+
+# ---------------------------------------------------------------------------
+# Base64 (RFC 4648)
+
+işlev base64_baytları(b: liste<sayı>, adres_güvenli: mantık) -> metin:
+    abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    eğer adres_güvenli ise:
+        abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+    p: liste<metin> = []
+    i = 0
+    n = uzunluk(b)
+    i < n olduğu sürece:
+        x = b[i] * 65536
+        eğer i + 1 < n ise:
+            x += b[i + 1] * 256
+        eğer i + 2 < n ise:
+            x += b[i + 2]
+        abc[x // 262144]'i p'ye ekle.
+        abc[(x // 4096) % 64]'ü p'ye ekle.
+        eğer i + 1 < n ise:
+            abc[(x // 64) % 64]'ü p'ye ekle.
+        değilse eğer adres_güvenli == yanlış ise:
+            "="'i p'ye ekle.
+        eğer i + 2 < n ise:
+            abc[x % 64]'ü p'ye ekle.
+        değilse eğer adres_güvenli == yanlış ise:
+            "="'i p'ye ekle.
+        i += 3
+    döndür birleştir(p, "")
+
+# Metni Base64'e çevirir: base64_kodla("Merhaba") → "TWVyaGFiYQ=="
+işlev base64_kodla(m: metin) -> metin:
+    döndür base64_baytları(utf8_baytları(m), yanlış)
+
+# Adreslerde güvenle kullanılan Base64 (+ yerine -, / yerine _, = olmadan)
+işlev base64_adres_kodla(m: metin) -> metin:
+    döndür base64_baytları(utf8_baytları(m), doğru)
+
+işlev base64_değeri(c: sayı) -> sayı:
+    eğer c >= 65 ve c <= 90 ise:
+        döndür c - 65
+    eğer c >= 97 ve c <= 122 ise:
+        döndür c - 71
+    eğer c >= 48 ve c <= 57 ise:
+        döndür c + 4
+    eğer c == 43 veya c == 45 ise:
+        döndür 62
+    eğer c == 47 veya c == 95 ise:
+        döndür 63
+    döndür -1
+
+# Base64 metnini baytlara çevirir (iki alfabeyi de, = olsun olmasın kabul eder)
+işlev base64_baytlara(m: metin) -> liste<sayı>:
+    b: liste<sayı> = []
+    x = 0
+    bit = 0
+    her c için kodlar(m)'den:
+        d = base64_değeri(c)
+        eğer d >= 0 ise:
+            x = bit_ve(x * 64 + d, 16777215)
+            bit += 6
+            eğer bit >= 8 ise:
+                bit -= 8
+                bit_ve(sağa_kaydır(x, bit), 255)'i b'ye ekle.
+    döndür b
+
+işlev base64_çöz(m: metin) -> metin:
+    döndür utf8_metni(base64_baytlara(m))
+
+# ---------------------------------------------------------------------------
+# CRC32 (ZIP, PNG ve Ethernet'teki sağlama): crc32("123456789") → 3421780262
+
+işlev crc32_baytları(b: liste<sayı>) -> sayı:
+    c = MASKE32
+    her x için b'den:
+        c = bit_xor(c, x)
+        her j için 1'den 8'e kadar:
+            eğer bit_ve(c, 1) == 1 ise:
+                c = bit_xor(sağa_kaydır(c, 1), 3988292384)
+            değilse:
+                c = sağa_kaydır(c, 1)
+    döndür bit_xor(c, MASKE32)
+
+işlev crc32(m: metin) -> sayı:
+    döndür crc32_baytları(utf8_baytları(m))
+
+# ---------------------------------------------------------------------------
+# Şifre saklama: PBKDF2-HMAC-SHA256, rastgele tuzlu.
+# Kaydedilen biçim: "pbkdf2-sha256$tur$tuz$karma" (tuz ve karma Base64). Şifrenin kendisi
+# hiçbir yere yazılmaz; giriş sırasında şifre_doğru_mu ile karşılaştırılır.
+
+sabit ŞİFRE_TURU = 20000
+
+# PBKDF2-HMAC-SHA256, 32 baytlık anahtar (RFC 8018). HMAC'in iç ve dış anahtar durumları
+# bir kez hesaplanır; her turda yalnızca iki blok sıkıştırılır.
+işlev pbkdf2(şifre: liste<sayı>, tuz: liste<sayı>, tur: sayı) -> liste<sayı>:
+    k = sha_k()
+    w = sıfır_liste(64)
+    a = şifre
+    eğer uzunluk(a) > 64 ise:
+        a = sha256_baytları(a)
+    a = kopya(a)
+    uzunluk(a) < 64 olduğu sürece:
+        0'ı a'ya ekle.
+    pad = sıfır_liste(64)
+    iç_durum = sha_başlangıç()
+    her i için 0'dan 63'ye kadar:
+        pad[i] = bit_xor(a[i], 54)
+    sha_sıkıştır(iç_durum, pad, 0, w, k)
+    dış_durum = sha_başlangıç()
+    her i için 0'dan 63'ye kadar:
+        pad[i] = bit_xor(a[i], 92)
+    sha_sıkıştır(dış_durum, pad, 0, w, k)
+    # İlk tur: U1 = HMAC(şifre, tuz ‖ 00 00 00 01)
+    ilk = kopya(tuz)
+    0'ı ilk'e ekle.
+    0'ı ilk'e ekle.
+    0'ı ilk'e ekle.
+    1'i ilk'e ekle.
+    u = hmac_baytları(şifre, ilk)
+    t = kopya(u)
+    # Sonraki turlarda ileti 32 bayttır: tek blok, uzunluk (64 + 32) * 8 = 768 bit.
+    blok = sıfır_liste(64)
+    blok[32] = 128
+    blok[62] = 3
+    blok[63] = 0
+    h = sıfır_liste(8)
+    her tur_no için 2'den tur'a kadar:
+        her i için 0'dan 31'e kadar:
+            blok[i] = u[i]
+        her i için 0'dan 7'ye kadar:
+            h[i] = iç_durum[i]
+        sha_sıkıştır(h, blok, 0, w, k)
+        sha_yaz(h, blok, 0)
+        her i için 0'dan 7'ye kadar:
+            h[i] = dış_durum[i]
+        sha_sıkıştır(h, blok, 0, w, k)
+        sha_yaz(h, u, 0)
+        her i için 0'dan 31'e kadar:
+            t[i] = bit_xor(t[i], u[i])
+    döndür t
+
+işlev şifre_karması(şifre: metin) -> metin:
+    tuz: liste<sayı> = []
+    her i için 1'den 16'ya kadar:
+        rastgele(0, 255)'i tuz'a ekle.
+    karma = pbkdf2(utf8_baytları(şifre), tuz, ŞİFRE_TURU)
+    döndür "pbkdf2-sha256$" + ŞİFRE_TURU + "$" + base64_baytları(tuz, yanlış) + "$" + base64_baytları(karma, yanlış)
+
+# Girilen şifre, saklanan karmayla eşleşiyor mu? Bozuk karma için yanlış.
+işlev şifre_doğru_mu(şifre: metin, karma: metin) -> mantık:
+    p = böl(karma, "$")
+    eğer uzunluk(p) != 4 veya p[0] != "pbkdf2-sha256" veya sayı_mı(p[1]) == yanlış ise:
+        döndür yanlış
+    tur = sayı(p[1])
+    eğer tur < 1 veya tur > 10000000 ise:
+        döndür yanlış
+    beklenen = base64_baytlara(p[3])
+    bulunan = pbkdf2(utf8_baytları(şifre), base64_baytlara(p[2]), tur)
+    eğer uzunluk(beklenen) != uzunluk(bulunan) ise:
+        döndür yanlış
+    # Sabit süreli karşılaştırma: ilk farklı baytta durulmaz.
+    fark = 0
+    her i için 0'dan uzunluk(bulunan) - 1'e kadar:
+        fark = bit_veya(fark, bit_xor(beklenen[i], bulunan[i]))
+    döndür fark == 0

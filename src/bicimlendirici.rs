@@ -348,6 +348,32 @@ pub fn uyarilar(kaynak: &str) -> Vec<Uyari> {
             duzeltme: g.yeni.to_string(),
         });
     }
+    // `her i için 7'den 0'a kadar`: başlangıç bitişten büyükse döngü hiç dönmez
+    // (`1'den n'ye kadar` n = 0 iken boş kalsın diye). Sabit sınırlarda bu çoğunlukla yanlışlıktır.
+    for w in sozcukler.windows(6) {
+        if let (Tok::Sayi(bas), Tok::Ek(e1), Tok::Sayi(son), Tok::Ek(_), Tok::Kelime(k)) =
+            (&w[1].tok, &w[2].tok, &w[3].tok, &w[4].tok, &w[5].tok)
+        {
+            if k == "kadar" && bas > son && matches!(e1.as_str(), "den" | "dan" | "ten" | "tan") {
+                cikti.push(Uyari {
+                    konum: w[1].konum,
+                    uzunluk: 1,
+                    mesaj: {
+                        let ek = |n: i64, h| ek_oner(&n.to_string(), h);
+                        let fark = bas - son;
+                        format!(
+                            "{bas}'{} {son}'{} kadar giden döngü hiç dönmez (aralık küçükten büyüğe \
+                             sayar); geriye saymak için: her j için 0'dan {fark}'{} kadar ile i = {bas} - j",
+                            ek(*bas, Hal::Ayrilma),
+                            ek(*son, Hal::Yonelme),
+                            ek(fark, Hal::Yonelme)
+                        )
+                    },
+                    duzeltme: String::new(),
+                });
+            }
+        }
+    }
     // "5" + 3 → "53": sayı gibi görünen metin + ile birleştirilir, toplanmaz.
     for w in sozcukler.windows(3) {
         let (sol, op, sag) = (&w[0], &w[1], &w[2]);

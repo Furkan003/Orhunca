@@ -1242,9 +1242,20 @@ impl Uretici<'_, '_> {
                 Some(self.bitler(r))
             }
             "mutlak" => self.cz("ohc_mutlak", &[d[0], satir]),
-            "bit_ve" | "bit_veya" | "bit_xor" | "sola_kaydır" | "sağa_kaydır" => {
-                let islem = self.sabit(bit_islemi(ad));
-                self.cz("ohc_bit", &[islem, d[0], d[1]])
+            // Bit işlemleri doğrudan makine komutudur (özet, CRC gibi döngülerde hız için).
+            "bit_ve" => Some(self.b.ins().band(d[0], d[1])),
+            "bit_veya" => Some(self.b.ins().bor(d[0], d[1])),
+            "bit_xor" => Some(self.b.ins().bxor(d[0], d[1])),
+            "sola_kaydır" | "sağa_kaydır" => {
+                // Kaydırma miktarı 0..63 dışındaysa 0 (işaretsiz karşılaştırma negatifi de kapsar)
+                let r = if ad == "sola_kaydır" {
+                    self.b.ins().ishl(d[0], d[1])
+                } else {
+                    self.b.ins().ushr(d[0], d[1])
+                };
+                let gecerli = self.b.ins().icmp_imm(IntCC::UnsignedLessThan, d[1], 64);
+                let sifir = self.sabit(0);
+                Some(self.b.ins().select(gecerli, r, sifir))
             }
             "rastgele" if d.is_empty() => self.cz("ohc_rastgele", &[]),
             "rastgele" => self.cz("ohc_rastgele_aralik", &[d[0], d[1], satir]),

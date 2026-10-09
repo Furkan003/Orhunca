@@ -1,0 +1,38 @@
+kullan "özet.ohc"
+
+işlev sına_sha256():
+    eşit_olmalı(sha256(""), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+    eşit_olmalı(sha256("abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+    eşit_olmalı(sha256("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"), "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1")
+    eşit_olmalı(sha256("ğüşiöçı"), "8773dcb07f34d086086f898cd53259cd7072d01de3c749aa65e890b507663e48")
+
+işlev sına_hmac():
+    eşit_olmalı(hmac_sha256("key", "The quick brown fox jumps over the lazy dog"), "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8")
+
+işlev sına_base64():
+    eşit_olmalı(base64_kodla("Merhaba"), "TWVyaGFiYQ==")
+    eşit_olmalı(base64_kodla("ğ"), "xJ8=")
+    eşit_olmalı(base64_çöz("TWVyaGFiYQ=="), "Merhaba")
+    eşit_olmalı(base64_çöz(base64_kodla("Çağrı 😀")), "Çağrı 😀")
+    eşit_olmalı(base64_adres_kodla("??>"), "Pz8-")
+
+işlev sına_crc32():
+    eşit_olmalı(crc32("123456789"), 3421780262)
+
+işlev sına_onaltılık():
+    eşit_olmalı(onaltılık(utf8_baytları("Aş")), "41c59f")
+    eşit_olmalı(utf8_metni(onaltılıktan("41C59F")), "Aş")
+
+işlev sına_şifre():
+    k = şifre_karması("gizli123")
+    doğrula(başlar(k, "pbkdf2-sha256$20000$"))
+    doğrula(şifre_doğru_mu("gizli123", k))
+    doğrula(şifre_doğru_mu("gizli124", k) == yanlış)
+    doğrula(şifre_doğru_mu("gizli123", "bozuk") == yanlış)
+    # Aynı şifrenin iki karması farklıdır (tuz)
+    doğrula(şifre_karması("a") != şifre_karması("a"))
+
+işlev sına_pbkdf2():
+    # RFC 7914 ve Python hashlib.pbkdf2_hmac ile aynı sonuç
+    eşit_olmalı(onaltılık(pbkdf2(utf8_baytları("password"), utf8_baytları("salt"), 1)), "120fb6cffcf8b32c43e7225256c4f837a86548c92ccc35480805987cb70be17b")
+    eşit_olmalı(onaltılık(pbkdf2(utf8_baytları("password"), utf8_baytları("salt"), 4096)), "c5e478d59288c841aa530db6845c4c8d962893a001ce4e11a4963873aa98134a")

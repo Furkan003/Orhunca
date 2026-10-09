@@ -2235,7 +2235,16 @@ impl Uretici<'_> {
                 d.push(satir);
                 self.cagri("ohc_mutlak", &d)?
             }
-            "bit_ve" | "bit_veya" | "bit_xor" | "sola_kaydır" | "sağa_kaydır" => {
+            "bit_ve" | "bit_veya" | "bit_xor" => {
+                self.ifade(&arg[0])?;
+                self.ifade(&arg[1])?;
+                self.e(match ad {
+                    "bit_ve" => K::I64And,
+                    "bit_veya" => K::I64Or,
+                    _ => K::I64Xor,
+                });
+            }
+            "sola_kaydır" | "sağa_kaydır" => {
                 d.insert(0, Arg::S(crate::uretici::bit_islemi(ad)));
                 self.cagri("ohc_bit", &d)?
             }
