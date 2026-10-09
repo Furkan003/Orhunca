@@ -2235,6 +2235,10 @@ impl Uretici<'_> {
                 d.push(satir);
                 self.cagri("ohc_mutlak", &d)?
             }
+            "bit_ve" | "bit_veya" | "bit_xor" | "sola_kaydır" | "sağa_kaydır" => {
+                d.insert(0, Arg::S(crate::uretici::bit_islemi(ad)));
+                self.cagri("ohc_bit", &d)?
+            }
             "rastgele" if d.is_empty() => self.cagri("ohc_rastgele", &d)?,
             "rastgele" => {
                 d.push(satir);

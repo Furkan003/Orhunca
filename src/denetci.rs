@@ -2106,6 +2106,7 @@ impl Denetci {
                 Ondalik
             }
             ("mutlak", [x]) if x.sayisal() => x.clone(),
+            ("bit_ve" | "bit_veya" | "bit_xor" | "sola_kaydır" | "sağa_kaydır", [Sayi, Sayi]) => Sayi,
             ("rastgele", []) => Ondalik,
             ("rastgele", [Sayi, Sayi]) => Sayi,
             ("zaman", []) => Ondalik,

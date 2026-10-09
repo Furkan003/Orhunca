@@ -77,6 +77,11 @@ döngüler, fiiller, modeller) için: [dil rehberi](dil-rehberi.md).
 | `karekök` | `karekök(x) → ondalık` | Karekök. |
 | `üs` | `üs(taban, üs)` | Üs alma; iki sayı için sayı, değilse ondalık. |
 | `mutlak` | `mutlak(x)` | Mutlak değer. |
+| `bit_ve` | `bit_ve(a, b) → sayı` | Bit bit VE (AND): bit_ve(12, 10) → 8. Bayrak ve maske işlemleri için. |
+| `bit_veya` | `bit_veya(a, b) → sayı` | Bit bit VEYA (OR): bit_veya(12, 10) → 14. |
+| `bit_xor` | `bit_xor(a, b) → sayı` | Bit bit dışlayıcı VEYA (XOR): bit_xor(12, 10) → 6. Özet (hash) ve sağlama hesaplarında kullanılır. |
+| `sola_kaydır` | `sola_kaydır(a, n) → sayı` | Bitleri n basamak sola kaydırır: sola_kaydır(1, 4) → 16. n 0–63 dışındaysa 0. |
+| `sağa_kaydır` | `sağa_kaydır(a, n) → sayı` | Bitleri n basamak sağa kaydırır (soldan 0 girer): sağa_kaydır(256, 4) → 16. n 0–63 dışındaysa 0. |
 | `sinüs` | `sinüs(radyan) → ondalık` | Sinüs. |
 | `kosinüs` | `kosinüs(radyan) → ondalık` | Kosinüs. |
 | `tanjant` | `tanjant(radyan) → ondalık` | Tanjant. |

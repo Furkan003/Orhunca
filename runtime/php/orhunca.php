@@ -702,6 +702,35 @@ function o_mutlak($x)
     return abs($x);
 }
 
+// Bit işlemleri (64 bit). Kaydırma miktarı 0..63 dışındaysa 0; sağa kaydırma mantıksaldır.
+function o_bit_ve(int $a, int $b): int
+{
+    return $a & $b;
+}
+
+function o_bit_veya(int $a, int $b): int
+{
+    return $a | $b;
+}
+
+function o_bit_xor(int $a, int $b): int
+{
+    return $a ^ $b;
+}
+
+function o_sola_kaydir(int $a, int $n): int
+{
+    return $n < 0 || $n > 63 ? 0 : $a << $n;
+}
+
+function o_saga_kaydir(int $a, int $n): int
+{
+    if ($n < 0 || $n > 63) {
+        return 0;
+    }
+    return $n === 0 ? $a : ($a >> $n) & (PHP_INT_MAX >> ($n - 1));
+}
+
 function o_sinus($x): float
 {
     return sin($x);

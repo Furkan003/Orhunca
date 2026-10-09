@@ -1,0 +1,16 @@
+# Bit işlemleri: bayraklar, maskeler, özet ve sağlama hesapları için
+bit_ve(12, 10)'u yaz.
+bit_veya(12, 10)'u yaz.
+bit_xor(12, 10)'u yaz.
+sola_kaydır(1, 10)'u yaz.
+sağa_kaydır(1024, 3)'ü yaz.
+# Negatif sayılar 64 bitlik ikiye tümleyen olarak işlenir; sağa kaydırmada soldan 0 girer.
+bit_ve(-1, 255)'i yaz.
+sağa_kaydır(-1, 60)'ı yaz.
+sola_kaydır(1, 40)'ı yaz.
+sola_kaydır(1, 64)'ü yaz.
+# Bayraklar: okuma 1, yazma 2, çalıştırma 4
+izin = bit_veya(1, 4)
+eğer bit_ve(izin, 4) != 0 ise:
+    "çalıştırılabilir"'i yaz.
+(bit_xor(bit_xor(5, 9), 9) + 1)'i yaz.

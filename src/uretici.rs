@@ -86,6 +86,7 @@ pub(crate) const CALISMA_ZAMANI: &[(&str, usize, bool)] = &[
     ("ohc_us_tam", 3, true),
     ("ohc_us", 3, true),
     ("ohc_mutlak", 2, true),
+    ("ohc_bit", 3, true),
     ("ohc_rastgele", 0, true),
     ("ohc_rastgele_aralik", 3, true),
     ("ohc_zaman", 0, true),
@@ -1241,6 +1242,10 @@ impl Uretici<'_, '_> {
                 Some(self.bitler(r))
             }
             "mutlak" => self.cz("ohc_mutlak", &[d[0], satir]),
+            "bit_ve" | "bit_veya" | "bit_xor" | "sola_kaydır" | "sağa_kaydır" => {
+                let islem = self.sabit(bit_islemi(ad));
+                self.cz("ohc_bit", &[islem, d[0], d[1]])
+            }
             "rastgele" if d.is_empty() => self.cz("ohc_rastgele", &[]),
             "rastgele" => self.cz("ohc_rastgele_aralik", &[d[0], d[1], satir]),
             "zaman" => self.cz("ohc_zaman", &[]),
@@ -1647,5 +1652,16 @@ impl Uretici<'_, '_> {
                 }
             }
         })
+    }
+}
+
+/// Bit yerleşiğinin `ohc_bit` işlem kodu.
+pub fn bit_islemi(ad: &str) -> i64 {
+    match ad {
+        "bit_ve" => 0,
+        "bit_veya" => 1,
+        "bit_xor" => 2,
+        "sola_kaydır" => 3,
+        _ => 4,
     }
 }

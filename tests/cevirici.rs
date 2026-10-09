@@ -79,6 +79,7 @@ fn python_karsiligi() {
             "birim_çevirici",
             "c_kütüphanesi",
             "sözlük_sayı_json",
+            "bit_işlemleri",
         ],
     );
 }
@@ -96,6 +97,7 @@ fn javascript_karsiligi() {
             "kelime_sayacı",
             "not_ortalaması",
             "sözlük_sayı_json",
+            "bit_işlemleri",
         ],
     );
 }

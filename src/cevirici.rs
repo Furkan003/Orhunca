@@ -122,6 +122,15 @@ pub fn metin(satirlar: &[Satir]) -> String {
 
 fn yardimci_kodu(dil: Dil, ad: &str) -> &'static str {
     match (dil, ad) {
+        (Dil::Python, "orhunca_sola_kaydır") => {
+            "def orhunca_sola_kaydır(a, n):\n    # 64 bit: taşan bitler atılır; n 0–63 dışındaysa 0\n    if n < 0 or n > 63:\n        return 0\n    return ((a << n) + 2**63) % 2**64 - 2**63"
+        }
+        (Dil::Python, "orhunca_sağa_kaydır") => {
+            "def orhunca_sağa_kaydır(a, n):\n    # Mantıksal kaydırma: soldan 0 girer; n 0–63 dışındaysa 0\n    if n < 0 or n > 63:\n        return 0\n    r = (a % 2**64) >> n\n    return r - 2**64 if r >= 2**63 else r"
+        }
+        (Dil::JavaScript, "orhunca_bit") => {
+            "// 64 bit bit işlemleri (JavaScript sayıları 53 bitte kesildiği için BigInt ile)\nfunction orhunca_bit(işlem, a, b) {\n  const x = BigInt.asUintN(64, BigInt(a)), y = BigInt.asUintN(64, BigInt(b));\n  let r;\n  if (işlem === 0) r = x & y;\n  else if (işlem === 1) r = x | y;\n  else if (işlem === 2) r = x ^ y;\n  else if (b < 0 || b > 63) return 0;\n  else r = işlem === 3 ? x << y : x >> y;\n  return Number(BigInt.asIntN(64, r));\n}"
+        }
         (Dil::Python, "sayı_yazısı") => {
             "def sayı_yazısı(x, basamak):\n    # Türkçe biçim: 1234.5 → \"1.234,50\"; yarımlar sıfırdan uzağa yuvarlanır\n    k = 10 ** basamak\n    n = math.floor(abs(x) * k + 0.5)\n    tam, kesir = divmod(n, k)\n    m = f\"{tam:,}\".replace(\",\", \".\")\n    if basamak > 0:\n        m += \",\" + str(kesir).zfill(basamak)\n    return \"-\" + m if x < 0 and n != 0 else m"
         }
@@ -1474,6 +1483,39 @@ impl Cevirici {
                     14,
                 ),
                 ("mutlak", 1) => atom(format!("abs({})", a[0])),
+                ("bit_ve", 2) => (
+                    format!(
+                        "{} & {}",
+                        self.oncelikli(&arg[0], 8),
+                        self.oncelikli(&arg[1], 8)
+                    ),
+                    7,
+                ),
+                ("bit_veya", 2) => (
+                    format!(
+                        "{} | {}",
+                        self.oncelikli(&arg[0], 8),
+                        self.oncelikli(&arg[1], 8)
+                    ),
+                    7,
+                ),
+                ("bit_xor", 2) => (
+                    format!(
+                        "{} ^ {}",
+                        self.oncelikli(&arg[0], 8),
+                        self.oncelikli(&arg[1], 8)
+                    ),
+                    7,
+                ),
+                ("sola_kaydır" | "sağa_kaydır", 2) => {
+                    let y = if ad == "sola_kaydır" {
+                        "orhunca_sola_kaydır"
+                    } else {
+                        "orhunca_sağa_kaydır"
+                    };
+                    self.yardimci.insert(y);
+                    atom(format!("{y}({}, {})", a[0], a[1]))
+                }
                 ("sinüs" | "kosinüs" | "tanjant", 1) => {
                     ithal(self, "math");
                     let f = match ad {
@@ -1711,6 +1753,15 @@ impl Cevirici {
                     14,
                 ),
                 ("mutlak", 1) => atom(format!("Math.abs({})", a[0])),
+                ("bit_ve" | "bit_veya" | "bit_xor" | "sola_kaydır" | "sağa_kaydır", 2) => {
+                    self.yardimci.insert("orhunca_bit");
+                    atom(format!(
+                        "orhunca_bit({}, {}, {})",
+                        crate::uretici::bit_islemi(ad),
+                        a[0],
+                        a[1]
+                    ))
+                }
                 ("sinüs", 1) => atom(format!("Math.sin({})", a[0])),
                 ("kosinüs", 1) => atom(format!("Math.cos({})", a[0])),
                 ("tanjant", 1) => atom(format!("Math.tan({})", a[0])),

@@ -228,6 +228,31 @@ pub const YERLESIKLER: &[Yerlesik] = &[
         "Üs alma; iki sayı için sayı, değilse ondalık."
     ),
     y!("mutlak", "mutlak(x)", "Mutlak değer."),
+    y!(
+        "bit_ve",
+        "bit_ve(a, b) → sayı",
+        "Bit bit VE (AND): bit_ve(12, 10) → 8. Bayrak ve maske işlemleri için."
+    ),
+    y!(
+        "bit_veya",
+        "bit_veya(a, b) → sayı",
+        "Bit bit VEYA (OR): bit_veya(12, 10) → 14."
+    ),
+    y!(
+        "bit_xor",
+        "bit_xor(a, b) → sayı",
+        "Bit bit dışlayıcı VEYA (XOR): bit_xor(12, 10) → 6. Özet (hash) ve sağlama hesaplarında kullanılır."
+    ),
+    y!(
+        "sola_kaydır",
+        "sola_kaydır(a, n) → sayı",
+        "Bitleri n basamak sola kaydırır: sola_kaydır(1, 4) → 16. n 0–63 dışındaysa 0."
+    ),
+    y!(
+        "sağa_kaydır",
+        "sağa_kaydır(a, n) → sayı",
+        "Bitleri n basamak sağa kaydırır (soldan 0 girer): sağa_kaydır(256, 4) → 16. n 0–63 dışındaysa 0."
+    ),
     y!("sinüs", "sinüs(radyan) → ondalık", "Sinüs."),
     y!("kosinüs", "kosinüs(radyan) → ondalık", "Kosinüs."),
     y!("tanjant", "tanjant(radyan) → ondalık", "Tanjant."),

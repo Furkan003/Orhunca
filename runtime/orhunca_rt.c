@@ -803,6 +803,19 @@ int64_t ohc_us(int64_t a, int64_t b, int64_t satir) {
     return bitlere(r);
 }
 
+/* Bit işlemleri: 0 bit_ve, 1 bit_veya, 2 bit_xor, 3 sola_kaydır, 4 sağa_kaydır (mantıksal;
+ * işaret biti de kayar). Kaydırma miktarı 0..63 dışındaysa sonuç 0'dır (her hedefte aynı). */
+int64_t ohc_bit(int64_t islem, int64_t a, int64_t b) {
+    uint64_t x = (uint64_t)a, y = (uint64_t)b;
+    switch (islem) {
+    case 0: return (int64_t)(x & y);
+    case 1: return (int64_t)(x | y);
+    case 2: return (int64_t)(x ^ y);
+    case 3: return b < 0 || b > 63 ? 0 : (int64_t)(x << b);
+    default: return b < 0 || b > 63 ? 0 : (int64_t)(x >> b);
+    }
+}
+
 int64_t ohc_mutlak(int64_t a, int64_t satir) {
     if (a == INT64_MIN) ohc_tasma(satir);
     return a < 0 ? -a : a;
