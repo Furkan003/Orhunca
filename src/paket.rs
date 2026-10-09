@@ -630,6 +630,10 @@ fn yukle_ic(
         .collect();
     let sonuc = (|| -> Result<(), String> {
         while let Some((ad, kaynak, isteyen)) = kuyruk.pop() {
+            // Ad `paketler/` altında bir klasör adı olur: başka yere taşmasın.
+            if !gecerli_paket_adi(&ad) {
+                return Err(format!("geçersiz paket adı '{ad}' ({isteyen})"));
+            }
             if let Some(k) = kurulan.get(&ad) {
                 if kaynagi_ayir(&k.kaynak).0 != kaynagi_ayir(&kaynak).0 {
                     return Err(format!(
@@ -1362,5 +1366,23 @@ mod testler {
             depo_adi("https://github.com/kisi/orhunca-matematik.git"),
             "matematik"
         );
+    }
+
+    #[test]
+    fn gecersiz_bagimlilik_adi_reddedilir() {
+        let kok = std::env::temp_dir().join(format!("orhunca-ad-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&kok);
+        std::fs::create_dir_all(&kok).unwrap();
+        for ad in ["../disari", "a/b", "/mutlak", r"a\b", ".."] {
+            std::fs::write(
+                kok.join("deneme.ohcproj"),
+                format!("ad = \"deneme\"\n\n[bağımlılıklar]\n{ad} = \"/yok\"\n"),
+            )
+            .unwrap();
+            let h = yukle(&kok, false, true).unwrap_err();
+            assert!(h.contains("geçersiz paket adı"), "{ad}: {h}");
+        }
+        assert!(!kok.join(PAKET_KLASORU).exists());
+        let _ = std::fs::remove_dir_all(&kok);
     }
 }
