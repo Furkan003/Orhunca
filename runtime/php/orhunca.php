@@ -31,6 +31,10 @@ function o_hata_satirda(string $m, int $satir): never
     throw $e;
 }
 
+// Xdebug kuruluysa çağrı derinliği sınırı (öntanımlı 256/512) özyinelemeli programları keser;
+// derinliği Orhunca kendisi sınırlar (ODerinlik).
+@ini_set('xdebug.max_nesting_level', '100000');
+
 // PHP uyarıları (boş nesnenin alanı, tanımsız değişken...) çalışma hatasına çevrilir.
 set_error_handler(function (int $no, string $m) {
     if (!(error_reporting() & $no)) {

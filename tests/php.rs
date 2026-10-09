@@ -9,8 +9,15 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::Duration;
 
+/// Xdebug (CI makinelerinde kurulu olabilir) çağrı derinliğini sınırlar ve yavaşlatır.
+fn php() -> Command {
+    let mut c = Command::new("php");
+    c.args(["-d", "xdebug.mode=off"]);
+    c
+}
+
 fn php_var() -> bool {
-    let tamam = Command::new("php")
+    let tamam = php()
         .args(["-r", "exit(PHP_VERSION_ID >= 80100 && extension_loaded('pdo_sqlite') && extension_loaded('mbstring') ? 0 : 1);"])
         .output()
         .is_ok_and(|c| c.status.success());
@@ -62,7 +69,7 @@ fn ornekler_php_ile_ayni_ciktiyi_verir() {
             let dosya = k.join(yol.file_name().unwrap());
             std::fs::copy(&yol, &dosya).unwrap();
             orhunca(&k, &["yayınla", "--php", dosya.to_str().unwrap()]);
-            let c = Command::new("php")
+            let c = php()
                 .arg("index.php")
                 .current_dir(k.join("cikti/php"))
                 .stdin(Stdio::null())
@@ -94,7 +101,7 @@ fn calisma_hatasi_orhunca_satirini_gosterir() {
     let k = klasor("hata");
     std::fs::write(k.join("a.ohc"), "x = 1\ny = 0\n(x / y)'yi yaz.\n").unwrap();
     orhunca(&k, &["yayınla", "--php", "a.ohc"]);
-    let c = Command::new("php")
+    let c = php()
         .arg("index.php")
         .current_dir(k.join("cikti/php"))
         .output()
@@ -108,8 +115,15 @@ fn calisma_hatasi_orhunca_satirini_gosterir() {
     std::fs::remove_dir_all(&k).unwrap();
 }
 
-/// `php -S` ile açılan sunucu; düşürülünce kapanır.
-struct Sunucu(Child, u16);
+/// `php -S` ile açılan sunucu; düşürülünce kapanır. Sunucu testleri sırayla çalışır:
+/// aynı anda boş kapı arayan iki test aynı kapıyı alıp birbirinin sunucusuna bağlanmasın.
+struct Sunucu(
+    Child,
+    u16,
+    #[allow(dead_code)] std::sync::MutexGuard<'static, ()>,
+);
+
+static SUNUCU_SIRASI: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 impl Drop for Sunucu {
     fn drop(&mut self) {
@@ -119,13 +133,14 @@ impl Drop for Sunucu {
 }
 
 fn sunucu_ac(klasor: &Path) -> Sunucu {
+    let sira = SUNUCU_SIRASI.lock().unwrap_or_else(|e| e.into_inner());
     let kapi = TcpListener::bind("127.0.0.1:0")
         .unwrap()
         .local_addr()
         .unwrap()
         .port();
-    let s = Sunucu(
-        Command::new("php")
+    let mut s = Sunucu(
+        php()
             .args(["-S", &format!("127.0.0.1:{kapi}"), "index.php"])
             .current_dir(klasor)
             .stdout(Stdio::null())
@@ -133,10 +148,14 @@ fn sunucu_ac(klasor: &Path) -> Sunucu {
             .spawn()
             .unwrap(),
         kapi,
+        sira,
     );
     for _ in 0..200 {
         if TcpStream::connect(("127.0.0.1", kapi)).is_ok() {
             return s;
+        }
+        if let Ok(Some(d)) = s.0.try_wait() {
+            panic!("php -S kapandı: {d}");
         }
         std::thread::sleep(Duration::from_millis(25));
     }
