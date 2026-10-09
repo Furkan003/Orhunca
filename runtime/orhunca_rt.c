@@ -1933,6 +1933,7 @@ typedef struct ModelBilgisi {
     char *ad;
     int64_t alan_sayisi;
     AlanBilgisi *alanlar;
+    int tablo_hazir; /* SQLite tablosu oluşturuldu ve sütunları denetlendi */
     struct ModelBilgisi *sonraki;
 } ModelBilgisi;
 
@@ -2690,21 +2691,507 @@ static int64_t kayit_sirasi(int64_t liste, int64_t kimlik) {
     return -1;
 }
 
-int64_t ohc_model_hepsi(int64_t tanim, int64_t satir) { return kayitlari_oku(model_bilgisi(M(tanim)), satir); }
+/* ---------------------------------------------------------------------- */
+/* SQLite: ORHUNCA_VERITABANI=sqlite ise modeller <veri>/orhunca.sqlite    */
+/* dosyasına yazılır. Kütüphane (Windows'ta winsqlite3.dll, Linux ve       */
+/* macOS'ta libsqlite3) çalışma anında yüklenir. Tablolar PHP çıktısıyla   */
+/* aynıdır: kimlik, sayı/mantık INTEGER, ondalık REAL, metin TEXT; liste,  */
+/* sözlük ve model alanları JSON metni olarak saklanır.                    */
+/* ---------------------------------------------------------------------- */
+
+#ifndef __wasm__
+#define SQ_OK 0
+#define SQ_SATIR 100
+#define SQ_BITTI 101
+#define SQ_BOS 5
+#define SQ_KOPYALA ((void (*)(void *))(intptr_t)-1)
+
+typedef struct {
+    int (*open_v2)(const char *, void **, int, const char *);
+    int (*exec)(void *, const char *, void *, void *, char **);
+    int (*prepare_v2)(void *, const char *, int, void **, const char **);
+    int (*bind_int64)(void *, int, int64_t);
+    int (*bind_double)(void *, int, double);
+    int (*bind_text)(void *, int, const char *, int, void (*)(void *));
+    int (*bind_null)(void *, int);
+    int (*bind_parameter_count)(void *);
+    int (*step)(void *);
+    int (*column_count)(void *);
+    const char *(*column_name)(void *, int);
+    int (*column_type)(void *, int);
+    int64_t (*column_int64)(void *, int);
+    double (*column_double)(void *, int);
+    const unsigned char *(*column_text)(void *, int);
+    int (*column_bytes)(void *, int);
+    int (*finalize)(void *);
+    const char *(*errmsg)(void *);
+    int (*busy_timeout)(void *, int);
+    int64_t (*last_insert_rowid)(void *);
+    int (*changes)(void *);
+} SqliteIslevleri;
+
+static SqliteIslevleri sq;
+static void *vt; /* sqlite3 bağlantısı */
+
+static int vt_sqlite_mi(void) {
+    static int durum = -1;
+    if (durum < 0) {
+        const char *v = getenv("ORHUNCA_VERITABANI");
+        durum = v && (!strcmp(v, "sqlite") || !strcmp(v, "SQLite") || !strcmp(v, "SQLITE"));
+    }
+    return durum;
+}
+
+static void vt_hatasi(int64_t satir, const char *ne) {
+    char m[700];
+    snprintf(m, sizeof m, "veritabanı hatası (%s): %.500s", ne, vt ? sq.errmsg(vt) : "bağlantı yok");
+    hata(satir, m);
+}
+
+static void *vt_ac(int64_t satir) {
+    if (vt) return vt;
+    static const char *adlar[] = {
+#ifdef _WIN32
+        "winsqlite3.dll", "sqlite3.dll",
+#elif defined(__APPLE__)
+        "libsqlite3.dylib", "/usr/lib/libsqlite3.dylib",
+#elif defined(__ANDROID__)
+        "libsqlite.so",
+#else
+        "libsqlite3.so.0", "libsqlite3.so",
+#endif
+    };
+    void *k = NULL;
+    for (size_t i = 0; i < sizeof adlar / sizeof *adlar && !k; i++) {
+#ifdef _WIN32
+        k = (void *)LoadLibraryA(adlar[i]);
+#else
+        k = dlopen(adlar[i], RTLD_NOW | RTLD_GLOBAL);
+#endif
+    }
+    if (!k)
+        hata(satir, "SQLite kütüphanesi bulunamadı (Linux'ta libsqlite3 paketini kurun); "
+                    "ORHUNCA_VERITABANI ayarını kaldırırsanız kayıtlar JSON dosyalarına yazılır");
+#ifdef _WIN32
+#define SQ_ISLEV(ad) ((void *)GetProcAddress((HMODULE)k, "sqlite3_" #ad))
+#else
+#define SQ_ISLEV(ad) dlsym(k, "sqlite3_" #ad)
+#endif
+#define SQ_BAGLA(ad)                                                                                                   \
+    do {                                                                                                               \
+        *(void **)&sq.ad = SQ_ISLEV(ad);                                                                               \
+        if (!sq.ad) hata(satir, "SQLite kütüphanesinde sqlite3_" #ad " bulunamadı");                                    \
+    } while (0)
+    SQ_BAGLA(open_v2);
+    SQ_BAGLA(exec);
+    SQ_BAGLA(prepare_v2);
+    SQ_BAGLA(bind_int64);
+    SQ_BAGLA(bind_double);
+    SQ_BAGLA(bind_text);
+    SQ_BAGLA(bind_null);
+    SQ_BAGLA(bind_parameter_count);
+    SQ_BAGLA(step);
+    SQ_BAGLA(column_count);
+    SQ_BAGLA(column_name);
+    SQ_BAGLA(column_type);
+    SQ_BAGLA(column_int64);
+    SQ_BAGLA(column_double);
+    SQ_BAGLA(column_text);
+    SQ_BAGLA(column_bytes);
+    SQ_BAGLA(finalize);
+    SQ_BAGLA(errmsg);
+    SQ_BAGLA(busy_timeout);
+    SQ_BAGLA(last_insert_rowid);
+    SQ_BAGLA(changes);
+#undef SQ_BAGLA
+#undef SQ_ISLEV
+    klasor_olustur(veri_klasoru());
+    Tampon yol = {0};
+    t_yaz(&yol, veri_klasoru());
+    t_yaz(&yol, "/orhunca.sqlite");
+    void *b = NULL;
+    /* SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE */
+    if (sq.open_v2(yol.v, &b, 2 | 4, NULL) != SQ_OK || !b) {
+        char m[700];
+        snprintf(m, sizeof m, "veritabanı açılamadı: %.500s", yol.v);
+        free(yol.v);
+        hata(satir, m);
+    }
+    free(yol.v);
+    vt = b;
+    /* Aynı dosyayı başka bir program yazarken beklenir (ör. Stüdyo ile sunucu). */
+    sq.busy_timeout(vt, 5000);
+    return vt;
+}
+
+static void *vt_hazirla(const char *sql, int64_t satir) {
+    void *s = NULL;
+    if (sq.prepare_v2(vt_ac(satir), sql, -1, &s, NULL) != SQ_OK || !s) vt_hatasi(satir, sql);
+    return s;
+}
+
+static void vt_calistir(const char *sql, int64_t satir) {
+    if (sq.exec(vt_ac(satir), sql, NULL, NULL, NULL) != SQ_OK) vt_hatasi(satir, sql);
+}
+
+static void ad_tirnakla(Tampon *t, const char *ad) {
+    t_yaz(t, "\"");
+    for (const char *p = ad; *p; p++) t_ekle(t, *p == '"' ? "\"\"" : p, *p == '"' ? 2 : 1);
+    t_yaz(t, "\"");
+}
+
+static const char *sutun_tipi(int64_t kod) {
+    switch (kod % 8) {
+    case KOD_SAYI:
+    case KOD_MANTIK: return "INTEGER NOT NULL DEFAULT 0";
+    case KOD_ONDALIK: return "REAL NOT NULL DEFAULT 0";
+    default: return "TEXT";
+    }
+}
+
+/* Alanın değerini hazırlanmış sorgunun `sira`. yerine bağlar. */
+static void alan_bagla(void *s, int sira, int64_t d, int64_t kod) {
+    switch (kod % 8) {
+    case KOD_SAYI: sq.bind_int64(s, sira, d); break;
+    case KOD_MANTIK: sq.bind_int64(s, sira, d ? 1 : 0); break;
+    case KOD_ONDALIK: sq.bind_double(s, sira, ondalik(d)); break;
+    case KOD_METIN: sq.bind_text(s, sira, d ? M(d) : "", -1, SQ_KOPYALA); break;
+    default:
+        if (kod % 8 == KOD_MODEL && !d) {
+            sq.bind_null(s, sira);
+        } else {
+            Tampon t = {0};
+            json_yaz(&t, d, kod, 0);
+            sq.bind_text(s, sira, t.v ? t.v : "", (int)t.n, SQ_KOPYALA);
+            free(t.v);
+        }
+    }
+}
+
+/* Kaydı (kimliğiyle ya da kimliksiz) tabloya ekler; verilen kimliği döndürür. */
+static int64_t vt_ekle(ModelBilgisi *m, int64_t n, int kimlikle, int64_t satir) {
+    Tampon q = {0}, d = {0};
+    t_yaz(&q, "INSERT INTO ");
+    ad_tirnakla(&q, m->ad);
+    t_yaz(&q, " (");
+    int ilk = 1;
+    for (int64_t i = kimlikle ? 0 : 1; i < m->alan_sayisi; i++) {
+        if (!ilk) {
+            t_yaz(&q, ", ");
+            t_yaz(&d, ", ");
+        }
+        ilk = 0;
+        ad_tirnakla(&q, m->alanlar[i].ad);
+        t_yaz(&d, "?");
+    }
+    if (ilk) {
+        t_yaz(&q, ") DEFAULT VALUES");
+    } else {
+        t_yaz(&q, ") VALUES (");
+        t_yaz(&q, d.v);
+        t_yaz(&q, ")");
+    }
+    free(d.v);
+    void *s = vt_hazirla(q.v, satir);
+    free(q.v);
+    int sira = 1;
+    for (int64_t i = kimlikle ? 0 : 1; i < m->alan_sayisi; i++) alan_bagla(s, sira++, ALAN(n, i), m->alanlar[i].kod);
+    int r = sq.step(s);
+    sq.finalize(s);
+    if (r != SQ_BITTI) vt_hatasi(satir, "kayıt eklenemedi");
+    return kimlikle ? ALAN(n, 0) : sq.last_insert_rowid(vt);
+}
+
+/* Modelin tablosu: yoksa oluşturulur (veri/<Model>.json varsa içe aktarılır), eksik sütunlar eklenir. */
+static void tablo_hazirla(ModelBilgisi *m, int64_t satir) {
+    if (m->tablo_hazir) return;
+    vt_ac(satir);
+    void *s = vt_hazirla("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", satir);
+    sq.bind_text(s, 1, m->ad, -1, SQ_KOPYALA);
+    int yeni = sq.step(s) != SQ_SATIR;
+    sq.finalize(s);
+    Tampon q = {0};
+    if (yeni) {
+        t_yaz(&q, "CREATE TABLE IF NOT EXISTS ");
+        ad_tirnakla(&q, m->ad);
+        t_yaz(&q, " (\"kimlik\" INTEGER PRIMARY KEY AUTOINCREMENT");
+        for (int64_t i = 1; i < m->alan_sayisi; i++) {
+            t_yaz(&q, ", ");
+            ad_tirnakla(&q, m->alanlar[i].ad);
+            t_yaz(&q, " ");
+            t_yaz(&q, sutun_tipi(m->alanlar[i].kod));
+        }
+        t_yaz(&q, ")");
+        vt_calistir(q.v, satir);
+        free(q.v);
+    } else {
+        /* Modele sonradan eklenen alanlar için sütun eklenir; kaldırılan alanların sütunları kalır. */
+        t_yaz(&q, "PRAGMA table_info(");
+        ad_tirnakla(&q, m->ad);
+        t_yaz(&q, ")");
+        s = vt_hazirla(q.v, satir);
+        free(q.v);
+        char *var = ham_ayir((size_t)m->alan_sayisi);
+        memset(var, 0, (size_t)m->alan_sayisi);
+        while (sq.step(s) == SQ_SATIR) {
+            const char *ad = (const char *)sq.column_text(s, 1);
+            int64_t i = ad ? alan_sirasi(m, ad) : -1;
+            if (i >= 0) var[i] = 1;
+        }
+        sq.finalize(s);
+        for (int64_t i = 1; i < m->alan_sayisi; i++) {
+            if (var[i]) continue;
+            Tampon a = {0};
+            t_yaz(&a, "ALTER TABLE ");
+            ad_tirnakla(&a, m->ad);
+            t_yaz(&a, " ADD COLUMN ");
+            ad_tirnakla(&a, m->alanlar[i].ad);
+            t_yaz(&a, " ");
+            t_yaz(&a, sutun_tipi(m->alanlar[i].kod));
+            vt_calistir(a.v, satir);
+            free(a.v);
+        }
+        free(var);
+    }
+    m->tablo_hazir = 1;
+    if (yeni) {
+        /* JSON'dan SQLite'a geçiş: önceki kayıtlar kimlikleriyle aktarılır (JSON dosyası silinmez). */
+        int64_t liste = kayitlari_oku(m, satir);
+        Liste *l = ORNEK(liste);
+        if (l->uzunluk) {
+            vt_calistir("BEGIN", satir);
+            for (int64_t i = 0; i < l->uzunluk; i++) vt_ekle(m, l->ogeler[i], 1, satir);
+            vt_calistir("COMMIT", satir);
+        }
+    }
+}
+
+/* Programın bütün modellerinin tabloları (ham SQL sorgularından önce) */
+static void tablolari_hazirla(int64_t satir) {
+    for (int64_t i = 0; i < kayitli_tanim_sayisi; i++) {
+        ModelBilgisi *m = model_bilgisi(kayitli_tanimlar[i]);
+        /* Web sunucusunun yerleşik modelleri kaydedilmez. */
+        if (!strcmp(m->ad, "İstek") || !strcmp(m->ad, "Yanıt") || !strcmp(m->ad, "YüklenenDosya")) continue;
+        tablo_hazirla(m, satir);
+    }
+}
+
+/* Sorgunun o anki satırından model nesnesi: satır JSON nesnesine çevrilip okunur. */
+static int64_t satirdan_nesne(void *s, ModelBilgisi *m, int64_t satir) {
+    Tampon t = {0};
+    char k[64];
+    t_yaz(&t, "{");
+    int ilk = 1;
+    int n = sq.column_count(s);
+    for (int c = 0; c < n; c++) {
+        int64_t i = alan_sirasi(m, sq.column_name(s, c));
+        if (i < 0 || sq.column_type(s, c) == SQ_BOS) continue;
+        int64_t kod = m->alanlar[i].kod;
+        if (!ilk) t_yaz(&t, ",");
+        ilk = 0;
+        json_metin(&t, m->alanlar[i].ad);
+        t_yaz(&t, ":");
+        switch (kod % 8) {
+        case KOD_SAYI:
+            snprintf(k, sizeof k, "%" PRId64, sq.column_int64(s, c));
+            t_yaz(&t, k);
+            break;
+        case KOD_MANTIK: t_yaz(&t, sq.column_int64(s, c) ? "true" : "false"); break;
+        case KOD_ONDALIK:
+            snprintf(k, sizeof k, "%.17g", sq.column_double(s, c));
+            t_yaz(&t, k);
+            break;
+        case KOD_METIN: json_metin(&t, (const char *)sq.column_text(s, c)); break;
+        default: {
+            const char *j = (const char *)sq.column_text(s, c);
+            t_yaz(&t, j && *j ? j : "null");
+        }
+        }
+    }
+    t_yaz(&t, "}");
+    Json j = {t.v, NULL, 0};
+    int64_t nesne = j_deger(&j, KOD_MODEL, m);
+    if (j.hata) {
+        char mesaj[600];
+        snprintf(mesaj, sizeof mesaj, "'%.200s' tablosundaki kayıt okunamadı: %s", m->ad, j.hata);
+        free(t.v);
+        hata(satir, mesaj);
+    }
+    free(t.v);
+    return nesne;
+}
+
+/* SELECT * FROM <Model> [WHERE kimlik = ?] */
+static void *vt_secim(ModelBilgisi *m, const char *bas, const char *son, int64_t satir) {
+    tablo_hazirla(m, satir);
+    Tampon q = {0};
+    t_yaz(&q, bas);
+    ad_tirnakla(&q, m->ad);
+    t_yaz(&q, son);
+    void *s = vt_hazirla(q.v, satir);
+    free(q.v);
+    return s;
+}
+
+static int64_t vt_hepsi(ModelBilgisi *m, int64_t satir) {
+    void *s = vt_secim(m, "SELECT * FROM ", " ORDER BY \"kimlik\"", satir);
+    int64_t liste = ohc_liste_yeni();
+    int r;
+    while ((r = sq.step(s)) == SQ_SATIR) ohc_liste_ekle(liste, satirdan_nesne(s, m, satir));
+    sq.finalize(s);
+    if (r != SQ_BITTI) vt_hatasi(satir, "kayıtlar okunamadı");
+    return liste;
+}
+
+static int64_t vt_bul(ModelBilgisi *m, int64_t kimlik, int64_t varsayilan, int64_t satir) {
+    void *s = vt_secim(m, "SELECT * FROM ", " WHERE \"kimlik\" = ?", satir);
+    sq.bind_int64(s, 1, kimlik);
+    int64_t n = sq.step(s) == SQ_SATIR ? satirdan_nesne(s, m, satir) : varsayilan;
+    sq.finalize(s);
+    return n;
+}
+
+static int vt_var(ModelBilgisi *m, int64_t kimlik, int64_t satir) {
+    void *s = vt_secim(m, "SELECT 1 FROM ", " WHERE \"kimlik\" = ?", satir);
+    sq.bind_int64(s, 1, kimlik);
+    int var = sq.step(s) == SQ_SATIR;
+    sq.finalize(s);
+    return var;
+}
+
+static int vt_sil(ModelBilgisi *m, int64_t kimlik, int64_t satir) {
+    void *s = vt_secim(m, "DELETE FROM ", " WHERE \"kimlik\" = ?", satir);
+    sq.bind_int64(s, 1, kimlik);
+    int r = sq.step(s);
+    sq.finalize(s);
+    if (r != SQ_BITTI) vt_hatasi(satir, "kayıt silinemedi");
+    return sq.changes(vt) > 0;
+}
+
+static int64_t vt_kaydet(ModelBilgisi *m, int64_t n, int64_t satir) {
+    tablo_hazirla(m, satir);
+    int64_t kimlik = ALAN(n, 0);
+    if (kimlik > 0 && vt_var(m, kimlik, satir)) {
+        if (m->alan_sayisi < 2) return kimlik;
+        Tampon q = {0};
+        t_yaz(&q, "UPDATE ");
+        ad_tirnakla(&q, m->ad);
+        t_yaz(&q, " SET ");
+        for (int64_t i = 1; i < m->alan_sayisi; i++) {
+            if (i > 1) t_yaz(&q, ", ");
+            ad_tirnakla(&q, m->alanlar[i].ad);
+            t_yaz(&q, " = ?");
+        }
+        t_yaz(&q, " WHERE \"kimlik\" = ?");
+        void *s = vt_hazirla(q.v, satir);
+        free(q.v);
+        for (int64_t i = 1; i < m->alan_sayisi; i++) alan_bagla(s, (int)i, ALAN(n, i), m->alanlar[i].kod);
+        sq.bind_int64(s, (int)m->alan_sayisi, kimlik);
+        int r = sq.step(s);
+        sq.finalize(s);
+        if (r != SQ_BITTI) vt_hatasi(satir, "kayıt güncellenemedi");
+        return kimlik;
+    }
+    kimlik = vt_ekle(m, n, kimlik > 0, satir);
+    ALAN(n, 0) = kimlik;
+    return kimlik;
+}
+
+/* Ham SQL: `?` yerlerine liste<metin> değerleri bağlanır. Birden çok deyim (;) sırayla çalışır.
+ * `sonuc` verilirse son deyimin satırları sözlük<metin, metin> olarak eklenir. */
+static int64_t sql_yurut(int64_t sorgu, int64_t degerler, int64_t sonuc, int64_t satir) {
+    vt_ac(satir);
+    if (vt_sqlite_mi()) tablolari_hazirla(satir);
+    const char *p = M(sorgu);
+    Liste *dl = degerler ? ORNEK(degerler) : NULL;
+    int64_t degisen = 0;
+    int bagli = 0;
+    while (p && *p) {
+        void *s = NULL;
+        const char *kalan = NULL;
+        if (sq.prepare_v2(vt, p, -1, &s, &kalan) != SQ_OK) vt_hatasi(satir, "SQL");
+        if (!s) break; /* yalnızca boşluk ya da yorum kaldı */
+        int n = sq.bind_parameter_count(s);
+        if (n > 0) {
+            int64_t verilen = dl ? dl->uzunluk : 0;
+            if (bagli || verilen != n) {
+                char m[200];
+                snprintf(m, sizeof m, "SQL sorgusunda %d yer tutucu (?) var ama %" PRId64 " değer verildi", n,
+                         bagli ? 0 : verilen);
+                sq.finalize(s);
+                hata(satir, m);
+            }
+            for (int i = 0; i < n; i++) sq.bind_text(s, i + 1, M(dl->ogeler[i]), -1, SQ_KOPYALA);
+            bagli = 1;
+        }
+        int r;
+        while ((r = sq.step(s)) == SQ_SATIR) {
+            if (!sonuc) continue;
+            int64_t sz = ohc_sozluk_yeni();
+            int c = sq.column_count(s);
+            for (int i = 0; i < c; i++) {
+                const char *ad = sq.column_name(s, i);
+                const char *d = (const char *)sq.column_text(s, i);
+                ohc_sozluk_koy(sz, metin_yap(ad, strlen(ad)), d ? metin_yap(d, (size_t)sq.column_bytes(s, i)) : D(""),
+                               KOD_METIN);
+            }
+            ohc_liste_ekle(sonuc, sz);
+        }
+        if (r != SQ_BITTI) {
+            sq.finalize(s);
+            vt_hatasi(satir, "SQL");
+        }
+        degisen = sq.changes(vt);
+        sq.finalize(s);
+        p = kalan;
+    }
+    return degisen;
+}
+
+int64_t ohc_sql_sorgu(int64_t sorgu, int64_t degerler, int64_t satir) {
+    int64_t sonuc = ohc_liste_yeni();
+    sql_yurut(sorgu, degerler, sonuc, satir);
+    return sonuc;
+}
+
+int64_t ohc_sql_calistir(int64_t sorgu, int64_t degerler, int64_t satir) { return sql_yurut(sorgu, degerler, 0, satir); }
+#else
+static int vt_sqlite_mi(void) { return 0; }
+static int64_t vt_hepsi(ModelBilgisi *m, int64_t satir) { (void)m; return satir; }
+static int64_t vt_bul(ModelBilgisi *m, int64_t k, int64_t v, int64_t satir) { (void)m; (void)k; (void)satir; return v; }
+static int vt_var(ModelBilgisi *m, int64_t k, int64_t satir) { (void)m; (void)k; (void)satir; return 0; }
+static int vt_sil(ModelBilgisi *m, int64_t k, int64_t satir) { (void)m; (void)k; (void)satir; return 0; }
+static int64_t vt_kaydet(ModelBilgisi *m, int64_t n, int64_t satir) { (void)m; (void)n; return satir; }
+int64_t ohc_sql_sorgu(int64_t sorgu, int64_t degerler, int64_t satir) {
+    (void)sorgu;
+    (void)degerler;
+    hata(satir, "SQL sorguları tarayıcıda (web hedefinde) çalışmaz");
+    return 0;
+}
+int64_t ohc_sql_calistir(int64_t sorgu, int64_t degerler, int64_t satir) { return ohc_sql_sorgu(sorgu, degerler, satir); }
+#endif
+
+int64_t ohc_model_hepsi(int64_t tanim, int64_t satir) {
+    if (vt_sqlite_mi()) return vt_hepsi(model_bilgisi(M(tanim)), satir);
+    return kayitlari_oku(model_bilgisi(M(tanim)), satir);
+}
 
 /* Kimliği verilen kaydı döndürür; yoksa `varsayilan` nesnesini (kimlik 0). */
 int64_t ohc_model_yukle(int64_t varsayilan, int64_t kimlik, int64_t satir) {
+    if (vt_sqlite_mi()) return vt_bul(nesne_bilgisi(varsayilan), kimlik, varsayilan, satir);
     int64_t liste = kayitlari_oku(nesne_bilgisi(varsayilan), satir);
     int64_t i = kayit_sirasi(liste, kimlik);
     return i < 0 ? varsayilan : ORNEK(liste)->ogeler[i];
 }
 
 int64_t ohc_model_var(int64_t tanim, int64_t kimlik, int64_t satir) {
+    if (vt_sqlite_mi()) return vt_var(model_bilgisi(M(tanim)), kimlik, satir);
     return kayit_sirasi(kayitlari_oku(model_bilgisi(M(tanim)), satir), kimlik) >= 0;
 }
 
 int64_t ohc_model_sil(int64_t tanim, int64_t kimlik, int64_t satir) {
     ModelBilgisi *m = model_bilgisi(M(tanim));
+    if (vt_sqlite_mi()) return vt_sil(m, kimlik, satir);
     veri_kilitle(m);
     int64_t liste = kayitlari_oku(m, satir);
     int64_t i = kayit_sirasi(liste, kimlik);
@@ -2731,6 +3218,7 @@ int64_t ohc_model_kaydet(int64_t n, int64_t satir) {
                      m->alanlar[i].ad);
             hata(satir, mesaj);
         }
+    if (vt_sqlite_mi()) return vt_kaydet(m, n, satir);
     veri_kilitle(m);
     int64_t liste = kayitlari_oku(m, satir);
     int64_t kimlik = ALAN(n, 0);

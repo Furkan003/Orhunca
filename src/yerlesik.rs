@@ -220,6 +220,16 @@ pub const YERLESIKLER: &[Yerlesik] = &[
         "dosya_taşı(eski, yeni) → mantık",
         "Dosyayı taşır ya da adını değiştirir (ör. yüklenen dosyayı statik/ klasörüne)."
     ),
+    y!(
+        "sql_sorgu",
+        "sql_sorgu(sorgu, [değerler]) → liste<sözlük<metin, metin>>",
+        "SQLite veritabanında (veri/orhunca.sqlite) SELECT çalıştırır; her satır sütun adı → değer sözlüğüdür. `?` yerlerine değerler listesi konur: sql_sorgu(\"SELECT ad FROM Ürün WHERE fiyat > ?\", [\"100\"])"
+    ),
+    y!(
+        "sql_çalıştır",
+        "sql_çalıştır(sorgu, [değerler]) → sayı",
+        "INSERT, UPDATE, DELETE, CREATE gibi SQL deyimlerini çalıştırır; değişen satır sayısını verir. Değerler `?` ile verilir (SQL enjeksiyonuna karşı güvenli)."
+    ),
     // Matematik
     y!("karekök", "karekök(x) → ondalık", "Karekök."),
     y!(

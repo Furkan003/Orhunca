@@ -60,7 +60,9 @@ impl Izin {
 fn kelime_izni(k: &str) -> Option<Izin> {
     Some(match k {
         "dosya_oku" | "dosya_sil" | "dosya_taşı" | "dosya_var" | "dosyaya_ekle" | "dosyaya_yaz"
-        | "csv_oku" | "csv_yaz" | "dosyaya" | "kaydet" => Izin::Dosya,
+        | "csv_oku" | "csv_yaz" | "dosyaya" | "kaydet" | "sql_sorgu" | "sql_çalıştır" => {
+            Izin::Dosya
+        }
         "http_al" | "http_gönder" | "http_iste" | "json_al" => Izin::Ag,
         "ortam" => Izin::Ortam,
         "sun" => Izin::Sunucu,

@@ -2204,6 +2204,18 @@ impl Uretici<'_> {
             "dosya_var" => self.cagri("ohc_dosya_var", &d)?,
             "dosya_sil" => self.cagri("ohc_dosya_sil", &d)?,
             "dosya_taşı" => self.cagri("ohc_dosya_tasi", &d)?,
+            "sql_sorgu" | "sql_çalıştır" => {
+                if d.len() == 1 {
+                    d.push(Arg::S(0));
+                }
+                d.push(satir);
+                let islev = if ad == "sql_sorgu" {
+                    "ohc_sql_sorgu"
+                } else {
+                    "ohc_sql_calistir"
+                };
+                self.cagri(islev, &d)?
+            }
             "karekök" | "sinüs" | "kosinüs" | "tanjant" | "logaritma" if d.len() == 1 => {
                 let islem = ["karekök", "sinüs", "kosinüs", "tanjant", "logaritma"]
                     .iter()

@@ -146,6 +146,12 @@ fn yardimci_kodu(dil: Dil, ad: &str) -> &'static str {
         (Dil::Python, "bul") => {
             "def bul(x, aranan):\n    if isinstance(x, str):\n        return x.find(aranan)\n    return x.index(aranan) if aranan in x else -1"
         }
+        (Dil::Python, "sql_sorgu") => {
+            "def sql_sorgu(sorgu, değerler=()):\n    os.makedirs(\"veri\", exist_ok=True)\n    with sqlite3.connect(\"veri/orhunca.sqlite\") as b:\n        b.row_factory = sqlite3.Row\n        return [{k: \"\" if r[k] is None else str(r[k]) for k in r.keys()} for r in b.execute(sorgu, değerler)]"
+        }
+        (Dil::Python, "sql_çalıştır") => {
+            "def sql_çalıştır(sorgu, değerler=()):\n    os.makedirs(\"veri\", exist_ok=True)\n    with sqlite3.connect(\"veri/orhunca.sqlite\") as b:\n        return b.execute(sorgu, değerler).rowcount"
+        }
         (Dil::Python, "dosya_sil") => {
             "def dosya_sil(yol):\n    if os.path.exists(yol):\n        os.remove(yol)\n        return True\n    return False"
         }
@@ -1575,6 +1581,17 @@ impl Cevirici {
                 ("dosya_var", 1) => {
                     ithal(self, "os");
                     atom(format!("os.path.exists({})", a[0]))
+                }
+                ("sql_sorgu" | "sql_çalıştır", 1 | 2) => {
+                    ithal(self, "os");
+                    ithal(self, "sqlite3");
+                    let y = if ad == "sql_sorgu" {
+                        "sql_sorgu"
+                    } else {
+                        "sql_çalıştır"
+                    };
+                    self.yardimci.insert(y);
+                    atom(format!("{y}({})", a.join(", ")))
                 }
                 ("dosya_sil", 1) => {
                     ithal(self, "os");

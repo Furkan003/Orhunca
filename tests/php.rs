@@ -364,13 +364,16 @@ fn yerel_kayitlar_yalnizca_veriyle_kopyalanir() {
     let p = k.join("dukkan");
     std::fs::create_dir_all(p.join("veri")).unwrap();
     std::fs::write(p.join("veri/Ürün.json"), "[]\n").unwrap();
+    std::fs::write(p.join("veri/orhunca.sqlite"), "").unwrap();
     for kip in ["--php", "--cgi"] {
         let c = p.join("cikti").join(&kip[2..]);
         orhunca(&p, &["yayınla", kip]);
         assert!(!c.join("veri/Ürün.json").exists(), "{kip}");
+        assert!(!c.join("veri/orhunca.sqlite").exists(), "{kip}");
         let _ = std::fs::remove_dir_all(&c);
         orhunca(&p, &["yayınla", kip, "--veriyle"]);
         assert!(c.join("veri/Ürün.json").is_file(), "{kip}");
+        assert!(c.join("veri/orhunca.sqlite").is_file(), "{kip}");
     }
     std::fs::remove_dir_all(&k).unwrap();
 }

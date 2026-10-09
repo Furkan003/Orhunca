@@ -2106,6 +2106,12 @@ impl Denetci {
             ("dosyaya_yaz" | "dosyaya_ekle", [Metin, Metin]) => Bos,
             ("dosya_var" | "dosya_sil", [Metin]) => Mantik,
             ("dosya_taşı", [Metin, Metin]) => Mantik,
+            ("sql_sorgu", [Metin]) => Liste(Box::new(Sozluk(Box::new(Metin), Box::new(Metin)))),
+            ("sql_sorgu", [Metin, Liste(i)]) if matches!(**i, Metin | Bilinmeyen) => {
+                Liste(Box::new(Sozluk(Box::new(Metin), Box::new(Metin))))
+            }
+            ("sql_çalıştır", [Metin]) => Sayi,
+            ("sql_çalıştır", [Metin, Liste(i)]) if matches!(**i, Metin | Bilinmeyen) => Sayi,
             ("karekök" | "sinüs" | "kosinüs" | "tanjant" | "logaritma", [x]) if x.sayisal() => {
                 genislet(&mut arg[0], &Ondalik);
                 Ondalik

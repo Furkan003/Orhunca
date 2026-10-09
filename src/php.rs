@@ -51,6 +51,8 @@ const YERLESIKLER: &[(&str, &str)] = &[
     ("dosya_var", "o_dosya_var"),
     ("dosya_sil", "o_dosya_sil"),
     ("dosya_taşı", "o_dosya_tasi"),
+    ("sql_sorgu", "o_sql_sorgu"),
+    ("sql_çalıştır", "o_sql_calistir"),
     ("karekök", "o_karekok"),
     ("üs", "o_us"),
     ("mutlak", "o_mutlak"),

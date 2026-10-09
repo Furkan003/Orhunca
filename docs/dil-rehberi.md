@@ -347,6 +347,24 @@ Kitap.var_mı(3)  ·  Kitap.sil(3)  ·  k'yı sil.
 k.json()  ·  json(değer)      # JSON metni
 ```
 
+**SQLite.** `.env` dosyasına `ORHUNCA_VERITABANI=sqlite` yazılırsa kayıtlar `veri/orhunca.sqlite`
+veritabanına yazılır: her model bir tablodur (`kimlik`, sayı/mantık `INTEGER`, ondalık `REAL`,
+metin `TEXT`; liste, sözlük ve iç model alanları JSON metni). Kod değişmez; önceki `veri/<Model>.json`
+kayıtları ilk açılışta kimlikleriyle aktarılır, modele eklenen alanlar tabloya sütun olarak eklenir.
+Veritabanı DB Browser for SQLite gibi araçlarla açılabilir. SQLite kütüphanesi Windows'ta ve macOS'ta
+hazır gelir; Linux'ta `libsqlite3` paketi gerekir. `orhunca yayınla --php` de aynı tabloları kullanır.
+
+Doğrudan SQL de yazılabilir (JSON kipinde de aynı veritabanı dosyasını kullanır):
+
+```
+sonuç = sql_sorgu("SELECT ad, fiyat FROM Ürün WHERE fiyat > ? ORDER BY fiyat", ["100"])
+her s için sonuç'tan:                # her satır: sözlük<metin, metin>
+    s["ad"] + ": " + s["fiyat"]'ı yaz.
+sql_çalıştır("UPDATE Ürün SET stok = stok - 1 WHERE kimlik = ?", [metin(k)])   # değişen satır sayısı
+```
+Değerleri metne eklemek yerine her zaman `?` ile verin: kullanıcıdan gelen metin SQL'i bozamaz
+(SQL enjeksiyonu). Hatalı sorgu `dene`/`yakala` ile yakalanabilen bir hata verir.
+
 ### Web sunucusu
 
 ```

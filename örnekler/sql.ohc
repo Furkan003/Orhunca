@@ -1,0 +1,28 @@
+# SQL: SQLite veritabanında (veri/orhunca.sqlite) doğrudan SQL çalıştırmak.
+# `?` yerlerine değerler listesi konur; kullanıcıdan gelen metin SQL'i bozamaz.
+sql_çalıştır("DROP TABLE IF EXISTS kitaplar")
+sql_çalıştır("CREATE TABLE kitaplar (kimlik INTEGER PRIMARY KEY, ad TEXT, yazar TEXT, sayfa INTEGER)")
+kitaplar = [["Nutuk", "Atatürk", "600"], ["Çalıkuşu", "Reşat Nuri", "420"], ["Sinekli Bakkal", "Halide Edib", "380"], ["Ateşten Gömlek", "Halide Edib", "250"]]
+her k için kitaplar'dan:
+    sql_çalıştır("INSERT INTO kitaplar (ad, yazar, sayfa) VALUES (?, ?, ?)", k)
+
+"300 sayfadan uzun kitaplar:"'ı yaz.
+her s için sql_sorgu("SELECT ad, sayfa FROM kitaplar WHERE sayfa > ? ORDER BY sayfa DESC", ["300"])'dan:
+    "- " + s["ad"] + " (" + s["sayfa"] + ")"'yi yaz.
+
+"Yazarlara göre:"'yı yaz.
+her s için sql_sorgu("SELECT yazar, COUNT(*) AS adet, SUM(sayfa) AS toplam FROM kitaplar GROUP BY yazar ORDER BY yazar")'dan:
+    "- " + s["yazar"] + ": " + s["adet"] + " kitap, " + s["toplam"] + " sayfa"'yı yaz.
+
+# Değer olarak verilen kötü niyetli metin zararsızdır.
+kötü = "x'; DROP TABLE kitaplar; --"
+uzunluk(sql_sorgu("SELECT * FROM kitaplar WHERE ad = ?", [kötü]))'u yaz.
+
+değişen = sql_çalıştır("UPDATE kitaplar SET sayfa = sayfa + 4 WHERE yazar = ?", ["Atatürk"])
+"Güncellenen: " + değişen'i yaz.
+sql_sorgu("SELECT sayfa FROM kitaplar WHERE ad = 'Nutuk'")[0]["sayfa"]'yı yaz.
+
+dene:
+    sql_sorgu("SELECT * FROM olmayan_tablo")
+yakala h:
+    h'yi yaz.

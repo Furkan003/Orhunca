@@ -111,14 +111,17 @@ pub fn hazirla(giris: &Path, kaynakla: bool, veriyle: bool) -> Result<PathBuf, S
     Ok(cikti)
 }
 
-/// `veri/*.json` model kayıtlarını yayın klasörüne kopyalar (`--veriyle`).
+/// `veri/*.json` model kayıtlarını ve SQLite veritabanını (`veri/orhunca.sqlite`) yayın
+/// klasörüne kopyalar (`--veriyle`).
 pub fn json_kayitlari_kopyala(kaynak: &Path, hedef: &Path) -> Result<(), String> {
     let Ok(g) = std::fs::read_dir(kaynak) else {
         return Ok(());
     };
     for d in g.flatten() {
         let p = d.path();
-        if p.extension().is_some_and(|e| e == "json") && !hedef.join(d.file_name()).exists() {
+        if p.extension().is_some_and(|e| e == "json" || e == "sqlite")
+            && !hedef.join(d.file_name()).exists()
+        {
             std::fs::copy(&p, hedef.join(d.file_name()))
                 .map_err(|e| format!("'{}' kopyalanamadı: {e}", p.display()))?;
         }

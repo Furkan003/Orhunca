@@ -589,3 +589,41 @@ fn http_iste_yontem_ve_basliklari_gonderir() {
         gelenler[0]
     );
 }
+
+#[test]
+fn sqlite_kipinde_kayitlar_veritabanina_yazilir() {
+    let klasor = std::env::temp_dir().join(format!("orhunca-sqlite-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&klasor);
+    std::fs::create_dir_all(klasor.join("veri")).unwrap();
+    // JSON kipinden kalan kayıtlar ilk açılışta kimlikleriyle aktarılır.
+    std::fs::write(
+        klasor.join("veri/Kitap.json"),
+        "[{\"kimlik\": 3, \"ad\": \"Nutuk\", \"fiyat\": 150.5, \"etiketler\": [\"tarih\"]}]\n",
+    )
+    .unwrap();
+    let dosya = klasor.join("p.ohc");
+    std::fs::write(
+        &dosya,
+        "model Kitap:\n    ad: metin\n    fiyat: ondalık\n    okundu: mantık\n    etiketler: liste<metin>\n\
+         k = Kitap(ad: \"Çalıkuşu\", fiyat: 89.9, okundu: doğru)\nk'yı kaydet.\nk.kimlik'i yaz.\n\
+         k.fiyat = 95.0\nk'yı kaydet.\nKitap.bul(3).etiketler[0]'ı yaz.\nKitap.bul(4).fiyat'ı yaz.\n\
+         uzunluk(Kitap.hepsi())'ni yaz.\n\
+         sql_sorgu(\"SELECT ad FROM Kitap WHERE okundu = 1\")[0][\"ad\"]'ı yaz.\n\
+         Kitap.sil(3)'ü yaz.\nKitap.var_mı(3)'ü yaz.\n",
+    )
+    .unwrap();
+    let c = orhunca()
+        .arg("çalıştır")
+        .arg(&dosya)
+        .env("ORHUNCA_VERI", klasor.join("veri"))
+        .env("ORHUNCA_VERITABANI", "sqlite")
+        .output()
+        .unwrap();
+    assert!(c.status.success(), "{}", String::from_utf8_lossy(&c.stderr));
+    assert_eq!(
+        String::from_utf8_lossy(&c.stdout),
+        "4\ntarih\n95.0\n2\nÇalıkuşu\ndoğru\nyanlış\n"
+    );
+    assert!(klasor.join("veri/orhunca.sqlite").is_file());
+    let _ = std::fs::remove_dir_all(&klasor);
+}

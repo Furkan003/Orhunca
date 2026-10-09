@@ -1431,6 +1431,42 @@ function o_model_sil_kimlik(string $sinif, int $kimlik): bool
     return $s->rowCount() > 0;
 }
 
+/** Ham SQL: modellerin tabloları önce hazırlanır; `?` yerlerine değerler bağlanır. */
+function o_sql_hazir(string $sorgu, ?OListe $degerler)
+{
+    foreach (get_declared_classes() as $c) {
+        if (is_subclass_of($c, 'OModel') && defined("$c::AD")) {
+            o_tablo($c);
+        }
+    }
+    try {
+        $s = o_vt()->prepare($sorgu);
+        $s->execute($degerler ? array_map('strval', $degerler->o) : []);
+    } catch (PDOException $e) {
+        o_hata('veritabanı hatası (SQL): ' . ($e->errorInfo[2] ?? $e->getMessage()));
+    }
+    return $s;
+}
+
+function o_sql_sorgu(string $sorgu, ?OListe $degerler = null): OListe
+{
+    $s = o_sql_hazir($sorgu, $degerler);
+    $l = new OListe();
+    foreach ($s->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $ciftler = [];
+        foreach ($r as $k => $v) {
+            $ciftler[] = [(string)$k, $v === null ? '' : (string)$v];
+        }
+        $l->o[] = OSozluk::yap($ciftler);
+    }
+    return $l;
+}
+
+function o_sql_calistir(string $sorgu, ?OListe $degerler = null): int
+{
+    return o_sql_hazir($sorgu, $degerler)->rowCount();
+}
+
 function o_model_sil(?OModel $n): bool
 {
     if (!$n) {
