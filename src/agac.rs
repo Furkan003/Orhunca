@@ -174,6 +174,10 @@ pub enum IfadeTuru {
     Metod(Box<Ifade>, String, Vec<Ifade>),
     /// Yalnızca yöntem çağrısının alıcısı olabilen model adı: `Ürün.hepsi()`.
     ModelAdi(String),
+    /// Adsız işlev: `işlev(x) -> x * 2`. Yalnızca `süz`, `dönüştür`, `sırala`, `biri_mi`,
+    /// `hepsi_mi` çağrılarında kullanılır; denetçiden önce `adsiz::indir` bu çağrıları
+    /// üretilmiş işlevlere çevirir (bkz. src/adsiz.rs).
+    Adsiz(Vec<String>, Box<Ifade>),
 }
 
 #[derive(Debug, Clone)]
@@ -304,6 +308,13 @@ pub fn gecen_adlar(govde: &[Deyim]) -> Vec<String> {
             IfadeTuru::Metod(a, _, l) => {
                 ifade(a, adlar);
                 l.iter().for_each(|x| ifade(x, adlar))
+            }
+            IfadeTuru::Adsiz(p, g) => {
+                let mut ic = Vec::new();
+                ifade(g, &mut ic);
+                for a in ic.iter().filter(|a| !p.contains(a)) {
+                    ekle(adlar, a);
+                }
             }
             IfadeTuru::Sayi(_)
             | IfadeTuru::Ondalik(_)

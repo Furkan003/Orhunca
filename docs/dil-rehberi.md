@@ -104,6 +104,26 @@ Tipi yazılmayan parametre, işlevin ilk çağrısındaki değerin tipini alır 
 `selamla2("Ali")` ile metin); hiç çağrılmayan işlevde sayıdır. Sonraki çağrılar aynı tipte
 olmalıdır; farklı tipler (ör. hem sayı hem ondalık) için tipi tanımda yazın.
 
+### Adsız işlevler
+
+Listeyi süzmek, dönüştürmek ya da bir anahtara göre sıralamak için işlev tanımlamadan yazılır:
+`işlev(x) -> ifade`. Dışarıdaki değişkenleri de kullanabilir.
+
+```
+sınır = 50
+geçenler = süz(notlar, işlev(n) -> n >= sınır)          # koşulu sağlayanlar
+kareler = dönüştür(sayılar, işlev(x) -> x * x)          # her öğenin sonucu
+biri_mi(notlar, işlev(n) -> n < sınır)                  # en az biri sağlıyor mu?
+hepsi_mi(notlar, işlev(n) -> n > 0)                     # hepsi sağlıyor mu?
+sırala(kişiler, işlev(k) -> k.yaş)                      # listeyi yerinde, anahtara göre
+```
+- `sırala` kararlıdır (eşit anahtarlı öğelerin sırası korunur); metin anahtarlar Türk alfabesine
+  göre sıralanır.
+- Adsız işlev yalnızca bu beş işlevde kullanılır; değişkene atanamaz. Gövdesi tek bir ifadedir;
+  dışarıdaki değişkenleri okur ama değiştiremez.
+- Python/JavaScript çevirisinde `[x for x in l if …]`, `l.filter(x => …)` gibi karşılıklarına
+  çevrilir.
+
 ### Kendi fiilleriniz
 
 Parametreler hâl ekleriyle tanımlanır, son kelime fiilin adıdır. Çağrıda sıra önemsizdir;

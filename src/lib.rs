@@ -3,6 +3,7 @@
 //! `orhunca` komut aracı (src/main.rs) ve masaüstü Orhunca Stüdyo (masaustu/)
 //! bu kütüphaneyi kullanır.
 
+pub mod adsiz;
 pub mod agac;
 pub mod ajan;
 pub mod android;

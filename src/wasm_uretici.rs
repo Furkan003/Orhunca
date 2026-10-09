@@ -1028,7 +1028,8 @@ impl Uretici<'_> {
             | IfadeTuru::Metin(_)
             | IfadeTuru::Mantik(_)
             | IfadeTuru::Isim(_)
-            | IfadeTuru::ModelAdi(_) => false,
+            | IfadeTuru::ModelAdi(_)
+            | IfadeTuru::Adsiz(..) => false,
         }
     }
 
@@ -1748,6 +1749,7 @@ impl Uretici<'_> {
             IfadeTuru::ModelAdi(m) => {
                 return Err(format!("'{m}' model adı değer olarak kullanıldı"))
             }
+            IfadeTuru::Adsiz(..) => return Err("adsız işlev indirilmemiş".into()),
             IfadeTuru::Kurucu(model, alanlar) if alanlar.is_empty() => {
                 self.varsayilan_nesne(model)?;
             }

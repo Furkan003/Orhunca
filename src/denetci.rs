@@ -1734,6 +1734,13 @@ impl Denetci {
                 ))
             }
             IfadeTuru::Metod(..) => unreachable!(),
+            IfadeTuru::Adsiz(..) => {
+                return Err(Hata::yeni(
+                    e.konum,
+                    "adsız işlev yalnızca süz, dönüştür, sırala, biri_mi ve hepsi_mi çağrılarında kullanılabilir",
+                )
+                .ipucu("büyükler = süz(sayılar, işlev(x) -> x > 10)"))
+            }
         };
         e.tip = tip.clone();
         Ok(tip)

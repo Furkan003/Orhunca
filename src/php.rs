@@ -681,6 +681,7 @@ impl<'a> Uretici<'a> {
             IfadeTuru::Mantik(d) => if *d { "true" } else { "false" }.into(),
             IfadeTuru::Isim(a) => self.isim(a),
             IfadeTuru::ModelAdi(a) => metin_sabiti(&sinif_adi(a)),
+            IfadeTuru::Adsiz(..) => return Err("adsız işlev indirilmemiş".into()),
             IfadeTuru::Liste(l) => {
                 let ic = match &e.tip {
                     Tip::Liste(i) => {

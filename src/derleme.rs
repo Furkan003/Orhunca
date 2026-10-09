@@ -204,6 +204,7 @@ pub fn yukle_kesmeli(
         .map_err(|h| DerlemeHatasi::konumlu(h, &dosyalar))?;
     crate::sinama::indir(&mut program, &dosyalar)
         .map_err(|h| DerlemeHatasi::konumlu(h, &dosyalar))?;
+    crate::adsiz::indir(&mut program).map_err(|h| DerlemeHatasi::konumlu(h, &dosyalar))?;
     crate::ayiklama::yerlestir(&mut program, &dosyalar, kesmeler)
         .map_err(|h| DerlemeHatasi::konumlu(h, &dosyalar))?;
     denetci::denetle(&mut program).map_err(|h| {

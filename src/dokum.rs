@@ -58,6 +58,7 @@ pub fn ifade(e: &Ifade) -> String {
         IfadeTuru::Alan(n, a, _) => format!("(alan{yer} {} {a})", ifade(n)),
         IfadeTuru::Metod(n, a, l) => format!("(yöntem{yer} {} {a}{})", ifade(n), liste(l)),
         IfadeTuru::ModelAdi(m) => format!("(modeladı{yer} {m})"),
+        IfadeTuru::Adsiz(p, g) => format!("(adsız{yer} [{}] {})", p.join(" "), ifade(g)),
     }
 }
 

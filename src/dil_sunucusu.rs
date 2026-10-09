@@ -904,6 +904,18 @@ impl Sunucu {
                 "seçenek ${1:Renk}: ${2:kırmızı}, ${3:yeşil}, ${4:mavi}",
             ),
             ("dene … yakala", "dene:\n    $1\nyakala ${2:hata}:\n    $0"),
+            (
+                "süz (adsız işlev)",
+                "süz(${1:liste}, işlev(${2:x}) -> ${0:koşul})",
+            ),
+            (
+                "dönüştür (adsız işlev)",
+                "dönüştür(${1:liste}, işlev(${2:x}) -> $0)",
+            ),
+            (
+                "sırala (anahtara göre)",
+                "sırala(${1:liste}, işlev(${2:x}) -> $0)",
+            ),
             ("arayüz", "arayüz:\n    başlık(\"${1:Başlık}\")\n    $0"),
             (
                 "bileşen",

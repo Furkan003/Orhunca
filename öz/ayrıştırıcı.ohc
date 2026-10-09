@@ -14,7 +14,7 @@ kullan "sözcük.ohc"
 # ---------------------------------------------------------------------------
 
 # Bir ifade. tür: sayı, ondalık, metin, mantık, isim, liste, sözlük, ikili, tekli, çağrı,
-# fiil, indeks, kurucu, alan, yöntem, modeladı. `ad` türe göre değerin yazısı, işlecin,
+# fiil, indeks, kurucu, alan, yöntem, modeladı, adsız. `ad` türe göre değerin yazısı, işlecin,
 # çağrılan işlevin, alanın ya da modelin adıdır. `etiketler`, alt ifadelerle sıralı olarak
 # fiil çağrısında hâlleri, kurucuda alan adlarını tutar.
 model İfade:
@@ -604,8 +604,11 @@ işlev tanımları_kur(a: Ayrıştırıcı, s: liste<Sözcük>):
             ad = kelime_at(s, i + 1)
             eğer ad != "" ve değil işlev_satırları ise:
                 sözlüğe_ekle(a.isimler, ad)
-            # Parametreler: parantez içinde virgülle ayrılmış parçaların ilk kelimesi
+            # Parametreler: parantez içinde virgülle ayrılmış parçaların ilk kelimesi.
+            # Adsız işlevde (`işlev(x) -> ...`) parantez hemen gelir.
             j = i + 2
+            eğer op_at(s, i + 1, "(") ise:
+                j = i + 1
             parça_başı = doğru
             eğer op_at(s, j, "(") ise:
                 j += 1
@@ -1547,7 +1550,9 @@ işlev cümle(a: Ayrıştırıcı) -> Deyim:
             s1 = bak_n(a, 1)
             kullanıcı = içerir(a.fiiller, s.değer) ve değil s_op(s1, "(")
             model_fiili = içerir(model_fiilleri(), s.değer) ve (s1.tür == "YeniSatir" veya s1.tür == "Son" veya s1.tür == "Cikinti" veya s_op(s1, "."))
-            eğer içerir(yerleşik_fiiller(), s.değer) veya kullanıcı veya model_fiili ise:
+            # `sırala(liste, işlev(x) -> ...)` bir çağrıdır.
+            sırala_çağrısı = s.değer == "sırala" ve s_op(s1, "(")
+            eğer (içerir(yerleşik_fiiller(), s.değer) ve değil sırala_çağrısı) veya kullanıcı veya model_fiili ise:
                 fiil_ = s.değer
                 fiil_satır = s.satır
                 fiil_sütun = s.sütun
@@ -2075,10 +2080,43 @@ işlev temel(a: Ayrıştırıcı) -> İfade:
                 bekle_op(a, ",", "sözlük öğeleri arasında")
         ilerle(a)
         döndür e
+    eğer s_kelime(k, "işlev") ve s_op(bak_n(a, 1), "(") ise:
+        döndür adsız(a, k)
+    # `sırala(kişiler, işlev(k) -> k.yaş)`: anahtara göre sıralama
+    eğer s_kelime(k, "sırala") ve s_op(bak_n(a, 1), "(") ise:
+        ilerle(a)
+        ilerle(a)
+        e = yeni_ifade("çağrı", "sırala", k.satır, k.sütun)
+        değil op_mu(a, ")") olduğu sürece:
+            düz_ifade(a)'yı e.alt'a ekle.
+            eğer değil op_mu(a, ")") ise:
+                bekle_op(a, ",", "bağımsız değişkenler arasında")
+        ilerle(a)
+        döndür e
     eğer k.tür == "Kelime" ise:
         döndür kelime(a, k)
     hata_s(a, k, "ifade bekleniyordu, " + tok_adı(k) + " bulundu", "-")
     döndür İfade()
+
+# Adsız işlev: `işlev(x) -> x * 2`. Parametreler etiketlerde, değer alt ifadededir.
+işlev adsız(a: Ayrıştırıcı, k: Sözcük) -> İfade:
+    ilerle(a)
+    ilerle(a)
+    e = yeni_ifade("adsız", "", k.satır, k.sütun)
+    değil op_mu(a, ")") olduğu sürece:
+        pk = bak(a)
+        p = isim_adı(a, "parametre adı")
+        eğer içerir(e.etiketler, p) ise:
+            hata_s(a, pk, "'" + p + "' parametresi iki kez yazılmış", "-")
+        p'yi e.etiketler'e ekle.
+        eğer değil op_mu(a, ")") ise:
+            bekle_op(a, ",", "parametreler arasında")
+    ilerle(a)
+    eğer değil op_mu(a, "->") ise:
+        hata_s(a, bak(a), "'->' ve adsız işlevin değeri bekleniyordu, " + tok_adı(bak(a)) + " bulundu", "süz(sayılar, işlev(x) -> x > 10)")
+    ilerle(a)
+    düz_ifade(a)'yı e.alt'a ekle.
+    döndür e
 
 işlev tanımsız(a: Ayrıştırıcı, k: Sözcük):
     hata_s(a, k, "tanımsız isim '" + k.değer + "'", "değişkeni önce tanımlayın (ör. x = 5) ya da ekini kesme işaretiyle ayırın")
@@ -2198,6 +2236,8 @@ işlev ifade_dökümü(e: İfade) -> metin:
         döndür "(indeks" + y + ifadeler_dökümü(e.alt, 0) + ")"
     eğer t == "alan" ise:
         döndür "(alan" + y + " " + ifade_dökümü(e.alt[0]) + " " + e.ad + ")"
+    eğer t == "adsız" ise:
+        döndür "(adsız" + y + " [" + birleştir(e.etiketler, " ") + "] " + ifade_dökümü(e.alt[0]) + ")"
     döndür "(yöntem" + y + " " + ifade_dökümü(e.alt[0]) + " " + e.ad + ifadeler_dökümü(e.alt, 1) + ")"
 
 işlev döküm_satırı(g: sayı, m: metin) -> metin:

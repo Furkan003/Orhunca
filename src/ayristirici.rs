@@ -438,7 +438,12 @@ fn sozluk_kur(s: &[Sozcuk]) -> Tanimlar {
                 sozluk.ekle(ad);
             }
             // Parametreler: parantez içinde virgülle ayrılmış parçaların ilk kelimesi.
-            let mut j = i + 2;
+            // Adsız işlevde (`işlev(x) -> ...`) parantez hemen gelir.
+            let mut j = if s.get(i + 1).map(|s| &s.tok) == Some(&Tok::Op("(")) {
+                i + 1
+            } else {
+                i + 2
+            };
             let mut parca_basi = true;
             if s.get(j).map(|s| &s.tok) == Some(&Tok::Op("(")) {
                 j += 1;
@@ -2045,7 +2050,9 @@ impl Ayristirici {
                         self.bak_n(1),
                         Tok::YeniSatir | Tok::Son | Tok::Cikinti | Tok::Op(".")
                     );
-                if FIILLER.contains(&k.as_str()) || kullanici || model_fiili {
+                // `sırala(liste, işlev(x) -> ...)` bir çağrıdır.
+                let sirala_cagrisi = k == "sırala" && *self.bak_n(1) == Tok::Op("(");
+                if (FIILLER.contains(&k.as_str()) && !sirala_cagrisi) || kullanici || model_fiili {
                     fiil = Some((k.clone(), self.konum()));
                     self.ilerle();
                     break;
@@ -2707,6 +2714,39 @@ impl Ayristirici {
         ))
     }
 
+    /// Adsız işlev: `işlev(x) -> x * 2`
+    fn adsiz(&mut self, konum: Konum) -> Sonuc<Ifade> {
+        self.ilerle(); // işlev
+        self.ilerle(); // (
+        let mut parametreler = Vec::new();
+        while !self.op_mu(")") {
+            let pk = self.konum();
+            let p = self.isim_adi("parametre adı")?;
+            if parametreler.contains(&p) {
+                return Err(Hata::yeni(
+                    pk,
+                    format!("'{p}' parametresi iki kez yazılmış"),
+                ));
+            }
+            parametreler.push(p);
+            if !self.op_mu(")") {
+                self.bekle_op(",", "parametreler arasında")?;
+            }
+        }
+        self.ilerle();
+        if !self.op_mu("->") {
+            return Err(self
+                .beklenmeyen("'->' ve adsız işlevin değeri")
+                .ipucu("süz(sayılar, işlev(x) -> x > 10)"));
+        }
+        self.ilerle();
+        let govde = self.duz_ifade()?;
+        Ok(Ifade::yeni(
+            IfadeTuru::Adsiz(parametreler, Box::new(govde)),
+            konum,
+        ))
+    }
+
     /// `Ürün(ad: "Kalem", fiyat: 12.5)`
     fn kurucu(&mut self, model: String, konum: Konum) -> Sonuc<Ifade> {
         self.ilerle(); // (
@@ -2784,6 +2824,21 @@ impl Ayristirici {
                 }
                 self.ilerle();
                 Ok(Ifade::yeni(IfadeTuru::Sozluk(ciftler), konum))
+            }
+            Tok::Kelime(k) if k == "işlev" && *self.bak_n(1) == Tok::Op("(") => self.adsiz(konum),
+            // `sırala(kişiler, işlev(k) -> k.yaş)`: anahtara göre sıralama (bkz. src/adsiz.rs)
+            Tok::Kelime(k) if k == "sırala" && *self.bak_n(1) == Tok::Op("(") => {
+                self.ilerle();
+                self.ilerle();
+                let mut arg = Vec::new();
+                while !self.op_mu(")") {
+                    arg.push(self.duz_ifade()?);
+                    if !self.op_mu(")") {
+                        self.bekle_op(",", "bağımsız değişkenler arasında")?;
+                    }
+                }
+                self.ilerle();
+                Ok(Ifade::yeni(IfadeTuru::Cagri(k, arg), konum))
             }
             Tok::Kelime(k) => self.kelime(k, konum),
             t => Err(Hata::yeni(

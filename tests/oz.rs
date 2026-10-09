@@ -277,6 +277,10 @@ const HATALI_PROGRAMLAR: &[&str] = &[
     "model Kitap:\n    ad: metin\n    işlev ad() -> metin:\n        döndür bu.ad\n",
     "model Kitap:\n    işlev oku() -> metin:\n        döndür \"a\"\n    sayfa: sayı\nk = Kitap()\nk.oku()'yu yaz.\n",
     "model Kitap:\n    ad: metin\n    işlev f(:\n        döndür 1\n",
+    "l = [1]\nsüz(l, işlev(x) x > 1)'i yaz.\n",
+    "l = [1]\nsüz(l, işlev(x, x) -> x)'i yaz.\n",
+    "l = [1]\nsüz(l, işlev(eğer) -> 1)'i yaz.\n",
+    "l = [1]\nsırala(l, işlev(x) -> x\n",
 ];
 
 #[test]

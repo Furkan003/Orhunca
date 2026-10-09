@@ -51,6 +51,7 @@ pub fn cevir(p: &Program, dil: Dil) -> Vec<Satir> {
         model_adi: String::new(),
         yontemler: Vec::new(),
         yontemde: false,
+        adsizlar: Default::default(),
         karsiliksiz: BTreeSet::new(),
         notlar: BTreeSet::new(),
         alan_varsayilan: Default::default(),
@@ -149,6 +150,9 @@ fn yardimci_kodu(dil: Dil, ad: &str) -> &'static str {
         }
         (Dil::Python, "orhunca_büyük_harf") => {
             "def orhunca_büyük_harf(m):\n    # Türkçe: i → İ, ı → I\n    return m.replace(\"i\", \"İ\").replace(\"ı\", \"I\").upper()"
+        }
+        (Dil::Python, "orhunca_sıra") => {
+            "def orhunca_sıra(m):\n    # Türk alfabesine göre sıralama anahtarı: büyük ve küçük harf aynı yerde\n    abc = \"abcçdefgğhıijklmnoöpqrsştuüvwxyz\"\n    ABC = \"ABCÇDEFGĞHIİJKLMNOÖPQRSŞTUÜVWXYZ\"\n    def sıra(c):\n        i = abc.find(c) if c in abc else ABC.find(c)\n        if i >= 0:\n            return 1000 + i\n        return ord(c) if ord(c) < 0x80 else 100000 + ord(c)\n    return (tuple(sıra(c) for c in m), m)"
         }
         (Dil::Python, "orhunca_küçük_harf") => {
             "def orhunca_küçük_harf(m):\n    # Türkçe: I → ı, İ → i\n    return m.replace(\"I\", \"ı\").replace(\"İ\", \"i\").lower()"
@@ -278,6 +282,9 @@ struct Cevirici {
     yontemler: Vec<Islev>,
     /// Bir yöntemin içindeyiz: `bu` → self / this
     yontemde: bool,
+    /// Adsız işlevlerin (`‹adsız›N`) parametresi ve gövdesi: çağrıldıkları yere dilin
+    /// kendi biçimiyle yazılırlar (bkz. src/adsiz.rs).
+    adsizlar: std::collections::HashMap<String, (String, Ifade)>,
     /// Karşılığı olmayan (Orhunca'ya özel) yerleşikler ve yöntemler
     karsiliksiz: BTreeSet<String>,
     /// Modellerin alanlarının varsayılan değerleri (çevrilmiş): kurucuda yazılmayanlar atlanır
@@ -419,6 +426,17 @@ impl Cevirici {
                 ));
             }
             self.bos_satir();
+        }
+        for f in p
+            .islevler
+            .iter()
+            .filter(|f| f.ad.starts_with(crate::adsiz::ANAHTAR_ONEKI))
+        {
+            if let (Some((a, _)), [Deyim::Dondur(Some(g), _)]) =
+                (f.parametreler.first(), f.govde.as_slice())
+            {
+                self.adsizlar.insert(f.ad.clone(), (a.clone(), g.clone()));
+            }
         }
         self.yontemler = p
             .islevler
@@ -789,7 +807,10 @@ impl Cevirici {
             }
             Deyim::Sirala(e) => {
                 let l = self.oncelikli(e, P_ATOM);
-                if self.py() {
+                if self.py() && matches!(&e.tip, Tip::Liste(t) if t.metin_gibi()) {
+                    self.yardimci.insert("orhunca_sıra");
+                    self.yaz(format!("{l}.sort(key=orhunca_sıra)"));
+                } else if self.py() {
                     self.yaz(format!("{l}.sort()"));
                 } else if matches!(&e.tip, Tip::Liste(t) if t.sayisal()) {
                     self.yaz(format!("{l}.sort((a, b) => a - b);"));
@@ -1028,6 +1049,15 @@ impl Cevirici {
             IfadeTuru::Mantik(d) => (self.mantik(*d), P_ATOM),
             IfadeTuru::Isim(a) => (self.ad(a), P_ATOM),
             IfadeTuru::ModelAdi(a) => (a.clone(), P_ATOM),
+            IfadeTuru::Adsiz(p, g) => {
+                let g = self.ifade(g);
+                let p: Vec<String> = p.iter().map(|a| self.ad(a)).collect();
+                if self.py() {
+                    (format!("lambda {}: {g}", p.join(", ")), 0)
+                } else {
+                    (format!("({}) => {g}", p.join(", ")), 0)
+                }
+            }
             IfadeTuru::Liste(l) => {
                 let ic: Vec<String> = l.iter().map(|x| self.ifade(x)).collect();
                 (format!("[{}]", ic.join(", ")), P_ATOM)
@@ -1216,10 +1246,50 @@ impl Cevirici {
         )
     }
 
+    fn adsiz_cagrisi(&mut self, tur: &str, liste: &Ifade, p: &str, g: &Ifade) -> (String, u8) {
+        let l = self.oncelikli(liste, P_ATOM);
+        let p = self.ad(p);
+        let metin_anahtari = g.tip.metin_gibi();
+        let g = self.ifade(g);
+        let m = if self.py() {
+            match tur {
+                "süz" => format!("[{p} for {p} in {l} if {g}]"),
+                "dönüştür" => format!("[{g} for {p} in {l}]"),
+                "biri_mi" => format!("any({g} for {p} in {l})"),
+                "hepsi_mi" => format!("all({g} for {p} in {l})"),
+                _ if metin_anahtari => {
+                    self.yardimci.insert("orhunca_sıra");
+                    format!("{l}.sort(key=lambda {p}: orhunca_sıra({g}))")
+                }
+                _ => format!("{l}.sort(key=lambda {p}: {g})"),
+            }
+        } else {
+            let f = format!("({p}) => {g}");
+            match tur {
+                "süz" => format!("{l}.filter({f})"),
+                "dönüştür" => format!("{l}.map({f})"),
+                "biri_mi" => format!("{l}.some({f})"),
+                "hepsi_mi" => format!("{l}.every({f})"),
+                _ if metin_anahtari => {
+                    format!("{l}.sort((a, b) => (({f})(a)).localeCompare(({f})(b), \"tr\"))")
+                }
+                _ => format!("{l}.sort((a, b) => ({f})(a) - ({f})(b))"),
+            }
+        };
+        (m, P_ATOM)
+    }
+
     fn cagri(&mut self, ad: &str, arg: &[Ifade]) -> (String, u8) {
         if ad == SECENEK_CEVIR {
             // Seçenek değeri metin olarak taşınır: Renk("mavi") → "mavi"
             return self.ifade_p(&arg[0]);
+        }
+        // süz(l, işlev(x) -> ...) ve benzerleri: dilin kendi biçimi
+        if let Some((tur, sira)) = crate::adsiz::sargi(ad) {
+            let anahtar = format!("{}{sira}", crate::adsiz::ANAHTAR_ONEKI);
+            if let Some((p, g)) = self.adsizlar.get(&anahtar).cloned() {
+                return self.adsiz_cagrisi(tur, &arg[0], &p, &g);
+            }
         }
         // Model işlevi: Kitap.özet(k, x) → k.özet(x)
         if let (Some((_, kisa)), false) = (ad.split_once('.'), ad.starts_with('‹')) {

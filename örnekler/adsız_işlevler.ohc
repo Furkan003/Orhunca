@@ -1,0 +1,33 @@
+# Adsız işlevler: listeyi süzmek, dönüştürmek ve bir anahtara göre sıralamak için.
+# `işlev(x) -> ...` dışarıdaki değişkenleri (burada `sınır`) de kullanabilir.
+
+model Öğrenci:
+    ad: metin
+    not_: sayı
+
+notlar = [72, 45, 88, 91, 60, 38]
+sınır = 50
+geçenler = süz(notlar, işlev(n) -> n >= sınır)
+"Geçenler: " + metin(geçenler)'i yaz.
+"Harf notları: " + metin(dönüştür(geçenler, işlev(n) -> harf_notu(n)))'nı yaz.
+"Kalan var mı? " + metin(biri_mi(notlar, işlev(n) -> n < sınır))'yı yaz.
+"Hepsi 30'dan büyük mü? " + metin(hepsi_mi(notlar, işlev(n) -> n > 30))'yu yaz.
+
+işlev harf_notu(n: sayı) -> metin:
+    eğer n >= 85 ise:
+        döndür "A"
+    değilse eğer n >= 70 ise:
+        döndür "B"
+    döndür "C"
+
+sınıf = [Öğrenci(ad: "Zeynep", not_: 88), Öğrenci(ad: "Çınar", not_: 72), Öğrenci(ad: "Ali", not_: 88), Öğrenci(ad: "Ece", not_: 45)]
+# Nota göre; eşit notlarda sıra korunur.
+sırala(sınıf, işlev(ö) -> ö.not_)
+dönüştür(sınıf, işlev(ö) -> ö.ad + " " + metin(ö.not_))'ı yaz.
+# Ada göre (Türk alfabesi)
+sırala(sınıf, işlev(ö) -> ö.ad)
+dönüştür(sınıf, işlev(ö) -> ö.ad)'ı yaz.
+
+# İç içe: her satırın toplamı
+tablo = [[1, 2, 3], [4, 5], [6]]
+dönüştür(tablo, işlev(satır) -> toplam(dönüştür(satır, işlev(h) -> h * 10)))'yi yaz.

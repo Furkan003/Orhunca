@@ -1419,6 +1419,7 @@ impl Uretici<'_, '_> {
             IfadeTuru::ModelAdi(m) => {
                 return Err(format!("'{m}' model adı değer olarak kullanıldı"))
             }
+            IfadeTuru::Adsiz(..) => return Err("adsız işlev indirilmemiş".into()),
             IfadeTuru::Mantik(m) => self.sabit(*m as i64),
             IfadeTuru::Metin(m) => {
                 let id = self.ortak.metin_verisi(m)?;
