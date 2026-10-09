@@ -946,3 +946,93 @@ işlev json_al(m: metin, yol: metin) -> metin:
     eğer son - i == 4 ve kodlardan(parça(k, i, 4)) == "null" ise:
         döndür ""
     döndür kodlardan(parça(k, i, son - i))
+
+# JSON dizisinin öğe sayısı ya da nesnenin anahtar sayısı: json_uzunluk(m, "öğrenciler").
+# Yoldaki değer dizi ya da nesne değilse (ya da yoksa) 0.
+işlev json_uzunluk(m: metin, yol: metin) -> sayı:
+    k = kodlar(m)
+    eğer yol != "" ise:
+        k = kodlar(json_al(m, yol))
+    n = uzunluk(k)
+    i = j_boşluk(k, 0)
+    eğer i >= n veya (k[i] != 91 ve k[i] != 123) ise:
+        döndür 0
+    i = j_boşluk(k, i + 1)
+    sayaç = 0
+    i < n ve k[i] != 93 ve k[i] != 125 olduğu sürece:
+        sayaç += 1
+        i = j_boşluk(k, j_atla(k, i))
+        # nesnede "anahtar": değer
+        eğer i < n ve k[i] == 58 ise:
+            i = j_boşluk(k, j_atla(k, j_boşluk(k, i + 1)))
+        eğer i < n ve k[i] == 44 ise:
+            i = j_boşluk(k, i + 1)
+    döndür sayaç
+
+# ---------------------------------------------------------------------------
+# Sayıyı Türkçe yazma: sayı_yazısı(86.333, 2) → "86,33", sayı_yazısı(1234567.5, 2) →
+# "1.234.567,50". Ondalık ayırıcı virgül, binlik ayırıcı nokta; tam olarak `basamak` hane.
+
+işlev binlikli(t: sayı) -> metin:
+    r = metin(t)
+    parçalar: liste<metin> = []
+    uzunluk(r) > 3 olduğu sürece:
+        parça(r, uzunluk(r) - 3, 3)'yı parçalar'a ekle.
+        r = parça(r, 0, uzunluk(r) - 3)
+    r'yi parçalar'a ekle.
+    döndür birleştir(ters(parçalar), ".")
+
+işlev sayı_yazısı(x: ondalık, basamak: sayı, satır: sayı) -> metin:
+    eğer basamak < 0 veya basamak > 9 ise:
+        hata_ver_satırda("sayı_yazısı: basamak 0 ile 9 arasında olmalı", satır)
+    çarpan = 1
+    her i için 1'den basamak'a kadar:
+        çarpan = çarpan * 10
+    # Çok büyük (ya da NaN/sonsuz) sayılar olduğu gibi, virgülle yazılır.
+    eğer (mutlak(x) * ondalık(çarpan) < 9000000000000000.0) == yanlış ise:
+        döndür değiştir(metin(x), ".", ",")
+    n = yuvarla(mutlak(x) * ondalık(çarpan))
+    tam = n // çarpan
+    sonuç = binlikli(tam)
+    eğer basamak > 0 ise:
+        kesir = metin(n - tam * çarpan)
+        sonuç = sonuç + "," + tekrarla("0", basamak - uzunluk(kesir), satır) + kesir
+    eğer x < 0.0 ve n != 0 ise:
+        sonuç = "-" + sonuç
+    döndür sonuç
+
+işlev sayı_yazısı_tam(x: sayı, basamak: sayı, satır: sayı) -> metin:
+    döndür sayı_yazısı(ondalık(x), basamak, satır)
+
+# ---------------------------------------------------------------------------
+# Sözlükten varsayılanlı okuma: değer(istek.sorgu, "q", "") anahtar yoksa "" döndürür.
+
+işlev değer_mm(s: sözlük<metin, metin>, a: metin, v: metin) -> metin:
+    eğer içerir(s, a) ise:
+        döndür s[a]
+    döndür v
+
+işlev değer_ms(s: sözlük<metin, sayı>, a: metin, v: sayı) -> sayı:
+    eğer içerir(s, a) ise:
+        döndür s[a]
+    döndür v
+
+işlev değer_mo(s: sözlük<metin, ondalık>, a: metin, v: ondalık) -> ondalık:
+    eğer içerir(s, a) ise:
+        döndür s[a]
+    döndür v
+
+işlev değer_mb(s: sözlük<metin, mantık>, a: metin, v: mantık) -> mantık:
+    eğer içerir(s, a) ise:
+        döndür s[a]
+    döndür v
+
+işlev değer_sm(s: sözlük<sayı, metin>, a: sayı, v: metin) -> metin:
+    eğer içerir(s, a) ise:
+        döndür s[a]
+    döndür v
+
+işlev değer_ss(s: sözlük<sayı, sayı>, a: sayı, v: sayı) -> sayı:
+    eğer içerir(s, a) ise:
+        döndür s[a]
+    döndür v

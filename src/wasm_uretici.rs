@@ -2256,6 +2256,10 @@ impl Uretici<'_> {
                 )
             }
             "ortam" => self.cagri("ohc_ortam", &d)?,
+            "http_iste" => {
+                d.push(satir);
+                self.cagri("ohc_http_iste", &d)?
+            }
             "http_al" | "http_gönder" => {
                 let yontem = (ad == "http_gönder") as i64;
                 if yontem == 0 {

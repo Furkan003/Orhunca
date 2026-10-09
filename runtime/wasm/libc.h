@@ -32,9 +32,10 @@ JS(dosya_sil) int32_t js_dosya_sil(const char *yol);
 JS(dosya_tasi) int32_t js_dosya_tasi(const char *eski, const char *yeni);
 JS(klasor_olustur) int32_t js_klasor_olustur(const char *yol);
 JS(bekle) void js_bekle(double saniye);
-/* HTTP isteği (yöntem 0: GET, 1: POST): malloc'lu gövde, uzunluğu *n'ye; *durum HTTP
- * durum kodu, 0 ise istek başarısız ve dönen metin hata açıklaması. Desteklenmiyorsa 0. */
-JS(http) char *js_http(int32_t yontem, const char *adres, const char *govde, int32_t gn, int32_t *n, int32_t *durum);
+/* HTTP isteği (yöntem "GET", "POST", "PUT"…; başlıklar "Ad: değer" satırları): malloc'lu
+ * gövde, uzunluğu *n'ye; *durum HTTP durum kodu, 0 ise istek başarısız ve dönen metin hata
+ * açıklaması. Desteklenmiyorsa 0. */
+JS(http) char *js_http(const char *yontem, const char *adres, const char *govde, int32_t gn, const char *basliklar, int32_t *n, int32_t *durum);
 JS(rastgele_tohum) uint32_t js_rastgele_tohum(void);
 JS(arguman_sayisi) int32_t js_arguman_sayisi(void); /* program adı dahil */
 JS(arguman) char *js_arguman(int32_t sira);         /* malloc'lu */

@@ -122,6 +122,18 @@ pub fn metin(satirlar: &[Satir]) -> String {
 
 fn yardimci_kodu(dil: Dil, ad: &str) -> &'static str {
     match (dil, ad) {
+        (Dil::Python, "sayı_yazısı") => {
+            "def sayı_yazısı(x, basamak):\n    # Türkçe biçim: 1234.5 → \"1.234,50\"; yarımlar sıfırdan uzağa yuvarlanır\n    k = 10 ** basamak\n    n = math.floor(abs(x) * k + 0.5)\n    tam, kesir = divmod(n, k)\n    m = f\"{tam:,}\".replace(\",\", \".\")\n    if basamak > 0:\n        m += \",\" + str(kesir).zfill(basamak)\n    return \"-\" + m if x < 0 and n != 0 else m"
+        }
+        (Dil::JavaScript, "sayı_yazısı") => {
+            "// Türkçe biçim: 1234.5 → \"1.234,50\"; yarımlar sıfırdan uzağa yuvarlanır\nfunction sayı_yazısı(x, basamak) {\n  const k = 10 ** basamak, n = Math.floor(Math.abs(x) * k + 0.5);\n  let m = String(Math.floor(n / k)).replace(/\\B(?=(\\d{3})+(?!\\d))/g, \".\");\n  if (basamak > 0) m += \",\" + String(n % k).padStart(basamak, \"0\");\n  return x < 0 && n !== 0 ? \"-\" + m : m;\n}"
+        }
+        (Dil::Python, "json_uzunluk") => {
+            "def json_uzunluk(m, yol):\n    # JSON dizisinin öğe (nesnenin anahtar) sayısı; yoksa 0\n    try:\n        d = json.loads(m)\n        for p in yol.split(\".\") if yol else []:\n            d = d[int(p)] if isinstance(d, list) else d[p]\n    except (ValueError, KeyError, IndexError, TypeError):\n        return 0\n    return len(d) if isinstance(d, (list, dict)) else 0"
+        }
+        (Dil::JavaScript, "json_uzunluk") => {
+            "// JSON dizisinin öğe (nesnenin anahtar) sayısı; yoksa 0\nfunction json_uzunluk(m, yol) {\n  try {\n    let d = JSON.parse(m);\n    for (const p of yol ? yol.split(\".\") : []) d = d[p];\n    return Array.isArray(d) ? d.length : d && typeof d === \"object\" ? Object.keys(d).length : 0;\n  } catch {\n    return 0;\n  }\n}"
+        }
         (Dil::Python, "bul") => {
             "def bul(x, aranan):\n    if isinstance(x, str):\n        return x.find(aranan)\n    return x.index(aranan) if aranan in x else -1"
         }
@@ -294,6 +306,8 @@ struct Cevirici {
 /// Ön kütüphanede çağıranın satırını son argüman olarak alan işlevler
 const SATIRLI: &[&str] = &[
     "tekrarla",
+    "sayı_yazısı",
+    "sayı_yazısı_tam",
     "gün_ekle",
     "gün_farkı",
     "haftanın_günü",
@@ -1326,6 +1340,10 @@ impl Cevirici {
             "metin_bul" => "bul",
             "metin_içerir" => "içerir",
             "metin_ters" => "ters",
+            "sayı_yazısı_tam" => "sayı_yazısı",
+            "değer_mm" | "değer_ms" | "değer_mo" | "değer_mb" | "değer_sm" | "değer_ss" => {
+                "değer"
+            }
             HATA_SATIRDA => "hata_ver",
             a => a,
         };
@@ -1355,6 +1373,17 @@ impl Cevirici {
                     ithal(self, "math");
                     self.yardimci.insert("orhunca_yuvarla");
                     atom(format!("orhunca_yuvarla({})", a.join(", ")))
+                }
+                ("değer", 3) => atom(format!("{}.get({}, {})", alici(self, 0), a[1], a[2])),
+                ("sayı_yazısı", 2) => {
+                    ithal(self, "math");
+                    self.yardimci.insert("sayı_yazısı");
+                    atom(format!("sayı_yazısı({}, {})", a[0], a[1]))
+                }
+                ("json_uzunluk", 2) => {
+                    ithal(self, "json");
+                    self.yardimci.insert("json_uzunluk");
+                    atom(format!("json_uzunluk({}, {})", a[0], a[1]))
                 }
                 ("büyük_harf", 1) => {
                     self.yardimci.insert("orhunca_büyük_harf");
@@ -1585,6 +1614,22 @@ impl Cevirici {
                 ("yuvarla", 1 | 2) => {
                     self.yardimci.insert("orhunca_yuvarla");
                     atom(format!("orhunca_yuvarla({})", a.join(", ")))
+                }
+                ("değer", 3) => atom(format!(
+                    "({} in {} ? {}[{}] : {})",
+                    a[1],
+                    alici(self, 0),
+                    alici(self, 0),
+                    a[1],
+                    a[2]
+                )),
+                ("sayı_yazısı", 2) => {
+                    self.yardimci.insert("sayı_yazısı");
+                    atom(format!("sayı_yazısı({}, {})", a[0], a[1]))
+                }
+                ("json_uzunluk", 2) => {
+                    self.yardimci.insert("json_uzunluk");
+                    atom(format!("json_uzunluk({}, {})", a[0], a[1]))
                 }
                 ("büyük_harf", 1) => {
                     atom(format!("{}.toLocaleUpperCase(\"tr\")", alici(self, 0)))

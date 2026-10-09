@@ -268,7 +268,7 @@
       },
       // Eşzamanlı XHR: Web Worker'da ve sayfada çalışır; Node'da yoktur. Sunucu
       // CORS ile izin vermelidir.
-      http(yontem, adres, govde, gn, n, durum) {
+      http(yontemP, adres, govde, gn, basliklarP, n, durum) {
         const sonuc = (metin, kod) => {
           const b = kodlayici.encode(metin);
           sayiYaz(n, b.length);
@@ -277,14 +277,24 @@
         };
         if (typeof XMLHttpRequest === 'undefined') return 0;
         try {
+          const yontem = metin(yontemP);
           const x = new XMLHttpRequest();
-          x.open(yontem ? 'POST' : 'GET', metin(adres), false);
-          if (yontem) {
+          x.open(yontem, metin(adres), false);
+          let turVar = false;
+          for (const satir of metin(basliklarP).split('\n')) {
+            const i = satir.indexOf(': ');
+            if (i <= 0) continue;
+            if (satir.slice(0, i).toLowerCase() === 'content-type') turVar = true;
+            x.setRequestHeader(satir.slice(0, i), satir.slice(i + 2));
+          }
+          if (yontem !== 'GET') {
             const g = cozucu.decode(u8().slice(govde, govde + gn));
-            x.setRequestHeader(
-              'Content-Type',
-              /^[{[]/.test(g) ? 'application/json' : 'application/x-www-form-urlencoded',
-            );
+            if (!turVar) {
+              x.setRequestHeader(
+                'Content-Type',
+                /^[{[]/.test(g) ? 'application/json' : 'application/x-www-form-urlencoded',
+              );
+            }
             x.send(g);
           } else {
             x.send();

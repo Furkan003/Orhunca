@@ -52,6 +52,18 @@ pub fn esle(ad: &str, tipler: &[Tip]) -> Option<(&'static str, bool)> {
         ("desen_böl", [Metin, Metin]) => ("desen_böl", true),
         ("csv_oku", [Metin]) => ("csv_oku", false),
         ("json_al", [Metin, Metin]) => ("json_al", false),
+        ("json_uzunluk", [Metin, Metin]) => ("json_uzunluk", false),
+        ("sayı_yazısı", [Ondalik, Sayi]) => ("sayı_yazısı", true),
+        ("sayı_yazısı", [Sayi, Sayi]) => ("sayı_yazısı_tam", true),
+        ("değer", [Sozluk(a, d), _, _]) => match (&**a, &**d) {
+            (Metin, Metin) => ("değer_mm", false),
+            (Metin, Sayi) => ("değer_ms", false),
+            (Metin, Ondalik) => ("değer_mo", false),
+            (Metin, Mantik) => ("değer_mb", false),
+            (Sayi, Metin) => ("değer_sm", false),
+            (Sayi, Sayi) => ("değer_ss", false),
+            _ => return None,
+        },
         ("csv_yaz", [Liste(_)]) => ("csv_yaz", false),
         _ => return None,
     })

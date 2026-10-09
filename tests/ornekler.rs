@@ -511,3 +511,81 @@ fn env_dosyasi_yuklenir() {
     );
     let _ = std::fs::remove_dir_all(&klasor);
 }
+
+#[test]
+fn http_iste_yontem_ve_basliklari_gonderir() {
+    // 1.0 test raporu, bulgu 13: http_gönder yalnızca POST gönderebiliyor, başlık eklenemiyordu.
+    use std::io::{Read, Write};
+    let dinleyici = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let kapi = dinleyici.local_addr().unwrap().port();
+    let sunucu = std::thread::spawn(move || {
+        let mut gelenler = Vec::new();
+        for _ in 0..2 {
+            let (mut b, _) = dinleyici.accept().unwrap();
+            b.set_read_timeout(Some(std::time::Duration::from_secs(5)))
+                .ok();
+            let mut v = Vec::new();
+            let mut tampon = [0u8; 4096];
+            // Başlıklar ve (varsa) gövde gelene kadar okunur.
+            loop {
+                let n = b.read(&mut tampon).unwrap_or(0);
+                v.extend_from_slice(&tampon[..n]);
+                let m = String::from_utf8_lossy(&v).to_string();
+                if let Some(son) = m.find("\r\n\r\n") {
+                    let uzunluk = m
+                        .lines()
+                        .find_map(|s| {
+                            s.to_lowercase()
+                                .strip_prefix("content-length:")
+                                .map(|x| x.trim().parse::<usize>().unwrap_or(0))
+                        })
+                        .unwrap_or(0);
+                    if v.len() >= son + 4 + uzunluk {
+                        break;
+                    }
+                }
+                if n == 0 {
+                    break;
+                }
+            }
+            let istek = String::from_utf8_lossy(&v).to_string();
+            let yanit = istek.lines().next().unwrap_or("").to_string();
+            write!(
+                b,
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{yanit}",
+                yanit.len()
+            )
+            .unwrap();
+            gelenler.push(istek);
+        }
+        gelenler
+    });
+    let (ok, cikti, hata) = calistir(&format!(
+        "a = \"http://127.0.0.1:{kapi}/öğe/1\"\n\
+         http_iste(\"PUT\", a, \"{{\\\"ad\\\": \\\"Kalem\\\"}}\", {{\"Authorization\": \"Bearer abc\"}})'yi yaz.\n\
+         http_iste(\"delete\", a, \"\", {{}})'yi yaz.\n\
+         dene:\n    http_iste(\"YOK\", a, \"\", {{}})'yi yaz.\nyakala h:\n    h'yi yaz.\n"
+    ));
+    assert!(ok, "{hata}");
+    let gelenler = sunucu.join().unwrap();
+    assert_eq!(
+        cikti,
+        "PUT /%C3%B6%C4%9Fe/1 HTTP/1.1\nDELETE /%C3%B6%C4%9Fe/1 HTTP/1.1\n\
+         geçersiz HTTP yöntemi 'YOK' (GET, POST, PUT, PATCH ya da DELETE olmalı)\n"
+    );
+    assert!(
+        gelenler[0].contains("Authorization: Bearer abc"),
+        "{}",
+        gelenler[0]
+    );
+    assert!(
+        gelenler[0].contains("Content-Type: application/json"),
+        "{}",
+        gelenler[0]
+    );
+    assert!(
+        gelenler[0].ends_with("{\"ad\": \"Kalem\"}"),
+        "{}",
+        gelenler[0]
+    );
+}

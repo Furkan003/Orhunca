@@ -94,6 +94,7 @@ pub(crate) const CALISMA_ZAMANI: &[(&str, usize, bool)] = &[
     ("ohc_argumanlar", 0, true),
     ("ohc_ortam", 1, true),
     ("ohc_http", 4, true),
+    ("ohc_http_iste", 5, true),
     ("ohc_cik", 1, false),
     ("ohc_yigin_denetle", 1, false),
     ("ohc_alan_al", 3, true),
@@ -1268,6 +1269,7 @@ impl Uretici<'_, '_> {
                 let bir = self.sabit(1);
                 self.cz("ohc_http", &[bir, d[0], d[1], satir])
             }
+            "http_iste" => self.cz("ohc_http_iste", &[d[0], d[1], d[2], d[3], satir]),
             "çık" => self.cz("ohc_cik", d),
             // Telefon komutları bilgisayar programında etkisizdir
             "titret" | "paylaş" | "bildirim_gönder" | "tema" => None,

@@ -1518,8 +1518,21 @@ static const char *http_hatasi(int kod) {
     }
 }
 
-int64_t ohc_http(int64_t yontem, int64_t adres, int64_t govde, int64_t satir) {
-    const char *a = M(adres);
+#ifndef __wasm__
+/* "Content-Type: x" gibi bir başlık satırı verilen adla mı başlıyor (büyük/küçük harf fark etmez) */
+static int http_baslik_adi_mi(const char *b, const char *ad) {
+    for (; *ad; b++, ad++) {
+        char c = *b >= 'A' && *b <= 'Z' ? (char)(*b + 32) : *b;
+        if (c != *ad) return 0;
+    }
+    return 1;
+}
+#endif
+
+/* Bir HTTP isteği: `yontem` "GET", "POST"…; `govdeli` ise gövde gönderilir; `basliklar`
+ * "Ad: değer" satırlarıdır (NULL olabilir). Yanıtın gövdesini döndürür. */
+static int64_t http_istek(const char *yontem, const char *a, const char *g, int govdeli,
+                          const char *basliklar, int64_t satir) {
     char mesaj[600];
     if (strncmp(a, "http://", 7) != 0 && strncmp(a, "https://", 8) != 0) {
         snprintf(mesaj, sizeof mesaj, "geçersiz adres '%.300s': http:// ya da https:// ile başlamalı", a);
@@ -1541,14 +1554,15 @@ int64_t ohc_http(int64_t yontem, int64_t adres, int64_t govde, int64_t satir) {
             t_ekle(&u, (const char *)p, 1);
         }
     }
-    const char *g = yontem ? M(govde) : "";
+    if (!govdeli) g = "";
     size_t gn = strlen(g);
     Tampon t = {0};
     int kod = -1;
+    if (!basliklar) basliklar = "";
 #ifdef __wasm__
     int32_t durum = 0;
     int32_t n = 0;
-    char *c = js_http((int32_t)yontem, u.v, g, (int32_t)gn, &n, &durum);
+    char *c = js_http(yontem, u.v, g, (int32_t)gn, basliklar, &n, &durum);
     free(u.v);
     if (!c) hata(satir, "HTTP isteği bu ortamda yapılamıyor");
     if (durum == 0) {
@@ -1565,7 +1579,9 @@ int64_t ohc_http(int64_t yontem, int64_t adres, int64_t govde, int64_t satir) {
 #else
     const char *tur = (gn > 0 && (g[0] == '{' || g[0] == '[')) ? "Content-Type: application/json"
                                                                 : "Content-Type: application/x-www-form-urlencoded";
-    const char *arg[24];
+    /* Kullanıcının başlıkları: her satır bir "-H" (en çok 16; doğrulanmış, tırnak ve satır sonu yok) */
+    char *baslik_kopya = strdup(basliklar);
+    const char *arg[64];
     int k = 0;
     arg[k++] = "curl";
     arg[k++] = "-sS";
@@ -1582,9 +1598,26 @@ int64_t ohc_http(int64_t yontem, int64_t adres, int64_t govde, int64_t satir) {
     arg[k++] = "Orhunca";
     arg[k++] = "-w";
     arg[k++] = "\\n%{http_code}";
-    if (yontem) {
-        arg[k++] = "-H";
-        arg[k++] = tur;
+    if (strcmp(yontem, "GET") != 0 && strcmp(yontem, "POST") != 0) {
+        arg[k++] = "-X";
+        arg[k++] = yontem;
+    }
+    int tur_verildi = 0;
+    for (char *b = baslik_kopya; b && *b && k < 56;) {
+        char *son = strchr(b, '\n');
+        if (son) *son = 0;
+        if (*b) {
+            if (http_baslik_adi_mi(b, "content-type:")) tur_verildi = 1;
+            arg[k++] = "-H";
+            arg[k++] = b;
+        }
+        b = son ? son + 1 : NULL;
+    }
+    if (govdeli) {
+        if (!tur_verildi) {
+            arg[k++] = "-H";
+            arg[k++] = tur;
+        }
         arg[k++] = "--data-binary";
         arg[k++] = "@-";
     }
@@ -1601,6 +1634,7 @@ int64_t ohc_http(int64_t yontem, int64_t adres, int64_t govde, int64_t satir) {
         t_yaz(&s, "\"");
     }
     free(u.v);
+    free(baslik_kopya);
     int wn = MultiByteToWideChar(CP_UTF8, 0, s.v, -1, NULL, 0);
     wchar_t *w = malloc(sizeof(wchar_t) * (size_t)wn);
     MultiByteToWideChar(CP_UTF8, 0, s.v, -1, w, wn);
@@ -1664,6 +1698,7 @@ int64_t ohc_http(int64_t yontem, int64_t adres, int64_t govde, int64_t satir) {
         _exit(127);
     }
     free(u.v);
+    free(baslik_kopya);
     close(gir[0]);
     close(cik[1]);
     if (p < 0) {
@@ -1715,6 +1750,52 @@ int64_t ohc_http(int64_t yontem, int64_t adres, int64_t govde, int64_t satir) {
         hata(satir, mesaj);
     }
     return t_metin(&t);
+}
+
+int64_t ohc_http(int64_t yontem, int64_t adres, int64_t govde, int64_t satir) {
+    return http_istek(yontem ? "POST" : "GET", M(adres), yontem ? M(govde) : "", (int)yontem, NULL, satir);
+}
+
+/* http_iste(yöntem, adres, gövde, başlıklar): yöntem GET, POST, PUT, PATCH ya da DELETE
+ * (küçük harf de olur); başlıklar sözlük<metin, metin>. GET dışında gövde gönderilir. */
+int64_t ohc_http_iste(int64_t yontem, int64_t adres, int64_t govde, int64_t basliklar, int64_t satir) {
+    static const char *const YONTEMLER[] = {"GET", "POST", "PUT", "PATCH", "DELETE"};
+    char y[16] = {0};
+    const char *ym = M(yontem);
+    for (size_t i = 0; ym[i] && i < sizeof y - 1; i++) y[i] = ym[i] >= 'a' && ym[i] <= 'z' ? (char)(ym[i] - 32) : ym[i];
+    const char *secilen = NULL;
+    for (size_t i = 0; i < sizeof YONTEMLER / sizeof *YONTEMLER; i++)
+        if (strcmp(y, YONTEMLER[i]) == 0 && strlen(ym) == strlen(y)) secilen = YONTEMLER[i];
+    char mesaj[400];
+    if (!secilen) {
+        snprintf(mesaj, sizeof mesaj, "geçersiz HTTP yöntemi '%.40s' (GET, POST, PUT, PATCH ya da DELETE olmalı)", ym);
+        hata(satir, mesaj);
+    }
+    Tampon b = {0};
+    Sozluk *s = (Sozluk *)(intptr_t)basliklar;
+    if (s && s->uzunluk > 16) hata(satir, "en çok 16 başlık gönderilebilir");
+    for (int64_t i = 0; s && i < s->uzunluk; i++) {
+        const char *ad = M(s->anahtarlar[i]), *deger = M(s->degerler[i]);
+        int gecerli = *ad != 0;
+        for (const char *p = ad; *p; p++)
+            if (!((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9') || *p == '-' || *p == '_'))
+                gecerli = 0;
+        for (const char *p = deger; *p; p++)
+            if (*p == '\r' || *p == '\n' || *p == '"' || *p == '\\') gecerli = 0;
+        if (!gecerli) {
+            free(b.v);
+            snprintf(mesaj, sizeof mesaj,
+                     "geçersiz HTTP başlığı '%.60s': ad harf, rakam ve - içerebilir; değerde tırnak, \\ ya da satır sonu olamaz", ad);
+            hata(satir, mesaj);
+        }
+        t_yaz(&b, ad);
+        t_yaz(&b, ": ");
+        t_yaz(&b, deger);
+        t_yaz(&b, "\n");
+    }
+    int64_t sonuc = http_istek(secilen, M(adres), M(govde), strcmp(secilen, "GET") != 0, b.v, satir);
+    free(b.v);
+    return sonuc;
 }
 
 /* ====================================================================== */

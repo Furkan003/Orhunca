@@ -1,0 +1,18 @@
+# değer (varsayılanlı sözlük okuma), sayı_yazısı (Türkçe sayı biçimi), json_uzunluk
+s = {"a": "1"}
+değer(s, "a", "yok")'u yaz.
+değer(s, "b", "yok")'u yaz.
+p = {"elma": 5}
+(değer(p, "armut", 0) + 1)'i yaz.
+sayı_yazısı(86.333, 2)'yi yaz.
+sayı_yazısı(1234567.5, 2)'yi yaz.
+sayı_yazısı(-0.004, 2)'yi yaz.
+sayı_yazısı(-12.5, 0)'ı yaz.
+sayı_yazısı(1000, 0)'ı yaz.
+j = "{\"öğrenciler\": [{\"ad\": \"Ali\"}, {\"ad\": \"Ayşe\"}], \"boş\": [], \"n\": {\"a\": 1, \"b\": [1,2]}}"
+json_uzunluk(j, "öğrenciler")'u yaz.
+json_uzunluk(j, "boş")'u yaz.
+json_uzunluk(j, "n")'yi yaz.
+json_uzunluk(j, "")'yi yaz.
+json_uzunluk(j, "yok")'u yaz.
+json_uzunluk(j, "n.b")'yi yaz.

@@ -2140,7 +2140,25 @@ impl Denetci {
             ("ortam", [Metin]) => Metin,
             ("http_al", [Metin]) => Metin,
             ("json_al", [Metin, Metin]) => Metin,
+            ("json_uzunluk", [Metin, Metin]) => Sayi,
             ("http_gönder", [Metin, Metin]) => Metin,
+            ("http_iste", [Metin, Metin, Metin, Sozluk(a, d)])
+                if a.metin_gibi() && **d == Metin || matches!((&**a, &**d), (Bilinmeyen, Bilinmeyen)) =>
+            {
+                Metin
+            }
+            ("sayı_yazısı", [x, Sayi]) if x.sayisal() => Metin,
+            // Varsayılanlı okuma: anahtar yoksa üçüncü değer (ön kütüphanede tip başına bir işlev)
+            ("değer", [Sozluk(a, d), k, v])
+                if a.kabul_eder(k)
+                    && d.kabul_eder(v)
+                    && matches!(
+                        (&**a, &**d),
+                        (Metin, Metin | Sayi | Ondalik | Mantik) | (Sayi, Metin | Sayi)
+                    ) =>
+            {
+                (**d).clone()
+            }
             ("çık", [Sayi]) => Bos,
             ("hata_ver", [Metin]) => Bos,
             ("titret", [Sayi]) | ("paylaş", [Metin]) | ("bildirim_gönder", [Metin, Metin]) => Bos,

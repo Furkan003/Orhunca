@@ -17,7 +17,7 @@
             <td class="sag">@para(ü.fiyat) TL</td>
             <td class="sag">@eğer ü.stok 0'a eşitse {<span class="tukendi">tükendi</span>} @değilse {@ü.stok}</td>
             <td class="sag">
-                <form method="post" action="/ürünler/@ü.kimlik/sil"><button class="sil">Sil</button></form>
+                <form method="post" action="/ürünler/@ü.kimlik/sil" onsubmit="return confirm('Bu ürün silinsin mi?')"><button class="sil">Sil</button></form>
             </td>
         </tr>
         }

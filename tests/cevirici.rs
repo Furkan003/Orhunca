@@ -78,6 +78,7 @@ fn python_karsiligi() {
             "sayilar",
             "birim_çevirici",
             "c_kütüphanesi",
+            "sözlük_sayı_json",
         ],
     );
 }
@@ -94,6 +95,7 @@ fn javascript_karsiligi() {
             "fizzbuzz",
             "kelime_sayacı",
             "not_ortalaması",
+            "sözlük_sayı_json",
         ],
     );
 }

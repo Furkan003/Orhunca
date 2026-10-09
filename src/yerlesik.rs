@@ -188,6 +188,11 @@ pub const YERLESIKLER: &[Yerlesik] = &[
         "değerler(sözlük) → liste",
         "Sözlüğün değerleri (ekleme sırasıyla)."
     ),
+    y!(
+        "değer",
+        "değer(sözlük, anahtar, varsayılan) → değer",
+        "Anahtarın değeri; anahtar yoksa varsayılan: değer(istek.sorgu, \"q\", \"\")."
+    ),
     // Dosya
     y!(
         "dosya_oku",
@@ -345,6 +350,11 @@ pub const YERLESIKLER: &[Yerlesik] = &[
         "POST isteği gönderir; gövde { ya da [ ile başlıyorsa JSON olarak. Yanıtın gövdesini döndürür."
     ),
     y!(
+        "http_iste",
+        "http_iste(yöntem, adres, gövde, başlıklar) → metin",
+        "Her türlü HTTP isteği: http_iste(\"PUT\", adres, gövde, {\"Authorization\": \"Bearer …\"}). Yöntem GET, POST, PUT, PATCH ya da DELETE; başlık yoksa {}."
+    ),
+    y!(
         "json",
         "json(değer) → metin",
         "Değeri (liste, sözlük, model...) JSON metnine çevirir."
@@ -355,6 +365,11 @@ pub const YERLESIKLER: &[Yerlesik] = &[
         "JSON metninden değer okur: json_al(yanıt, \"hava.sıcaklık\"), json_al(m, \"liste.0.ad\"); yoksa \"\"."
     ),
     y!(
+        "json_uzunluk",
+        "json_uzunluk(json, yol) → sayı",
+        "JSON dizisinin öğe (nesnenin anahtar) sayısı: json_uzunluk(yanıt, \"öğrenciler\"); yoksa 0. Öğeleri json_al(yanıt, \"öğrenciler.0.ad\") ile okuyun."
+    ),
+    y!(
         "kaçır",
         "kaçır(değer) → metin",
         "HTML'de güvenle gösterilecek biçime çevirir: < → &lt;"
@@ -363,6 +378,11 @@ pub const YERLESIKLER: &[Yerlesik] = &[
         "para",
         "para(sayı) → metin",
         "Türkçe para biçimi: 1234.5 → \"1.234,50\""
+    ),
+    y!(
+        "sayı_yazısı",
+        "sayı_yazısı(sayı, basamak) → metin",
+        "Türkçe sayı biçimi: sayı_yazısı(86.333, 2) → \"86,33\", sayı_yazısı(1234.5, 1) → \"1.234,5\""
     ),
     y!(
         "url_kodla",

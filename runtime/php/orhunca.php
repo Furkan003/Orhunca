@@ -879,11 +879,26 @@ function o_ham($x): string
     return o_metin($x);
 }
 
-function o_http(string $adres, ?string $govde): string
+function o_http(string $adres, ?string $govde, string $yontem = '', array $basliklar = []): string
 {
+    if ($yontem === '') {
+        $yontem = $govde === null ? 'GET' : 'POST';
+    }
+    $baslik = '';
+    $tur_var = false;
+    foreach ($basliklar as $ad => $d) {
+        if (!preg_match('/^[A-Za-z0-9_-]+$/', (string)$ad) || preg_match('/["\\\\\r\n]/', (string)$d)) {
+            o_hata("geçersiz HTTP başlığı '$ad'");
+        }
+        $tur_var = $tur_var || strtolower((string)$ad) === 'content-type';
+        $baslik .= "$ad: $d\r\n";
+    }
+    if ($govde !== null && !$tur_var) {
+        $baslik .= preg_match('/^[{[]/', $govde) ? "Content-Type: application/json\r\n" : "Content-Type: application/x-www-form-urlencoded\r\n";
+    }
     $baglam = stream_context_create(['http' => [
-        'method' => $govde === null ? 'GET' : 'POST',
-        'header' => $govde === null ? '' : "Content-Type: application/json\r\n",
+        'method' => $yontem,
+        'header' => $baslik,
         'content' => $govde ?? '',
         'ignore_errors' => true,
         'timeout' => 30,
@@ -912,6 +927,19 @@ function o_http_al(string $adres): string
 function o_http_gonder(string $adres, string $govde): string
 {
     return o_http($adres, $govde);
+}
+
+function o_http_iste(string $yontem, string $adres, string $govde, OSozluk $sozluk): string
+{
+    $basliklar = array_combine($sozluk->anahtarlar(), $sozluk->degerler()) ?: [];
+    $y = strtoupper($yontem);
+    if (!in_array($y, ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], true)) {
+        o_hata("geçersiz HTTP yöntemi '$yontem' (GET, POST, PUT, PATCH ya da DELETE olmalı)");
+    }
+    if (count($basliklar) > 16) {
+        o_hata('en çok 16 başlık gönderilebilir');
+    }
+    return o_http($adres, $y === 'GET' ? null : $govde, $y, $basliklar);
 }
 
 // ---------------------------------------------------------------------------

@@ -70,6 +70,7 @@ const YERLESIKLER: &[(&str, &str)] = &[
     ("hata_ver", "o_hata_ver"),
     ("http_al", "o_http_al"),
     ("http_gönder", "o_http_gonder"),
+    ("http_iste", "o_http_iste"),
     ("json", "o_json"),
     ("para", "o_para"),
     ("ham", "o_ham"),

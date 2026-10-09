@@ -57,6 +57,7 @@ döngüler, fiiller, modeller) için: [dil rehberi](dil-rehberi.md).
 | `toplam` | `toplam(liste) → sayı \| ondalık` | Sayıların toplamı. |
 | `anahtarlar` | `anahtarlar(sözlük) → liste` | Sözlüğün anahtarları (ekleme sırasıyla). |
 | `değerler` | `değerler(sözlük) → liste` | Sözlüğün değerleri (ekleme sırasıyla). |
+| `değer` | `değer(sözlük, anahtar, varsayılan) → değer` | Anahtarın değeri; anahtar yoksa varsayılan: değer(istek.sorgu, "q", ""). |
 
 ## Dosya
 
@@ -132,10 +133,13 @@ döngüler, fiiller, modeller) için: [dil rehberi](dil-rehberi.md).
 |---|---|---|
 | `http_al` | `http_al(adres) → metin` | Bir web adresinin içeriğini indirir: http_al("https://..."). JSON yanıtlarından değer almak için json_al. |
 | `http_gönder` | `http_gönder(adres, gövde) → metin` | POST isteği gönderir; gövde { ya da [ ile başlıyorsa JSON olarak. Yanıtın gövdesini döndürür. |
+| `http_iste` | `http_iste(yöntem, adres, gövde, başlıklar) → metin` | Her türlü HTTP isteği: http_iste("PUT", adres, gövde, {"Authorization": "Bearer …"}). Yöntem GET, POST, PUT, PATCH ya da DELETE; başlık yoksa {}. |
 | `json` | `json(değer) → metin` | Değeri (liste, sözlük, model...) JSON metnine çevirir. |
 | `json_al` | `json_al(json, yol) → metin` | JSON metninden değer okur: json_al(yanıt, "hava.sıcaklık"), json_al(m, "liste.0.ad"); yoksa "". |
+| `json_uzunluk` | `json_uzunluk(json, yol) → sayı` | JSON dizisinin öğe (nesnenin anahtar) sayısı: json_uzunluk(yanıt, "öğrenciler"); yoksa 0. Öğeleri json_al(yanıt, "öğrenciler.0.ad") ile okuyun. |
 | `kaçır` | `kaçır(değer) → metin` | HTML'de güvenle gösterilecek biçime çevirir: < → &lt; |
 | `para` | `para(sayı) → metin` | Türkçe para biçimi: 1234.5 → "1.234,50" |
+| `sayı_yazısı` | `sayı_yazısı(sayı, basamak) → metin` | Türkçe sayı biçimi: sayı_yazısı(86.333, 2) → "86,33", sayı_yazısı(1234.5, 1) → "1.234,5" |
 | `url_kodla` | `url_kodla(metin) → metin` | Adreslerde kullanmak için yüzde kodlar: "çay" → "%C3%A7ay" |
 | `görünüm` | `görünüm("ad") · görünüm("ad", değer) → metin` | görünümler/ad.ohchtml dosyasını HTML olarak oluşturur. |
 | `yanıt` | `yanıt(durum, gövde) · yanıt(durum, gövde, tür) → Yanıt` | Durum kodlu web yanıtı: yanıt(404, "Bulunamadı") |
