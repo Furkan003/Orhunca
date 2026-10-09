@@ -4,7 +4,7 @@
   // =====================================================================
   // Orhunca sözdizimi renklendirme
   // =====================================================================
-  const ANAHTAR_KELIMELER = new Set(['eğer', 'değilse', 'ise', 'her', 'için', 'kadar', 'işlev', 'fiil', 'döndür', 'dur', 'sürdür', 'dene', 'yakala', 'seçenek', 've', 'veya', 'değil', 'olduğu', 'sürece', 'iken', 'kullan', 'kütüphane', 'sabit', 'doğru', 'yanlış', 'ekrana', 'tıklanınca', 'değişince', 'gönderilince', 'çalınca']);
+  const ANAHTAR_KELIMELER = new Set(['eğer', 'değilse', 'ise', 'her', 'için', 'kadar', 'işlev', 'fiil', 'döndür', 'dur', 'sürdür', 'dene', 'yakala', 'arka', 'planda', 'bitince', 'bu', 'seçenek', 've', 'veya', 'değil', 'olduğu', 'sürece', 'iken', 'kullan', 'kütüphane', 'sabit', 'doğru', 'yanlış', 'ekrana', 'tıklanınca', 'değişince', 'gönderilince', 'çalınca']);
   // Arayüz dilinin kapsayıcı öğeleri (`satır:`) parantezsiz de yazılır.
   const KAPSAYICILAR = new Set(['satır', 'sütun', 'kart', 'kutu', 'ızgara']);
   const YERLESIK_FIILLER = new Set(['yaz', 'ekle', 'sırala', 'çıkar', 'kaydet']);

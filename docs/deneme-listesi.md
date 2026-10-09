@@ -24,6 +24,22 @@ ne yapacağınız ve ne görmeniz gerektiği yazıyor. Beklenmeyen bir şey gör
 - [ ] **Otomatik güncelleme.** Eski bir sürüm kuruluyken Stüdyo yeni sürümü bildirmeli; "Şimdi güncelle"
       sonrası Stüdyo yeni sürümle açılmalı (Yardım → Hakkında).
 
+### 0.11 ile gelenler
+
+- [ ] **Editör.** `(` yazınca `)` kendiliğinden gelmeli; imleç bir parantezin yanındayken eşi
+      çerçeveyle işaretlenmeli. Alt+↑/↓ satırı taşımalı, Ctrl+G satıra gitmeli.
+- [ ] **Yeniden adlandır.** Bir değişkenin üzerinde F2 → yeni ad; projedeki bütün kullanımları
+      değişmeli. ⇧+F12 kullanıldığı yerleri listelemeli.
+- [ ] **Sınamalar.** `sınama_hesap.ohc` adlı bir dosyaya `eşit_olmalı(2 + 2, 4)` yazın; Sınamalar
+      panelinde çalıştırınca yeşil olmalı, `5` yapınca kırmızı ve anlaşılır bir mesaj vermeli.
+- [ ] **Git paneli.** Proje Git ile oluşturulmuşsa bir değişiklik yapın; Git panelinde görünmeli,
+      tıklayınca fark açılmalı, mesaj yazıp **İşle** ile kaydedilmeli.
+- [ ] **Koşullu kesme.** Bir döngü satırının numarasına sağ tıklayın, koşul `i == 3` yazın; F6 ile
+      program yalnızca `i` 3 olunca durmalı.
+- [ ] **Yeni dil özellikleri.** `örnekler/model_işlevleri.ohc` ve `örnekler/adsız_işlevler.ohc`
+      çalışmalı. Arayüz uygulamasında `arka planda:` örneği (`örnekler/arayüz/arka_plan.ohc`): düğmeye
+      basınca önce "Hesaplanıyor…" görünmeli, sonra sonuç.
+
 ## 2. Telefon
 
 - [ ] **Android.** Bir arayüz projesinde **Çalıştır → Telefon uygulaması (Android)** → `.apk`'yı telefona
@@ -62,6 +78,9 @@ ne yapacağınız ve ne görmeniz gerektiği yazıyor. Beklenmeyen bir şey gör
 
 - [ ] **Paylaşımlı hosting (Natro vb.).** `orhunca yayınla --cgi` ile oluşan `cikti/cgi/` klasörünün
       içindekileri `public_html`e yükleyin (`uygulama.cgi` izni 755). Site açılmalı, kayıt eklenebilmeli.
+- [ ] **Yalnızca PHP/MySQL olan hosting.** `orhunca yayınla --php` ile oluşan `cikti/php/` içindekileri
+      `public_html`e yükleyin. cPanel'de MySQL veritabanı açıp bilgileri `orhunca/ayarlar.php`'ye
+      yazın; site açılmalı, kayıt eklenebilmeli, phpMyAdmin'de tabloda görünmeli.
 - [ ] **PHP gibi.** `public_html`e `orhunca yayınla --cgi --kaynakla` ile yükleyin; dosya yöneticisinde
       `index.ohc`'yi değiştirip sayfayı yenileyin, değişiklik görünmeli.
 

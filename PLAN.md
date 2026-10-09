@@ -305,7 +305,7 @@ izinleri, sağlama toplamı, ad koruması) · Bootstrap (Türkçe sınıf adlar�
 proje çapında değiştir ve Hızlı düzelt · güvenilmeyen proje modu · başvuru belgeleri ·
 imzalama/winget ve GitHub Discussions.
 
-### 3. dalga – profesyonel geliştirme (0.11)
+### 3. dalga – profesyonel geliştirme (0.11 ✓ yayımlandı)
 Stüdyo'yu modüllere bölme ve editör (CodeMirror kararı) · LSP: sembol dizini, referanslar,
 yeniden adlandırma · Git paneli · test çerçevesi (`orhunca sına`) ve Test Gezgini · DAP tabanlı
 hata ayıklayıcı · dil özellikleri (adsız işlevler, model işlevleri, eşzamanlılık) · PHP çevirisi.

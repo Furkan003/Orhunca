@@ -189,6 +189,8 @@ pub(crate) const ANAHTAR_KELIMELER: &[(&str, &str)] = &[
     ("dur", "Döngüden çıkar (break)"),
     ("sürdür", "Döngünün sonraki adımına geçer (continue)"),
     ("dene", "Hata yakalama: `dene:` bloğunda bir çalışma hatası olursa `yakala` bloğu çalışır"),
+    ("arka planda", "Arayüzde uzun iş: blok ekran çizildikten sonra çalışır; `bitince:` bloğu sonucu yazar"),
+    ("bu", "Model işlevinde nesnenin kendisi: `bu.ad`"),
     ("yakala", "`dene:` bloğundaki hatayı yakalar: `yakala hata:` — `hata` hatanın mesajıdır (metin)"),
     ("kullan", "Başka bir dosyanın işlev, fiil ve sabitlerini alır: `kullan \"araçlar.ohc\"`"),
     ("sabit", "Değişmez değer: `sabit PI = 3.14159` — her yerden görülür"),

@@ -168,7 +168,7 @@
       "patterns": [
         {
           "name": "keyword.control.orhunca",
-          "match": "(?<![\\p{L}\\p{N}_])(eğer|değilse|ise|her|için|kadar|olduğu|sürece|iken|döndür|dur|sürdür|dene|yakala)(?![\\p{L}\\p{N}_])"
+          "match": "(?<![\\p{L}\\p{N}_])(eğer|değilse|ise|her|için|kadar|olduğu|sürece|iken|döndür|dur|sürdür|dene|yakala|arka|planda|bitince|bu)(?![\\p{L}\\p{N}_])"
         },
         {
           "name": "keyword.other.orhunca",

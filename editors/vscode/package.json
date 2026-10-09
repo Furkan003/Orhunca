@@ -2,7 +2,7 @@
   "name": "orhunca",
   "displayName": "Orhunca",
   "description": "Türkçe tabanlı programlama dili Orhunca için sözdizimi renklendirme, hata gösterimi, tamamlama ve biçimlendirme, hata ayıklama (kesme noktaları, koşullu kesme, günlük noktası); .ohchtml görünümleri",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "publisher": "orhunca",
   "license": "MIT",
   "repository": {
