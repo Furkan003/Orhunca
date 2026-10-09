@@ -1,0 +1,44 @@
+kullan "karekod.ohc"
+
+işlev satır_metni(s: liste<sayı>) -> metin:
+    döndür birleştir(dönüştür(s, işlev(x) -> metin(x)), "")
+
+# Matris, ISO/IEC 18004'ün başvuru uygulamalarından biriyle (Python qrcode) modül modül aynı
+işlev sına_başvuru_matrisi():
+    beklenen = ["1111111011111010101111111", "1000001010010110101000001", "1011101000010101001011101", "1011101011110110001011101", "1011101000111011101011101", "1000001000011010101000001", "1111111010101010101111111", "0000000011000001100000000", "1011011100100101101001011", "0010000011110100010100010", "0100011001110100110100000", "0001010011001000101011100", "1010001101001011011010111", "0111110111111011111110001", "0110011000110100001010110", "1010010010010010001110001", "0011111010101010111111111", "0000000010000010100010101", "1111111011100110101010111", "1000001011110111100010001", "1011101001100110111111000", "1011101010100001111011111", "1011101011100011101010110", "1000001001011110010010100", "1111111010010000011111111"]
+    ızgara = karekod_ızgara("https://orhunca.org", "M", 3)
+    eşit_olmalı(uzunluk(ızgara), 25)
+    her i için 0'dan 24'e kadar:
+        eşit_olmalı(satır_metni(ızgara[i]), beklenen[i])
+
+işlev sına_sürüm_ve_boyut():
+    eşit_olmalı(uzunluk(karekod_matrisi("A")), 21)
+    eşit_olmalı(uzunluk(karekod_ızgara(tekrarla("z", 2950), "L", -1)), 177)
+    eşit_olmalı(uzunluk(karekod_ızgara("Merhaba", "H", -1)), 21)
+
+işlev sına_çok_uzun_veri():
+    dene:
+        karekod_ızgara(tekrarla("z", 3000), "L", -1)
+        doğrula(yanlış, "hata vermeliydi")
+    yakala h:
+        doğrula(içerir(h, "veri çok uzun"))
+
+işlev sına_geçersiz_düzey():
+    dene:
+        karekod_ızgara("a", "X", -1)
+        doğrula(yanlış, "hata vermeliydi")
+    yakala h:
+        doğrula(içerir(h, "L, M, Q ya da H"))
+
+işlev sına_svg():
+    s = karekod_svg("Orhunca")
+    doğrula(başlar(s, "<svg "))
+    doğrula(içerir(s, "viewBox=\"0 0 29 29\""))
+    doğrula(başlar(karekod_resim_adresi("x"), "data:image/svg+xml,"))
+
+işlev sına_içerikler():
+    eşit_olmalı(wifi_içeriği("Ev Ağı", "a;b", "WPA"), "WIFI:T:WPA;S:Ev Ağı;P:a\;b;;")
+    eşit_olmalı(wifi_içeriği("Misafir", "", ""), "WIFI:T:nopass;S:Misafir;P:;;")
+    doğrula(içerir(kartvizit_içeriği("Ayşe", "Yılmaz", "+90532", "", "", ""), "N:Yılmaz;Ayşe;;;"))
+    eşit_olmalı(telefon_içeriği("+905321234567"), "tel:+905321234567")
+    eşit_olmalı(konum_içeriği(41.0082, 28.9784), "geo:41.0082,28.9784")

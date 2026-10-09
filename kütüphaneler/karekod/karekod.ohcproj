@@ -1,0 +1,4 @@
+ad = "karekod"
+sürüm = "1.0.0"
+giriş = "karekod.ohc"
+açıklama = "QR kod (karekod) üretir: SVG, terminal ve web sayfası için; Wi-Fi, kartvizit, e-posta, SMS ve konum içerikleri"

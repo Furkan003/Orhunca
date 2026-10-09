@@ -1,0 +1,208 @@
+# barkod: tek boyutlu barkodlar, SVG olarak.
+#   kullan "barkod"
+#   code128_svg("KRG-2026-0042")         # harf, rakam ve işaretler (ASCII)
+#   ean13_svg("869000012345")            # 12 hane verilirse denetim hanesi eklenir
+#   @ham(code128_svg(ürün.kod))         # web sayfasında
+#
+# Code 128 yalnızca ASCII karakterleri (harf, rakam, işaretler) kodlar; Türkçe harfler için
+# karekod paketini kullanın.
+
+# ---------------------------------------------------------------------------
+# Code 128
+
+# 0–105 arası değerlerin çubuk desenleri (1 siyah, 0 beyaz; her biri 11 modül)
+işlev code128_desenleri() -> liste<metin>:
+    döndür böl("11011001100 11001101100 11001100110 10010011000 10010001100 10001001100 10011001000 10011000100 10001100100 11001001000 11001000100 11000100100 10110011100 10011011100 10011001110 10111001100 10011101100 10011100110 11001110010 11001011100 11001001110 11011100100 11001110100 11101101110 11101001100 11100101100 11100100110 11101100100 11100110100 11100110010 11011011000 11011000110 11000110110 10100011000 10001011000 10001000110 10110001000 10001101000 10001100010 11010001000 11000101000 11000100010 10110111000 10110001110 10001101110 10111011000 10111000110 10001110110 11101110110 11010001110 11000101110 11011101000 11011100010 11011101110 11101011000 11101000110 11100010110 11101101000 11101100010 11100011010 11101111010 11001000010 11110001010 10100110000 10100001100 10010110000 10010000110 10000101100 10000100110 10110010000 10110000100 10011010000 10011000010 10000110100 10000110010 11000010010 11001010000 11110111010 11000010100 10001111010 10100111100 10010111100 10010011110 10111100100 10011110100 10011110010 11110100100 11110010100 11110010010 11011011110 11011110110 11110110110 10101111000 10100011110 10001011110 10111101000 10111100010 11110101000 11110100010 10111011110 10111101110 11101011110 11110101110 11010000100 11010010000 11010011100", " ")
+
+işlev rakam_mı(c: sayı) -> mantık:
+    döndür c >= 48 ve c <= 57
+
+# Code 128 değerleri (başlangıç, veri, denetim; bitiş hariç). Rakam dizileri yer kazanmak
+# için C kümesiyle (iki rakam bir değer), gerisi B kümesiyle kodlanır.
+işlev code128_değerleri(veri: metin) -> liste<sayı>:
+    k = kodlar(veri)
+    n = uzunluk(k)
+    eğer n == 0 ise:
+        hata_ver("barkod: boş metin kodlanamaz")
+    her c için k'den:
+        eğer c < 32 veya c > 126 ise:
+            hata_ver("barkod: Code 128 yalnızca ASCII karakterleri kodlar ('" + karakter(c) + "' kodlanamaz); Türkçe metin için karekod kullanın")
+    d: liste<sayı> = []
+    küme = ""
+    i = 0
+    i < n olduğu sürece:
+        # Önündeki rakam sayısı
+        r = 0
+        i + r < n ve rakam_mı(k[i + r]) olduğu sürece:
+            r += 1
+        # C kümesi: başta ya da sonda en az 4, ortada en az 6 rakam (geçiş maliyetine değsin)
+        sınır = 6
+        eğer i == 0 veya i + r == n ise:
+            sınır = 4
+        eğer r >= sınır veya (i == 0 ve r == n ve r >= 2) ise:
+            # Tek sayıda rakamın ilki B kümesinde kalır
+            eğer r % 2 == 1 ise:
+                eğer küme != "B" ise:
+                    eğer küme == "" ise:
+                        104'ü d'ye ekle.
+                    değilse:
+                        100'ü d'ye ekle.
+                    küme = "B"
+                (k[i] - 32)'yi d'ye ekle.
+                i += 1
+                r -= 1
+            eğer küme == "" ise:
+                105'i d'ye ekle.
+            değilse eğer küme != "C" ise:
+                99'u d'ye ekle.
+            küme = "C"
+            her j için 1'den r // 2'ye kadar:
+                ((k[i] - 48) * 10 + k[i + 1] - 48)'i d'ye ekle.
+                i += 2
+        değilse:
+            eğer küme == "" ise:
+                104'ü d'ye ekle.
+            değilse eğer küme != "B" ise:
+                100'ü d'ye ekle.
+            küme = "B"
+            (k[i] - 32)'yi d'ye ekle.
+            i += 1
+    toplam = d[0]
+    her j için 1'den uzunluk(d) - 1'e kadar:
+        toplam += d[j] * j
+    (toplam % 103)'ü d'ye ekle.
+    döndür d
+
+# Code 128 çubukları: "1101001000…" (1 siyah modül). Sessiz bölge eklenmez.
+işlev code128_çubukları(veri: metin) -> metin:
+    desen = code128_desenleri()
+    p: liste<metin> = []
+    her v için code128_değerleri(veri)'den:
+        desen[v]'yi p'ye ekle.
+    "1100011101011"'i p'ye ekle.
+    döndür birleştir(p, "")
+
+# ---------------------------------------------------------------------------
+# EAN-13 ve EAN-8
+
+işlev ean_denetim_hanesi(rakamlar: metin) -> sayı:
+    t = 0
+    n = uzunluk(rakamlar)
+    her i için 0'dan n - 1'e kadar:
+        r = sayı(rakamlar[n - 1 - i])
+        eğer i % 2 == 0 ise:
+            t += r * 3
+        değilse:
+            t += r
+    döndür (10 - t % 10) % 10
+
+işlev yalnız_rakam_mı(m: metin) -> mantık:
+    eğer m == "" ise:
+        döndür yanlış
+    her c için kodlar(m)'den:
+        eğer rakam_mı(c) == yanlış ise:
+            döndür yanlış
+    döndür doğru
+
+# 12 haneye denetim hanesini ekler; 13 hane verilmişse denetler
+işlev ean13_tamamla(rakamlar: metin) -> metin:
+    eğer yalnız_rakam_mı(rakamlar) == yanlış ise:
+        hata_ver("barkod: EAN-13 yalnızca rakamlardan oluşur ('" + rakamlar + "')")
+    eğer uzunluk(rakamlar) == 12 ise:
+        döndür rakamlar + ean_denetim_hanesi(rakamlar)
+    eğer uzunluk(rakamlar) == 13 ise:
+        eğer ean_denetim_hanesi(parça(rakamlar, 0, 12)) != sayı(rakamlar[12]) ise:
+            hata_ver("barkod: EAN-13 denetim hanesi yanlış ('" + rakamlar + "'; doğrusu " + parça(rakamlar, 0, 12) + ean_denetim_hanesi(parça(rakamlar, 0, 12)) + ")")
+        döndür rakamlar
+    hata_ver("barkod: EAN-13 için 12 ya da 13 hane gerekir (" + uzunluk(rakamlar) + " verildi)")
+    döndür rakamlar
+
+# EAN-13 / EAN-8 geçerli mi (uzunluk ve denetim hanesi)?
+işlev ean_geçerli_mi(rakamlar: metin) -> mantık:
+    n = uzunluk(rakamlar)
+    eğer yalnız_rakam_mı(rakamlar) == yanlış veya (n != 13 ve n != 8) ise:
+        döndür yanlış
+    döndür ean_denetim_hanesi(parça(rakamlar, 0, n - 1)) == sayı(rakamlar[n - 1])
+
+işlev ean_a() -> liste<metin>:
+    döndür böl("0001101 0011001 0010011 0111101 0100011 0110001 0101111 0111011 0110111 0001011", " ")
+
+işlev ean_b() -> liste<metin>:
+    döndür böl("0100111 0110011 0011011 0100001 0011101 0111001 0000101 0010001 0001001 0010111", " ")
+
+işlev ean_c() -> liste<metin>:
+    döndür böl("1110010 1100110 1101100 1000010 1011100 1001110 1010000 1000100 1001000 1110100", " ")
+
+işlev ean13_çubukları(rakamlar: metin) -> metin:
+    r = ean13_tamamla(rakamlar)
+    eşlik = böl("AAAAAA AABABB AABBAB AABBBA ABAABB ABBAAB ABBBAA ABABAB ABABBA ABBABA", " ")[sayı(r[0])]
+    a = ean_a()
+    b = ean_b()
+    c = ean_c()
+    p = ["101"]
+    her i için 1'den 6'ya kadar:
+        eğer eşlik[i - 1] == "A" ise:
+            a[sayı(r[i])]'yı p'ye ekle.
+        değilse:
+            b[sayı(r[i])]'yi p'ye ekle.
+    "01010"'u p'ye ekle.
+    her i için 7'den 12'ye kadar:
+        c[sayı(r[i])]'yi p'ye ekle.
+    "101"'i p'ye ekle.
+    döndür birleştir(p, "")
+
+işlev ean8_çubukları(rakamlar: metin) -> metin:
+    r = rakamlar
+    eğer yalnız_rakam_mı(r) ve uzunluk(r) == 7 ise:
+        r = r + ean_denetim_hanesi(r)
+    eğer ean_geçerli_mi(r) == yanlış veya uzunluk(r) != 8 ise:
+        hata_ver("barkod: EAN-8 için 7 hane (ya da denetim hanesiyle 8) gerekir ('" + rakamlar + "')")
+    a = ean_a()
+    c = ean_c()
+    p = ["101"]
+    her i için 0'dan 3'e kadar:
+        a[sayı(r[i])]'yı p'ye ekle.
+    "01010"'u p'ye ekle.
+    her i için 4'ten 7'ye kadar:
+        c[sayı(r[i])]'yi p'ye ekle.
+    "101"'i p'ye ekle.
+    döndür birleştir(p, "")
+
+# ---------------------------------------------------------------------------
+# SVG
+
+# Çubuklardan SVG: `modül` bir modülün piksel genişliği, `yükseklik` çubuk yüksekliği,
+# `yazı` altına yazılacak metin ("" ise yazılmaz). İki yanda 10 modül sessiz bölge bırakılır.
+işlev çubuk_svg(çubuklar: metin, modül: sayı, yükseklik: sayı, yazı: metin) -> metin:
+    kenar = 10
+    n = uzunluk(çubuklar)
+    genişlik = (n + kenar * 2) * modül
+    yazı_payı = 0
+    eğer yazı != "" ise:
+        yazı_payı = modül * 12
+    yol: liste<metin> = []
+    i = 0
+    i < n olduğu sürece:
+        eğer çubuklar[i] == "1" ise:
+            baş = i
+            i < n ve çubuklar[i] == "1" olduğu sürece:
+                i += 1
+            ("M" + ((baş + kenar) * modül) + ",0h" + ((i - baş) * modül) + "v" + yükseklik + "h-" + ((i - baş) * modül) + "z")'yi yol'a ekle.
+        değilse:
+            i += 1
+    s = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"" + genişlik + "\" height=\"" + (yükseklik + yazı_payı) + "\" viewBox=\"0 0 " + genişlik + " " + (yükseklik + yazı_payı) + "\" shape-rendering=\"crispEdges\" role=\"img\" aria-label=\"Barkod: " + kaçır(yazı) + "\"><rect width=\"100%\" height=\"100%\" fill=\"#fff\"/><path fill=\"#000\" d=\"" + birleştir(yol, "") + "\"/>"
+    eğer yazı != "" ise:
+        s = s + "<text x=\"" + (genişlik // 2) + "\" y=\"" + (yükseklik + modül * 10) + "\" font-family=\"monospace\" font-size=\"" + (modül * 9) + "\" text-anchor=\"middle\">" + kaçır(yazı) + "</text>"
+    döndür s + "</svg>"
+
+işlev code128_svg(veri: metin) -> metin:
+    döndür çubuk_svg(code128_çubukları(veri), 2, 60, veri)
+
+işlev ean13_svg(rakamlar: metin) -> metin:
+    döndür çubuk_svg(ean13_çubukları(rakamlar), 2, 70, ean13_tamamla(rakamlar))
+
+işlev ean8_svg(rakamlar: metin) -> metin:
+    r = rakamlar
+    eğer uzunluk(r) == 7 ise:
+        r = r + ean_denetim_hanesi(r)
+    döndür çubuk_svg(ean8_çubukları(rakamlar), 2, 60, r)

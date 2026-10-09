@@ -305,11 +305,11 @@ işlev pbkdf2(şifre: liste<sayı>, tuz: liste<sayı>, tur: sayı) -> liste<say�
         0'ı a'ya ekle.
     pad = sıfır_liste(64)
     iç_durum = sha_başlangıç()
-    her i için 0'dan 63'ye kadar:
+    her i için 0'dan 63'e kadar:
         pad[i] = bit_xor(a[i], 54)
     sha_sıkıştır(iç_durum, pad, 0, w, k)
     dış_durum = sha_başlangıç()
-    her i için 0'dan 63'ye kadar:
+    her i için 0'dan 63'e kadar:
         pad[i] = bit_xor(a[i], 92)
     sha_sıkıştır(dış_durum, pad, 0, w, k)
     # İlk tur: U1 = HMAC(şifre, tuz ‖ 00 00 00 01)

@@ -1,0 +1,41 @@
+kullan "barkod.ohc"
+
+# Python python-barcode ile aynı çubuklar
+işlev sına_code128():
+    eşit_olmalı(code128_çubukları("Wikipedia"), "11010010000111010001101000011010011000010010100001101001010011110010110010000100001001101000011010010010110000111100100101100011101011")
+
+işlev sına_code128_rakam_kümesi():
+    # Yalnız rakamlar C kümesiyle (başlangıç 105, iki rakam bir değer) kodlanır
+    d = code128_değerleri("123456")
+    eşit_olmalı(d[0], 105)
+    eşit_olmalı(uzunluk(d), 5)
+    # Tek sayıda rakam: ilki B kümesinde
+    eşit_olmalı(code128_değerleri("12345")[0], 104)
+
+işlev sına_code128_türkçe_harf():
+    dene:
+        code128_değerleri("ağaç")
+        doğrula(yanlış, "hata vermeliydi")
+    yakala h:
+        doğrula(içerir(h, "ASCII"))
+
+işlev sına_ean():
+    eşit_olmalı(ean13_tamamla("400638133393"), "4006381333931")
+    eşit_olmalı(ean13_tamamla("4006381333931"), "4006381333931")
+    doğrula(ean_geçerli_mi("8690000123452"))
+    doğrula(ean_geçerli_mi("8690000123453") == yanlış)
+    doğrula(ean_geçerli_mi("96385074"))
+    eşit_olmalı(uzunluk(ean13_çubukları("869000012345")), 95)
+    eşit_olmalı(uzunluk(ean8_çubukları("9638507")), 67)
+
+işlev sına_ean_yanlış_denetim():
+    dene:
+        ean13_tamamla("4006381333932")
+        doğrula(yanlış, "hata vermeliydi")
+    yakala h:
+        doğrula(içerir(h, "4006381333931"))
+
+işlev sına_svg():
+    s = ean13_svg("869000012345")
+    doğrula(başlar(s, "<svg "))
+    doğrula(içerir(s, ">8690000123452</text>"))

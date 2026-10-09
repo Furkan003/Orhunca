@@ -1,0 +1,4 @@
+ad = "barkod"
+sürüm = "1.0.0"
+giriş = "barkod.ohc"
+açıklama = "Barkod üretir: Code 128 (ürün kodu, kargo, demirbaş) ve EAN-13 / EAN-8 (market ürünleri), SVG olarak"

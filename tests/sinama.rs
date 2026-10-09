@@ -151,3 +151,18 @@ fn sina_islevi_olmayan_dosya_tek_sinamadir() {
     assert_eq!(yanlis["cikti"], "ara\n", "{j}");
     let _ = std::fs::remove_dir_all(&k);
 }
+
+#[test]
+fn resmi_paketlerin_sinamalari_gecer() {
+    // kütüphaneler/ altındaki her paketin *_sına.ohc dosyaları
+    let kok = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("kütüphaneler");
+    let c = Command::new(env!("CARGO_BIN_EXE_orhunca"))
+        .args(["sına", "--json"])
+        .current_dir(&kok)
+        .output()
+        .unwrap();
+    let j: serde_json::Value = serde_json::from_slice(&c.stdout)
+        .unwrap_or_else(|_| panic!("{}", String::from_utf8_lossy(&c.stderr)));
+    assert_eq!(j["kaldi"], 0, "{j:#}");
+    assert!(j["gecti"].as_u64().unwrap() >= 19, "{j}");
+}

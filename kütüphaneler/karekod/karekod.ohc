@@ -1,0 +1,560 @@
+# karekod: QR kod üretir (ISO/IEC 18004). Metin UTF-8 bayt kipinde kodlanır; 40 sürümün ve
+# 4 hata düzeltme düzeyinin hepsi desteklenir, en uygun maske kendiliğinden seçilir.
+#
+#   kullan "karekod"
+#   karekod_svg("https://orhunca.org")              # web sayfasına: @ham(karekod_svg(adres))
+#   karekod_metin("Merhaba")'yı yaz.                # terminalde gösterir
+#   karekod_svg(wifi_içeriği("Ev", "şifre123", "WPA"))
+#
+# Hata düzeltme düzeyi: "L" (%7), "M" (%15, varsayılan), "Q" (%25), "H" (%30). Düzey
+# yükseldikçe kod yıpranmaya dayanıklı olur ama büyür (ortasına logo konacaksa "H").
+
+# ---------------------------------------------------------------------------
+# Tablolar
+
+# Sürüm × düzey (L, M, Q, H): "hata_kodu.g1_blok.g1_veri.g2_blok.g2_veri"
+işlev rs_tablosu() -> liste<metin>:
+    döndür böl("7.1.19.0.0 10.1.16.0.0 13.1.13.0.0 17.1.9.0.0 10.1.34.0.0 16.1.28.0.0 22.1.22.0.0 28.1.16.0.0 15.1.55.0.0 26.1.44.0.0 18.2.17.0.0 22.2.13.0.0 20.1.80.0.0 18.2.32.0.0 26.2.24.0.0 16.4.9.0.0 26.1.108.0.0 24.2.43.0.0 18.2.15.2.16 22.2.11.2.12 18.2.68.0.0 16.4.27.0.0 24.4.19.0.0 28.4.15.0.0 20.2.78.0.0 18.4.31.0.0 18.2.14.4.15 26.4.13.1.14 24.2.97.0.0 22.2.38.2.39 22.4.18.2.19 26.4.14.2.15 30.2.116.0.0 22.3.36.2.37 20.4.16.4.17 24.4.12.4.13 18.2.68.2.69 26.4.43.1.44 24.6.19.2.20 28.6.15.2.16 20.4.81.0.0 30.1.50.4.51 28.4.22.4.23 24.3.12.8.13 24.2.92.2.93 22.6.36.2.37 26.4.20.6.21 28.7.14.4.15 26.4.107.0.0 22.8.37.1.38 24.8.20.4.21 22.12.11.4.12 30.3.115.1.116 24.4.40.5.41 20.11.16.5.17 24.11.12.5.13 22.5.87.1.88 24.5.41.5.42 30.5.24.7.25 24.11.12.7.13 24.5.98.1.99 28.7.45.3.46 24.15.19.2.20 30.3.15.13.16 28.1.107.5.108 28.10.46.1.47 28.1.22.15.23 28.2.14.17.15 30.5.120.1.121 26.9.43.4.44 28.17.22.1.23 28.2.14.19.15 28.3.113.4.114 26.3.44.11.45 26.17.21.4.22 26.9.13.16.14 28.3.107.5.108 26.3.41.13.42 30.15.24.5.25 28.15.15.10.16 28.4.116.4.117 26.17.42.0.0 28.17.22.6.23 30.19.16.6.17 28.2.111.7.112 28.17.46.0.0 30.7.24.16.25 24.34.13.0.0 30.4.121.5.122 28.4.47.14.48 30.11.24.14.25 30.16.15.14.16 30.6.117.4.118 28.6.45.14.46 30.11.24.16.25 30.30.16.2.17 26.8.106.4.107 28.8.47.13.48 30.7.24.22.25 30.22.15.13.16 28.10.114.2.115 28.19.46.4.47 28.28.22.6.23 30.33.16.4.17 30.8.122.4.123 28.22.45.3.46 30.8.23.26.24 30.12.15.28.16 30.3.117.10.118 28.3.45.23.46 30.4.24.31.25 30.11.15.31.16 30.7.116.7.117 28.21.45.7.46 30.1.23.37.24 30.19.15.26.16 30.5.115.10.116 28.19.47.10.48 30.15.24.25.25 30.23.15.25.16 30.13.115.3.116 28.2.46.29.47 30.42.24.1.25 30.23.15.28.16 30.17.115.0.0 28.10.46.23.47 30.10.24.35.25 30.19.15.35.16 30.17.115.1.116 28.14.46.21.47 30.29.24.19.25 30.11.15.46.16 30.13.115.6.116 28.14.46.23.47 30.44.24.7.25 30.59.16.1.17 30.12.121.7.122 28.12.47.26.48 30.39.24.14.25 30.22.15.41.16 30.6.121.14.122 28.6.47.34.48 30.46.24.10.25 30.2.15.64.16 30.17.122.4.123 28.29.46.14.47 30.49.24.10.25 30.24.15.46.16 30.4.122.18.123 28.13.46.32.47 30.48.24.14.25 30.42.15.32.16 30.20.117.4.118 28.40.47.7.48 30.43.24.22.25 30.10.15.67.16 30.19.118.6.119 28.18.47.31.48 30.34.24.34.25 30.20.15.61.16", " ")
+
+# Hizalama desenlerinin satır/sütunları (sürüm başına)
+işlev hizalama_tablosu() -> liste<metin>:
+    döndür böl(";6,18;6,22;6,26;6,30;6,34;6,22,38;6,24,42;6,26,46;6,28,50;6,30,54;6,32,58;6,34,62;6,26,46,66;6,26,48,70;6,26,50,74;6,30,54,78;6,30,56,82;6,30,58,86;6,34,62,90;6,28,50,72,94;6,26,50,74,98;6,30,54,78,102;6,28,54,80,106;6,32,58,84,110;6,30,58,86,114;6,34,62,90,118;6,26,50,74,98,122;6,30,54,78,102,126;6,26,52,78,104,130;6,30,56,82,108,134;6,34,60,86,112,138;6,30,58,86,114,142;6,34,62,90,118,146;6,30,54,78,102,126,150;6,24,50,76,102,128,154;6,28,54,80,106,132,158;6,32,58,84,110,136,162;6,26,54,82,110,138,166;6,30,58,86,114,142,170", ";")
+
+işlev düzey_sırası(düzey: metin) -> sayı:
+    d = büyük_harf(düzey)
+    eğer d == "L" ise:
+        döndür 0
+    eğer d == "M" ise:
+        döndür 1
+    eğer d == "Q" ise:
+        döndür 2
+    eğer d == "H" ise:
+        döndür 3
+    hata_ver("karekod: hata düzeltme düzeyi L, M, Q ya da H olmalı ('" + düzey + "' verildi)")
+    döndür 1
+
+# Biçim bilgisindeki düzey bitleri (L 01, M 00, Q 11, H 10)
+işlev düzey_bitleri(sıra: sayı) -> sayı:
+    döndür [1, 0, 3, 2][sıra]
+
+# [hata_kodu, g1_blok, g1_veri, g2_blok, g2_veri]
+işlev blok_bilgisi(sürüm: sayı, düzey: sayı) -> liste<sayı>:
+    b: liste<sayı> = []
+    her p için böl(rs_tablosu()[(sürüm - 1) * 4 + düzey], ".")'den:
+        sayı(p)'yi b'ye ekle.
+    döndür b
+
+işlev veri_kapasitesi(sürüm: sayı, düzey: sayı) -> sayı:
+    b = blok_bilgisi(sürüm, düzey)
+    döndür b[1] * b[2] + b[3] * b[4]
+
+# ---------------------------------------------------------------------------
+# UTF-8
+
+işlev baytlar(m: metin) -> liste<sayı>:
+    b: liste<sayı> = []
+    her c için kodlar(m)'den:
+        eğer c < 128 ise:
+            c'yi b'ye ekle.
+        değilse eğer c < 2048 ise:
+            (192 + c // 64)'ü b'ye ekle.
+            (128 + c % 64)'ü b'ye ekle.
+        değilse eğer c < 65536 ise:
+            (224 + c // 4096)'yı b'ye ekle.
+            (128 + (c // 64) % 64)'ü b'ye ekle.
+            (128 + c % 64)'ü b'ye ekle.
+        değilse:
+            (240 + c // 262144)'ü b'ye ekle.
+            (128 + (c // 4096) % 64)'ü b'ye ekle.
+            (128 + (c // 64) % 64)'ü b'ye ekle.
+            (128 + c % 64)'ü b'ye ekle.
+    döndür b
+
+# ---------------------------------------------------------------------------
+# Reed–Solomon (GF(256), indirgeme polinomu 0x11D)
+
+# [üstel (512), logaritma (256)]
+işlev gf_tabloları() -> liste<liste<sayı>>:
+    üs: liste<sayı> = []
+    lg: liste<sayı> = []
+    her i için 0'dan 255'e kadar:
+        0'ı lg'ye ekle.
+    x = 1
+    her i için 0'dan 511'e kadar:
+        x'i üs'e ekle.
+        eğer i < 255 ise:
+            lg[x] = i
+        x = x * 2
+        eğer x >= 256 ise:
+            x = bit_xor(x, 285)
+    döndür [üs, lg]
+
+işlev gf_çarp(a: sayı, b: sayı, t: liste<liste<sayı>>) -> sayı:
+    eğer a == 0 veya b == 0 ise:
+        döndür 0
+    döndür t[0][t[1][a] + t[1][b]]
+
+# Derecesi n olan üreteç polinomunun katsayıları (baştaki 1 hariç, n öğe)
+işlev üreteç(n: sayı, t: liste<liste<sayı>>) -> liste<sayı>:
+    g: liste<sayı> = []
+    her i için 1'den n - 1'e kadar:
+        0'ı g'ye ekle.
+    1'i g'ye ekle.
+    kök = 1
+    her i için 1'den n'ye kadar:
+        her j için 0'dan n - 1'e kadar:
+            g[j] = gf_çarp(g[j], kök, t)
+            eğer j + 1 < n ise:
+                g[j] = bit_xor(g[j], g[j + 1])
+        kök = gf_çarp(kök, 2, t)
+    döndür g
+
+işlev hata_kodları(veri: liste<sayı>, g: liste<sayı>, t: liste<liste<sayı>>) -> liste<sayı>:
+    n = uzunluk(g)
+    k: liste<sayı> = []
+    her i için 1'den n'ye kadar:
+        0'ı k'ye ekle.
+    her b için veri'den:
+        çarpan = bit_xor(b, k[0])
+        her i için 0'dan n - 2'ye kadar:
+            k[i] = k[i + 1]
+        k[n - 1] = 0
+        her i için 0'dan n - 1'e kadar:
+            k[i] = bit_xor(k[i], gf_çarp(g[i], çarpan, t))
+    döndür k
+
+# ---------------------------------------------------------------------------
+# Kodlama: veri bitleri → bloklar → hata kodları → iç içe geçmiş kod sözcükleri
+
+işlev bit_ekle(bitler: liste<sayı>, değer: sayı, uzunluk_: sayı):
+    her i için 1'den uzunluk_'a kadar:
+        bit_ve(sağa_kaydır(değer, uzunluk_ - i), 1)'i bitler'e ekle.
+
+# Verinin sığdığı en küçük sürüm (sığmazsa 0)
+işlev sürüm_seç(bayt_sayısı: sayı, düzey: sayı, en_az: sayı) -> sayı:
+    her v için en_az'dan 40'a kadar:
+        sayaç_biti = 8
+        eğer v > 9 ise:
+            sayaç_biti = 16
+        eğer 4 + sayaç_biti + bayt_sayısı * 8 <= veri_kapasitesi(v, düzey) * 8 ise:
+            döndür v
+    döndür 0
+
+işlev kod_sözcükleri(veri: liste<sayı>, sürüm: sayı, düzey: sayı) -> liste<sayı>:
+    bilgi = blok_bilgisi(sürüm, düzey)
+    kapasite = veri_kapasitesi(sürüm, düzey)
+    b: liste<sayı> = []
+    bit_ekle(b, 4, 4)
+    sayaç_biti = 8
+    eğer sürüm > 9 ise:
+        sayaç_biti = 16
+    bit_ekle(b, uzunluk(veri), sayaç_biti)
+    her x için veri'den:
+        bit_ekle(b, x, 8)
+    # Bitiş işareti (en çok 4 sıfır), bayt sınırına tamamlama, dolgu baytları
+    her i için 1'den 4'e kadar:
+        eğer uzunluk(b) < kapasite * 8 ise:
+            0'ı b'ye ekle.
+    uzunluk(b) % 8 != 0 olduğu sürece:
+        0'ı b'ye ekle.
+    sözcükler: liste<sayı> = []
+    i = 0
+    i < uzunluk(b) olduğu sürece:
+        x = 0
+        her j için 0'dan 7'ye kadar:
+            x = x * 2 + b[i + j]
+        x'i sözcükler'e ekle.
+        i += 8
+    dolgu = 236
+    uzunluk(sözcükler) < kapasite olduğu sürece:
+        dolgu'yu sözcükler'e ekle.
+        eğer dolgu == 236 ise:
+            dolgu = 17
+        değilse:
+            dolgu = 236
+    # Bloklara böl, her bloğun hata kodlarını hesapla
+    t = gf_tabloları()
+    g = üreteç(bilgi[0], t)
+    bloklar: liste<liste<sayı>> = []
+    hatalar: liste<liste<sayı>> = []
+    k = 0
+    her grup için 0'dan 1'e kadar:
+        her n için 1'den bilgi[1 + grup * 2]'ye kadar:
+            boy = bilgi[2 + grup * 2]
+            blok = parça(sözcükler, k, boy)
+            k += boy
+            blok'u bloklar'a ekle.
+            hata_kodları(blok, g, t)'yi hatalar'a ekle.
+    sonuç: liste<sayı> = []
+    en_uzun = bilgi[2]
+    eğer bilgi[4] > en_uzun ise:
+        en_uzun = bilgi[4]
+    her i için 0'dan en_uzun - 1'e kadar:
+        her blok için bloklar'dan:
+            eğer i < uzunluk(blok) ise:
+                blok[i]'yi sonuç'a ekle.
+    her i için 0'dan bilgi[0] - 1'e kadar:
+        her h için hatalar'dan:
+            h[i]'yi sonuç'a ekle.
+    döndür sonuç
+
+# ---------------------------------------------------------------------------
+# Matris: modüller (0 açık, 1 dolu) ve işlev modülleri (desenler; maskelenmez).
+# Satır y, sütun x; liste düz tutulur: [y * boy + x]
+
+işlev modül_koy(m: liste<sayı>, işlev_: liste<sayı>, boy: sayı, x: sayı, y: sayı, dolu: sayı):
+    m[y * boy + x] = dolu
+    işlev_[y * boy + x] = 1
+
+işlev bulucu(m: liste<sayı>, işlev_: liste<sayı>, boy: sayı, cx: sayı, cy: sayı):
+    her dy için -4'ten 4'e kadar:
+        her dx için -4'ten 4'e kadar:
+            x = cx + dx
+            y = cy + dy
+            eğer x >= 0 ve x < boy ve y >= 0 ve y < boy ise:
+                d = mutlak(dx)
+                eğer mutlak(dy) > d ise:
+                    d = mutlak(dy)
+                dolu = 0
+                eğer d != 2 ve d != 4 ise:
+                    dolu = 1
+                modül_koy(m, işlev_, boy, x, y, dolu)
+
+işlev hizalama(m: liste<sayı>, işlev_: liste<sayı>, boy: sayı, cx: sayı, cy: sayı):
+    her dy için -2'den 2'ye kadar:
+        her dx için -2'den 2'ye kadar:
+            d = mutlak(dx)
+            eğer mutlak(dy) > d ise:
+                d = mutlak(dy)
+            dolu = 0
+            eğer d != 1 ise:
+                dolu = 1
+            modül_koy(m, işlev_, boy, cx + dx, cy + dy, dolu)
+
+# 15 bitlik biçim bilgisi: düzey, maske ve BCH(15, 5) denetimi
+işlev biçim_bitleri(düzey: sayı, maske: sayı) -> sayı:
+    veri = düzey_bitleri(düzey) * 8 + maske
+    kalan = veri
+    her i için 1'den 10'a kadar:
+        kalan = bit_xor(kalan * 2, sağa_kaydır(kalan, 9) * 1335)
+    döndür bit_xor(veri * 1024 + kalan, 21522)
+
+işlev biçim_yaz(m: liste<sayı>, işlev_: liste<sayı>, boy: sayı, düzey: sayı, maske: sayı):
+    b = biçim_bitleri(düzey, maske)
+    her i için 0'dan 5'e kadar:
+        modül_koy(m, işlev_, boy, 8, i, bit_ve(sağa_kaydır(b, i), 1))
+    modül_koy(m, işlev_, boy, 8, 7, bit_ve(sağa_kaydır(b, 6), 1))
+    modül_koy(m, işlev_, boy, 8, 8, bit_ve(sağa_kaydır(b, 7), 1))
+    modül_koy(m, işlev_, boy, 7, 8, bit_ve(sağa_kaydır(b, 8), 1))
+    her i için 9'dan 14'e kadar:
+        modül_koy(m, işlev_, boy, 14 - i, 8, bit_ve(sağa_kaydır(b, i), 1))
+    her i için 0'dan 7'ye kadar:
+        modül_koy(m, işlev_, boy, boy - 1 - i, 8, bit_ve(sağa_kaydır(b, i), 1))
+    her i için 8'den 14'e kadar:
+        modül_koy(m, işlev_, boy, 8, boy - 15 + i, bit_ve(sağa_kaydır(b, i), 1))
+    # Her zaman dolu modül
+    modül_koy(m, işlev_, boy, 8, boy - 8, 1)
+
+# 7. sürümden itibaren 18 bitlik sürüm bilgisi, BCH(18, 6)
+işlev sürüm_yaz(m: liste<sayı>, işlev_: liste<sayı>, boy: sayı, sürüm: sayı):
+    eğer sürüm < 7 ise:
+        döndür
+    kalan = sürüm
+    her i için 1'den 12'ye kadar:
+        kalan = bit_xor(kalan * 2, sağa_kaydır(kalan, 11) * 7973)
+    b = sürüm * 4096 + kalan
+    her i için 0'dan 17'ye kadar:
+        bit = bit_ve(sağa_kaydır(b, i), 1)
+        a = boy - 11 + i % 3
+        c = i // 3
+        modül_koy(m, işlev_, boy, a, c, bit)
+        modül_koy(m, işlev_, boy, c, a, bit)
+
+işlev desenleri_çiz(m: liste<sayı>, işlev_: liste<sayı>, boy: sayı, sürüm: sayı):
+    # Zamanlama çizgileri
+    her i için 0'dan boy - 1'e kadar:
+        dolu = 0
+        eğer i % 2 == 0 ise:
+            dolu = 1
+        modül_koy(m, işlev_, boy, 6, i, dolu)
+        modül_koy(m, işlev_, boy, i, 6, dolu)
+    bulucu(m, işlev_, boy, 3, 3)
+    bulucu(m, işlev_, boy, boy - 4, 3)
+    bulucu(m, işlev_, boy, 3, boy - 4)
+    satır = hizalama_tablosu()[sürüm - 1]
+    eğer satır != "" ise:
+        yerler: liste<sayı> = []
+        her p için böl(satır, ",")'den:
+            sayı(p)'yi yerler'e ekle.
+        n = uzunluk(yerler)
+        her i için 0'dan n - 1'e kadar:
+            her j için 0'dan n - 1'e kadar:
+                # Bulucu desenlerinin üstüne düşenler atlanır
+                köşe = (i == 0 ve j == 0) veya (i == 0 ve j == n - 1) veya (i == n - 1 ve j == 0)
+                eğer köşe == yanlış ise:
+                    hizalama(m, işlev_, boy, yerler[i], yerler[j])
+    # Biçim alanları ayrılır (maske seçilince yazılır), sürüm bilgisi yazılır
+    biçim_yaz(m, işlev_, boy, 0, 0)
+    sürüm_yaz(m, işlev_, boy, sürüm)
+
+işlev veriyi_yerleştir(m: liste<sayı>, işlev_: liste<sayı>, boy: sayı, sözcükler: liste<sayı>):
+    i = 0
+    toplam = uzunluk(sözcükler) * 8
+    sağ = boy - 1
+    sağ >= 1 olduğu sürece:
+        eğer sağ == 6 ise:
+            sağ = 5
+        yukarı = bit_ve(sağ + 1, 2) == 0
+        her dikey için 0'dan boy - 1'e kadar:
+            her j için 0'dan 1'e kadar:
+                x = sağ - j
+                y = dikey
+                eğer yukarı ise:
+                    y = boy - 1 - dikey
+                eğer işlev_[y * boy + x] == 0 ve i < toplam ise:
+                    m[y * boy + x] = bit_ve(sağa_kaydır(sözcükler[i // 8], 7 - i % 8), 1)
+                    i += 1
+        sağ -= 2
+
+işlev maske_mi(maske: sayı, x: sayı, y: sayı) -> mantık:
+    eğer maske == 0 ise:
+        döndür (x + y) % 2 == 0
+    eğer maske == 1 ise:
+        döndür y % 2 == 0
+    eğer maske == 2 ise:
+        döndür x % 3 == 0
+    eğer maske == 3 ise:
+        döndür (x + y) % 3 == 0
+    eğer maske == 4 ise:
+        döndür (x // 3 + y // 2) % 2 == 0
+    eğer maske == 5 ise:
+        döndür x * y % 2 + x * y % 3 == 0
+    eğer maske == 6 ise:
+        döndür (x * y % 2 + x * y % 3) % 2 == 0
+    döndür ((x + y) % 2 + x * y % 3) % 2 == 0
+
+işlev maskele(m: liste<sayı>, işlev_: liste<sayı>, boy: sayı, maske: sayı):
+    her y için 0'dan boy - 1'e kadar:
+        her x için 0'dan boy - 1'e kadar:
+            eğer işlev_[y * boy + x] == 0 ve maske_mi(maske, x, y) ise:
+                m[y * boy + x] = 1 - m[y * boy + x]
+
+# ---------------------------------------------------------------------------
+# Maske ceza puanı (ISO/IEC 18004, 7.8.3)
+
+işlev geçmişe_ekle(uzunluk_: sayı, geçmiş: liste<sayı>, boy: sayı):
+    u = uzunluk_
+    eğer geçmiş[0] == 0 ise:
+        u += boy
+    her i için 0'dan 5'e kadar:
+        geçmiş[6 - i] = geçmiş[5 - i]
+    geçmiş[0] = u
+
+işlev bulucu_benzeri(g: liste<sayı>) -> sayı:
+    n = g[1]
+    çekirdek = n > 0 ve g[2] == n ve g[3] == n * 3 ve g[4] == n ve g[5] == n
+    s = 0
+    eğer çekirdek ve g[0] >= n * 4 ve g[6] >= n ise:
+        s += 1
+    eğer çekirdek ve g[6] >= n * 4 ve g[0] >= n ise:
+        s += 1
+    döndür s
+
+işlev çizgi_cezası(m: liste<sayı>, boy: sayı, satır_mı: mantık) -> sayı:
+    ceza = 0
+    her a için 0'dan boy - 1'e kadar:
+        renk = 0
+        uz = 0
+        geçmiş = [0, 0, 0, 0, 0, 0, 0]
+        her b için 0'dan boy - 1'e kadar:
+            v = m[b * boy + a]
+            eğer satır_mı ise:
+                v = m[a * boy + b]
+            eğer v == renk ise:
+                uz += 1
+                eğer uz == 5 ise:
+                    ceza += 3
+                değilse eğer uz > 5 ise:
+                    ceza += 1
+            değilse:
+                geçmişe_ekle(uz, geçmiş, boy)
+                eğer renk == 0 ise:
+                    ceza += bulucu_benzeri(geçmiş) * 40
+                renk = v
+                uz = 1
+        # Satır sonu: açık kenar boşluğu varsayılarak kapatılır
+        eğer renk == 1 ise:
+            geçmişe_ekle(uz, geçmiş, boy)
+            uz = 0
+        geçmişe_ekle(uz + boy, geçmiş, boy)
+        ceza += bulucu_benzeri(geçmiş) * 40
+    döndür ceza
+
+işlev ceza_puanı(m: liste<sayı>, boy: sayı) -> sayı:
+    ceza = çizgi_cezası(m, boy, doğru) + çizgi_cezası(m, boy, yanlış)
+    her y için 0'dan boy - 2'ye kadar:
+        her x için 0'dan boy - 2'ye kadar:
+            c = m[y * boy + x]
+            eğer c == m[y * boy + x + 1] ve c == m[(y + 1) * boy + x] ve c == m[(y + 1) * boy + x + 1] ise:
+                ceza += 3
+    dolu = 0
+    her v için m'den:
+        dolu += v
+    toplam = boy * boy
+    k = (mutlak(dolu * 20 - toplam * 10) + toplam - 1) // toplam - 1
+    döndür ceza + k * 10
+
+# ---------------------------------------------------------------------------
+# Matris üretimi
+
+# Karekodun modülleri, satır satır (1 dolu). `maske` -1 ise en uygun maske seçilir.
+işlev karekod_ızgara(veri: metin, düzey: metin, maske: sayı) -> liste<liste<sayı>>:
+    d = düzey_sırası(düzey)
+    b = baytlar(veri)
+    sürüm = sürüm_seç(uzunluk(b), d, 1)
+    eğer sürüm == 0 ise:
+        hata_ver("karekod: veri çok uzun (" + uzunluk(b) + " bayt); en çok " + veri_kapasitesi(40, d) + " bayt sığar. Daha düşük bir hata düzeltme düzeyi (L) deneyin ya da metni kısaltın.")
+    eğer maske < -1 veya maske > 7 ise:
+        hata_ver("karekod: maske -1 (kendiliğinden) ya da 0–7 olmalı")
+    sözcükler = kod_sözcükleri(b, sürüm, d)
+    boy = sürüm * 4 + 17
+    m: liste<sayı> = []
+    işlev_: liste<sayı> = []
+    her i için 1'den boy * boy'a kadar:
+        0'ı m'ye ekle.
+        0'ı işlev_'e ekle.
+    desenleri_çiz(m, işlev_, boy, sürüm)
+    veriyi_yerleştir(m, işlev_, boy, sözcükler)
+    seçilen = maske
+    eğer seçilen == -1 ise:
+        en_az = -1
+        her k için 0'dan 7'ye kadar:
+            maskele(m, işlev_, boy, k)
+            biçim_yaz(m, işlev_, boy, d, k)
+            c = ceza_puanı(m, boy)
+            eğer en_az == -1 veya c < en_az ise:
+                en_az = c
+                seçilen = k
+            maskele(m, işlev_, boy, k)
+    maskele(m, işlev_, boy, seçilen)
+    biçim_yaz(m, işlev_, boy, d, seçilen)
+    satırlar: liste<liste<sayı>> = []
+    her y için 0'dan boy - 1'e kadar:
+        parça(m, y * boy, boy)'yı satırlar'a ekle.
+    döndür satırlar
+
+# Karekodun modülleri (düzey M, en uygun maske)
+işlev karekod_matrisi(veri: metin) -> liste<liste<sayı>>:
+    döndür karekod_ızgara(veri, "M", -1)
+
+# ---------------------------------------------------------------------------
+# Çıktılar
+
+# SVG resmi. `boyut` piksel cinsinden genişlik (0 ise ölçeklenebilir), çevresinde 4 modül
+# boşluk bırakılır (okuyucular için gerekli).
+işlev karekod_svg_ayarlı(veri: metin, düzey: metin, boyut: sayı, renk: metin, arka: metin) -> metin:
+    ızgara = karekod_ızgara(veri, düzey, -1)
+    n = uzunluk(ızgara)
+    kenar = 4
+    tüm = n + kenar * 2
+    yol: liste<metin> = []
+    her y için 0'dan n - 1'e kadar:
+        x = 0
+        x < n olduğu sürece:
+            eğer ızgara[y][x] == 1 ise:
+                baş = x
+                x < n ve ızgara[y][x] == 1 olduğu sürece:
+                    x += 1
+                ("M" + (baş + kenar) + "," + (y + kenar) + "h" + (x - baş) + "v1h-" + (x - baş) + "z")'yi yol'a ekle.
+            değilse:
+                x += 1
+    ölçü = ""
+    eğer boyut > 0 ise:
+        ölçü = " width=\"" + boyut + "\" height=\"" + boyut + "\""
+    döndür "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 " + tüm + " " + tüm + "\"" + ölçü + " shape-rendering=\"crispEdges\" role=\"img\" aria-label=\"QR kod\"><rect width=\"100%\" height=\"100%\" fill=\"" + kaçır(arka) + "\"/><path fill=\"" + kaçır(renk) + "\" d=\"" + birleştir(yol, "") + "\"/></svg>"
+
+# Siyah-beyaz, ölçeklenebilir SVG (düzey M)
+işlev karekod_svg(veri: metin) -> metin:
+    döndür karekod_svg_ayarlı(veri, "M", 0, "#000000", "#ffffff")
+
+# <img src="..."> için veri adresi: <img src="@karekod_resim_adresi(adres)" alt="QR kod">
+işlev karekod_resim_adresi(veri: metin) -> metin:
+    döndür "data:image/svg+xml," + url_kodla(karekod_svg(veri))
+
+# Terminalde gösterilecek metin: iki satır bir karakterde (▀ ▄ █), dolu zemin açık kod
+# görünmesin diye renkler tersine çizilir; açık zeminli terminallerde de okunur.
+işlev karekod_metin(veri: metin) -> metin:
+    ızgara = karekod_ızgara(veri, "M", -1)
+    n = uzunluk(ızgara)
+    kenar = 2
+    satırlar: liste<metin> = []
+    y = -kenar
+    y < n + kenar olduğu sürece:
+        s: liste<metin> = []
+        her x için -kenar'dan n + kenar - 1'e kadar:
+            üst = modül(ızgara, x, y)
+            alt = modül(ızgara, x, y + 1)
+            # Açık modül dolu blokla çizilir (dolu terminal zemininde beyaz kare)
+            eğer üst == 0 ve alt == 0 ise:
+                "█"'yi s'ye ekle.
+            değilse eğer üst == 0 ise:
+                "▀"'yi s'ye ekle.
+            değilse eğer alt == 0 ise:
+                "▄"'yu s'ye ekle.
+            değilse:
+                " "'yu s'ye ekle.
+        birleştir(s, "")'yi satırlar'a ekle.
+        y += 2
+    döndür birleştir(satırlar, "\n")
+
+işlev modül(ızgara: liste<liste<sayı>>, x: sayı, y: sayı) -> sayı:
+    n = uzunluk(ızgara)
+    eğer x < 0 veya y < 0 veya x >= n veya y >= n ise:
+        döndür 0
+    döndür ızgara[y][x]
+
+# ---------------------------------------------------------------------------
+# Hazır içerikler (telefon kameraları bunları tanır)
+
+işlev wifi_kaçır(m: metin) -> metin:
+    s = m
+    her c için ["\\", ";", ",", ":", "\""]'den:
+        s = değiştir(s, c, "\\" + c)
+    döndür s
+
+# Wi-Fi ağına bağlanma: tür "WPA", "WEP" ya da "" (şifresiz)
+işlev wifi_içeriği(ağ_adı: metin, şifre: metin, tür: metin) -> metin:
+    t = tür
+    eğer t == "" ise:
+        t = "nopass"
+    döndür "WIFI:T:" + t + ";S:" + wifi_kaçır(ağ_adı) + ";P:" + wifi_kaçır(şifre) + ";;"
+
+işlev vcard_kaçır(m: metin) -> metin:
+    döndür değiştir(değiştir(değiştir(m, "\\", "\\\\"), ",", "\\,"), ";", "\;")
+
+# Kartvizit (vCard 3.0): rehbere kişi olarak eklenir. Boş bırakılan alanlar yazılmaz.
+işlev kartvizit_içeriği(ad: metin, soyad: metin, telefon: metin, e_posta: metin, kurum: metin, web: metin) -> metin:
+    s = ["BEGIN:VCARD", "VERSION:3.0", "N:" + vcard_kaçır(soyad) + ";" + vcard_kaçır(ad) + ";;;", "FN:" + vcard_kaçır(kırp(ad + " " + soyad))]
+    eğer telefon != "" ise:
+        ("TEL;TYPE=CELL:" + telefon)'u s'ye ekle.
+    eğer e_posta != "" ise:
+        ("EMAIL:" + e_posta)'yı s'ye ekle.
+    eğer kurum != "" ise:
+        ("ORG:" + vcard_kaçır(kurum))'u s'ye ekle.
+    eğer web != "" ise:
+        ("URL:" + web)'i s'ye ekle.
+    "END:VCARD"'ı s'ye ekle.
+    döndür birleştir(s, "\n")
+
+işlev e_posta_içeriği(adres: metin, konu: metin, metin_: metin) -> metin:
+    döndür "mailto:" + adres + "?subject=" + url_kodla(konu) + "&body=" + url_kodla(metin_)
+
+işlev sms_içeriği(telefon: metin, metin_: metin) -> metin:
+    döndür "SMSTO:" + telefon + ":" + metin_
+
+işlev telefon_içeriği(telefon: metin) -> metin:
+    döndür "tel:" + telefon
+
+# Haritada konum: enlem ve boylam ondalık derece
+işlev konum_içeriği(enlem: ondalık, boylam: ondalık) -> metin:
+    döndür "geo:" + enlem + "," + boylam
