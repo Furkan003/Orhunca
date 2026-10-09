@@ -310,7 +310,10 @@ Stüdyo'yu modüllere bölme ve editör (CodeMirror kararı) · LSP: sembol dizi
 yeniden adlandırma · Git paneli · test çerçevesi (`orhunca sına`) ve Test Gezgini · DAP tabanlı
 hata ayıklayıcı · dil özellikleri (adsız işlevler, model işlevleri, eşzamanlılık) · PHP çevirisi.
 
-### 4. dalga – sonra
+### 1.0 ✓ (yayımlandı)
+Kararlılık sözü: dil sürümü 1 ve komut satırı 1.x boyunca uyumlu kalır (bkz. docs/uyumluluk.md).
+
+### 4. dalga – sonra (1.x)
 Web hedefinde JavaScript köprüsü · küçük iyileştirmeler (tarayıcıda `bekle`, erişilebilirlik
 sınaması, entegre terminal) · profil çıkarıcı, çok projeli çalışma alanı, eklenti API'si, uzaktan
 geliştirme.

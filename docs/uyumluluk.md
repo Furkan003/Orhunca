@@ -8,6 +8,10 @@ Orhunca güncellendiğinde yazdığınız programlar bozulmaz. Bu sayfa bunun na
 
 **Aynı dil sürümünde yazılmış hiçbir program, Orhunca güncellenince çalışmaz hâle gelmez.**
 
+**1.0 ile verilen söz:** Orhunca 1.x sürümlerinin hepsi dil sürümü 1'i tanır. 1.0'da çalışan bir
+program, 1.x boyunca hiçbir güncellemede bozulmaz; komut satırı komutları (`çalıştır`, `derle`,
+`sına`, `yayınla`, `paket`...) ve proje dosyası (`.ohcproj`) da 1.x boyunca uyumlu kalır.
+
 - Orhunca'nın sürümleri (0.7, 0.8 …) yeni özellik ve düzeltme getirir. Yeni bir özellik ekleniyorsa
   bugüne kadar hata veren bir yazım kabul edilmeye başlayabilir. Bugün çalışan bir yazım ise
   kaldırılmaz.
@@ -37,7 +41,7 @@ dil = "1"
 bir dil sürümü istiyorsa derleme anlaşılmaz hatalar yerine şunu söyler:
 
 ```
-bu proje Orhunca dilinin 2. sürümü için yazılmış; kurulu Orhunca (0.11.0) en çok 1. sürümü tanıyor
+bu proje Orhunca dilinin 2. sürümü için yazılmış; kurulu Orhunca (1.0.0) en çok 1. sürümü tanıyor
 ipucu: Orhunca'yı güncelleyin: orhunca güncelle
 ```
 
