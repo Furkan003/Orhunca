@@ -714,7 +714,7 @@
 @media (prefers-color-scheme:dark){.ohc-uygulama{--ohc-yazi:#e6e9ee;--ohc-soluk:#9aa3b2;--ohc-pano:#171b21;--ohc-arka:#0f1216;--ohc-kenar:#2a3039;--ohc-vurgu:#3fd0c6;--ohc-vurgu-yazi:#071a19}}
 .ohc-uygulama *{box-sizing:border-box}
 .ohc-uygulama [hidden]{display:none!important}
-.ohc-oyun{display:block;max-width:100%;height:auto;border-radius:12px;background:#000;touch-action:none;outline:none;align-self:center;image-rendering:auto}
+.ohc-oyun{display:block;max-width:100%;height:auto;min-height:0;flex:none;border-radius:12px;background:#000;touch-action:none;outline:none;align-self:center;image-rendering:auto}
 .ohc-baslik{font-size:30px;line-height:1.2;margin:0;font-weight:700;letter-spacing:-.01em}
 .ohc-alt-baslik{font-size:20px;margin:6px 0 0;font-weight:600}
 .ohc-yazi{margin:0}
@@ -867,8 +867,15 @@
     if (o['kalın'] === 'doğru') st.push('font-weight:700');
     if (o['kalın'] === 'yanlış') st.push('font-weight:400');
     if (o['eğik'] === 'doğru') st.push('font-style:italic');
-    if (o['genişlik']) st.push('width:' + uzunlukCss(o['genişlik']));
-    if (o['yükseklik']) st.push('height:' + uzunlukCss(o['yükseklik']));
+    // Oyun alanında genişlik/yükseklik tuvalin çizim boyutudur; ekrandaki boyutu orandan
+    // hesaplanır (dar ekranda küçülürken çizim dikey olarak uzamasın).
+    if (v.tur === 'oyun_alanı') {
+      const g = parseInt(o['genişlik'] || '480', 10), y = parseInt(o['yükseklik'] || '320', 10);
+      st.push('width:min(100%,' + g + 'px)', 'height:auto', 'aspect-ratio:' + g + '/' + y);
+    } else {
+      if (o['genişlik']) st.push('width:' + uzunlukCss(o['genişlik']));
+      if (o['yükseklik']) st.push('height:' + uzunlukCss(o['yükseklik']));
+    }
     if (o['boşluk']) st.push('gap:' + uzunlukCss(o['boşluk']));
     if (o['iç_boşluk']) st.push('padding:' + uzunlukCss(o['iç_boşluk']));
     if (o['köşe']) st.push('border-radius:' + uzunlukCss(o['köşe']));

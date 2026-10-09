@@ -381,8 +381,9 @@ h1, h2 { margin: 0; }
 .sekme:hover .kirli::after { content: 'close'; font-family: 'Material Symbols Rounded'; font-size: 15px; color: var(--soluk4); }
 .kirinti { height: 28px; flex-shrink: 0; display: flex; align-items: center; padding: 0 16px; font-size: 12px; color: var(--soluk3); background: var(--pencere); white-space: nowrap; overflow: hidden; }
 .kod-kap { flex: 1; min-height: 0; overflow: auto; background: var(--pencere); position: relative; }
-.kod-ic { font-variant-ligatures: none; font-feature-settings: 'calt' 0, 'liga' 0; position: relative; min-width: 100%; width: max-content; padding: 4px 0 16px; font-family: var(--mono); font-size: var(--kod-boyut); line-height: 21px; }
-.satir-nolari { position: absolute; left: 0; top: 4px; width: 56px; user-select: none; }
+.kod-ic { min-height: 100%; box-sizing: border-box; font-variant-ligatures: none; font-feature-settings: 'calt' 0, 'liga' 0; position: relative; min-width: 100%; width: max-content; padding: 4px 0 16px; font-family: var(--mono); font-size: var(--kod-boyut); line-height: 21px; }
+.satir-nolari { position: absolute; left: 0; top: 4px; width: 56px; user-select: none; z-index: 3; }
+.satir-nolari.kaydirilmis { background: var(--pencere); }
 .satir-nolari div { height: 21px; text-align: right; padding-right: 20px; color: var(--cok-soluk); }
 .satir-nolari div.etkin { color: var(--yazi2); }
 .satir-nolari div.hatali { color: var(--hata); }
@@ -874,3 +875,5 @@ details.tema-grup summary { cursor: pointer; }
 .ay-izle { width: 100%; margin: 4px 0 2px; height: 28px; font-size: 12px; }
 .ay-sil { font-size: 14px; color: var(--soluk4); cursor: pointer; margin-left: 4px; }
 .ay-sil:hover { color: var(--hata); }
+.soru-mesaj { white-space: pre-wrap; font-size: 13px; line-height: 1.5; color: var(--yazi); margin-bottom: 10px; max-height: 50vh; overflow: auto; }
+.dugme.birincil.tehlikeli { background: var(--hata); border-color: var(--hata); color: #fff; }

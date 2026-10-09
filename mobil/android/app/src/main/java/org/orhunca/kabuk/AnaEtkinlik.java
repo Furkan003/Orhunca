@@ -26,10 +26,13 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
 
 /** Orhunca arayüz programını tam ekran gösterir; telefon özelliklerini sayfaya açar. */
 public class AnaEtkinlik extends Activity {
     private WebView sayfa;
+    /** İzin istenirken gönderilmek istenen bildirim (izin verilince gösterilir). */
+    private String[] bekleyenBildirim;
 
     @Override
     protected void onCreate(Bundle durum) {
@@ -67,14 +70,17 @@ public class AnaEtkinlik extends Activity {
             }
         });
         // Android 15'te uygulama kenardan kenara çizilir: sistem çubukları kadar boşluk bırakılır.
+        // WebView kendi iç boşluğunu (padding) yok saydığı için boşluk bir kaba verilir.
+        FrameLayout kap = new FrameLayout(this);
+        kap.addView(sayfa, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         if (Build.VERSION.SDK_INT >= 30) {
-            sayfa.setOnApplyWindowInsetsListener((v, ic) -> {
-                Insets i = ic.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.ime());
+            kap.setOnApplyWindowInsetsListener((v, ic) -> {
+                Insets i = ic.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.ime() | WindowInsets.Type.displayCutout());
                 v.setPadding(i.left, i.top, i.right, i.bottom);
                 return WindowInsets.CONSUMED;
             });
         }
-        setContentView(sayfa);
+        setContentView(kap);
         if (durum != null) sayfa.restoreState(durum);
         else sayfa.loadUrl("file:///android_asset/uygulama.html");
     }
@@ -146,8 +152,20 @@ public class AnaEtkinlik extends Activity {
 
     private static int bildirimSayaci = 1;
 
+    @Override
+    public void onRequestPermissionsResult(int kod, String[] izinler, int[] sonuclar) {
+        super.onRequestPermissionsResult(kod, izinler, sonuclar);
+        String[] b = bekleyenBildirim;
+        bekleyenBildirim = null;
+        if (kod == 1 && b != null && sonuclar.length > 0 && sonuclar[0] == PackageManager.PERMISSION_GRANTED) {
+            bildirimGoster(b[0], b[1]);
+        }
+    }
+
     private void bildirimGoster(String baslik, String metin) {
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            // İzin verilince bu bildirim gösterilir; kullanıcının ikinci kez basması gerekmez.
+            bekleyenBildirim = new String[] {baslik, metin};
             requestPermissions(new String[] {Manifest.permission.POST_NOTIFICATIONS}, 1);
             return;
         }

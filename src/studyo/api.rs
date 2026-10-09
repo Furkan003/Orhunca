@@ -699,6 +699,7 @@ fn proje_bilgisi(kok: &Path) -> Value {
     depo::proje_acildi(&ad, &yol, &sablon);
     json!({
         "ad": ad, "yol": yol, "sablon": sablon, "giris": giris, "dal": dal, "web": web,
+        "arayuz": sablonlar::bul(&sablon).is_some_and(sablonlar::arayuz_mu),
         "guvenilir": depo::guvenilir_mi(kok),
         "proje_dosyasi": proje_dosyasi.map(|p| p.to_string_lossy().into_owned()),
     })

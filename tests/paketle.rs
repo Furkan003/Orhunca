@@ -58,13 +58,36 @@ fn linux_ve_windows_icin_paketlenir() {
         let veri = std::fs::read(&cikti).unwrap();
         assert!(veri.starts_with(bas), "{hedef}");
         let (baslik, sayfa) = yuk(&veri);
-        assert_eq!(baslik, "sayaç");
+        assert_eq!(baslik, "Sayaç");
         assert!(sayfa.starts_with("<!DOCTYPE html>") || sayfa.starts_with("<!doctype html>"));
         assert!(
             sayfa.contains("orhuncaKabukDepo"),
             "yükleyici kabuk deposunu tanımalı"
         );
     }
+    let _ = std::fs::remove_dir_all(&k);
+}
+
+#[test]
+fn projede_proje_adiyla_cikti_klasorune_paketlenir() {
+    // 1.0 test raporu: pencere başlığı "uygulama" oluyor, .exe proje köküne yazılıyordu.
+    let k = gecici("proje");
+    let s = orhunca()
+        .args(["yeni", "sinif_defteri", "--şablon", "arayuz"])
+        .current_dir(&k)
+        .output()
+        .unwrap();
+    assert!(s.status.success(), "{}", String::from_utf8_lossy(&s.stderr));
+    let p = k.join("sinif_defteri");
+    let s = orhunca()
+        .args(["paketle", "--hedef", "windows"])
+        .current_dir(&p)
+        .output()
+        .unwrap();
+    assert!(s.status.success(), "{}", String::from_utf8_lossy(&s.stderr));
+    let exe = p.join("cikti/sinif_defteri.exe");
+    let veri = std::fs::read(&exe).unwrap_or_else(|e| panic!("{}: {e}", exe.display()));
+    assert_eq!(yuk(&veri).0, "Sinif defteri");
     let _ = std::fs::remove_dir_all(&k);
 }
 

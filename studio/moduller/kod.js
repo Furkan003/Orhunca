@@ -327,7 +327,21 @@
     ta.addEventListener('blur', () => setTimeout(() => tamamlamaKapat(), 150));
     ta.addEventListener('click', () => tamamlamaKapat());
     ['keyup', 'click', 'select', 'focus'].forEach(o => ta.addEventListener(o, imleciGuncelle));
-    $('#kodKap').addEventListener('scroll', () => { const s = etkinSekme(), k = $('#kodKap'); if (s && k) s.kaydirma = { x: k.scrollLeft, y: k.scrollTop }; });
+    $('#kodKap').addEventListener('scroll', () => {
+      const s = etkinSekme(), k = $('#kodKap');
+      if (s && k) s.kaydirma = { x: k.scrollLeft, y: k.scrollTop };
+      // Satır numaraları yatay kaydırmada yerinde kalır.
+      const n = $('#satirNolari');
+      if (n && k) { n.style.transform = k.scrollLeft ? `translateX(${k.scrollLeft}px)` : ''; n.classList.toggle('kaydirilmis', k.scrollLeft > 0); }
+    });
+    // Kodun altındaki boş alana tıklanınca düzenleyiciye odaklanılır, imleç sona gider.
+    $('#kodKap').addEventListener('mousedown', e => {
+      if (e.button !== 0 || e.target === ta || e.target.closest('.satir-nolari, #tamamla')) return;
+      e.preventDefault();
+      ta.focus({ preventScroll: true });
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+      imleciGuncelle();
+    });
     ta.addEventListener('mousemove', e => {
       const kap = $('#kodKap').getBoundingClientRect(), k = $('#kodKap');
       const satir = Math.floor((e.clientY - kap.top + k.scrollTop - 4) / 21) + 1;

@@ -30,7 +30,7 @@
   async function degisiklikleriKoru() {
     if (!D.proje || !D.sekmeler.some(s => !s.ikili && s.icerik !== s.kayitli)) return true;
     if (await tumunuKaydet()) return true;
-    return confirm('Bazı dosyalar kaydedilemedi. Kaydedilmemiş değişiklikler kaybolacak; yine de devam edilsin mi?');
+    return onayla('Bazı dosyalar kaydedilemedi. Kaydedilmemiş değişiklikler kaybolacak; yine de devam edilsin mi?', { dugme: 'Devam et', tehlikeli: true });
   }
 
   async function projeyiAc(bilgi, { ilkCalistirma = false } = {}) {
@@ -62,7 +62,7 @@
     else if (girisHatasi()) bildir(girisHatasi(), true);
     if (ilkCalistirma && giris) calistir();
     else {
-      D.terminal = [{ t: istem(), c: 'mut' }, { t: bilgi.web ? 'Sunucuyu başlatıp sayfayı önizlemek için F5’e basın.' : 'Çalıştırmak için F5’e basın.', c: 'dim' }];
+      D.terminal = [{ t: istem(), c: 'mut' }, { t: bilgi.arayuz ? 'Uygulamayı önizlemede açmak için F5’e basın.' : bilgi.web ? 'Sunucuyu başlatıp sayfayı önizlemek için F5’e basın.' : 'Çalıştırmak için F5’e basın.', c: 'dim' }];
       guncelle('alt');
       denetle();
     }
@@ -91,6 +91,7 @@
     }
     s.otoHata = null;
     s.kayitli = icerik;
+    gitYenilePlanla();
     if (!sessiz) { cizSekmeler(); kayittanSonra(s.yol); }
     return true;
   }

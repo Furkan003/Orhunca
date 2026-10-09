@@ -117,3 +117,37 @@ fn orhunca_sina() {
     );
     std::fs::remove_dir_all(&k).unwrap();
 }
+
+#[test]
+fn sina_islevi_olmayan_dosya_tek_sinamadir() {
+    // 1.0 test raporu, bulgu 7: üst düzeyde eşit_olmalı yazılan dosya hiç sınanmıyordu.
+    let k = std::env::temp_dir().join(format!("orhunca-sina-ust-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&k);
+    std::fs::create_dir_all(&k).unwrap();
+    std::fs::write(k.join("hesap_sına.ohc"), "eşit_olmalı(2 + 2, 4)\n").unwrap();
+    std::fs::write(
+        k.join("sınama_yanlış.ohc"),
+        "\"ara\"'yı yaz.\neşit_olmalı(2 + 2, 5)\n",
+    )
+    .unwrap();
+    let c = Command::new(env!("CARGO_BIN_EXE_orhunca"))
+        .args(["sına", "--json"])
+        .current_dir(&k)
+        .output()
+        .unwrap();
+    let j: serde_json::Value = serde_json::from_slice(&c.stdout).unwrap();
+    assert_eq!(j["gecti"], 1, "{j}");
+    assert_eq!(j["kaldi"], 1, "{j}");
+    let yanlis = &j["dosyalar"][1]["sinamalar"][0];
+    assert_eq!(yanlis["ad"], "sınama_yanlış", "{j}");
+    assert_eq!(yanlis["satir"], 2, "{j}");
+    assert!(
+        yanlis["mesaj"]
+            .as_str()
+            .unwrap()
+            .contains("beklenen 5, bulunan 4"),
+        "{j}"
+    );
+    assert_eq!(yanlis["cikti"], "ara\n", "{j}");
+    let _ = std::fs::remove_dir_all(&k);
+}

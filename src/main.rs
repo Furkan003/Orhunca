@@ -456,10 +456,27 @@ fn paketle_komutu(args: &[String]) -> Result<(), String> {
     if derleme::web_hedefi_mi(s.hedef.as_deref()) {
         return Err("paketle masaüstü içindir; web için: orhunca derle --hedef web".into());
     }
-    let cikti = s
-        .cikti
-        .clone()
-        .unwrap_or_else(|| derleme::varsayilan_cikti(&s.dosya, s.hedef.as_deref()));
+    // Projede çıktı, Stüdyo'daki gibi cikti/ klasörüne ve projenin adıyla yazılır.
+    let cikti = s.cikti.clone().unwrap_or_else(|| {
+        let kok = derleme::proje_koku(&s.dosya);
+        let kok = kok.canonicalize().unwrap_or(kok);
+        let ad = derleme::varsayilan_cikti(&s.dosya, s.hedef.as_deref());
+        if derleme::proje_dosyasi(&kok).is_none() {
+            return ad;
+        }
+        let proje_adi = kok
+            .file_name()
+            .map(PathBuf::from)
+            .unwrap_or_else(|| ad.clone());
+        let mut c = kok.join("cikti").join(proje_adi);
+        if let Some(uz) = ad.extension() {
+            c.set_extension(uz);
+        } else if ad.to_string_lossy().ends_with("-ios") {
+            c = PathBuf::from(format!("{}-ios", c.display()));
+        }
+        let _ = std::fs::create_dir_all(kok.join("cikti"));
+        c
+    });
     derleme::paketle(&s.dosya, &cikti, s.hedef.as_deref()).map_err(|h| h.metin)?;
     println!("paketlendi: {}", cikti.display());
     Ok(())

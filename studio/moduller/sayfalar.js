@@ -69,9 +69,11 @@
     const tql = kucuk(D.tq.trim());
     const liste = D.sablonlar.filter(t => (D.kategori === 'Tümü' || t.kategoriler.includes(D.kategori))
       && (!tql || kucuk(t.ad + ' ' + t.aciklama + ' ' + t.etiketler.join(' ')).includes(tql)));
-    const sec = sablon(D.secili);
+    const sec = sablon(D.secili) || {};
+    // Arama seçili şablonu gizlediyse soldaki dosya listesi başka bir şablonu göstermesin.
+    const gorunur = !!sec.kimlik && liste.some(t => t.kimlik === sec.kimlik);
     const son = (D.sonSablonlar.length ? D.sonSablonlar : ['konsol', 'kutuphane']).map(sablon).filter(Boolean);
-    const onizleme = agacSatirlari(sec.dosyalar.map(f => f.replace('{ad}', D.projeAdi.trim() || sec.kimlik))).map(r => {
+    const onizleme = agacSatirlari((sec.dosyalar || []).map(f => f.replace('{ad}', D.projeAdi.trim() || sec.kimlik))).map(r => {
       const s = dosyaSimgesi(r.ad, r.klasor);
       return `<div class="agac-satir" style="padding-left:${12 + r.derinlik * 14}px;color:${r.klasor ? 'var(--yazi2)' : 'var(--ikincil)'}">${s.gokturk ? `<span class="gokturk">${GOKTURK}</span>` : S(s.simge, '', `color:${r.klasor ? 'var(--sari)' : 'var(--soluk2)'}`)}<span>${kac(r.ad)}</span></div>`;
     }).join('');
@@ -93,8 +95,8 @@
           <h2>Son kullanılan şablonlar</h2>
           ${son.map(t => `<div class="son-sablon" data-e="sablonSec" data-a="${t.kimlik}">${S(t.simge)}<span class="son-sablon-ad">${kac(t.ad)}</span><span class="son-sablon-alt">Orhunca</span></div>`).join('')}
           <div class="ince-ayrac"></div>
-          <div><div class="kucuk-baslik">Oluşturulacak dosyalar</div><div class="secili-ad">${kac(sec.ad)}</div></div>
-          <div class="dosya-onizleme">${onizleme}</div>
+          ${gorunur ? `<div><div class="kucuk-baslik">Oluşturulacak dosyalar</div><div class="secili-ad">${kac(sec.ad)}</div></div>
+          <div class="dosya-onizleme">${onizleme}</div>` : `<div class="panel-not">${D.sablonlar.length ? 'Sağdaki listeden bir şablon seçin.' : 'Şablonlar yükleniyor…'}</div>`}
         </div>
         <div class="yeni-sag">
           <div class="arama">${S('search')}<input id="tq" data-g="tq" value="${kac(D.tq)}" placeholder="Şablon ara (ör. konsol, oyun, kütüphane)" autocomplete="off"></div>
@@ -104,7 +106,7 @@
       </div>
       <div class="alt-cubuk"><span class="ipucu-metni">İpucu: şablona çift tıklayarak doğrudan devam edebilirsiniz.</span>
         <div class="dugme" data-e="git" data-a="baslangic">Geri</div>
-        <div class="dugme birincil ${sec.yakinda ? 'pasif' : ''}" data-e="git" data-a="yapilandir">Sonraki</div></div>
+        <div class="dugme birincil ${sec.yakinda || !gorunur ? 'pasif' : ''}" data-e="git" data-a="yapilandir">Sonraki</div></div>
     </div>`;
   }
 
@@ -124,7 +126,7 @@
     const konum = D.konum || D.bilgi.varsayilan_konum;
     const secenekler = [['git', 'Git deposu başlat', 'Proje klasöründe yeni bir depo ve .gitignore oluşturur.'],
       ['ornek', 'Örnek içerik ekle', sec.web ? 'Şablonu çalışan bir örnek sayfayla doldurur.' : 'Şablonu çalışan bir örnek programla doldurur.'],
-      sec.web ? ['canli', 'Canlı önizlemeyi aç', 'Kaydettiğiniz anda tarayıcı önizlemesi yenilenir.']
+      sec.web ? ['canli', 'Açılınca çalıştır', 'Sunucu hemen başlar ve sayfa sağdaki önizlemede açılır.']
         : ['calistir', 'Açılınca çalıştır', 'Proje açıldığında ilk çalıştırma terminalde gösterilir.']];
     return `<div class="sihirbaz" data-screen-label="03 Yapılandır">
       <div class="ust-satir"><div class="geri simge" data-e="git" data-a="yeni">arrow_back</div><h1>Projenizi yapılandırın</h1><div style="flex:1"></div><span class="adim">Adım 2 / 2 · Ayarlar</span></div>

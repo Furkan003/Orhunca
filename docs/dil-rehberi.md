@@ -525,6 +525,10 @@ işlev sına_ortalama():
   (`hesap_sına.ohc:5: beklenen 5, bulunan 4`). Her tiple çalışır: sayı, metin, liste...
 - `doğrula(koşul)` · `doğrula(koşul, açıklama)`: koşul yanlışsa satırı gösterir.
 
+En kısa yol: `sına_` işlevi yazmadan dosyaya doğrudan `eşit_olmalı(2 + 2, 4)` yazabilirsiniz. Böyle
+bir dosya (adı `_sına.ohc` ile biten ya da `sınama_` ile başlayan) baştan sona tek bir sınama olarak
+çalışır; ilk kalan satırda durur. Birden çok sınamayı ayrı ayrı görmek için işlevlere bölün.
+
 `orhunca sına` projedeki bütün sınamaları çalıştırır; her sınama ayrı denenir, birinin hatası
 ötekileri durdurmaz. `orhunca sına hesap_sına.ohc --ad toplama` yalnızca adında "toplama" geçenleri,
 `--json` sonucu makinenin okuyacağı biçimde verir. Bir sınama kalırsa çıkış kodu 1'dir (CI için).

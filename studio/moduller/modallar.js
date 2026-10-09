@@ -4,6 +4,34 @@
   // =====================================================================
   // Modallar
   // =====================================================================
+  /**
+   * Onay ve metin soruları için Stüdyo'nun kendi penceresi. Tarayıcının confirm()/prompt()
+   * pencereleri görünümde tutarsız ve bazı WebView'larda (macOS WKWebView) hiç çalışmaz.
+   * Açık bir pencerenin üstünde sorulursa yanıttan sonra o pencereye dönülür.
+   */
+  let soruCozucu = null;
+  function soruSor({ baslik = 'Onay', mesaj = '', girdi = null, dugme = 'Tamam', tehlikeli = false }) {
+    if (soruCozucu) soruBitir(null);
+    return new Promise(coz => {
+      soruCozucu = coz;
+      D.menu = null;
+      D.modal = { tur: 'soru', baslik, mesaj, girdi, dugme, tehlikeli, onceki: D.modal };
+      katmanlariCiz();
+      setTimeout(() => { const g = $('#soruGirdi'); if (g) { g.focus(); g.select(); } else $('#soruOnay')?.focus(); }, 30);
+    });
+  }
+  /** Evet/hayır sorusu: onaylanırsa true. */
+  const onayla = (mesaj, ayar = {}) => soruSor({ mesaj, ...ayar }).then(r => r !== null);
+  /** Metin sorusu: vazgeçilirse null. */
+  const metinSor = (mesaj, varsayilan = '', ayar = {}) => soruSor({ baslik: 'Girdi', mesaj, girdi: varsayilan, ...ayar });
+  function soruBitir(sonuc) {
+    const coz = soruCozucu, m = D.modal;
+    soruCozucu = null;
+    D.modal = m?.tur === 'soru' ? m.onceki || null : D.modal;
+    katmanlariCiz();
+    coz?.(sonuc);
+  }
+
   function cizModal() {
     const m = D.modal;
     if (!m) return '';
@@ -50,6 +78,8 @@
         <div class="secenek" data-e="acilisDegistir"><div class="esnek"><div class="secenek-ad">Açılış animasyonu</div><div class="secenek-alt">Stüdyo açılırken Orhunca logosu canlandırılır.</div></div><div class="anahtar ${D.acilis ? 'acik' : ''}"><div></div></div></div>`,
         `<div class="dugme birincil" data-e="modalKapat">Tamam</div>`);
     }
+    if (m.tur === 'soru') return kabuk(kac(m.baslik), `<div class="soru-mesaj">${kac(m.mesaj)}</div>${m.girdi !== null ? `<input id="soruGirdi" class="metin-girdi" value="${kac(m.girdi)}" spellcheck="false" autocomplete="off">` : ''}`,
+      `<div style="flex:1"></div><div class="dugme" data-e="modalKapat">İptal</div><div class="dugme birincil ${m.tehlikeli ? 'tehlikeli' : ''}" id="soruOnay" tabindex="0" data-e="soruOnayla">${kac(m.dugme)}</div>`);
     if (m.tur === 'gorunum') return cizGorunum(kabuk);
     if (m.tur === 'ceviri') return cizCeviri(kabuk);
     if (m.tur === 'gecmis') return cizGecmis(kabuk);

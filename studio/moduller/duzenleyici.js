@@ -178,7 +178,7 @@
   /** Kısıtlı modda kod çalıştıran bir işlemden önce kullanıcıya sorulur. */
   async function guvenSor(islem) {
     if (!D.proje || D.proje.guvenilir !== false) return true;
-    if (!confirm(`Bu proje kısıtlı modda: Stüdyo'da siz oluşturmadınız (indirildi, kopyalandı ya da başka bir yerden açıldı).\n\n${islem} için projeye güvenmeniz gerekir. Güvenilen bir projenin kodu bu bilgisayarda çalışır; dosyalarınıza ve internete erişebilir.\n\nKodu okuduysanız ve kaynağını tanıyorsanız güvenin. Projeye güvenilsin mi?`)) return false;
+    if (!(await onayla(`Bu proje kısıtlı modda: Stüdyo'da siz oluşturmadınız (indirildi, kopyalandı ya da başka bir yerden açıldı).\n\n${islem} için projeye güvenmeniz gerekir. Güvenilen bir projenin kodu bu bilgisayarda çalışır; dosyalarınıza ve internete erişebilir.\n\nKodu okuduysanız ve kaynağını tanıyorsanız güvenin. Projeye güvenilsin mi?`, { baslik: 'Kısıtlı mod', dugme: 'Projeye güven' }))) return false;
     return projeyeGuven(true);
   }
 

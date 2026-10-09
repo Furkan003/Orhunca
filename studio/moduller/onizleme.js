@@ -26,7 +26,8 @@
         <div class="onizleme-govde" id="onizlemeGovde"></div>`;
     }
     const o = D.onizleme || {}, durum = o.durum || 'yok';
-    const kok = o.arayuz ? `arayüz · ${D.proje?.ad || ''}` : o.adres ? o.adres.replace(/^https?:\/\//, '') : `localhost:${o.kapi || 3000}`;
+    // Çalıştırılmadan önce adres bilinmez (önceki projenin adresi gösterilmez).
+    const kok = o.arayuz || (!o.adres && D.proje?.arayuz) ? `arayüz · ${D.proje?.ad || ''}` : o.adres ? o.adres.replace(/^https?:\/\//, '') : o.kapi ? `localhost:${o.kapi}` : 'F5 ile başlatın';
     $('#onizlemeAdres').innerHTML = `<span class="nokta ${durum}"></span><span class="adres">${kac(kok + (o.yol && o.yol !== '/' ? o.yol : ''))}</span>`;
     const g = $('#onizlemeGovde');
     if (o.adres) {

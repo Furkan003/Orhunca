@@ -38,6 +38,14 @@
     guncelle('durum');
   }
 
+  /** Kayıttan ya da dosya değişikliğinden sonra Git durumu kısa bir beklemeyle yenilenir. */
+  let gitYenilemeZamani;
+  function gitYenilePlanla() {
+    if (!D.proje || (D.yanPanel !== 'git' && !D.git)) return;
+    clearTimeout(gitYenilemeZamani);
+    gitYenilemeZamani = setTimeout(gitYukle, 500);
+  }
+
   async function gitIslem(yol, govde, basari) {
     const r = await api(yol, { kok: D.proje.yol, ...govde }).catch(e => ({ hata: e.message }));
     if (r.hata) { bildir(r.hata, true); D.altPanel = true; D.altSekme = 'cikti'; D.cikti.push({ t: r.hata, c: 'err' }); guncelle('alt'); }

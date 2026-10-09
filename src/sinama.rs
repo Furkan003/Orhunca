@@ -8,8 +8,11 @@
 //! hedefler (yerel, WebAssembly, Python/JS çevirisi) ayrıca bir şey bilmek zorunda kalmaz.
 //! Programın kendi `doğrula` işlevi ya da fiili varsa ona dokunulmaz.
 //!
-//! `orhunca sına`: adı `_sına.ohc` ile biten dosyalarda ve `sınamalar/` klasöründe, adı `sına_`
-//! ile başlayan parametresiz işlevleri bulur ve her birini ayrı ayrı çalıştırır.
+//! `orhunca sına`: adı `_sına.ohc` ile biten (ya da `sınama_` ile başlayan) dosyalarda ve
+//! `sınamalar/` klasöründe, adı `sına_` ile başlayan parametresiz işlevleri bulur ve her birini
+//! ayrı ayrı çalıştırır. `sına_` işlevi olmayan bir sınama dosyası, üst düzeydeki
+//! `eşit_olmalı`/`doğrula` satırlarıyla birlikte tek bir sınama olarak çalışır (yeni
+//! başlayanlar için en kısa yol).
 
 use crate::agac::{Deyim, Ifade, IfadeTuru, IkiliOp, Program, TekliOp};
 use crate::hata::{Hata, Konum};
@@ -251,6 +254,8 @@ fn sinama_dosyasi_mi(yol: &Path) -> bool {
         .unwrap_or_default();
     ad.ends_with("_sına")
         || ad.ends_with("_sina")
+        || ad.starts_with("sınama_")
+        || ad.starts_with("sinama_")
         || yol
             .parent()
             .and_then(|k| k.file_name())
@@ -341,7 +346,25 @@ pub fn dosyayi_sina(dosya: &Path, suzgec: Option<&str>, sure_siniri: Duration) -
     };
     let islevler = sinama_islevleri(&program, suzgec);
     if islevler.is_empty() {
-        return bitir(sonuc, None);
+        // `sına_` işlevi yoksa dosyanın kendisi tek bir sınamadır (üst düzeyde eşit_olmalı…).
+        let ad = dosya
+            .file_stem()
+            .map(|a| a.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let uyuyor = suzgec.is_none_or(|s| match s.strip_prefix('=') {
+            Some(tam) => ad == tam,
+            None => ad.contains(s),
+        });
+        if !uyuyor || program.ana.is_empty() {
+            return bitir(sonuc, None);
+        }
+        return match ust_duzey_sina(dosya, sure_siniri) {
+            Ok(t) => {
+                sonuc.sinamalar.push(t);
+                bitir(sonuc, None)
+            }
+            Err(e) => bitir(sonuc, Some(e)),
+        };
     }
     let kaynak = match std::fs::read_to_string(dosya) {
         Ok(k) => k,
@@ -424,6 +447,60 @@ pub fn dosyayi_sina(dosya: &Path, suzgec: Option<&str>, sure_siniri: Duration) -
         }
     }
     bitir(sonuc, None)
+}
+
+/// `sına_` işlevi olmayan sınama dosyası: program olduğu gibi çalışır; hatasız biterse geçer.
+fn ust_duzey_sina(dosya: &Path, sure_siniri: Duration) -> Result<Sonuc, String> {
+    let gecici = crate::derleme::gecici_klasor("sina")?;
+    let program_yolu = gecici.join(if cfg!(windows) {
+        "sinama.exe"
+    } else {
+        "sinama"
+    });
+    if let Err(h) = crate::derleme::derle_ortulu(dosya, &Default::default(), &program_yolu) {
+        let _ = std::fs::remove_dir_all(&gecici);
+        return Err(h.metin);
+    }
+    let klasor = dosya
+        .parent()
+        .filter(|k| !k.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let calisma = calistir(&program_yolu, klasor, sure_siniri);
+    let _ = std::fs::remove_dir_all(&gecici);
+    let (cikti, kod, sure_doldu) = calisma?;
+    let ad = dosya
+        .file_stem()
+        .map(|a| a.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    // Çalışma hatasının mesajı: "Çalışma hatası (satır 3): hesap_sına.ohc:3: beklenen 5, bulunan 4"
+    let hata_satiri = cikti
+        .lines()
+        .rev()
+        .find(|s| s.starts_with("Çalışma hatası"));
+    let mesaj = match hata_satiri {
+        Some(h) => h.split_once("): ").map_or(h, |(_, m)| m).to_string(),
+        None if sure_doldu => format!("süre doldu ({} sn)", sure_siniri.as_secs()),
+        None if kod != 0 => format!("program beklenmedik biçimde bitti (çıkış kodu {kod})"),
+        None => String::new(),
+    };
+    let satir = hata_satiri
+        .and_then(|h| h.strip_prefix("Çalışma hatası (satır "))
+        .and_then(|h| h.split(')').next())
+        .and_then(|n| n.parse().ok())
+        .unwrap_or(1);
+    let gecti = mesaj.is_empty();
+    let cikti = cikti
+        .lines()
+        .filter(|s| Some(*s) != hata_satiri)
+        .map(|s| format!("{s}\n"))
+        .collect();
+    Ok(Sonuc {
+        ad,
+        satir,
+        gecti,
+        mesaj,
+        cikti,
+    })
 }
 
 /// Programı çalıştırır; (çıktı ve hata akışı, çıkış kodu, süre doldu mu).
@@ -569,8 +646,9 @@ pub fn komut(args: &[String]) -> Result<bool, String> {
         dosyalar.extend(dosyalari_bul(y));
     }
     if dosyalar.is_empty() {
-        let m = "Sınama bulunamadı.\nSınama dosyalarının adı _sına.ohc ile biter (ya da sınamalar/ klasöründedir); \
-                 sınamalar adı sına_ ile başlayan işlevlerdir:\n\n    işlev sına_toplama():\n        eşit_olmalı(2 + 3, 5)";
+        let m = "Sınama bulunamadı.\nSınama dosyalarının adı _sına.ohc ile biter (ya da sınamalar/ klasöründedir). \
+                 En kısa yol: hesap_sına.ohc dosyasına eşit_olmalı(2 + 3, 5) yazın. Birden çok sınama için \
+                 adı sına_ ile başlayan işlevler yazın:\n\n    işlev sına_toplama():\n        eşit_olmalı(2 + 3, 5)";
         if json_cikti {
             println!("{}", json_sonuc(&[], &kok));
             return Ok(true);
@@ -634,6 +712,7 @@ mod sinamalar {
         assert!(sinama_dosyasi_mi(Path::new("a/hesap_sına.ohc")));
         assert!(sinama_dosyasi_mi(Path::new("hesap_sina.ohc")));
         assert!(sinama_dosyasi_mi(Path::new("p/sınamalar/hesap.ohc")));
+        assert!(sinama_dosyasi_mi(Path::new("sınama_hesap.ohc")));
         assert!(!sinama_dosyasi_mi(Path::new("hesap.ohc")));
         assert!(!sinama_dosyasi_mi(Path::new("hesap_sına.txt")));
     }

@@ -537,10 +537,8 @@ pub fn paketle(dosya: &Path, cikti: &Path, hedef: Option<&str>) -> Result<(), De
         }
     };
     let (wasm, arayuz) = wasm_derle(dosya)?;
-    let baslik = dosya
-        .file_stem()
-        .map(|k| k.to_string_lossy().into_owned())
-        .unwrap_or_else(|| "program".into());
+    // Pencere başlığı projenin adıdır (giriş dosyasının adı çoğunlukla "uygulama"dır).
+    let baslik = uygulama_adi(dosya);
     let sayfa = web_sayfasi(&baslik, &wasm, arayuz);
     let program = kabuga_ekle(kabuk, &baslik, sayfa.as_bytes());
     if macos {
@@ -568,6 +566,30 @@ pub fn ios_mu(hedef: Option<&str>) -> bool {
 /// Android (.apk) ya da iOS (Xcode projesi). Proje ayarları (.ohcproj, isteğe bağlı):
 /// `ad`, `sürüm`, `paket_kimliği` (ör. "org.okulum.sayac"), `simge` (PNG; iOS için
 /// 1024×1024). Proje klasöründeki `simge.png` de kullanılır.
+/// Paketlenen uygulamanın görünen adı: proje dosyasındaki `ad`, yoksa proje klasörünün
+/// (proje dışında dosyanın) adı: "sınıf_defteri" → "Sınıf defteri".
+pub fn uygulama_adi(dosya: &Path) -> String {
+    let kok = proje_koku(dosya);
+    let kok = kok.canonicalize().unwrap_or(kok);
+    let proje = proje_dosyasi(&kok);
+    let kaynak = match proje.as_ref().and_then(|p| proje_ayari(p, &["ad"])) {
+        Some(ad) => Some(ad),
+        None if proje.is_some() => kok.file_name().map(|k| k.to_string_lossy().into_owned()),
+        None => dosya.file_stem().map(|k| k.to_string_lossy().into_owned()),
+    };
+    let ad = kaynak
+        .map(|k| k.replace('_', " "))
+        .filter(|k| !k.trim().is_empty())
+        .unwrap_or_else(|| "Uygulama".into());
+    let mut h = ad.chars();
+    match h.next() {
+        Some('i') => format!("İ{}", h.as_str()),
+        Some('ı') => format!("I{}", h.as_str()),
+        Some(c) => c.to_uppercase().chain(h).collect(),
+        None => ad,
+    }
+}
+
 fn mobil_paketle(dosya: &Path, cikti: &Path, ios: bool) -> Result<(), DerlemeHatasi> {
     let (wasm, arayuz) = wasm_derle(dosya)?;
     if !arayuz {
@@ -578,20 +600,7 @@ fn mobil_paketle(dosya: &Path, cikti: &Path, ios: bool) -> Result<(), DerlemeHat
     let kok = proje_koku(dosya);
     let proje = proje_dosyasi(&kok);
     let ayar = |a: &[&str]| proje.as_ref().and_then(|p| proje_ayari(p, a));
-    let ad = ayar(&["ad"]).unwrap_or_else(|| {
-        // Dosya adından: "sınıf_defteri" → "Sınıf defteri"
-        let kok = dosya
-            .file_stem()
-            .map(|k| k.to_string_lossy().replace('_', " "))
-            .unwrap_or_else(|| "Uygulama".into());
-        let mut h = kok.chars();
-        match h.next() {
-            Some('i') => format!("İ{}", h.as_str()),
-            Some('ı') => format!("I{}", h.as_str()),
-            Some(c) => c.to_uppercase().chain(h).collect(),
-            None => kok,
-        }
-    });
+    let ad = uygulama_adi(dosya);
     let kimlik = ayar(&[
         "paket_kimliği",
         "paket_kimligi",

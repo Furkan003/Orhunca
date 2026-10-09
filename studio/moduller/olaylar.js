@@ -76,6 +76,7 @@
     if (e.target.id === 'asistanGirdi' && e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); EYLEM.asistanGonder(); return; }
     if (e.target.id === 'asistanAnahtar' && e.key === 'Enter') { EYLEM.asistanBaglan(); return; }
     if (e.target.id === 'yeniDosyaAdi' && e.key === 'Enter') { EYLEM.yeniDosyaOlustur(); return; }
+    if ((e.target.id === 'soruGirdi' || e.target.id === 'soruOnay') && e.key === 'Enter') { e.preventDefault(); EYLEM.soruOnayla(); return; }
     if (e.target.id === 'projeAdi' && e.key === 'Enter') { EYLEM.olustur(); return; }
     if (e.key === 'Escape') {
       if (D.modal) { EYLEM.modalKapat(); return; }
@@ -104,6 +105,8 @@
     }
   });
   window.addEventListener('resize', () => { if (D.ekran === 'duzenleyici') vurguyuGuncelle(); });
+  // Dosyalar Stüdyo dışında (terminal, başka bir düzenleyici) değişmiş olabilir.
+  window.addEventListener('focus', () => { if (D.ekran === 'duzenleyici') gitYenilePlanla(); });
   window.addEventListener('beforeunload', e => {
     if (D.sekmeler.some(s => !s.ikili && s.icerik !== s.kayitli)) { e.preventDefault(); e.returnValue = ''; }
   });

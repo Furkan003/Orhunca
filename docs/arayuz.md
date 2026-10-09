@@ -110,6 +110,10 @@ orhunca paketle sayaç.ohc                    # Linux → ./sayaç
 orhunca paketle sayaç.ohc --hedef windows    # Windows → sayaç.exe (Linux'tan da üretilebilir)
 ```
 
+Bir projenin içinde (`.ohcproj` dosyası olan klasörde) çıktı `cikti/` klasörüne, projenin adıyla
+yazılır (`cikti/sinif_defteri.exe`); pencere başlığı da projenin adıdır. `-o` ile başka bir yer
+verilebilir.
+
 Çıkan tek dosya, uygulamayı tarayıcı olmadan **kendi penceresinde** açar (Windows'ta sistemdeki
 WebView2, Linux'ta WebKitGTK; Windows 10/11'de ve masaüstü Linux dağıtımlarında hazır bulunur).
 Programın dosyaları (`dosyaya_yaz`, `dosya_oku` …) kullanıcının veri klasöründe kalıcı olarak

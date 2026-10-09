@@ -30,8 +30,10 @@ ne yapacağınız ve ne görmeniz gerektiği yazıyor. Beklenmeyen bir şey gör
       çerçeveyle işaretlenmeli. Alt+↑/↓ satırı taşımalı, Ctrl+G satıra gitmeli.
 - [ ] **Yeniden adlandır.** Bir değişkenin üzerinde F2 → yeni ad; projedeki bütün kullanımları
       değişmeli. ⇧+F12 kullanıldığı yerleri listelemeli.
-- [ ] **Sınamalar.** `sınama_hesap.ohc` adlı bir dosyaya `eşit_olmalı(2 + 2, 4)` yazın; Sınamalar
-      panelinde çalıştırınca yeşil olmalı, `5` yapınca kırmızı ve anlaşılır bir mesaj vermeli.
+- [ ] **Sınamalar.** `hesap_sına.ohc` adlı bir dosyaya `eşit_olmalı(2 + 2, 4)` yazın; Sınamalar
+      panelinde çalıştırınca yeşil olmalı, `5` yapınca kırmızı ve anlaşılır bir mesaj vermeli
+      ("beklenen 5, bulunan 4"). Aynı dosyada `işlev sına_toplama():` gibi işlevler yazınca her biri
+      ayrı bir sınama olarak listelenmeli.
 - [ ] **Git paneli.** Proje Git ile oluşturulmuşsa bir değişiklik yapın; Git panelinde görünmeli,
       tıklayınca fark açılmalı, mesaj yazıp **İşle** ile kaydedilmeli.
 - [ ] **Koşullu kesme.** Bir döngü satırının numarasına sağ tıklayın, koşul `i == 3` yazın; F6 ile

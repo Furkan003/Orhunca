@@ -49,13 +49,15 @@
       if (r.hata) { katmanlariCiz(); bildir(r.hata, true); return; }
       D.adDokunuldu = false;
       const web = sablon(D.secili).web;
-      D.onizlemeAcik = !web || D.secenekler.canli;
+      // Web projelerinde önizleme her zaman açık başlar; F5 sayfayı sağda gösterir.
+      D.onizlemeAcik = true;
       projeyiAc(r, { ilkCalistirma: web ? D.secenekler.canli : D.secenekler.calistir });
     },
     ilkProgram() { D.secili = 'konsol'; if (!D.adDokunuldu) D.projeAdi = 'ilk_programim'; EYLEM.git('yapilandir'); },
 
     // modallar
-    modalKapat() { D.modal = null; katmanlariCiz(); },
+    modalKapat() { if (D.modal?.tur === 'soru') { soruBitir(null); return; } D.modal = null; katmanlariCiz(); },
+    soruOnayla() { const m = D.modal; if (m?.tur === 'soru') soruBitir(m.girdi !== null ? ($('#soruGirdi')?.value ?? '') : ''); },
     modalDis(_, el, e) { if (e.target === el) EYLEM.modalKapat(); },
     klasorModal(mod) {
       const yol = mod === 'konum' ? (D.konum || D.bilgi.varsayilan_konum) : (D.bilgi.varsayilan_konum || D.bilgi.ev);
@@ -138,7 +140,7 @@
       temaUygula(); D.temaTaslak.renkler = window.OrhuncaTema.hesaplanan(D.temaTaslak); katmanlariCiz();
     },
     async temaSil(kimlik) {
-      if (!confirm('Bu tema silinsin mi?')) return;
+      if (!(await onayla('Bu tema silinsin mi?', { dugme: 'Sil', tehlikeli: true }))) return;
       await api('/api/tema/sil', { kimlik }).catch(() => null);
       if (D.temaKimlik === kimlik) temayiSec(null, null);
       const r = await api('/api/temalar').catch(() => ({}));
@@ -215,7 +217,7 @@
       if (tamam) $('#asistanGirdi')?.focus();
     },
     async asistanAnahtarSil() {
-      if (!confirm('API anahtarı bu bilgisayardan silinsin mi?')) return;
+      if (!(await onayla('API anahtarı bu bilgisayardan silinsin mi?', { dugme: 'Sil', tehlikeli: true }))) return;
       const p = asistanSaglayici();
       D.asistan.durum = await api('/api/asistan/ayar', { saglayici: p.kimlik, anahtar: '' });
       D.asistan.modeller = null; D.asistan.secilen = p.kimlik; D.asistan.ayarAcik = true;
@@ -252,7 +254,7 @@
       if (!D.proje) return bildir('Önce bir proje açın.', true);
       const yol = tamYol('AGENTS.md');
       const varmi = await api('/api/dosya?yol=' + encodeURIComponent(yol)).then(r => !r.hata).catch(() => false);
-      if (varmi && !confirm('Projede zaten bir AGENTS.md var. Üzerine yazılsın mı?')) return;
+      if (varmi && !(await onayla('Projede zaten bir AGENTS.md var. Üzerine yazılsın mı?', { dugme: 'Üzerine yaz' }))) return;
       if (!varmi) { const r = await api('/api/dosya/yeni', { yol, klasor: false }); if (r.hata) return bildir(r.hata, true); }
       const r = await api('/api/dosya', { yol, icerik: m.talimat });
       if (r.hata) return bildir(r.hata, true);
@@ -373,7 +375,7 @@
       const b = await api('/api/basvurular', konum).catch(e => ({ hata: e.message }));
       if (b.hata) return bildir(b.hata, true);
       const dosyalar = new Set(b.sonuclar.map(x => x.dosya)).size;
-      const yeni = (prompt(`“${b.ad}” için yeni ad (${b.sonuclar.length} yer, ${dosyalar} dosya; ekler yeni ada göre düzelir):`, b.ad) || '').trim();
+      const yeni = ((await metinSor(`“${b.ad}” için yeni ad (${b.sonuclar.length} yer, ${dosyalar} dosya; ekler yeni ada göre düzelir):`, b.ad, { baslik: 'Yeniden adlandır', dugme: 'Adlandır' })) || '').trim();
       if (!yeni || yeni === b.ad) return;
       const r = await api('/api/adlandir', { ...konum, yeni }).catch(e => ({ hata: e.message }));
       if (r.hata) return bildir(r.hata, true);
@@ -386,6 +388,8 @@
       fiilleriTopla();
       guncelle('sekmeler', 'kod', 'yan');
       denetle();
+      // Ara panelindeki sonuçlar eski adla kalmasın.
+      if (D.araMetin) GIRDI.araMetin(D.araMetin === r.ad ? r.yeni : D.araMetin);
       bildir(`“${r.ad}” → “${r.yeni}”: ${r.sayi} yer, ${r.degisen.length} dosya (önceki hâller yerel geçmişte).`);
     },
     tamKelimeDegistir(_, el) { D.tamKelime = el.checked; GIRDI.araMetin(D.araMetin); },
@@ -393,7 +397,7 @@
       const aranan = D.araMetin, yeni = D.degistirMetin || '';
       if (!aranan || !D.proje) return;
       const dosyaSayisi = new Set(D.araSonuc.map(r => r.dosya)).size;
-      if (!confirm(`Projedeki bütün dosyalarda “${aranan}” → “${yeni}” olarak değiştirilsin mi?${dosyaSayisi ? ` (${dosyaSayisi} dosya)` : ''}\n\nDosyaların önceki hâlleri yerel geçmişte saklanır.`)) return;
+      if (!(await onayla(`Projedeki bütün dosyalarda “${aranan}” → “${yeni}” olarak değiştirilsin mi?${dosyaSayisi ? ` (${dosyaSayisi} dosya)` : ''}\n\nDosyaların önceki hâlleri yerel geçmişte saklanır.`, { baslik: 'Tümünü değiştir', dugme: 'Değiştir' }))) return;
       if (!(await tumunuKaydet())) return;
       const r = await api('/api/degistir', { kok: D.proje.yol, aranan, yeni, tamKelime: D.tamKelime }).catch(e => ({ hata: e.message }));
       if (r.hata) { bildir(r.hata, true); return; }
@@ -476,7 +480,7 @@
     },
     async gitAt(a) {
       const takipsiz = a[0] === '?', yol = takipsiz ? a.slice(1) : a;
-      if (!confirm(takipsiz ? `“${yol}” yeni bir dosya: silinsin mi?\n\nSon hâli yerel geçmişte saklanır.` : `“${yol}” dosyasındaki değişiklikler atılsın mı (son işlenen hâline dönülür)?\n\nŞimdiki hâli yerel geçmişte saklanır.`)) return;
+      if (!(await onayla(takipsiz ? `“${yol}” yeni bir dosya: silinsin mi?\n\nSon hâli yerel geçmişte saklanır.` : `“${yol}” dosyasındaki değişiklikler atılsın mı (son işlenen hâline dönülür)?\n\nŞimdiki hâli yerel geçmişte saklanır.`, { dugme: takipsiz ? 'Sil' : 'Değişiklikleri at', tehlikeli: true }))) return;
       await tumunuKaydet();
       if (await gitIslem('/api/git/at', { yol, takipsiz })) {
         const s = D.sekmeler.find(x => x.yol === yol);
@@ -496,7 +500,7 @@
       await gitYukle();
       if (!D.git?.degisiklikler?.some(d => d.hazir)) {
         if (!D.git?.degisiklikler?.length) return bildir('İşlenecek değişiklik yok.');
-        if (!confirm('Hazırlanmış değişiklik yok. Bütün değişiklikler hazırlanıp işlensin mi?')) return;
+        if (!(await onayla('Hazırlanmış değişiklik yok. Bütün değişiklikler hazırlanıp işlensin mi?', { baslik: 'İşle (commit)', dugme: 'Hepsini işle' }))) return;
         if (!(await gitIslem('/api/git/hazirla', { yollar: D.git.degisiklikler.map(d => d.yol), geri: false }))) return;
       }
       if (await gitIslem('/api/git/isle', { mesaj }, r => `İşlendi: ${r.mesaj}`)) { D.gitMesaj = ''; cizYanPanel(); }
@@ -518,17 +522,17 @@
     paketYukle() { paketIslemi('/api/paket/yukle', { guncelle: false }, 'Paketler yükleniyor…'); },
     paketGuncelle() { paketIslemi('/api/paket/yukle', { guncelle: true }, 'Paketler güncelleniyor…'); },
     paketDizindenEkle(ad) { paketIslemi('/api/paket/ekle', { kaynak: ad }, `Paket ekleniyor: ${ad}`); },
-    paketKaldir(ad) { if (confirm(`“${ad}” paketi kaldırılsın mı?`)) paketIslemi('/api/paket/kaldir', { ad }, `Paket kaldırılıyor: ${ad}`); },
+    async paketKaldir(ad) { if (await onayla(`“${ad}” paketi kaldırılsın mı?`, { dugme: 'Kaldır', tehlikeli: true })) paketIslemi('/api/paket/kaldir', { ad }, `Paket kaldırılıyor: ${ad}`); },
     panelGezgin() { EYLEM.yanPanelSec('gezgin'); }, panelAra() { EYLEM.yanPanelSec('ara'); },
     panelYapi() { EYLEM.yanPanelSec('yapi'); }, panelCalistir() { EYLEM.yanPanelSec('calistir'); },
     klasorAcKapa(yol) { D.kapaliKlasorler.has(yol) ? D.kapaliKlasorler.delete(yol) : D.kapaliKlasorler.add(yol); cizYanPanel(); },
     dosyaAc(yol) { dosyaAc(yol); },
     async agaciYenile() { await agaciYukle(); cizYanPanel(); },
     sekmeSec(yol) { D.etkin = yol; guncelle('sekmeler', 'kod', 'yan', 'durum'); },
-    sekmeKapat(yol, el, e) {
+    async sekmeKapat(yol, el, e) {
       e.stopPropagation();
       const s = D.sekmeler.find(x => x.yol === yol);
-      if (s && !s.ikili && s.icerik !== s.kayitli && !confirm(`“${sonParca(yol)}” dosyasında kaydedilmemiş değişiklikler var. Yine de kapatılsın mı?`)) return;
+      if (s && !s.ikili && s.icerik !== s.kayitli && !(await onayla(`“${sonParca(yol)}” dosyasında kaydedilmemiş değişiklikler var. Yine de kapatılsın mı?`, { dugme: 'Kaydetmeden kapat', tehlikeli: true }))) return;
       const i = D.sekmeler.indexOf(s);
       D.sekmeler.splice(i, 1);
       if (D.etkin === yol) D.etkin = (D.sekmeler[i] || D.sekmeler[i - 1])?.yol || null;
@@ -626,7 +630,7 @@
       EYLEM.baslangicaDon();
     },
     async studyoyuKapat() {
-      if (D.sekmeler.some(s => !s.ikili && s.icerik !== s.kayitli) && !confirm('Kaydedilmemiş değişiklikler var. Stüdyo kapatılsın mı?')) return;
+      if (D.sekmeler.some(s => !s.ikili && s.icerik !== s.kayitli) && !(await onayla('Kaydedilmemiş değişiklikler var. Stüdyo kapatılsın mı?', { dugme: 'Kapat', tehlikeli: true }))) return;
       await api('/api/kapat', {}).catch(() => null);
       $('#uygulama').innerHTML = `<div class="pencere"><div class="tam-ekran-mesaj"><div class="gokturk">${GOKTURK}</div><div>Orhunca Stüdyo kapatıldı. Bu sekmeyi kapatabilirsiniz.</div></div></div>`;
     },
@@ -730,7 +734,7 @@
       // Paket dosya, ağ, C kütüphanesi gibi izinler istiyor: kullanıcıya sorulur.
       D.cikti.push({ t: 'Paket şu izinleri istiyor:\n' + r.ayrinti, c: 'err' });
       guncelle('alt');
-      if (confirm('Bu paket(ler) şu izinleri istiyor:\n\n' + r.ayrinti + '\n\nYalnızca güvendiğiniz paketlere izin verin. Onaylıyor musunuz?')) {
+      if (await onayla('Bu paket(ler) şu izinleri istiyor:\n\n' + r.ayrinti + '\n\nYalnızca güvendiğiniz paketlere izin verin. Onaylıyor musunuz?', { baslik: 'Paket izinleri', dugme: 'İzin ver' })) {
         r = await api(yol, { kok: D.proje.yol, ...govde, izinVer: true }).catch(e => ({ hata: e.message }));
       } else {
         r = { hata: 'İzin verilmedi; paket eklenmedi.' };
@@ -826,7 +830,7 @@
     hataBildirNe(v) { if (D.modal) D.modal.ne = v; },
     async asistanModel(v) {
       if (v === '__elle__') {
-        v = (prompt('Model adı (ör. qwen2.5-coder:7b, gpt-4.1, anthropic/claude-sonnet-4):', D.asistan.durum?.model || '') || '').trim();
+        v = ((await metinSor('Model adı (ör. qwen2.5-coder:7b, gpt-4.1, anthropic/claude-sonnet-4):', D.asistan.durum?.model || '', { baslik: 'Model', dugme: 'Seç' })) || '').trim();
         if (!v) return cizAsistan();
       }
       if (!v) return;
