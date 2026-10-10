@@ -108,6 +108,7 @@
     }
     if (m.tur === 'guncelleme') {
       return kabuk('Sürüm notları', `
+        <div class="surum-notu"><h3>1.1.1 · Ekim 2026</h3><ul><li>Windows'ta Güncelle düğmesi yönetici izniyle çalışıyor</li></ul></div>
         <div class="surum-notu"><h3>1.1 · Ekim 2026</h3><ul><li>SQLite, PostgreSQL, MySQL/MariaDB ve SQL Server; Stüdyo'da veritabanı görüntüleyici</li><li>15 resmi paket, 6 yeni şablon; KABUK sekmesi, profil, eklentiler, uzaktan geliştirme</li><li>Telefon: kamera, karekod, konum, dosya seçme</li></ul></div>
         <div class="surum-notu"><h3>1.0 · Ekim 2026</h3><ul><li>İlk kararlı sürüm: 1.0'da çalışan programlar 1.x boyunca bozulmaz</li><li>Dil, Stüdyo, web, arayüz, telefon, PHP ve VPS yayını tek pakette</li></ul></div>
         <div class="surum-notu"><h3>0.11 · Ekim 2026</h3><ul><li>Model işlevleri (<code>bu.ad</code>), adsız işlevler (<code>süz(l, işlev(x) -> x > 10)</code>), <code>arka planda:</code></li><li>Test çerçevesi (<code>orhunca sına</code>), Git paneli, gelişmiş hata ayıklayıcı (koşullu kesme, günlük noktası)</li><li>Yeniden adlandırma ve bütün başvurular (F2, ⇧+F12)</li><li>Web programlarını PHP + MySQL'e çevirme: <code>orhunca yayınla --php</code></li><li>Editör: parantez eşleştirme, otomatik kapatma, satır taşıma, satıra git</li></ul></div>
