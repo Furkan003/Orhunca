@@ -469,6 +469,13 @@
     },
     yanPanelSec(p) { D.yanPanel = p; guncelle('etkinlik', 'yan'); if (p === 'ara') $('#araMetin')?.focus(); if (p === 'eklentiler') paketleriYukle(); if (p === 'sinamalar') sinamalariYukle(); if (p === 'git') gitYukle(); if (p === 'veritabani') vtYukle(); },
     vtYukle() { vtYukle(); },
+    async profilCikar() {
+      const giris = girisDosyasi();
+      if (!giris) return bildir('Giriş dosyası yok.', true);
+      if (!(await tumunuKaydet())) return;
+      D.altPanel = true; D.altSekme = 'kabuk'; guncelle('alt');
+      kabukKomutu(`orhunca profil "${goreliYol(giris)}"`);
+    },
     vtSorguAc() { vtAc('sql', ''); },
     vtJsonAc(m) { vtAc('json', m); },
     vtTabloAc(t) { vtAc('sql', t); },

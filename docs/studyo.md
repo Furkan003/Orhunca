@@ -162,3 +162,13 @@ Kaydedilen temalar ayar klasöründedir (Linux `~/.config/orhunca/temalar`, Wind
 
 ![Görünüm ve temalar](ekran/temalar.png)
 
+
+## Veritabanı, kabuk ve profil
+
+- **Veritabanı** (sol çubuk): `veri/` klasöründeki JSON kayıtlarını ve SQL tablolarını
+  (SQLite, PostgreSQL, MySQL/MariaDB, SQL Server) tablo olarak gösterir; üstteki simgeyle SQL
+  sorgusu çalıştırılır. Bağlantı `.env` dosyasındaki `ORHUNCA_VERITABANI` ayarını kullanır.
+- **KABUK** (alt panel): proje klasöründe bir komut kabuğu (Linux/macOS'ta bash, Windows'ta
+  cmd). `orhunca sına`, `git status` gibi komutlar burada çalışır; ↑/↓ önceki komutlar.
+- **Profil çıkar** (Çalıştır paneli) ya da `orhunca profil dosya.ohc`: her işlevin kaç kez
+  çağrıldığını, ne kadar sürdüğünü ve en sık çalışan satırları gösterir.

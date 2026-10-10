@@ -105,6 +105,11 @@ typedef struct Yakalayici {
 static Yakalayici *yakalayici;
 /* Hata ayıklamada çağrı yığınının derinliği (yakalanan hatada geri alınır) */
 static int ay_derinlik;
+/* Profil çıkarıcı (aşağıda): `dene` bloğu hatayla bitince açık çerçeveler kapatılır. */
+static int pr_derinlik;
+static const char *pr_dosya;
+static void pr_cik(void);
+static void pr_yaz(void);
 static void ay_hatada_dur(const char *mesaj);
 #endif
 static char son_hata[1024];
@@ -1955,9 +1960,10 @@ int64_t ohc_dene(int64_t govde, int64_t cerceve) {
     Yakalayici y;
     y.onceki = yakalayici;
     y.istek = 0;
-    int derinlik = ay_derinlik;
+    int derinlik = ay_derinlik, pr_d = pr_derinlik;
     if (TUZAK_KUR(y.tuzak)) {
         ay_derinlik = derinlik;
+        while (pr_derinlik > pr_d) pr_cik();
         return -1;
     }
     yakalayici = &y;
@@ -6679,6 +6685,13 @@ static char *ay_satir_oku(void) {
 static void ay_baglan(void) {
     const char *k = getenv("ORHUNCA_AYIKLA");
     ay_etkin = 0;
+    const char *pr = getenv("ORHUNCA_PROFIL");
+    if ((!k || !*k) && pr && *pr) {
+        pr_dosya = pr;
+        ay_etkin = 2;
+        atexit(pr_yaz);
+        return;
+    }
     if (!k || !*k) return;
 #ifdef _WIN32
     WSADATA w;
@@ -6821,8 +6834,122 @@ static void ay_hatada_dur(const char *mesaj) {
     if (ay_etkin == 1) ay_dur("hata", mesaj);
 }
 
+/* Profil çıkarıcı (`orhunca profil`): ORHUNCA_PROFIL ortam değişkeni bir dosya yoluysa
+ * ayıklama kancaları işlev çağrılarını, sürelerini ve satırların kaç kez çalıştığını sayar;
+ * program bitince dosyaya yazar:
+ *   islev <ad>\t<çağrı>\t<toplam ns>\t<kendi ns>
+ *   satir <dosya>\t<satır>\t<kez> */
+typedef struct {
+    const char *ad;
+    int64_t cagri, toplam, kendi;
+    int aktif; /* yığında kaç çerçevesi var (özyinelemede toplam bir kez sayılır) */
+} PrIslev;
+typedef struct {
+    int64_t dosya, satir, kez;
+} PrSatir;
+typedef struct {
+    int islev;
+    int64_t bas, cocuk;
+} PrCerceve;
+static PrIslev *pr_islevler;
+static int pr_islev_sayisi, pr_islev_kap;
+static PrSatir *pr_satirlar; /* açık adresli karma tablo */
+static size_t pr_satir_kap, pr_satir_sayisi;
+static PrCerceve *pr_yigin;
+static int pr_yigin_kap;
+
+static int64_t pr_simdi(void) {
+#ifdef _WIN32
+    static LARGE_INTEGER f;
+    LARGE_INTEGER c;
+    if (!f.QuadPart) QueryPerformanceFrequency(&f);
+    QueryPerformanceCounter(&c);
+    return (int64_t)((double)c.QuadPart * 1e9 / (double)f.QuadPart);
+#else
+    struct timespec t;
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    return (int64_t)t.tv_sec * 1000000000 + t.tv_nsec;
+#endif
+}
+
+static void pr_satir_say(int64_t dosya, int64_t satir) {
+    if (2 * (pr_satir_sayisi + 1) > pr_satir_kap) {
+        size_t eski_kap = pr_satir_kap;
+        PrSatir *eski = pr_satirlar;
+        pr_satir_kap = eski_kap ? 2 * eski_kap : 1024;
+        pr_satirlar = calloc(pr_satir_kap, sizeof(PrSatir));
+        pr_satir_sayisi = 0;
+        for (size_t i = 0; i < eski_kap; i++)
+            if (eski[i].kez) {
+                size_t h = (size_t)(eski[i].dosya * 1000003 + eski[i].satir) & (pr_satir_kap - 1);
+                while (pr_satirlar[h].kez) h = (h + 1) & (pr_satir_kap - 1);
+                pr_satirlar[h] = eski[i];
+                pr_satir_sayisi++;
+            }
+        free(eski);
+    }
+    size_t h = (size_t)(dosya * 1000003 + satir) & (pr_satir_kap - 1);
+    while (pr_satirlar[h].kez && (pr_satirlar[h].dosya != dosya || pr_satirlar[h].satir != satir))
+        h = (h + 1) & (pr_satir_kap - 1);
+    if (!pr_satirlar[h].kez) {
+        pr_satirlar[h].dosya = dosya;
+        pr_satirlar[h].satir = satir;
+        pr_satir_sayisi++;
+    }
+    pr_satirlar[h].kez++;
+}
+
+static void pr_cik(void) {
+    if (pr_derinlik <= 0) return;
+    PrCerceve *c = &pr_yigin[--pr_derinlik];
+    int64_t gecen = pr_simdi() - c->bas;
+    PrIslev *f = &pr_islevler[c->islev];
+    if (--f->aktif == 0) f->toplam += gecen;
+    f->kendi += gecen - c->cocuk;
+    if (pr_derinlik > 0) pr_yigin[pr_derinlik - 1].cocuk += gecen;
+}
+
+static void pr_yaz(void) {
+    while (pr_derinlik > 0) pr_cik();
+    FILE *f = fopen(pr_dosya, "wb");
+    if (!f) return;
+    for (int i = 0; i < pr_islev_sayisi; i++)
+        fprintf(f, "islev %s\t%lld\t%lld\t%lld\n", pr_islevler[i].ad, (long long)pr_islevler[i].cagri,
+                (long long)pr_islevler[i].toplam, (long long)pr_islevler[i].kendi);
+    for (size_t i = 0; i < pr_satir_kap; i++)
+        if (pr_satirlar[i].kez)
+            fprintf(f, "satir %lld\t%lld\t%lld\n", (long long)pr_satirlar[i].dosya, (long long)pr_satirlar[i].satir,
+                    (long long)pr_satirlar[i].kez);
+    fclose(f);
+}
+
+static void pr_gir(const char *ad) {
+    int i = 0;
+    /* İşlev adları derleyicinin sabit metinleridir: adres karşılaştırması yeter. */
+    while (i < pr_islev_sayisi && pr_islevler[i].ad != ad) i++;
+    if (i == pr_islev_sayisi) {
+        if (pr_islev_sayisi == pr_islev_kap) {
+            pr_islev_kap = pr_islev_kap ? 2 * pr_islev_kap : 64;
+            pr_islevler = ham_buyut(pr_islevler, sizeof(PrIslev) * (size_t)pr_islev_kap);
+        }
+        pr_islevler[i] = (PrIslev){ad, 0, 0, 0, 0};
+        pr_islev_sayisi++;
+    }
+    pr_islevler[i].cagri++;
+    pr_islevler[i].aktif++;
+    if (pr_derinlik == pr_yigin_kap) {
+        pr_yigin_kap = pr_yigin_kap ? 2 * pr_yigin_kap : 64;
+        pr_yigin = ham_buyut(pr_yigin, sizeof(PrCerceve) * (size_t)pr_yigin_kap);
+    }
+    pr_yigin[pr_derinlik++] = (PrCerceve){i, pr_simdi(), 0};
+}
+
 void ohc_ay_gir(int64_t ad) {
     if (ay_etkin < 0) ay_baglan();
+    if (ay_etkin == 2) {
+        pr_gir(M(ad));
+        return;
+    }
     if (!ay_etkin) return;
     if (ay_derinlik == ay_kap) {
         ay_kap = ay_kap ? 2 * ay_kap : 64;
@@ -6836,10 +6963,15 @@ void ohc_ay_gir(int64_t ad) {
 }
 
 void ohc_ay_cik(void) {
+    if (ay_etkin == 2) pr_cik();
     if (ay_etkin == 1 && ay_derinlik > 0) ay_derinlik--;
 }
 
 void ohc_ay_satir(int64_t satir, int64_t dosya, int64_t yuvalar, int64_t tanim) {
+    if (ay_etkin == 2) {
+        pr_satir_say(dosya, satir);
+        return;
+    }
     if (ay_etkin != 1 || !ay_derinlik) return;
     AyCerceve *c = &ay_yigin[ay_derinlik - 1];
     c->satir = satir;

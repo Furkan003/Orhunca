@@ -18,6 +18,7 @@ Kullanım:
   orhunca dil-sunucusu        (düzenleyiciler için LSP, stdin/stdout)
   orhunca çevir [dosya.ohc] [--dil python|javascript]   (programın Python/JS karşılığı)
   orhunca sına [dosya ya da klasör] [--ad parça] [--json]   (sınamaları çalıştırır: *_sına.ohc)
+  orhunca profil [dosya.ohc] [-- argümanlar]                (hangi işlev ve satır ne kadar sürüyor)
   orhunca erişilebilirlik [dosya ya da klasör] [--json]   (resim açıklaması, etiket, karşıtlık sınaması)
   orhunca başvuru [arama] [--md | --json]   (yerleşik işlevler: ör. orhunca başvuru tarih)
   orhunca mcp                 (yapay zekâ ajanları için MCP sunucusu, stdin/stdout)
@@ -95,6 +96,7 @@ fn ana() -> ExitCode {
                 ExitCode::FAILURE
             }
         }),
+        "profil" => orhunca::profil::komut(kalan).map(|_| ExitCode::SUCCESS),
         "erişilebilirlik" | "erisilebilirlik" => {
             orhunca::erisilebilirlik::komut(kalan).map(|tamam| {
                 if tamam {
