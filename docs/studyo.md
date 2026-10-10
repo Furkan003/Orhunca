@@ -172,3 +172,14 @@ Kaydedilen temalar ayar klasöründedir (Linux `~/.config/orhunca/temalar`, Wind
   cmd). `orhunca sına`, `git status` gibi komutlar burada çalışır; ↑/↓ önceki komutlar.
 - **Profil çıkar** (Çalıştır paneli) ya da `orhunca profil dosya.ohc`: her işlevin kaç kez
   çağrıldığını, ne kadar sürdüğünü ve en sık çalışan satırları gösterir.
+
+## Eklentiler ve uzaktan geliştirme
+
+- **Eklentiler:** kendi komutlarınızı JavaScript ile ekleyin; bkz.
+  [studyo-eklentileri.md](studyo-eklentileri.md).
+- **Çalışma alanı:** bir klasörün altında birden çok proje (`.ohcproj`) varsa Çalıştır panelinde
+  **Başlangıç projesi** seçilir; F5 o projeyi çalıştırır.
+- **Uzaktan geliştirme:** `orhunca stüdyo --uzak kullanıcı@sunucu [klasör]` sunucuda Stüdyo'yu
+  SSH ile başlatır, kapıyı bu bilgisayara tüneller ve arayüzü buradaki tarayıcıda açar. Dosyalar,
+  derleme ve çalıştırma sunucuda olur; sunucuda `orhunca` kurulu olmalıdır. Elle yapmak için:
+  `ssh -L 7700:127.0.0.1:7700 sunucu orhunca stüdyo --kapı 7700 --tarayıcı-açma`.

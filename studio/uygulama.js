@@ -7,6 +7,7 @@
   // =====================================================================
   ciz();
   if (ANAHTAR) verileriYukle().then(async () => {
+    eklentileriYukle();
     D.projeAdi = 'yeni_' + D.secili;
     ciz();
     if (ACILACAK) {

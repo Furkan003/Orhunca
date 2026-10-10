@@ -789,6 +789,16 @@
   }
 
   const GIRDI = {
+    /** Çalışma alanı: alt projelerden biri başlangıç projesi olarak çalıştırılır. */
+    baslangicSec(v) {
+      const p = D.proje;
+      if (!p.kokBilgi) p.kokBilgi = { giris: p.giris, web: p.web, arayuz: p.arayuz };
+      const a = v === '' ? null : p.alt_projeler[Number(v)];
+      D.baslangic = a ? Number(v) : null;
+      Object.assign(p, a ? { giris: a.giris, web: a.web, arayuz: a.arayuz } : p.kokBilgi);
+      D.onizleme = null;
+      guncelle('yan', 'durum');
+    },
     temaRenk(v, el) { D.temaTaslak.renkler[el.dataset.ad] = v; (D.temaTaslak._degisti ||= {})[el.dataset.ad] = 1; temaUygula(); },
     temaAd(v) { D.temaTaslak.ad = v; },
     temaYazar(v) { D.temaTaslak.yazar = v; },

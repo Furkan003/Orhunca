@@ -251,6 +251,7 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
             Yanit::json(&json!({ "tamam": true }))
         }
         ("POST", "/api/girdi") => girdi(&g),
+        ("GET", "/api/eklentiler") => Yanit::json(&json!({ "eklentiler": eklentiler() })),
         ("POST", "/api/kabuk") => kabuk_baslat(metin(&g, "kok")),
         ("POST", "/api/ayikla") => ayikla(&g),
         ("POST", "/api/durdur") => {
@@ -710,7 +711,61 @@ fn proje_bilgisi(kok: &Path) -> Value {
         "arayuz": sablonlar::bul(&sablon).is_some_and(sablonlar::arayuz_mu),
         "guvenilir": depo::guvenilir_mi(kok),
         "proje_dosyasi": proje_dosyasi.map(|p| p.to_string_lossy().into_owned()),
+        "alt_projeler": alt_projeler(kok),
     })
+}
+
+/// Çalışma alanı: klasörün altındaki (en çok iki düzey) başka Orhunca projeleri.
+/// Stüdyo bunlardan birini "başlangıç projesi" olarak çalıştırabilir.
+fn alt_projeler(kok: &Path) -> Vec<Value> {
+    fn tara(kok: &Path, k: &Path, derinlik: usize, sonuc: &mut Vec<Value>) {
+        let Ok(okunan) = std::fs::read_dir(k) else {
+            return;
+        };
+        let mut alt: Vec<PathBuf> = okunan
+            .flatten()
+            .map(|g| g.path())
+            .filter(|p| p.is_dir())
+            .collect();
+        alt.sort();
+        for a in alt {
+            let ad = a
+                .file_name()
+                .map(|x| x.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            if ad.starts_with('.')
+                || matches!(
+                    ad.as_str(),
+                    "kütüphaneler" | "veri" | "node_modules" | "target" | "dağıtım"
+                )
+            {
+                continue;
+            }
+            if let Some(pd) = derleme::proje_dosyasi(&a) {
+                let sablon = derleme::proje_ayari(&pd, &["şablon", "sablon"]).unwrap_or_default();
+                let goreli = |p: &Path| {
+                    p.strip_prefix(kok)
+                        .unwrap_or(p)
+                        .to_string_lossy()
+                        .replace('\\', "/")
+                };
+                let giris = derleme::proje_ayari(&pd, &["giriş", "giris"])
+                    .map(|g| format!("{}/{g}", goreli(&a)));
+                sonuc.push(json!({
+                    "ad": derleme::proje_ayari(&pd, &["ad"]).unwrap_or(ad),
+                    "yol": goreli(&a),
+                    "giris": giris,
+                    "web": sablonlar::bul(&sablon).is_some_and(sablonlar::web_mi) || a.join("görünümler").is_dir(),
+                    "arayuz": sablonlar::bul(&sablon).is_some_and(sablonlar::arayuz_mu),
+                }));
+            } else if derinlik < 2 {
+                tara(kok, &a, derinlik + 1, sonuc);
+            }
+        }
+    }
+    let mut sonuc = Vec::new();
+    tara(kok, kok, 1, &mut sonuc);
+    sonuc
 }
 
 fn proje_ac(yol: &str) -> Yanit {
@@ -1031,6 +1086,48 @@ fn paket_listesi(kok: &str) -> Yanit {
 
 /// Kısıtlı mod: güvenilmeyen projede kod çalıştıran ya da indiren işlemler yapılmaz. Arayüz
 /// `guvensiz` yanıtını görünce kullanıcıya projeye güvenip güvenmediğini sorar.
+/// Stüdyo eklentileri: <ayar klasörü>/eklentiler/<ad>/eklenti.js (+ isteğe bağlı eklenti.json:
+/// {"açıklama": "..."}). Eklentiyi kullanıcı kendisi kurar; Stüdyo açılışta yükler.
+fn eklenti_klasoru() -> PathBuf {
+    depo::ayar_klasoru().join("eklentiler")
+}
+
+fn eklentiler() -> Vec<Value> {
+    let Ok(okunan) = std::fs::read_dir(eklenti_klasoru()) else {
+        return Vec::new();
+    };
+    let mut l: Vec<Value> = okunan
+        .flatten()
+        .filter(|g| g.path().join("eklenti.js").is_file())
+        .map(|g| {
+            let ad = g.file_name().to_string_lossy().into_owned();
+            let bilgi: Value = std::fs::read_to_string(g.path().join("eklenti.json"))
+                .ok()
+                .and_then(|m| serde_json::from_str(&m).ok())
+                .unwrap_or(Value::Null);
+            json!({ "ad": ad, "aciklama": bilgi["açıklama"].as_str().unwrap_or("") })
+        })
+        .collect();
+    l.sort_by(|a, b| a["ad"].as_str().cmp(&b["ad"].as_str()));
+    l
+}
+
+pub fn eklenti_betigi(ad: &str) -> Yanit {
+    let ad = crate::studyo::http::yuzde_coz(ad);
+    if ad.is_empty() || ad.contains(['/', '\\']) || ad.contains("..") {
+        return Yanit::hata(404, "eklenti bulunamadı");
+    }
+    match std::fs::read(eklenti_klasoru().join(&ad).join("eklenti.js")) {
+        Ok(b) => Yanit {
+            durum: 200,
+            tur: "text/javascript; charset=utf-8",
+            govde: b,
+            csp: false,
+        },
+        Err(_) => Yanit::hata(404, "eklenti bulunamadı"),
+    }
+}
+
 /// Stüdyo'nun KABUK sekmesi: proje klasöründe bir komut kabuğu açar. Girdi ve çıktı
 /// programlarınkiyle aynı yoldan (/api/girdi, /api/cikti) akar.
 fn kabuk_baslat(kok: &str) -> Yanit {

@@ -111,7 +111,10 @@
       kap.querySelectorAll('pre[data-orhunca]').forEach(p => { p.innerHTML = p.textContent.split('\n').map(x => vurgula(x, 'ohc')).join('\n'); });
     } else if (D.yanPanel === 'calistir') {
       const giris = girisDosyasi();
-      kap.innerHTML = baslik('ÇALIŞTIR') + `<div class="panel-ic">
+      const altlar = D.proje.alt_projeler || [];
+      const secim = altlar.length ? `<div class="panel-not">Başlangıç projesi<br><select class="metin-girdi" data-g="baslangicSec" style="width:100%;margin-top:4px">
+          <option value="">${kac(D.proje.ad)} (kök)</option>${altlar.map((a, i) => `<option value="${i}" ${D.baslangic === i ? 'selected' : ''}>${kac(a.ad)} — ${kac(a.yol)}</option>`).join('')}</select></div>` : '';
+      kap.innerHTML = baslik('ÇALIŞTIR') + `<div class="panel-ic">${secim}
         <div class="panel-not">Giriş dosyası<br><span class="mono" style="color:var(--yazi2)">${kac(giris || '—')}</span></div>
         ${D.calisma ? `<div class="panel-dugme" data-e="durdur">${S('stop')}Durdur</div>` : `<div class="panel-dugme birincil" data-e="calistir">${S('play_arrow')}Çalıştır (F5)</div><div class="panel-dugme" data-e="ayikla">${S('bug_report')}Hata ayıkla (F6)</div><div class="panel-dugme" data-e="yavasCalistir">${S('slow_motion_video')}Adım adım göster</div><div class="panel-dugme" data-e="profilCikar" title="Hangi işlev ve satır ne kadar sürüyor (KABUK sekmesinde)">${S('speed')}Profil çıkar</div>`}
         ${D.calisma?.ayikla ? ayiklamaPaneli() : ''}

@@ -67,6 +67,7 @@ pub fn calistir(args: &[String]) -> Result<(), String> {
     let mut kapi = VARSAYILAN_KAPI;
     let mut ac = true;
     let mut acilacak = None;
+    let mut uzak: Option<String> = None;
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
@@ -78,12 +79,23 @@ pub fn calistir(args: &[String]) -> Result<(), String> {
                     .ok_or("--kapı sonrasında bir sayı bekleniyordu")?;
             }
             "--tarayıcı-açma" | "--tarayici-acma" => ac = false,
+            "--uzak" | "--ssh" => {
+                i += 1;
+                uzak = Some(
+                    args.get(i)
+                        .cloned()
+                        .ok_or("--uzak sonrasında kullanıcı@sunucu bekleniyordu")?,
+                );
+            }
             a if a.starts_with('-') => return Err(format!("bilinmeyen seçenek '{a}'")),
             a => acilacak = Some(PathBuf::from(a)),
         }
         i += 1;
     }
 
+    if let Some(hedef) = uzak {
+        return uzaktan_ac(&hedef, kapi, acilacak.as_deref(), ac);
+    }
     let (dinleyici, adres, anahtar) = dinleyici_ac(kapi)?;
     let adres = acilacak_adres(adres, acilacak.as_deref());
     bilgi(&format!("Orhunca Stüdyo çalışıyor: {adres}"));
@@ -93,6 +105,83 @@ pub fn calistir(args: &[String]) -> Result<(), String> {
     }
     dinle(dinleyici, anahtar);
     Ok(())
+}
+
+/// Uzaktan geliştirme: `orhunca stüdyo --uzak kullanıcı@sunucu [klasör]`. Sunucuda SSH ile
+/// Stüdyo başlatılır, kapısı bu bilgisayara tünellenir ve arayüz buradaki tarayıcıda açılır.
+/// Dosyalar, derleme ve çalıştırma sunucuda olur. Sunucuda `orhunca` kurulu olmalıdır.
+fn uzaktan_ac(hedef: &str, kapi: u16, klasor: Option<&Path>, ac: bool) -> Result<(), String> {
+    use std::io::BufRead;
+    use std::process::{Command, Stdio};
+    let mut komut = format!("orhunca stüdyo --kapı {kapi} --tarayıcı-açma");
+    if let Some(k) = klasor {
+        // Uzak kabuk için tek tırnakla korunur.
+        komut.push_str(&format!(
+            " '{}'",
+            k.to_string_lossy().replace('\'', "'\\''")
+        ));
+    }
+    bilgi(&format!(
+        "{hedef} sunucusuna bağlanılıyor (kapı {kapi} tünelleniyor)…"
+    ));
+    let mut cocuk = Command::new("ssh")
+        .args([
+            "-o",
+            "ExitOnForwardFailure=yes",
+            "-L",
+            &format!("{kapi}:127.0.0.1:{kapi}"),
+            hedef,
+            &komut,
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("ssh başlatılamadı (OpenSSH kurulu mu?): {e}"))?;
+    let (gonderen, alan) = std::sync::mpsc::channel::<String>();
+    for akis in [
+        cocuk
+            .stdout
+            .take()
+            .map(|a| Box::new(a) as Box<dyn std::io::Read + Send>),
+        cocuk
+            .stderr
+            .take()
+            .map(|a| Box::new(a) as Box<dyn std::io::Read + Send>),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        let g = gonderen.clone();
+        std::thread::spawn(move || {
+            for satir in std::io::BufReader::new(akis).lines().map_while(Result::ok) {
+                let _ = g.send(satir);
+            }
+        });
+    }
+    drop(gonderen);
+    for satir in alan {
+        eprintln!("{satir}");
+        if let Some(i) = satir.find("http://127.0.0.1:") {
+            let adres = satir[i..].trim().to_string();
+            if !adres.contains(&format!(":{kapi}/")) {
+                eprintln!(
+                    "Uyarı: sunucudaki Stüdyo başka bir kapı seçti; --kapı ile boş bir kapı verin."
+                );
+            } else if ac {
+                tarayicida_ac(&adres);
+            }
+        }
+    }
+    let durum = cocuk.wait().map_err(|e| e.to_string())?;
+    if durum.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "ssh bağlantısı kapandı (çıkış kodu {})",
+            durum.code().unwrap_or(-1)
+        ))
+    }
 }
 
 /// Stüdyo sunucusunu arka planda başlatır ve arayüzün (anahtarlı) adresini
@@ -196,6 +285,9 @@ fn isle(mut akis: TcpStream, anahtar: &str, kapi: u16) {
         } else {
             api::yonlendir(&istek)
         }
+    } else if let Some(ad) = istek.yol.strip_prefix("/eklenti/") {
+        // Kullanıcının kurduğu Stüdyo eklentileri (CSP yalnızca aynı kaynaktan betiğe izin verir).
+        api::eklenti_betigi(ad.trim_end_matches(".js"))
     } else if let Some(kimlik) = istek.yol.strip_prefix("/onizleme/") {
         // Arayüz programlarının derlenmiş sayfası (Stüdyo'da yalıtılmış çerçevede açılır).
         api::onizleme(kimlik.trim_end_matches('/'))
