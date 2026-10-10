@@ -22,6 +22,7 @@ pub mod derleme;
 pub mod dil_sunucusu;
 pub mod dokum;
 pub mod ekler;
+pub mod erisilebilirlik;
 pub mod etkilesim;
 pub mod goc;
 pub mod guncelleme;

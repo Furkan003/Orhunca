@@ -131,3 +131,15 @@ komutlar `titret`, `paylaş` ve `bildirim_gönder`'dir. Ayrıntılar: [Telefon u
 
 `oyun_alanı(480, 320) her_karede:` saniyede yaklaşık 60 kez çalışan bir çizim alanıdır; içinde
 `daire`, `dikdörtgen`, `yazı_çiz`, `tuş_basılı` ... kullanılır. Ayrıntılar: [Oyun yapmak](oyun.md).
+
+## Erişilebilirlik sınaması
+
+```
+orhunca erişilebilirlik            # proje klasörü
+orhunca erişilebilirlik uygulama.ohc
+```
+
+Açıklamasız resimleri (`resim("a.png")` → `resim("a.png", "Ne gösterdiği")`), yer tutucusuz
+giriş kutularını, yazısız düğmeleri ve okunması zor renk çiftlerini (WCAG karşıtlığı 4.5:1'in
+altı) bulur. `.ohchtml` ve `.html` sayfalarında da `alt`sız resimlere, etiketsiz form
+alanlarına ve `lang`sız sayfalara bakar. Bulgu varsa çıkış kodu 1 olur; CI'da kullanılabilir.

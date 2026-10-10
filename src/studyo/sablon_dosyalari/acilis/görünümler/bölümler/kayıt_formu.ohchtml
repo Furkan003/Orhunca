@@ -2,7 +2,7 @@
 <section class="kayit" id="kayit">
     <h2>Gelişmelerden haberdar olun</h2>
     <form method="post" action="/abone-ol">
-        <input name="e_posta" type="email" placeholder="e-posta adresiniz" value="@abone.e_posta">
+        <input name="e_posta" aria-label="E-posta" type="email" placeholder="e-posta adresiniz" value="@abone.e_posta">
         <button class="dugme">Abone ol</button>
     </form>
     @eğer uzunluk(mesaj) 0'dan büyükse {

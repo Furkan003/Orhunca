@@ -6,7 +6,7 @@ durum içerik = ""
 arayüz:
     kamera(fotoğraf, "Fotoğraf çek")
     eğer fotoğraf != "":
-        resim(fotoğraf, genişlik: 200)
+        resim(fotoğraf, "Çekilen fotoğraf", genişlik: 200)
     karekod_okuyucu(kod, "Karekod okut") değişince:
         titret(100)
     yazı("Okunan: " + kod)
