@@ -13,6 +13,7 @@ KLASOR = os.path.join(os.path.dirname(__file__), "..", "studio", "yazitipleri")
 UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36"
 
 SIMGELER = sorted(set("""
+list science route widgets data_array article library_add match_case match_word vertical_split image preview table_view bookmark bookmarks checklist compare_arrows call_split history tune filter_list account_tree segment code
 account_tree dashboard database schedule speed table add arrow_back arrow_forward arrow_upward calculate check check_circle
 chevron_right close cloud_download content_copy crop_square data_object delete
 deployed_code description desktop_windows dns draft error expand_more extension folder

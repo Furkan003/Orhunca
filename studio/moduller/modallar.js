@@ -35,7 +35,7 @@
   function cizModal() {
     const m = D.modal;
     if (!m) return '';
-    const kabuk = (baslik, govde, alt) => `<div class="ortu" data-e="modalDis"><div class="modal" data-e="hic">
+    const kabuk = (baslik, govde, alt, sinif = '') => `<div class="ortu" data-e="modalDis"><div class="modal ${sinif}" data-e="hic">
       <div class="modal-baslik"><h2>${baslik}</h2>${S('close').replace('<span ', '<span data-e="modalKapat" ')}</div>
       <div class="modal-govde">${govde}</div>${alt ? `<div class="modal-alt">${alt}</div>` : ''}</div></div>`;
     if (m.tur === 'klasor') {
@@ -57,6 +57,10 @@
         <div class="alan"><label>Konum</label><input id="klonKonum" data-g="klonKonum" class="metin-girdi" value="${kac(m.konum)}" spellcheck="false"></div>
         ${m.hata ? `<div class="modal-hata">${kac(m.hata)}</div>` : ''}`,
         `${m.calisiyor ? '<div class="donen kucuk"></div><span class="ipucu-metni">Klonlanıyor…</span>' : ''}<div class="dugme" data-e="modalKapat">İptal</div><div class="dugme birincil ${m.calisiyor ? 'pasif' : ''}" data-e="klonla">Klonla</div>`);
+    }
+    if (m.tur === 'yeniOge') {
+      return kabuk('Yeni öğe ekle', cizYeniOge(m),
+        `<div class="dugme" data-e="modalKapat">İptal</div><div class="dugme birincil" data-e="yeniOgeOlustur">Ekle</div>`, 'genis-orta');
     }
     if (m.tur === 'yeniDosya') {
       return kabuk(m.klasor ? 'Yeni klasör' : 'Yeni dosya', `
@@ -126,7 +130,7 @@
         `<div class="dugme birincil" data-e="modalKapat">Kapat</div>`);
     }
     if (m.tur === 'kisayollar') {
-      const k = [['Çalıştır', 'F5'], ['Hata ayıkla', 'F6'], ['Durdur', '⇧+F5'], ['Denetle', 'F7'], ['Kesme noktası', 'F9'], ['Üstünden / içine adım', 'F10 / F11'], ['Kaydet', 'Ctrl+S'], ['Tümünü kaydet', 'Ctrl+Alt+S'], ['Satırı yorum yap', 'Ctrl+/'], ['Biçimlendir', 'Ctrl+⇧+F'], ['Satırı çoğalt', 'Ctrl+⇧+D'], ['Satırı yukarı / aşağı taşı', 'Alt+↑ / Alt+↓'], ['Satıra git', 'Ctrl+G'], ['Yeniden adlandır / başvurular', 'F2 / ⇧+F12'], ['Alt paneli göster/gizle', 'Ctrl+J'], ['Girinti / geri girinti', 'Tab / ⇧+Tab'], ['Projelerde ara', 'Alt+S'], ['Yeni proje', 'Ctrl+⇧+N'], ['ç ğ ı ö ş ü (Türkçe klavyesi olmayanlar için)', 'Alt+C/G/I/O/S/U'], ['Ç Ğ İ Ö Ş Ü', 'Alt+⇧+C/G/I/O/S/U']];
+      const k = [['Çalıştır', 'F5'], ['Hata ayıkla', 'F6'], ['Durdur', '⇧+F5'], ['Denetle', 'F7'], ['Kesme noktası', 'F9'], ['Üstünden / içine adım', 'F10 / F11'], ['Kaydet', 'Ctrl+S'], ['Tümünü kaydet', 'Ctrl+Alt+S'], ['Satırı yorum yap', 'Ctrl+/'], ['Biçimlendir', 'Ctrl+⇧+F'], ['Satırı çoğalt', 'Ctrl+⇧+D'], ['Satırı yukarı / aşağı taşı', 'Alt+↑ / Alt+↓'], ['Satıra git', 'Ctrl+G'], ['Dosyada bul / değiştir', 'Ctrl+F / Ctrl+H'], ['Yeni öğe ekle', 'Ctrl+⇧+A'], ['Gezginde sil / adlandır', 'Delete / F2'], ['Yeniden adlandır / başvurular', 'F2 / ⇧+F12'], ['Alt paneli göster/gizle', 'Ctrl+J'], ['Girinti / geri girinti', 'Tab / ⇧+Tab'], ['Projelerde ara', 'Alt+S'], ['Yeni proje', 'Ctrl+⇧+N'], ['ç ğ ı ö ş ü (Türkçe klavyesi olmayanlar için)', 'Alt+C/G/I/O/S/U'], ['Ç Ğ İ Ö Ş Ü', 'Alt+⇧+C/G/I/O/S/U']];
       return kabuk('Klavye kısayolları', `<div class="kisayol-listesi">${k.map(([a, b]) => `<span>${a}</span><span>${b}</span>`).join('')}</div>`, `<div class="dugme birincil" data-e="modalKapat">Kapat</div>`);
     }
     if (m.tur === 'hataBildir') {

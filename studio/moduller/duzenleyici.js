@@ -75,9 +75,9 @@
         const s = dosyaSimgesi(ad, g.klasor);
         const kapali = g.klasor && D.kapaliKlasorler.has(g.yol);
         const simge = g.klasor ? S(kapali ? 'folder' : 'folder_open') : s.gokturk ? `<span class="gokturk">${GOKTURK}</span>` : S(s.simge);
-        return `<div class="agac-oge ${g.klasor ? 'klasor' : ''} ${D.etkin === g.yol ? 'etkin' : ''}" style="padding-left:${14 + derinlik * 14}px" data-e="${g.klasor ? 'klasorAcKapa' : 'dosyaAc'}" data-a="${kac(g.yol)}" title="${kac(g.yol)}">${simge}<span class="ad">${kac(ad)}</span></div>`;
+        return `<div draggable="true" class="agac-oge ${g.klasor ? 'klasor' : ''} ${D.etkin === g.yol ? 'etkin' : ''}" style="padding-left:${14 + derinlik * 14}px" data-e="${g.klasor ? 'klasorAcKapa' : 'dosyaAc'}" data-a="${kac(g.yol)}" title="${kac(g.yol)}">${simge}<span class="ad">${kac(ad)}</span></div>`;
       }).join('');
-      kap.innerHTML = baslik('GEZGİN', `<span class="simge" title="Yeni dosya" data-e="yeniDosyaModal" style="margin-right:6px">note_add</span><span class="simge" title="Yenile" data-e="agaciYenile">refresh</span>`)
+      kap.innerHTML = baslik('GEZGİN', `<span class="simge" title="Yeni öğe (Ctrl+Shift+A)" data-e="yeniOgeModal" style="margin-right:6px">library_add</span><span class="simge" title="Yeni dosya" data-e="yeniDosyaModal" style="margin-right:6px">note_add</span><span class="simge" title="Yenile" data-e="agaciYenile">refresh</span>`)
         + `<div class="proje-baslik">${S('expand_more')}<span>${kac(buyuk(D.proje.ad))}</span></div><div class="agac">${satirlar}</div>`;
     } else if (D.yanPanel === 'ara') {
       const gruplar = {};

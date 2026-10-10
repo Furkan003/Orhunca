@@ -231,6 +231,11 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
             metin(&g, "yeni"),
             g["tamKelime"].as_bool() == Some(true),
         ),
+        ("POST", "/api/dosya/sil") => dosya_sil(metin(&g, "yol")),
+        ("POST", "/api/dosya/tasi") => dosya_tasi(metin(&g, "yol"), metin(&g, "yeni"), false),
+        ("POST", "/api/dosya/kopyala") => dosya_tasi(metin(&g, "yol"), metin(&g, "yeni"), true),
+        ("POST", "/api/dosya/goster") => dosya_goster(metin(&g, "yol")),
+        ("POST", "/api/dosya/zamanlar") => dosya_zamanlari(&g["yollar"]),
         ("POST", "/api/dosya/yeni") => {
             dosya_yeni(metin(&g, "yol"), g["klasor"].as_bool() == Some(true))
         }
@@ -868,7 +873,7 @@ fn dosya_oku(yol: &str) -> Yanit {
     match std::fs::read(p) {
         Ok(b) if b.len() > 2 * 1024 * 1024 => hata("Dosya düzenleyicide açılamayacak kadar büyük."),
         Ok(b) => match String::from_utf8(b) {
-            Ok(m) => Yanit::json(&json!({ "icerik": m })),
+            Ok(m) => Yanit::json(&json!({ "icerik": m, "zaman": degisim_zamani(p) })),
             Err(_) => Yanit::json(&json!({ "ikili": true })),
         },
         Err(e) => hata(format!("Dosya okunamadı: {e}")),
@@ -884,9 +889,131 @@ fn dosya_yaz(yol: &str, icerik: &str) -> Yanit {
     match std::fs::write(p, icerik) {
         Ok(()) => {
             gecmis::kaydet(p, icerik);
-            Yanit::json(&json!({ "tamam": true }))
+            Yanit::json(&json!({ "tamam": true, "zaman": degisim_zamani(p) }))
         }
         Err(e) => hata(format!("Kaydedilemedi: {e}")),
+    }
+}
+
+/// Dosyanın son değişim zamanı (ms); dışarıdan yapılan değişiklikleri fark etmek için.
+fn degisim_zamani(p: &Path) -> u64 {
+    std::fs::metadata(p)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+fn dosya_zamanlari(yollar: &Value) -> Yanit {
+    let mut z = serde_json::Map::new();
+    for y in yollar
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|y| y.as_str())
+    {
+        let p = Path::new(y);
+        if izinli_mi(p) {
+            z.insert(y.to_string(), json!(degisim_zamani(p)));
+        }
+    }
+    Yanit::json(&json!({ "zamanlar": z }))
+}
+
+/// Proje kökünün kendisi silinemez, taşınamaz.
+fn proje_koku_mu(p: &Path) -> bool {
+    std::fs::canonicalize(p)
+        .map(|t| izinli_kokler().lock().unwrap().contains(&t))
+        .unwrap_or(false)
+}
+
+fn dosya_sil(yol: &str) -> Yanit {
+    let p = Path::new(yol);
+    if yol.is_empty() || !izinli_mi(p) || proje_koku_mu(p) {
+        return Yanit::hata(403, "bu dosya silinemez");
+    }
+    let sonuc = if p.is_dir() {
+        std::fs::remove_dir_all(p)
+    } else {
+        // Yerel geçmiş son hâli saklar; yanlışlıkla silinen dosya oradan geri alınabilir.
+        if let Ok(m) = std::fs::read_to_string(p) {
+            gecmis::kaydet(p, &m);
+        }
+        std::fs::remove_file(p)
+    };
+    match sonuc {
+        Ok(()) => Yanit::json(&json!({ "tamam": true })),
+        Err(e) => hata(format!("Silinemedi: {e}")),
+    }
+}
+
+fn klasoru_kopyala(kaynak: &Path, hedef: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(hedef)?;
+    for g in std::fs::read_dir(kaynak)? {
+        let g = g?;
+        let h = hedef.join(g.file_name());
+        if g.path().is_dir() {
+            klasoru_kopyala(&g.path(), &h)?;
+        } else {
+            std::fs::copy(g.path(), h)?;
+        }
+    }
+    Ok(())
+}
+
+/// Ad değiştirme, taşıma (`kopya` yanlışsa) ya da çoğaltma.
+fn dosya_tasi(yol: &str, yeni: &str, kopya: bool) -> Yanit {
+    let (p, h) = (Path::new(yol), Path::new(yeni));
+    if yol.is_empty() || yeni.is_empty() || !izinli_mi(p) || !izinli_mi(h) {
+        return Yanit::hata(403, "bu dosyaya erişim yok");
+    }
+    if !kopya && proje_koku_mu(p) {
+        return hata("Proje klasörünün kendisi taşınamaz.");
+    }
+    if h.exists() {
+        return hata("Bu adla bir dosya zaten var.");
+    }
+    if p.is_dir() && h.starts_with(p) {
+        return hata("Klasör kendi içine taşınamaz.");
+    }
+    if let Some(u) = h.parent() {
+        let _ = std::fs::create_dir_all(u);
+    }
+    let sonuc = match (kopya, p.is_dir()) {
+        (true, true) => klasoru_kopyala(p, h),
+        (true, false) => std::fs::copy(p, h).map(|_| ()),
+        _ => std::fs::rename(p, h),
+    };
+    match sonuc {
+        Ok(()) => Yanit::json(&json!({ "tamam": true })),
+        Err(e) => hata(format!("İşlem yapılamadı: {e}")),
+    }
+}
+
+/// Dosyayı işletim sisteminin dosya gezgininde seçili olarak gösterir.
+fn dosya_goster(yol: &str) -> Yanit {
+    let p = Path::new(yol);
+    if !izinli_mi(p) || !p.exists() {
+        return Yanit::hata(403, "bu dosyaya erişim yok");
+    }
+    let sonuc = if cfg!(windows) {
+        crate::komut("explorer")
+            .arg(format!("/select,{}", p.display()))
+            .spawn()
+    } else if cfg!(target_os = "macos") {
+        crate::komut("open").arg("-R").arg(p).spawn()
+    } else {
+        let k = if p.is_dir() {
+            p
+        } else {
+            p.parent().unwrap_or(p)
+        };
+        crate::komut("xdg-open").arg(k).spawn()
+    };
+    match sonuc {
+        Ok(_) => Yanit::json(&json!({ "tamam": true })),
+        Err(e) => hata(format!("Dosya gezgini açılamadı: {e}")),
     }
 }
 

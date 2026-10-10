@@ -74,7 +74,7 @@
     if (!D.sekmeler.some(s => s.yol === yol)) {
       const r = await api('/api/dosya?' + sorgu({ yol: tamYol(yol) }));
       if (r.hata) { bildir(r.hata, true); return; }
-      D.sekmeler.push({ yol, icerik: r.icerik ?? '', kayitli: r.icerik ?? '', ikili: !!r.ikili });
+      D.sekmeler.push({ yol, icerik: r.icerik ?? '', kayitli: r.icerik ?? '', ikili: !!r.ikili, zaman: r.zaman || 0 });
       fiilleriTopla();
     }
     D.etkin = yol;
@@ -84,6 +84,7 @@
   async function kaydet(s = etkinSekme(), sessiz = false, otomatik = false) {
     if (!s || s.ikili || s.icerik === s.kayitli) return true;
     const icerik = s.icerik;
+    s.zaman = 0; // kayıt sürerken dış değişiklik denetimi bu sekmeyi atlar
     const r = await api('/api/dosya', { yol: tamYol(s.yol), icerik }).catch(e => ({ hata: e.message }));
     if (r.hata) {
       // Otomatik kaydetmede aynı hata her duraklamada yeniden gösterilmez.
@@ -93,6 +94,7 @@
     }
     s.otoHata = null;
     s.kayitli = icerik;
+    s.zaman = r.zaman || 0;
     gitYenilePlanla();
     if (!sessiz) { cizSekmeler(); kayittanSonra(s.yol); }
     return true;
