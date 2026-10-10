@@ -209,6 +209,7 @@
       ${D.proje.dal ? `<span class="ogeler">${S('fork_right')}${kac(D.proje.dal)}</span>` : ''}
       ${D.denetimHatasi ? `<span class="tiklanir uyarili" data-e="denetleKomut" title="${kac(D.denetimHatasi)} — yeniden denemek için tıklayın">${S('warning')} Denetlenemedi</span>` : `<span class="tiklanir ${n ? 'hatali' : u ? 'uyarili' : ''}" data-e="altSorunlar">${n} hata · ${u} uyarı</span>`}
       <div style="flex:1"></div>
+      ${D.guncelleme?.yeni ? `<span class="tiklanir guncelleme-rozet" data-e="yeniSurumModal" title="Yeni sürümü görmek ve güncellemek için tıklayın">${S('cloud_download')} Orhunca ${kac(D.guncelleme.surum)} hazır</span>` : ''}
       <span id="durumImlec">Satır ${D.imlec.satir}, Sütun ${D.imlec.sutun}</span><span>UTF-8</span><span>${kac(surumAdi())}</span>
       ${D.proje.guvenilir === false ? `<span class="tiklanir uyarili" data-e="kisitliModBilgi" title="Projeye güvenmek için tıklayın">${S('lock')} Kısıtlı mod</span>` : ''}
       <span>${kac(calismaEtiketi())}</span>`;

@@ -320,6 +320,8 @@
       D.konum = bilgi.varsayilan_konum;
       D.yuklendi = true;
       setTimeout(guncellemeyiDenetle, 4000);
+      // Stüdyo uzun süre açık kalırsa yeni sürüme 6 saatte bir yeniden bakılır.
+      setInterval(guncellemeyiDenetle, 6 * 3600 * 1000);
       temaResminiYukle();
       asistanDurumuYukle();
     } catch (e) {
@@ -508,10 +510,10 @@
   async function guncellemeyiDenetle() {
     if (!D.guncellemeDenetle) return;
     const r = await api('/api/guncelleme').catch(() => null);
-    if (!r || r.hata || r.kapali || !r.yeni) return;
+    if (!r || r.hata || r.kapali || !r.yeni || D.guncelleme?.surum === r.surum) return;
     D.guncelleme = r;
-    bildir(`Orhunca ${r.surum} çıktı — güncellemek için başlangıç ekranına bakın.`);
-    if (D.ekran === 'baslangic') ciz();
+    bildir(`Orhunca ${r.surum} çıktı — güncellemek için alt çubuktaki "hazır" yazısına tıklayın.`);
+    if (D.ekran === 'baslangic') ciz(); else guncelle('durum');
   }
 
   /** Sürüm notları için küçük Markdown: başlık, liste, kalın, kod, tablo satırları düz yazı. */

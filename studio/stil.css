@@ -882,3 +882,5 @@ details.tema-grup summary { cursor: pointer; }
 .vt-tablo th, .vt-tablo td { padding: 4px 10px; border-bottom: 1px solid var(--cizgi, #333); text-align: left; white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
 .vt-tablo th { position: sticky; top: 0; background: var(--koyu); }
 #vtSql { width: 100%; resize: vertical; }
+.guncelleme-rozet { color: var(--vurgu); font-weight: 600; }
+.guncelleme-rozet .simge { font-size: 15px; vertical-align: -3px; }
