@@ -315,7 +315,28 @@ pub fn kur(k: &Kurulum, dosya: &Path) -> Result<(String, bool), String> {
     };
     match k {
         Kurulum::WindowsKurulum => {
-            ac(&dosya.to_string_lossy(), &[])?;
+            // Kurulum yönetici izni ister (UAC). Doğrudan başlatmak "yükseltme gerekiyor"
+            // (os error 740) hatası verir; Start-Process ShellExecute kullanır ve izin
+            // penceresini gösterir.
+            let yol = dosya.to_string_lossy().replace('\'', "''");
+            crate::komut("powershell")
+                .args([
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-Command",
+                    &format!("Start-Process -FilePath '{yol}'"),
+                ])
+                // Start-Process kurulum açılınca döner; izin verilmezse hata koduyla biter
+                // ve Stüdyo açık kalır.
+                .output()
+                .map_err(|e| format!("kurulum başlatılamadı: {e}"))
+                .and_then(|o| {
+                    if o.status.success() {
+                        Ok(())
+                    } else {
+                        Err("kurulum başlatılmadı: yönetici izni verilmedi. Yeniden deneyin ya da kurulum dosyasını elle çalıştırın.".into())
+                    }
+                })?;
             Ok(("Kurulum başladı; Stüdyo kapanıyor.".into(), true))
         }
         Kurulum::Deb | Kurulum::Rpm => {
