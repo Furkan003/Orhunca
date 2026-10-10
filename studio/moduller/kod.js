@@ -425,15 +425,16 @@
       }
       if (e.key === 'Tab') {
         e.preventDefault();
-        if (e.shiftKey) satirlariDonustur(ta, sat => sat.map(l => l.replace(/^( {1,4}|\t)/, '')));
-        else if (v.slice(bas, son).includes('\n')) satirlariDonustur(ta, sat => sat.map(l => '    ' + l));
-        else metinEkle(ta, '    ');
+        const g = girintiMetni();
+        if (e.shiftKey) satirlariDonustur(ta, sat => sat.map(l => l.replace(new RegExp(`^( {1,${g.length}}|\\t)`), '')));
+        else if (v.slice(bas, son).includes('\n')) satirlariDonustur(ta, sat => sat.map(l => g + l));
+        else metinEkle(ta, g);
       } else if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         const satirBas = v.lastIndexOf('\n', bas - 1) + 1;
         const satir = v.slice(satirBas, bas);
         let girinti = satir.match(/^[ \t]*/)[0];
-        if (/:\s*(#.*)?$/.test(satir.replace(/"(?:[^"\\]|\\.)*"/g, '""'))) girinti += '    ';
+        if (/:\s*(#.*)?$/.test(satir.replace(/"(?:[^"\\]|\\.)*"/g, '""')) || /[{[(]\s*$/.test(satir)) girinti += girintiMetni();
         metinEkle(ta, '\n' + girinti);
       } else if (e.key === 'Backspace' && bas === son && bas > 0 && ((ACAN[v[bas - 1]] && v[bas] === ACAN[v[bas - 1]]) || (v[bas - 1] === '"' && v[bas] === '"'))) {
         // Boş parantez çiftini birlikte siler

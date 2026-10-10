@@ -59,6 +59,7 @@
         `${m.calisiyor ? '<div class="donen kucuk"></div><span class="ipucu-metni">Klonlanıyor…</span>' : ''}<div class="dugme" data-e="modalKapat">İptal</div><div class="dugme birincil ${m.calisiyor ? 'pasif' : ''}" data-e="klonla">Klonla</div>`);
     }
     if (m.tur === 'hizli') return cizHizli(m);
+    if (m.tur === 'projeOzellikleri') return cizProjeOzellikleri(m, kabuk);
     if (m.tur === 'yeniOge') {
       return kabuk('Yeni öğe ekle', cizYeniOge(m),
         `<div class="dugme" data-e="modalKapat">İptal</div><div class="dugme birincil" data-e="yeniOgeOlustur">Ekle</div>`, 'genis-orta');
@@ -73,6 +74,7 @@
       return kabuk('Ayarlar', `
         <div class="secenek" style="cursor:default"><div class="esnek"><div class="secenek-ad">Düzenleyici yazı boyutu</div><div class="secenek-alt">Kod ve satır numaraları</div></div>
           <div class="kare-dugme simge" style="width:32px;height:32px;font-size:18px" data-e="yaziKucult">remove</div><span class="mono" style="width:32px;text-align:center">${D.yaziBoyutu}</span><div class="kare-dugme simge" style="width:32px;height:32px;font-size:18px" data-e="yaziBuyut">add</div></div>
+        ${duzenleyiciAyarlari()}<div class="ayar-bolum">Genel</div>
         <div class="secenek" data-e="yazarkenDenetleDegistir"><div class="esnek"><div class="secenek-ad">Yazarken denetle</div><div class="secenek-alt">Hatalar siz yazarken altı çizili gösterilir.</div></div><div class="anahtar ${D.yazarkenDenetle ? 'acik' : ''}"><div></div></div></div>
         <div class="secenek" style="cursor:default"><div class="esnek"><div class="secenek-ad">Tema</div><div class="secenek-alt">Sınıfta projektör için açık tema önerilir.</div></div>
           <div class="tema-secim">${[['koyu', 'Koyu'], ['acik', 'Açık'], ['sistem', 'Sistem']].map(([t, ad]) => `<span class="${!D.ozelTema && D.tema === t ? 'secili' : ''}" data-e="temaSec" data-a="${t}">${ad}</span>`).join('')}</div></div>
@@ -100,7 +102,7 @@
       ${D.calisma?.ayikla ? '<div class="secenek-alt">Koşul ve günlük değişiklikleri hata ayıklama yeniden başlatılınca geçerli olur.</div>' : ''}`,
       `<div class="dugme" data-e="kesmeAyarKaldir">${S('delete')}Kesme noktasını kaldır</div><div style="flex:1"></div><div class="dugme" data-e="modalKapat">İptal</div><div class="dugme birincil" data-e="kesmeAyarKaydet">Kaydet</div>`);
     if (m.tur === 'fark') return kabuk(`${m.yol} ${m.hazir ? '(hazırlanan)' : ''}`, `<div class="fark">${m.metin == null ? '<div class="donen kucuk"></div>' : farkHtml(m.metin)}</div>`,
-      `<div class="dugme" data-e="modalKapat">Kapat</div><div class="dugme" data-e="farkDosyaAc">${S('open_in_new')}Dosyayı aç</div>`).replace('class="modal"', 'class="modal genis"');
+      `<div class="dugme" data-e="modalKapat">Kapat</div>${m.isleme ? '' : `<div class="dugme" data-e="farkDosyaAc">${S('open_in_new')}Dosyayı aç</div>`}`).replace('class="modal"', 'class="modal genis"');
     if (m.tur === 'ajan') return cizAjan(kabuk);
     if (m.tur === 'yeniSurum') {
       const g = D.guncelleme || {};

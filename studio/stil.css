@@ -932,3 +932,14 @@ details.tema-grup summary { cursor: pointer; }
 .ikinci-baslik .simge { font-size: 16px; cursor: pointer; }
 .ikinci-nolar div { cursor: default; }
 #kodBolge.bolunmus .bul-cubugu { right: calc(50% + 18px); }
+/* Proje özellikleri, ayarlar, git */
+.kod-ic { font-family: var(--kod-yazi, var(--mono)); }
+.ayar-bolum { margin: 14px 0 4px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--yazi2); }
+.ayar-bolum:first-child { margin-top: 0; }
+.ozellik-sekmeler { margin-bottom: 12px; align-self: flex-start; }
+.git-dal { cursor: pointer; border-radius: 5px; }
+.git-dal:hover { background: var(--vurgu-12); }
+.git-islem { cursor: pointer; }
+.git-islem:hover { background: var(--vurgu-12); }
+.satir-bilgisi { position: absolute; z-index: 4; height: 21px; line-height: 21px; font-size: 12px; font-style: italic; color: var(--cok-soluk); white-space: nowrap; cursor: pointer; font-family: var(--yazi-tipi, system-ui); }
+.satir-bilgisi:hover { color: var(--yazi2); }

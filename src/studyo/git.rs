@@ -242,13 +242,106 @@ pub fn baslat(kok: &Path) -> Result<(), String> {
         .map(|_| ())
 }
 
+/// Dallar: { etkin, dallar: [ad] } (yerel dallar; uzak dallar `uzak` listesinde).
+pub fn dallar(kok: &Path) -> Result<Value, String> {
+    let yerel = git(kok, &["branch", "--format=%(refname:short)"])?;
+    let uzak = git(kok, &["branch", "-r", "--format=%(refname:short)"]).unwrap_or_default();
+    let etkin = git(kok, &["rev-parse", "--abbrev-ref", "HEAD"]).unwrap_or_default();
+    Ok(json!({
+        "etkin": etkin.trim(),
+        "dallar": yerel.lines().filter(|l| !l.is_empty()).collect::<Vec<_>>(),
+        "uzak": uzak.lines().filter(|l| !l.is_empty() && !l.ends_with("/HEAD")).collect::<Vec<_>>(),
+    }))
+}
+
+fn dal_adi_gecerli(ad: &str) -> Result<(), String> {
+    if ad.is_empty() || ad.starts_with('-') || ad.contains(char::is_whitespace) || ad.contains("..")
+    {
+        return Err("Geçerli bir dal adı yazın (boşluksuz, ör. yeni-ozellik).".into());
+    }
+    Ok(())
+}
+
+/// Dal işlemleri: `olustur` (oluşturup geçer), `gec`, `sil`, `birlestir` (etkin dala).
+pub fn dal_islemi(kok: &Path, islem: &str, ad: &str) -> Result<String, String> {
+    dal_adi_gecerli(ad)?;
+    match islem {
+        "olustur" => git(kok, &["switch", "-c", ad]).map(|_| format!("“{ad}” dalı oluşturuldu.")),
+        "gec" => {
+            // Uzak dal seçildiyse (origin/x) yerel x dalı izleyerek oluşturulur.
+            let yerel = ad.split_once('/').map(|(_, d)| d).filter(|_| {
+                git(
+                    kok,
+                    &[
+                        "show-ref",
+                        "--verify",
+                        "--quiet",
+                        &format!("refs/remotes/{ad}"),
+                    ],
+                )
+                .is_ok()
+            });
+            match yerel {
+                Some(d) => git(kok, &["switch", "-c", d, "--track", ad])
+                    .or_else(|_| git(kok, &["switch", d])),
+                None => git(kok, &["switch", ad]),
+            }
+            .map(|_| format!("“{}” dalına geçildi.", yerel.unwrap_or(ad)))
+        }
+        "sil" => git(kok, &["branch", "-d", ad]).map(|_| format!("“{ad}” dalı silindi.")),
+        "birlestir" => git(kok, &["merge", "--no-edit", ad])
+            .map(|_| format!("“{ad}” etkin dala birleştirildi.")),
+        _ => Err("bilinmeyen dal işlemi".into()),
+    }
+}
+
+/// Bir işlemenin ayrıntısı: mesaj, yazar ve değişiklikler (fark metni).
+pub fn isleme(kok: &Path, kimlik: &str) -> Result<String, String> {
+    if kimlik.is_empty() || !kimlik.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err("geçersiz işleme kimliği".into());
+    }
+    git(
+        kok,
+        &[
+            "show",
+            "--stat",
+            "--patch",
+            "--date=format:%d.%m.%Y %H:%M",
+            "--format=%H%n%an <%ae>%n%ad%n%n%B",
+            kimlik,
+        ],
+    )
+}
+
+/// Dosyanın satır satır kimin, ne zaman değiştirdiği: [{kisa, yazar, zaman, ozet}] (satır sırasıyla).
+pub fn satir_gecmisi(kok: &Path, yol: &str) -> Result<Value, String> {
+    let c = git(kok, &["blame", "--line-porcelain", "--", yol])?;
+    let mut satirlar = Vec::new();
+    let (mut kisa, mut yazar, mut zaman, mut ozet) =
+        (String::new(), String::new(), 0i64, String::new());
+    for l in c.lines() {
+        if l.starts_with('\t') {
+            satirlar.push(json!({ "kisa": kisa, "yazar": yazar, "zaman": zaman, "ozet": ozet }));
+        } else if let Some(y) = l.strip_prefix("author ") {
+            yazar = y.to_string();
+        } else if let Some(z) = l.strip_prefix("author-time ") {
+            zaman = z.parse().unwrap_or(0);
+        } else if let Some(o) = l.strip_prefix("summary ") {
+            ozet = o.to_string();
+        } else if l.len() >= 40 && l[..40].chars().all(|c| c.is_ascii_hexdigit()) {
+            kisa = l[..8].to_string();
+        }
+    }
+    Ok(Value::Array(satirlar))
+}
+
 /// Son işlemeler: [{kisa, mesaj, yazar, zaman}]
 pub fn gecmis(kok: &Path) -> Value {
     let l = git(
         kok,
         &[
             "log",
-            "-30",
+            "-200",
             "--date=format:%d.%m.%Y %H:%M",
             "--format=%h%x1f%s%x1f%an%x1f%ad",
         ],

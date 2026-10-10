@@ -187,8 +187,9 @@
     if (D.terminal.length) terminaleEkle('');
     terminaleEkle(istem(), 'mut');
     guncelle('alt');
-    const argumanlar = D.argumanlar.match(/"[^"]*"|\S+/g)?.map(a => a.replace(/^"|"$/g, '')) || [];
-    const r = await api('/api/calistir', { dosya: tamYol(giris), klasor: D.proje.yol, argumanlar, ayikla, ilkte_dur: yavas, kesmeler: ayikla ? kesmeListesi() : [] }).catch(e => ({ hata: e.message }));
+    const ca = calismaAyarlari();
+    const argumanlar = (D.argumanlar || ca.argumanlar).match(/"[^"]*"|\S+/g)?.map(a => a.replace(/^"|"$/g, '')) || [];
+    const r = await api('/api/calistir', { dosya: tamYol(giris), klasor: D.proje.yol, argumanlar, ortam: ortamNesnesi(ca.ortam), ayikla, ilkte_dur: yavas, kesmeler: ayikla ? kesmeListesi() : [] }).catch(e => ({ hata: e.message }));
     if (r.derleme_hatasi) {
       terminaleEkle('✗ Derleme başarısız', 'err');
       terminaleEkle(r.derleme_hatasi, 'err');

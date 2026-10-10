@@ -118,7 +118,8 @@
         <div class="panel-not">Giriş dosyası<br><span class="mono" style="color:var(--yazi2)">${kac(giris || '—')}</span></div>
         ${D.calisma ? `<div class="panel-dugme" data-e="durdur">${S('stop')}Durdur</div>` : `<div class="panel-dugme birincil" data-e="calistir">${S('play_arrow')}Çalıştır (F5)</div><div class="panel-dugme" data-e="ayikla">${S('bug_report')}Hata ayıkla (F6)</div><div class="panel-dugme" data-e="yavasCalistir">${S('slow_motion_video')}Adım adım göster</div><div class="panel-dugme" data-e="profilCikar" title="Hangi işlev ve satır ne kadar sürüyor (KABUK sekmesinde)">${S('speed')}Profil çıkar</div>`}
         ${D.calisma?.ayikla ? ayiklamaPaneli() : ''}
-        <div class="alan" style="gap:6px"><label style="font-size:12px">Program argümanları</label><input id="argumanlar" data-g="argumanlar" class="metin-girdi" placeholder="ör. bir iki" value="${kac(D.argumanlar)}" spellcheck="false"></div>
+        <div class="alan" style="gap:6px"><label style="font-size:12px">Program argümanları</label><input id="argumanlar" data-g="argumanlar" class="metin-girdi" placeholder="${kac(calismaAyarlari().argumanlar || 'ör. bir iki')}" value="${kac(D.argumanlar)}" spellcheck="false"></div>
+        <div class="panel-dugme" data-e="calistirmaAyarlari">${S('tune')}Argümanlar ve ortam değişkenleri…</div>
         <div class="panel-dugme" data-e="denetleKomut">${S('task_alt')}Denetle (F7)</div>
         <div class="panel-dugme" data-e="ceviriPython">${S('translate')}Python / JavaScript karşılığı</div>
         <div class="ince-ayrac"></div>

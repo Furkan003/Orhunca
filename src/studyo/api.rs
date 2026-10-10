@@ -173,6 +173,16 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
         ("POST", "/api/git/cek") => git_islemi(metin(&g, "kok"), |k| {
             git::cek(k).map(|m| json!({ "mesaj": m }))
         }),
+        ("GET", "/api/git/dallar") => git_islemi(istek.sorgu("kok"), git::dallar),
+        ("POST", "/api/git/dal") => git_islemi(metin(&g, "kok"), |k| {
+            git::dal_islemi(k, metin(&g, "islem"), metin(&g, "ad")).map(|m| json!({ "mesaj": m }))
+        }),
+        ("GET", "/api/git/isleme") => git_islemi(istek.sorgu("kok"), |k| {
+            git::isleme(k, istek.sorgu("kimlik")).map(|f| json!({ "fark": f }))
+        }),
+        ("GET", "/api/git/satirlar") => git_islemi(istek.sorgu("kok"), |k| {
+            git::satir_gecmisi(k, istek.sorgu("yol")).map(|s| json!({ "satirlar": s }))
+        }),
         ("POST", "/api/git/baslat") => git_islemi(metin(&g, "kok"), |k| {
             git::baslat(k).map(|_| json!({ "tamam": true }))
         }),
@@ -1693,12 +1703,27 @@ fn calistir(g: &Value) -> Yanit {
     let derleme_ms = baslangic.elapsed().as_millis();
     // Web sunucuları için kapı: boşsa 3000, değilse sistemin verdiği boş bir kapı.
     let kapi = bos_kapi();
-    let ortam = [
+    // Kullanıcının Çalıştırma ayarlarında verdiği ortam değişkenleri önce gelir;
+    // Stüdyo'nun kendi değişkenleri onları ezer.
+    let kullanici: Vec<(String, String)> = g["ortam"]
+        .as_object()
+        .map(|o| {
+            o.iter()
+                .filter(|(a, _)| !a.is_empty() && !a.contains(['=', '\0']))
+                .map(|(a, d)| (a.clone(), d.as_str().unwrap_or("").to_string()))
+                .collect()
+        })
+        .unwrap_or_default();
+    let mut ortam: Vec<(&str, String)> = kullanici
+        .iter()
+        .map(|(a, d)| (a.as_str(), d.clone()))
+        .collect();
+    ortam.extend([
         ("ORHUNCA_KAPI", kapi.to_string()),
         ("ORHUNCA_ONIZLEME", "1".to_string()),
         // Stüdyo beklenmedik biçimde kapanırsa sunucu da kendini kapatır.
         ("ORHUNCA_EBEVEYN", std::process::id().to_string()),
-    ];
+    ]);
     match calisma::baslat(
         &program,
         &klasor,

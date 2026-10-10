@@ -20,7 +20,7 @@
     };
     const bolum = (ad, l, hepsi) => l.length ? `<div class="git-bolum"><span class="esnek">${ad} (${l.length})</span>${hepsi}</div>${l.map(oge).join('')}` : '';
     const yon = (G.onde ? ` ↑${G.onde}` : '') + (G.geride ? ` ↓${G.geride}` : '');
-    return `<div class="git-dal">${S('fork_right')}<b>${kac(G.dal || '?')}</b><span>${yon}</span></div>
+    return `<div class="git-dal" title="Dallar: geçiş, yeni dal, birleştir">${S('fork_right')}<b>${kac(G.dal || '?')}</b><span>${yon}</span>${S('expand_more', '', 'margin-left:auto;font-size:16px')}</div>
       <textarea id="gitMesaj" data-g="gitMesaj" class="metin-girdi git-mesaj" rows="2" placeholder="Ne değişti? (Ctrl+Enter: işle)">${kac(D.gitMesaj || '')}</textarea>
       <div class="dugme birincil git-isle ${G.degisiklikler.length ? '' : 'pasif'}" data-e="gitIsle">${S('check')}İşle (commit)</div>
       ${bolum('Hazırlanan', hazir, `<span class="simge" title="Hepsini hazırlıktan çıkar" data-e="gitHazirla" data-a="-*">remove</span>`)}
