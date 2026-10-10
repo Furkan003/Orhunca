@@ -75,6 +75,30 @@ imzalanmasına izin verir. Bu yüzden Orhunca çalıştırılmaya hazır bir Xco
 
 Bu komutlar tarayıcıda da çalışır (destekleyen tarayıcılarda). Bilgisayar programında etkisizdir.
 
+## Kamera, karekod, konum ve dosya
+
+Bu dört öğe birer düğme olarak görünür. Sonuç gelince bağlı değişken güncellenir ve
+`değişince:` bloğu çalışır. İzin ilk kullanımda sorulur.
+
+| Öğe | Değişkene yazılan |
+|---|---|
+| `kamera(fotoğraf, "Fotoğraf çek")` | Çekilen fotoğraf (resim adresi; `resim(fotoğraf)` ile gösterilir) |
+| `karekod_okuyucu(kod, "Karekod okut")` | Okunan karekod ya da barkod metni |
+| `konum(yer, "Konumumu bul")` | `"enlem,boylam"` (ör. `"41.008200,28.978400"`; `böl(yer, ",")` ile ayrılır) |
+| `dosya_seç(içerik, "Dosya seç", tür: ".csv,.txt")` | Metin dosyasının içeriği; resim ve diğer dosyalarda resim adresi |
+
+```orhunca
+durum kod = ""
+arayüz:
+    karekod_okuyucu(kod, "Ürün okut") değişince:
+        titret(100)
+    yazı("Okunan: " + kod)
+```
+
+Karekod okuma tarayıcının `BarcodeDetector` desteğini kullanır: Android uygulamasında,
+Chrome ve Edge'de çalışır. Kamera ve konum, tarayıcıda yalnızca `https://` ya da
+`localhost` adreslerinde açılır.
+
 ## Uygulama ayarları
 
 Proje dosyasına (`.ohcproj`) eklenebilir. Hepsi isteğe bağlıdır:

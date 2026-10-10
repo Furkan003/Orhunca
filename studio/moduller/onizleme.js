@@ -35,7 +35,7 @@
       if (!cerceve || cerceve.dataset.surum !== String(o.surum)) {
         // Arayüz programları Stüdyo'nun kendi sunucusundan gelir: Stüdyo'ya erişemesinler diye yalıtılır.
         const yalit = o.arayuz ? ' sandbox="allow-scripts allow-forms allow-modals allow-popups"' : '';
-        g.innerHTML = `<iframe id="onizlemeCerceve" data-surum="${o.surum}" src="${kac(onizlemeAdresi())}" title="Canlı önizleme"${yalit}></iframe>`;
+        g.innerHTML = `<iframe id="onizlemeCerceve" data-surum="${o.surum}" src="${kac(onizlemeAdresi())}" title="Canlı önizleme" allow="camera; geolocation"${yalit}></iframe>`;
       }
       g.querySelector('.onizleme-ortu')?.remove();
       const ortu = { bekliyor: 'Yeniden derleniyor…', hata: 'Derleme hatası — ayrıntılar terminalde', durdu: 'Sunucu durdu · F5 ile başlatın' }[durum];

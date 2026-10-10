@@ -12,6 +12,7 @@ class SayfaDenetcisi: UIViewController, WKScriptMessageHandler, WKNavigationDele
         let ayar = WKWebViewConfiguration()
         ayar.userContentController.add(self, name: "orhunca")
         ayar.preferences.javaScriptCanOpenWindowsAutomatically = false
+        ayar.allowsInlineMediaPlayback = true // kamera görüntüsü sayfanın içinde
         sayfa = WKWebView(frame: .zero, configuration: ayar)
         sayfa.navigationDelegate = self
         sayfa.uiDelegate = self
@@ -24,6 +25,14 @@ class SayfaDenetcisi: UIViewController, WKScriptMessageHandler, WKNavigationDele
         if let adres = Bundle.main.url(forResource: "uygulama", withExtension: "html") {
             sayfa.loadFileURL(adres, allowingReadAccessTo: adres.deletingLastPathComponent())
         }
+    }
+
+    /// kamera ve karekod_okuyucu: sistem izni Info.plist'teki açıklamayla bir kez sorulur.
+    @available(iOS 15.0, *)
+    func webView(_ w: WKWebView, requestMediaCapturePermissionFor kaynak: WKSecurityOrigin,
+                 initiatedByFrame cerceve: WKFrameInfo, type tur: WKMediaCaptureType,
+                 decisionHandler karar: @escaping (WKPermissionDecision) -> Void) {
+        karar(.grant)
     }
 
     func userContentController(_ denetci: WKUserContentController, didReceive ileti: WKScriptMessage) {

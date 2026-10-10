@@ -22,6 +22,10 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSCameraUsageDescription</key>
+	<string>Fotoğraf çekmek ve karekod okumak için kamera kullanılır.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Konumunuzu göstermek için kullanılır.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UILaunchScreen</key>

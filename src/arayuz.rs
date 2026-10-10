@@ -62,6 +62,7 @@ pub const OLAYLAR: &[(&str, &str)] = &[
 ];
 
 const TIK: &[&str] = &["tıklanınca"];
+const DEGISINCE: &[&str] = &["değişince"];
 
 pub const OGELER: &[OgeTanimi] = &[
     OgeTanimi {
@@ -284,6 +285,42 @@ pub const OGELER: &[OgeTanimi] = &[
         olaylar: &["çalınca"],
         aciklama: "Görünmez; her `süre` saniyede bir `çalınca:` bloğunu çalıştırır",
         ornek: "zamanlayıcı(1) çalınca:",
+    },
+    OgeTanimi {
+        ad: "kamera",
+        degerler: &[("değer", Bag(BagTuru::Yazi)), ("metin", Metin)],
+        zorunlu: 1,
+        kapsayici: false,
+        olaylar: DEGISINCE,
+        aciklama: "Fotoğraf çekme düğmesi; çekilen fotoğraf (resim adresi) değişkene yazılır",
+        ornek: "kamera(fotoğraf, \"Fotoğraf çek\") değişince:",
+    },
+    OgeTanimi {
+        ad: "karekod_okuyucu",
+        degerler: &[("değer", Bag(BagTuru::Yazi)), ("metin", Metin)],
+        zorunlu: 1,
+        kapsayici: false,
+        olaylar: DEGISINCE,
+        aciklama: "Kamerayla karekod (QR) ya da barkod okur; okunan metin değişkene yazılır",
+        ornek: "karekod_okuyucu(kod, \"Karekod okut\") değişince:",
+    },
+    OgeTanimi {
+        ad: "konum",
+        degerler: &[("değer", Bag(BagTuru::Yazi)), ("metin", Metin)],
+        zorunlu: 1,
+        kapsayici: false,
+        olaylar: DEGISINCE,
+        aciklama: "Konum düğmesi; \"enlem,boylam\" değişkene yazılır (izin istenir)",
+        ornek: "konum(yer, \"Konumumu bul\") değişince:",
+    },
+    OgeTanimi {
+        ad: "dosya_seç",
+        degerler: &[("değer", Bag(BagTuru::Yazi)), ("metin", Metin)],
+        zorunlu: 1,
+        kapsayici: false,
+        olaylar: DEGISINCE,
+        aciklama: "Dosya seçme düğmesi; metin dosyasının içeriği (resim ise resim adresi) değişkene yazılır",
+        ornek: "dosya_seç(içerik, \"Dosya seç\", tür: \".csv,.txt\") değişince:",
     },
     OgeTanimi {
         ad: "oyun_alanı",

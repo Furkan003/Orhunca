@@ -1,0 +1,16 @@
+# Telefon özellikleri: kamera, karekod, konum ve dosya seçme.
+durum fotoğraf = ""
+durum kod = ""
+durum yer = ""
+durum içerik = ""
+arayüz:
+    kamera(fotoğraf, "Fotoğraf çek")
+    eğer fotoğraf != "":
+        resim(fotoğraf, genişlik: 200)
+    karekod_okuyucu(kod, "Karekod okut") değişince:
+        titret(100)
+    yazı("Okunan: " + kod)
+    konum(yer, "Konumumu bul")
+    yazı("Konum: " + yer)
+    dosya_seç(içerik, "Dosya seç", tür: ".txt,.csv")
+    yazı("Dosya uzunluğu: " + uzunluk(içerik))

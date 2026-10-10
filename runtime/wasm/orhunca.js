@@ -711,7 +711,112 @@
     'ızgara': ['div', 'izgara'],
     'zamanlayıcı': ['span', 'zamanlayici'],
     'oyun_alanı': ['canvas', 'oyun'],
+    'kamera': ['button', 'dugme'],
+    'karekod_okuyucu': ['button', 'dugme'],
+    'konum': ['button', 'dugme'],
+    'dosya_seç': ['button', 'dugme'],
   };
+  const CIHAZ_METNI = { 'kamera': 'Fotoğraf çek', 'karekod_okuyucu': 'Karekod okut', 'konum': 'Konumumu bul', 'dosya_seç': 'Dosya seç' };
+
+  // Cihaz öğeleri: sonuç gelince bağlı değişken güncellenir ve `değişince:` çalışır.
+  function dosyaSor(belge, kabul, bitti) {
+    const g = belge.createElement('input');
+    g.type = 'file';
+    if (kabul) g.accept = kabul;
+    g.style.display = 'none';
+    belge.body.appendChild(g);
+    g.addEventListener('change', () => {
+      const f = g.files && g.files[0];
+      g.remove();
+      if (f) bitti(f);
+    });
+    g.click();
+  }
+  function dosyaOku(f, bitti) {
+    const o = new FileReader();
+    const metin = /^text\/|json|csv|xml|javascript/.test(f.type) || /\.(txt|csv|json|md|ohc|xml|html?|tsv)$/i.test(f.name);
+    o.onload = () => bitti(String(o.result));
+    if (metin) o.readAsText(f); else o.readAsDataURL(f);
+  }
+  // Kamera görüntüsünü tam ekran açar. `tara` verilirse her karede karekod aranır;
+  // verilmezse "Çek" düğmesi fotoğrafı resim adresi (data:image/jpeg) olarak verir.
+  async function kameraAc(belge, tara, bitti) {
+    const pencere = belge.defaultView;
+    let algila = null;
+    if (tara) {
+      if (!('BarcodeDetector' in pencere)) {
+        pencere.alert('Bu tarayıcı karekod okumayı desteklemiyor. Chrome, Edge ya da telefon uygulaması kullanın.');
+        return;
+      }
+      algila = new pencere.BarcodeDetector();
+    }
+    let akis;
+    try {
+      akis = await pencere.navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    } catch (e) {
+      pencere.alert('Kameraya erişilemedi: ' + ((e && e.message) || e));
+      return;
+    }
+    const ortu = belge.createElement('div');
+    ortu.style.cssText = 'position:fixed;inset:0;background:#000e;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px';
+    const video = belge.createElement('video');
+    video.setAttribute('playsinline', '');
+    video.muted = true;
+    video.style.cssText = 'max-width:94vw;max-height:72vh;border-radius:12px';
+    const dugmeler = belge.createElement('div');
+    dugmeler.style.cssText = 'display:flex;gap:12px';
+    const dugme = (yazi) => {
+      const d = belge.createElement('button');
+      d.textContent = yazi;
+      d.style.cssText = 'padding:12px 22px;border-radius:10px;border:0;font-size:16px';
+      dugmeler.appendChild(d);
+      return d;
+    };
+    const vazgec = dugme('Vazgeç');
+    const cek = tara ? null : dugme('Çek');
+    ortu.append(video, dugmeler);
+    belge.body.appendChild(ortu);
+    let bitti_mi = false;
+    const bitir = (deger) => {
+      if (bitti_mi) return;
+      bitti_mi = true;
+      akis.getTracks().forEach((t) => t.stop());
+      ortu.remove();
+      if (deger != null) bitti(deger);
+    };
+    vazgec.onclick = () => bitir(null);
+    video.srcObject = akis;
+    await video.play().catch(() => {});
+    if (cek) {
+      cek.onclick = () => {
+        const tuval = belge.createElement('canvas');
+        const olcek = Math.min(1, 1280 / Math.max(video.videoWidth || 1, video.videoHeight || 1));
+        tuval.width = Math.round((video.videoWidth || 640) * olcek);
+        tuval.height = Math.round((video.videoHeight || 480) * olcek);
+        tuval.getContext('2d').drawImage(video, 0, 0, tuval.width, tuval.height);
+        bitir(tuval.toDataURL('image/jpeg', 0.85));
+      };
+      return;
+    }
+    const ara = async () => {
+      if (bitti_mi) return;
+      try {
+        const k = await algila.detect(video);
+        if (k.length) return bitir(k[0].rawValue);
+      } catch { /* kare henüz hazır değil */ }
+      pencere.setTimeout(ara, 250);
+    };
+    ara();
+  }
+  function konumAl(belge, bitti) {
+    const n = belge.defaultView.navigator;
+    if (!n.geolocation) { belge.defaultView.alert('Bu cihazda konum alınamıyor.'); return; }
+    n.geolocation.getCurrentPosition(
+      (k) => bitti(k.coords.latitude.toFixed(6) + ',' + k.coords.longitude.toFixed(6)),
+      (e) => belge.defaultView.alert('Konum alınamadı: ' + e.message),
+      { enableHighAccuracy: true, timeout: 20000 },
+    );
+  }
   const KAPSAYICI = { 'satır': 1, 'sütun': 1, 'kart': 1, 'kutu': 1, 'ızgara': 1, 'iletişim_kutusu': 1 };
   const YAZILI = { 'başlık': 1, 'alt_başlık': 1, 'yazı': 1, 'düğme': 1, 'bağlantı': 1 };
   const RENKLER = {
@@ -1086,6 +1191,14 @@
         }
       } else if (v.tur === 'seçim') {
         el.addEventListener('change', () => olay('bağ', el.value));
+      } else if (CIHAZ_METNI[v.tur]) {
+        el.type = 'button';
+        const sonuc = (d) => olay('bağ', d);
+        el.addEventListener('click', () => {
+          if (v.tur === 'dosya_seç') dosyaSor(belge, el.__kabul || '', (f) => dosyaOku(f, sonuc));
+          else if (v.tur === 'konum') konumAl(belge, sonuc);
+          else kameraAc(belge, v.tur === 'karekod_okuyucu', sonuc);
+        });
       } else if (v.tur === 'bağlantı') {
         el.target = '_blank';
         el.rel = 'noopener';
@@ -1209,6 +1322,16 @@
           el.placeholder = o.yer_tutucu || '';
           el.disabled = o.etkin === 'yanlış';
           degerYaz(el, o['değer'] || '');
+          break;
+        }
+        case 'kamera':
+        case 'karekod_okuyucu':
+        case 'konum':
+        case 'dosya_seç': {
+          const yazi = o.metin || CIHAZ_METNI[v.tur];
+          if (el.textContent !== yazi) el.textContent = yazi;
+          el.disabled = o.etkin === 'yanlış';
+          el.__kabul = o['tür'] || '';
           break;
         }
         case 'kaydırıcı':

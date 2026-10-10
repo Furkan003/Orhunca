@@ -19,6 +19,9 @@ import android.os.Vibrator;
 import android.util.Log;
 import android.view.View;
 import android.webkit.ConsoleMessage;
+import android.webkit.GeolocationPermissions;
+import android.webkit.PermissionRequest;
+import android.webkit.ValueCallback;
 import android.view.WindowInsets;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
@@ -33,6 +36,12 @@ public class AnaEtkinlik extends Activity {
     private WebView sayfa;
     /** İzin istenirken gönderilmek istenen bildirim (izin verilince gösterilir). */
     private String[] bekleyenBildirim;
+    /** Kamera/konum izni beklenirken sayfanın isteği (izin gelince yanıtlanır). */
+    private PermissionRequest bekleyenKamera;
+    private GeolocationPermissions.Callback bekleyenKonum;
+    private String bekleyenKonumKaynagi;
+    /** Dosya seçme penceresinin sonucu sayfaya bununla döner. */
+    private ValueCallback<Uri[]> dosyaSecimi;
 
     @Override
     protected void onCreate(Bundle durum) {
@@ -43,12 +52,52 @@ public class AnaEtkinlik extends Activity {
         a.setDomStorageEnabled(true);
         a.setAllowFileAccess(true);
         a.setMediaPlaybackRequiresUserGesture(false);
+        a.setGeolocationEnabled(true);
         sayfa.addJavascriptInterface(new Kopru(), "OrhuncaMobil");
         // Sayfadaki hatalar ve console.log iletileri logcat'e (etiket: Orhunca)
         sayfa.setWebChromeClient(new WebChromeClient() {
             @Override
             public boolean onConsoleMessage(ConsoleMessage m) {
                 Log.i("Orhunca", m.message() + " (" + m.sourceId() + ":" + m.lineNumber() + ")");
+                return true;
+            }
+
+            /** kamera ve karekod_okuyucu: getUserMedia için CAMERA izni. */
+            @Override
+            public void onPermissionRequest(PermissionRequest istek) {
+                runOnUiThread(() -> {
+                    if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                        istek.grant(istek.getResources());
+                    } else {
+                        bekleyenKamera = istek;
+                        requestPermissions(new String[] {Manifest.permission.CAMERA}, 2);
+                    }
+                });
+            }
+
+            /** konum: navigator.geolocation için konum izni. */
+            @Override
+            public void onGeolocationPermissionsShowPrompt(String kaynak, GeolocationPermissions.Callback geri) {
+                if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                    geri.invoke(kaynak, true, false);
+                } else {
+                    bekleyenKonum = geri;
+                    bekleyenKonumKaynagi = kaynak;
+                    requestPermissions(new String[] {Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, 3);
+                }
+            }
+
+            /** dosya_seç: sistemin dosya seçicisi. */
+            @Override
+            public boolean onShowFileChooser(WebView w, ValueCallback<Uri[]> geri, FileChooserParams ayar) {
+                if (dosyaSecimi != null) dosyaSecimi.onReceiveValue(null);
+                dosyaSecimi = geri;
+                try {
+                    startActivityForResult(ayar.createIntent(), 4);
+                } catch (Exception e) {
+                    dosyaSecimi = null;
+                    return false;
+                }
                 return true;
             }
         });
@@ -153,8 +202,29 @@ public class AnaEtkinlik extends Activity {
     private static int bildirimSayaci = 1;
 
     @Override
+    protected void onActivityResult(int kod, int sonuc, Intent veri) {
+        super.onActivityResult(kod, sonuc, veri);
+        if (kod == 4 && dosyaSecimi != null) {
+            dosyaSecimi.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(sonuc, veri));
+            dosyaSecimi = null;
+        }
+    }
+
+    @Override
     public void onRequestPermissionsResult(int kod, String[] izinler, int[] sonuclar) {
         super.onRequestPermissionsResult(kod, izinler, sonuclar);
+        boolean verildi = sonuclar.length > 0 && sonuclar[0] == PackageManager.PERMISSION_GRANTED;
+        if (kod == 2 && bekleyenKamera != null) {
+            if (verildi) bekleyenKamera.grant(bekleyenKamera.getResources());
+            else bekleyenKamera.deny();
+            bekleyenKamera = null;
+            return;
+        }
+        if (kod == 3 && bekleyenKonum != null) {
+            bekleyenKonum.invoke(bekleyenKonumKaynagi, verildi, false);
+            bekleyenKonum = null;
+            return;
+        }
         String[] b = bekleyenBildirim;
         bekleyenBildirim = null;
         if (kod == 1 && b != null && sonuclar.length > 0 && sonuclar[0] == PackageManager.PERMISSION_GRANTED) {
