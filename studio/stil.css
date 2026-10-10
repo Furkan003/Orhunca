@@ -877,3 +877,8 @@ details.tema-grup summary { cursor: pointer; }
 .ay-sil:hover { color: var(--hata); }
 .soru-mesaj { white-space: pre-wrap; font-size: 13px; line-height: 1.5; color: var(--yazi); margin-bottom: 10px; max-height: 50vh; overflow: auto; }
 .dugme.birincil.tehlikeli { background: var(--hata); border-color: var(--hata); color: #fff; }
+.vt-tablo { max-height: 60vh; overflow: auto; margin-top: 8px; border: 1px solid var(--cizgi, #333); border-radius: 8px; }
+.vt-tablo table { border-collapse: collapse; font: 12.5px/1.5 var(--mono); width: 100%; }
+.vt-tablo th, .vt-tablo td { padding: 4px 10px; border-bottom: 1px solid var(--cizgi, #333); text-align: left; white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+.vt-tablo th { position: sticky; top: 0; background: var(--koyu); }
+#vtSql { width: 100%; resize: vertical; }

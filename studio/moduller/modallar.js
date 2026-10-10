@@ -80,6 +80,7 @@
     }
     if (m.tur === 'soru') return kabuk(kac(m.baslik), `<div class="soru-mesaj">${kac(m.mesaj)}</div>${m.girdi !== null ? `<input id="soruGirdi" class="metin-girdi" value="${kac(m.girdi)}" spellcheck="false" autocomplete="off">` : ''}`,
       `<div style="flex:1"></div><div class="dugme" data-e="modalKapat">İptal</div><div class="dugme birincil ${m.tehlikeli ? 'tehlikeli' : ''}" id="soruOnay" tabindex="0" data-e="soruOnayla">${kac(m.dugme)}</div>`);
+    if (m.tur === 'vt') return cizVt(kabuk);
     if (m.tur === 'gorunum') return cizGorunum(kabuk);
     if (m.tur === 'ceviri') return cizCeviri(kabuk);
     if (m.tur === 'gecmis') return cizGecmis(kabuk);

@@ -42,7 +42,7 @@
     }
     if (!(await degisiklikleriKoru())) return;
     if (D.calisma) await durdur();
-    D.proje = bilgi; D.kisitliSeritKapali = false; D.sinamalar = null; D.sinamaSonuc = {}; D.git = null; D.gitMesaj = '';
+    D.proje = bilgi; D.kisitliSeritKapali = false; D.sinamalar = null; D.vt = null; D.sinamaSonuc = {}; D.git = null; D.gitMesaj = '';
     D.onizleme = null;
     D.sekmeler = []; D.etkin = null; D.sorunlar = []; D.uyarilar = []; D.terminal = []; D.cikti = [];
     D.kapaliKlasorler = new Set(); D.calisma = null; D.menu = null; D.modal = null;

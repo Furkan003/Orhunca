@@ -24,7 +24,7 @@
     izlenenler: ayarOku('izlenenler', []),
     // Web projelerinde canlı önizleme: { kapi, adres, yol, durum: bekliyor|acik|hata|durdu, surum }
     onizleme: null, onizlemeAcik: true,
-    yanPanel: 'gezgin', sinamalar: null, sinamaSonuc: {}, sinamaMesgul: null, araMetin: '', araSonuc: [], degistirMetin: '', tamKelime: false,
+    yanPanel: 'gezgin', vt: null, sinamalar: null, sinamaSonuc: {}, sinamaMesgul: null, araMetin: '', araSonuc: [], degistirMetin: '', tamKelime: false,
     paketler: [], paketKaynagi: '', paketMesgul: false, paketDizini: null, paketDizinHatasi: '',
     menu: null, modal: null, bildirim: null,
     yaziBoyutu: ayarOku('yaziBoyutu', 13),

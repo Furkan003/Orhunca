@@ -1,7 +1,7 @@
 //! Stüdyo arayüzünün çağırdığı JSON uç noktaları.
 
 use super::http::{Istek, Yanit};
-use super::{asistan, calisma, depo, gecmis, git, sablonlar, temalar};
+use super::{asistan, calisma, depo, gecmis, git, sablonlar, temalar, veritabani};
 use crate::{agac, derleme};
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
@@ -257,6 +257,13 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
             Yanit::json(&json!({ "tamam": true }))
         }
         ("POST", "/api/derle") => derle(metin(&g, "dosya"), metin(&g, "hedef")),
+        ("GET", "/api/veritabani") => vt_islemi(istek.sorgu("kok"), |k| veritabani::ozet(k)),
+        ("GET", "/api/veritabani/json") => vt_islemi(istek.sorgu("kok"), |k| {
+            veritabani::json_kayitlari(k, istek.sorgu("model"))
+        }),
+        ("POST", "/api/veritabani/sorgu") => vt_islemi(metin(&g, "kok"), |k| {
+            veritabani::sorgula(k, metin(&g, "sorgu"))
+        }),
         ("GET", "/api/paket/liste") => paket_listesi(istek.sorgu("kok")),
         ("GET", "/api/paket/dizin") => match crate::paket::dizin() {
             Ok(l) => Yanit::json(&json!({ "paketler": l.into_iter().map(|p| json!({
@@ -1023,6 +1030,21 @@ fn paket_listesi(kok: &str) -> Yanit {
 
 /// Kısıtlı mod: güvenilmeyen projede kod çalıştıran ya da indiren işlemler yapılmaz. Arayüz
 /// `guvensiz` yanıtını görünce kullanıcıya projeye güvenip güvenmediğini sorar.
+/// Veritabanı görüntüleyicisi: açık ve güvenilir bir projede çalışır.
+fn vt_islemi(kok: &str, islem: impl FnOnce(&Path) -> Result<Value, String>) -> Yanit {
+    let kok = PathBuf::from(kok);
+    if !izinli_mi(&kok) {
+        return Yanit::hata(403, "bu klasöre erişim yok");
+    }
+    if let Some(y) = guven_gerekli(&kok, "veritabanı görüntüleyici") {
+        return y;
+    }
+    match islem(&kok) {
+        Ok(d) => Yanit::json(&json!({ "sonuc": d })),
+        Err(e) => hata(e),
+    }
+}
+
 fn guven_gerekli(yol: &Path, islem: &str) -> Option<Yanit> {
     if depo::guvenilir_mi(yol) {
         return None;

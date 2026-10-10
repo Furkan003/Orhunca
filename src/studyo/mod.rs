@@ -16,6 +16,7 @@ pub use depo::ayar_klasoru;
 mod http;
 pub mod sablonlar;
 mod temalar;
+mod veritabani;
 
 use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hasher};

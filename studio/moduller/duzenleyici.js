@@ -51,7 +51,7 @@
   }
 
   function cizEtkinlik() {
-    const ogeler = [['gezgin', 'description', 'Gezgin'], ['ara', 'search', 'Ara'], ['yapi', 'account_tree', 'Yapı'], ['git', 'fork_right', 'Git'], ['calistir', 'play_circle', 'Çalıştır'], ['sinamalar', 'task_alt', 'Sınamalar'], ['dersler', 'school', 'Dersler'], ['eklentiler', 'extension', 'Paketler']];
+    const ogeler = [['gezgin', 'description', 'Gezgin'], ['ara', 'search', 'Ara'], ['yapi', 'account_tree', 'Yapı'], ['git', 'fork_right', 'Git'], ['calistir', 'play_circle', 'Çalıştır'], ['sinamalar', 'task_alt', 'Sınamalar'], ['veritabani', 'database', 'Veritabanı'], ['dersler', 'school', 'Dersler'], ['eklentiler', 'extension', 'Paketler']];
     $('#etkinlik').innerHTML = ogeler.map(([id, simge, ad]) => `<span class="simge ${D.yanPanel === id ? 'etkin' : ''}" title="${ad}" data-e="yanPanelSec" data-a="${id}">${simge}</span>`).join('')
       + (asistanAcik() ? `<span class="simge ${D.asistanPaneliAcik ? 'etkin' : ''}" title="Yapay zekâ asistanı (Ctrl+I)" data-e="asistanAcKapa">smart_toy</span>` : '')
       + `<div style="flex:1"></div><span class="simge" title="Başlangıç ekranı" data-e="baslangicaDon">home</span><span class="simge" title="Ayarlar" data-e="ayarlarModal">settings</span>`;
@@ -104,6 +104,8 @@
       kap.innerHTML = baslik('GIT', ek + `<span class="simge" title="Yenile" data-e="gitYukle">refresh</span>`) + `<div class="panel-ic">${gitPaneli()}</div>`;
     } else if (D.yanPanel === 'sinamalar') {
       kap.innerHTML = baslik('SINAMALAR', `<span class="simge" title="Hepsini çalıştır" data-e="sinamalariCalistir">play_arrow</span><span class="simge" title="Yenile" data-e="sinamalariYukle">refresh</span>`) + `<div class="panel-ic">${sinamaPaneli()}</div>`;
+    } else if (D.yanPanel === 'veritabani') {
+      kap.innerHTML = baslik('VERİTABANI', `<span class="simge" title="SQL sorgusu" data-e="vtSorguAc">terminal</span><span class="simge" title="Yenile" data-e="vtYukle">refresh</span>`) + `<div class="panel-ic">${vtPaneli()}</div>`;
     } else if (D.yanPanel === 'dersler') {
       kap.innerHTML = baslik('DERSLER') + `<div class="panel-ic ders-panel">${dersPaneli()}</div>`;
       kap.querySelectorAll('pre[data-orhunca]').forEach(p => { p.innerHTML = p.textContent.split('\n').map(x => vurgula(x, 'ohc')).join('\n'); });

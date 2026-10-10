@@ -467,7 +467,12 @@
       if (e.target.closest('.acilir-menu')) return;
       D.menu = D.menu === ad ? null : ad; guncelle('baslik');
     },
-    yanPanelSec(p) { D.yanPanel = p; guncelle('etkinlik', 'yan'); if (p === 'ara') $('#araMetin')?.focus(); if (p === 'eklentiler') paketleriYukle(); if (p === 'sinamalar') sinamalariYukle(); if (p === 'git') gitYukle(); },
+    yanPanelSec(p) { D.yanPanel = p; guncelle('etkinlik', 'yan'); if (p === 'ara') $('#araMetin')?.focus(); if (p === 'eklentiler') paketleriYukle(); if (p === 'sinamalar') sinamalariYukle(); if (p === 'git') gitYukle(); if (p === 'veritabani') vtYukle(); },
+    vtYukle() { vtYukle(); },
+    vtSorguAc() { vtAc('sql', ''); },
+    vtJsonAc(m) { vtAc('json', m); },
+    vtTabloAc(t) { vtAc('sql', t); },
+    vtSorgula() { vtSorgula(); },
     sinamalariYukle() { sinamalariYukle(); },
     gitYukle() { gitYukle(); },
     gitBaslat() { gitIslem('/api/git/baslat', {}, 'Git deposu başlatıldı.'); },

@@ -90,6 +90,76 @@
     return ozet + satirlar;
   }
 
+  /** Veritabanı paneli: JSON kayıt dosyaları ve SQL tabloları. */
+  function vtPaneli() {
+    const V = D.vt;
+    if (!D.proje) return '<div class="panel-not">Önce bir proje açın.</div>';
+    if (!V) { vtYukle(); return '<div class="panel-not">Yükleniyor…</div>'; }
+    if (V.hata) return `<div class="panel-not">${kac(V.hata)}</div>`;
+    const ad = { json: 'JSON dosyaları', sqlite: 'SQLite', postgresql: 'PostgreSQL', mysql: 'MySQL / MariaDB', sqlserver: 'SQL Server' }[V.tur] || V.tur;
+    const oge = (e, a, s) => `<div class="yapi-oge" data-e="${e}" data-a="${kac(a)}">${S(s, '', 'font-size:15px')}<span class="esnek">${kac(a)}</span></div>`;
+    let h = `<div class="panel-not">Depolama: <b>${ad}</b><br><span style="color:var(--yazi2)">.env içindeki ORHUNCA_VERITABANI ile değişir.</span></div>`;
+    if (V.json.length) h += '<div class="panel-not"><b>Kayıt dosyaları (veri/)</b></div>' + V.json.map(m => oge('vtJsonAc', m, 'data_object')).join('');
+    if (V.sql.length) h += '<div class="panel-not"><b>SQL tabloları</b></div>' + V.sql.map(t => oge('vtTabloAc', t, 'table')).join('');
+    if (V.sql_hatasi) h += `<div class="sinama-mesaj">${kac(V.sql_hatasi)}</div>`;
+    if (!V.json.length && !V.sql.length) h += '<div class="panel-not">Henüz kayıt yok. Programı çalıştırıp bir model kaydettiğinizde burada görünür.</div>';
+    return h;
+  }
+
+  async function vtYukle() {
+    if (!D.proje) return;
+    const r = await api('/api/veritabani?' + sorgu({ kok: D.proje.yol })).catch(e => ({ hata: e.message }));
+    D.vt = r.hata ? { hata: r.hata } : r.sonuc;
+    if (D.yanPanel === 'veritabani') cizYanPanel();
+  }
+
+  function vtAd(t) {
+    return D.vt?.tur === 'mysql' ? '`' + t + '`' : D.vt?.tur === 'sqlserver' ? '[' + t + ']' : '"' + t + '"';
+  }
+
+  async function vtAc(tur, ad) {
+    if (tur === 'sql' && !(await guvenSor('Veritabanı sorgusu çalıştırmak'))) return;
+    const sql = tur === 'sql' && ad ? (D.vt?.tur === 'sqlserver' ? `SELECT TOP 200 * FROM ${vtAd(ad)}` : `SELECT * FROM ${vtAd(ad)} LIMIT 200`) : '';
+    D.modal = { tur: 'vt', kip: tur, ad, sql, satirlar: null, hata: '' };
+    katmanlariCiz();
+    if (tur === 'json') {
+      const r = await api('/api/veritabani/json?' + sorgu({ kok: D.proje.yol, model: ad })).catch(e => ({ hata: e.message }));
+      Object.assign(D.modal, r.hata ? { hata: r.hata, satirlar: [] } : { satirlar: r.sonuc });
+      katmanlariCiz();
+    } else if (sql) vtSorgula();
+  }
+
+  async function vtSorgula() {
+    const m = D.modal;
+    if (m?.tur !== 'vt') return;
+    m.sql = $('#vtSql')?.value ?? m.sql;
+    m.calisiyor = true; m.hata = ''; katmanlariCiz();
+    const r = await api('/api/veritabani/sorgu', { kok: D.proje.yol, sorgu: m.sql }).catch(e => ({ hata: e.message }));
+    m.calisiyor = false;
+    Object.assign(m, r.hata ? { hata: r.hata, satirlar: [] } : { satirlar: Array.isArray(r.sonuc) ? r.sonuc : [r.sonuc] });
+    katmanlariCiz();
+    if (!/^\s*(select|with|show|pragma)/i.test(m.sql)) vtYukle();
+  }
+
+  function vtTablosu(satirlar) {
+    if (!satirlar) return '<div class="donen kucuk"></div>';
+    if (!satirlar.length) return '<div class="panel-not">Kayıt yok.</div>';
+    const sutunlar = [...new Set(satirlar.flatMap(s => s && typeof s === 'object' ? Object.keys(s) : ['değer']))];
+    const hucre = d => kac(d == null ? '' : typeof d === 'object' ? JSON.stringify(d) : String(d));
+    return `<div class="vt-tablo"><table><thead><tr>${sutunlar.map(s => `<th>${kac(s)}</th>`).join('')}</tr></thead><tbody>${
+      satirlar.map(s => `<tr>${sutunlar.map(k => `<td>${hucre(s && typeof s === 'object' ? s[k] : s)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+      <div class="panel-not">${satirlar.length} satır</div>`;
+  }
+
+  function cizVt(kabuk) {
+    const m = D.modal;
+    const ust = m.kip === 'sql'
+      ? `<textarea id="vtSql" class="metin-girdi mono" rows="4" spellcheck="false" placeholder="SELECT * FROM ...">${kac(m.sql)}</textarea>`
+      : '';
+    return kabuk(m.kip === 'json' ? `veri/${kac(m.ad)}.json` : 'SQL sorgusu', ust + (m.hata ? `<div class="modal-hata">${kac(m.hata)}</div>` : '') + vtTablosu(m.kip === 'sql' && !m.sql ? [] : m.satirlar),
+      m.kip === 'sql' ? `${m.calisiyor ? '<div class="donen kucuk"></div>' : ''}<div class="dugme" data-e="modalKapat">Kapat</div><div class="dugme birincil" data-e="vtSorgula">Çalıştır</div>` : '<div class="dugme" data-e="modalKapat">Kapat</div>');
+  }
+
   async function sinamalariYukle() {
     if (!D.proje) return;
     const r = await api('/api/sinamalar?' + sorgu({ kok: D.proje.yol })).catch(e => ({ hata: e.message }));
