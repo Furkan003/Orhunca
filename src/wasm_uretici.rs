@@ -2265,6 +2265,14 @@ impl Uretici<'_> {
                 d.push(satir);
                 self.cagri("ohc_guvenli_anahtar", &d)?
             }
+            "js_çalıştır" => {
+                d.push(satir);
+                self.cagri("ohc_js_calistir", &d)?
+            }
+            "js_yükle" => {
+                d.push(satir);
+                self.cagri("ohc_js_yukle", &d)?
+            }
             "rastgele" => {
                 d.push(satir);
                 self.cagri("ohc_rastgele_aralik", &d)?

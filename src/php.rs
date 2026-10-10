@@ -84,6 +84,8 @@ const YERLESIKLER: &[(&str, &str)] = &[
     ("ham", "o_ham"),
     ("sun", "o_sun"),
     ("titret", "o_etkisiz"),
+    ("js_çalıştır", "o_bos_metin"),
+    ("js_yükle", "o_etkisiz"),
     ("paylaş", "o_etkisiz"),
     ("bildirim_gönder", "o_etkisiz"),
     ("tema", "o_etkisiz"),

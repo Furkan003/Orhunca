@@ -532,6 +532,16 @@ pub const YERLESIKLER: &[Yerlesik] = &[
         "fare_basılı() → mantık",
         "Fare düğmesi basılı ya da ekrana dokunuluyor mu?"
     ),
+    y!(
+        "js_çalıştır",
+        "js_çalıştır(kod) → metin",
+        "Web hedefinde JavaScript kodunu çalıştırır, sonucu metin olarak döndürür: js_çalıştır(\"navigator.language\"). Bilgisayar programında boş metin döner."
+    ),
+    y!(
+        "js_yükle",
+        "js_yükle(adres)",
+        "Web hedefinde bir JavaScript kütüphanesini sayfaya ekler (yüklenince js_çalıştır ile kullanılır): js_yükle(\"https://cdn.jsdelivr.net/npm/chart.js\")"
+    ),
 ];
 
 /// Başvuru belgesinin bölümleri: (bölüm adı, bölümün ilk işlevi). YERLESIKLER bu sırayla
@@ -550,6 +560,7 @@ pub const BOLUMLER: &[(&str, &str)] = &[
     ("Telefon", "titret"),
     ("Arayüz", "tema"),
     ("Oyun", "temizle"),
+    ("JavaScript", "js_çalıştır"),
 ];
 
 /// İşlevin başvuru belgesindeki bölümü.

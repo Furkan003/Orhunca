@@ -888,6 +888,32 @@ int64_t ohc_guvenli_anahtar(int64_t n, int64_t satir) {
     return metin_yap(s, (size_t)(2 * n));
 }
 
+/* JavaScript köprüsü: yalnızca web hedefinde (tarayıcıda) çalışır. */
+int64_t ohc_js_calistir(int64_t kod, int64_t satir) {
+#ifdef __wasm__
+    int32_t n = 0, h = 0;
+    char *c = js_js_calistir(M(kod), &n, &h);
+    if (!c) return metin_yap("", 0);
+    if (h) hata(satir, c);
+    int64_t s = metin_yap(c, (size_t)n);
+    free(c);
+    return s;
+#else
+    (void)kod;
+    (void)satir;
+    return metin_yap("", 0);
+#endif
+}
+
+void ohc_js_yukle(int64_t adres, int64_t satir) {
+    (void)satir;
+#ifdef __wasm__
+    js_js_yukle(M(adres));
+#else
+    (void)adres;
+#endif
+}
+
 /* 64 × 64 bitlik çarpımın üst 64 biti */
 static uint64_t ust_carpim(uint64_t a, uint64_t b) {
     uint64_t a0 = (uint32_t)a, a1 = a >> 32, b0 = (uint32_t)b, b1 = b >> 32;

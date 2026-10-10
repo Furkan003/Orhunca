@@ -2127,6 +2127,8 @@ impl Denetci {
             ("rastgele", []) => Ondalik,
             ("rastgele", [Sayi, Sayi]) => Sayi,
             ("güvenli_anahtar", [Sayi]) => Metin,
+            ("js_çalıştır", [Metin]) => Metin,
+            ("js_yükle", [Metin]) => Bos,
             ("zaman", []) => Ondalik,
             ("tarih" | "oku", []) => Metin,
             ("bekle", [x]) if x.sayisal() => {

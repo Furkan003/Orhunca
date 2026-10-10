@@ -1586,6 +1586,9 @@ impl Cevirici {
                     ithal(self, "secrets");
                     atom(format!("secrets.token_hex({})", a[0]))
                 }
+                // JavaScript köprüsü yalnızca tarayıcıda anlamlıdır.
+                ("js_çalıştır", 1) => atom("\"\"".into()),
+                ("js_yükle", 1) => atom("None".into()),
                 ("sql_sorgu" | "sql_çalıştır", 1 | 2) => {
                     ithal(self, "os");
                     ithal(self, "sqlite3");
@@ -1800,6 +1803,8 @@ impl Cevirici {
                     "require(\"crypto\").randomBytes({}).toString(\"hex\")",
                     a[0]
                 )),
+                ("js_çalıştır", 1) => atom(format!("String((0, eval)({}) ?? \"\")", a[0])),
+                ("js_yükle", 1) => atom("undefined".into()),
                 ("ortam", 1) => atom(format!("(process.env[{}] ?? \"\")", a[0])),
                 ("çık", 1) => atom(format!("process.exit({})", a[0])),
                 ("hata_ver", _) => atom(format!("throw new Error({})", a[0])),

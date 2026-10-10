@@ -23,6 +23,8 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
   const kodlayici = new TextEncoder();
+  // js_yükle ile eklenen kütüphane yüklenince arayüzü yeniden çizer (arayüz programı başlayınca atanır).
+  let jsYuklendi = null;
 
   /** Programın `çık(kod)` ile ya da bir çalışma hatasıyla bitmesi. */
   class Cikis {
@@ -306,6 +308,32 @@
         }
       },
       rastgele_tohum: () => (Math.random() * 4294967296) >>> 0,
+      js_calistir(kodP, n, hata) {
+        let sonuc;
+        let h = 0;
+        try {
+          const d = (0, eval)(metin(kodP));
+          sonuc = d === undefined || d === null ? '' : typeof d === 'object' ? JSON.stringify(d) : String(d);
+        } catch (e) {
+          sonuc = 'JavaScript hatası: ' + ((e && e.message) || e);
+          h = 1;
+        }
+        const b = kodlayici.encode(sonuc);
+        sayiYaz(n, b.length);
+        sayiYaz(hata, h);
+        return ayir(b);
+      },
+      js_yukle(adresP) {
+        if (typeof document === 'undefined') return;
+        const adres = metin(adresP);
+        if (document.querySelector('script[data-orhunca-js="' + CSS.escape(adres) + '"]')) return;
+        const s = document.createElement('script');
+        s.src = adres;
+        s.dataset.orhuncaJs = adres;
+        // Yüklenince arayüz yeniden çizilsin: kütüphaneye bağlı yazılar güncellenir.
+        s.onload = () => { if (jsYuklendi) jsYuklendi(); };
+        document.head.appendChild(s);
+      },
       guvenli_rastgele(tamam) {
         const c = globalThis.crypto;
         if (!c || !c.getRandomValues) return 0;
@@ -444,6 +472,13 @@
       },
     };
 
+    // Tarayıcıda `bekle`: JavaScript Promise Integration (JSPI) varsa program askıya alınır ve
+    // sayfa donmaz (çıktı ve çizim sürer). Yoksa eskisi gibi meşgul bekler. Node'da s.bekle var.
+    const jspi = !s.bekle && typeof WebAssembly.Suspending === 'function' && typeof WebAssembly.promising === 'function';
+    if (jspi) js.bekle = new WebAssembly.Suspending((saniye) => new Promise((r) => setTimeout(r, Math.max(0, Number(saniye)) * 1000)));
+    // Askıya alınabilen çağrılar sırayla çalışır (iki çağrı aynı yığını kullanmasın).
+    let sira = Promise.resolve();
+    const askida = (f) => (jspi ? WebAssembly.promising(f) : f);
     const rtOrnek = await ornekle(s.calismaZamani, { js });
     rt = rtOrnek.exports;
     bellek = rt.memory;
@@ -466,7 +501,7 @@
 
     try {
       rt.ohc_wasm_baslat();
-      prog.exports.ohc_ana();
+      await askida(prog.exports.ohc_ana)();
     } catch (h) {
       return { kod: hataKodu(h), uygulama: null };
     }
@@ -486,6 +521,7 @@
       agac = kok;
       if (dom) dom(agac);
     };
+    jsYuklendi = () => { if (!durdu) { try { ciz(); } catch { /* çizim hatası olayda görünür */ } } };
     const tetikle = (no, deger) => {
       if (durdu) return 1;
       try {
@@ -494,6 +530,14 @@
           const b = kodlayici.encode(String(deger));
           p = Number(rt.ohc_wasm_metin(BigInt(b.length)));
           u8().set(b, p);
+        }
+        if (jspi) {
+          const olay = askida(prog.exports.ohc_olay);
+          sira = sira.then(() => olay(no, p)).then(ciz, (h) => {
+            durdu = true;
+            hataKodu(h);
+          });
+          return 0;
         }
         prog.exports.ohc_olay(no, p);
         ciz();
@@ -506,6 +550,14 @@
     ertelenen = (no) => {
       if (durdu) return;
       try {
+        if (jspi) {
+          const f = askida(prog.exports.ohc_ertelenen);
+          sira = sira.then(() => f(no)).then(ciz, (h) => {
+            durdu = true;
+            hataKodu(h);
+          });
+          return;
+        }
         prog.exports.ohc_ertelenen(no);
         ciz();
       } catch (h) {
