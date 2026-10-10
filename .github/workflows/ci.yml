@@ -144,7 +144,8 @@ jobs:
         run: |
           if command -v sqllocaldb > /dev/null 2>&1; then
             sqllocaldb start MSSQLLocalDB
-            export ORHUNCA_DENEME_SQLSERVER='sqlserver://(localdb)\MSSQLLocalDB/orhunca_sinama'
+            # Git Bash ortam değişkenindeki \ işaretini / yapar; adreste %5C olarak yazılır.
+            export ORHUNCA_DENEME_SQLSERVER='sqlserver://(localdb)%5CMSSQLLocalDB/orhunca_sinama'
           else
             echo "LocalDB yok; yalnızca SQLite sınanıyor"
           fi
