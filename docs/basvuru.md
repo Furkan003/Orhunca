@@ -7,7 +7,7 @@ Orhunca'nın her programda hazır bulunan işlevleri. Terminalde aramak için
 ve kodda işlevin üzerine gelince de görünür. Dilin kendisi (değişkenler, koşullar,
 döngüler, fiiller, modeller) için: [dil rehberi](dil-rehberi.md).
 
-**Bölümler:** Dönüşümler · Metin · Liste ve sözlük · Dosya · Matematik · Zaman ve sistem · Desenler (düzenli ifadeler) · CSV · Program · Web · Telefon · Arayüz · Oyun · Sınama
+**Bölümler:** Dönüşümler · Metin · Liste ve sözlük · Dosya · Matematik · Zaman ve sistem · Desenler (düzenli ifadeler) · CSV · Program · Web · Telefon · Arayüz · Oyun · JavaScript · Sınama
 
 ## Dönüşümler
 
@@ -190,6 +190,13 @@ Arayüz programlarında (tarayıcıda ve masaüstü paketinde) çalışır.
 | `fare_x` | `fare_x() → sayı` | Farenin (ya da parmağın) oyun alanındaki x konumu. |
 | `fare_y` | `fare_y() → sayı` | Farenin (ya da parmağın) oyun alanındaki y konumu. |
 | `fare_basılı` | `fare_basılı() → mantık` | Fare düğmesi basılı ya da ekrana dokunuluyor mu? |
+
+## JavaScript
+
+| İşlev | Kullanım | Açıklama |
+|---|---|---|
+| `js_çalıştır` | `js_çalıştır(kod) → metin` | Web hedefinde JavaScript kodunu çalıştırır, sonucu metin olarak döndürür: js_çalıştır("navigator.language"). Bilgisayar programında boş metin döner. |
+| `js_yükle` | `js_yükle(adres)` | Web hedefinde bir JavaScript kütüphanesini sayfaya ekler (yüklenince js_çalıştır ile kullanılır): js_yükle("https://cdn.jsdelivr.net/npm/chart.js") |
 
 ## Sınama
 

@@ -155,7 +155,7 @@ işlev standart_kütüphane() -> liste<metin>:
 
 # Arayüz öğeleri ve olayları (src/arayuz.rs)
 işlev arayüz_öğeleri() -> liste<metin>:
-    döndür ["başlık", "alt_başlık", "yazı", "düğme", "bağlantı", "resim", "ayraç", "boşluk", "giriş", "metin_alanı", "onay_kutusu", "seçim", "kaydırıcı", "ilerleme", "tablo", "grafik", "sekmeler", "iletişim_kutusu", "satır", "sütun", "kart", "kutu", "ızgara", "zamanlayıcı", "oyun_alanı"]
+    döndür ["başlık", "alt_başlık", "yazı", "düğme", "bağlantı", "resim", "ayraç", "boşluk", "giriş", "metin_alanı", "onay_kutusu", "seçim", "kaydırıcı", "ilerleme", "tablo", "grafik", "sekmeler", "iletişim_kutusu", "satır", "sütun", "kart", "kutu", "ızgara", "zamanlayıcı", "kamera", "karekod_okuyucu", "konum", "dosya_seç", "oyun_alanı"]
 
 işlev arayüz_olayları() -> liste<metin>:
     döndür ["tıklanınca", "değişince", "gönderilince", "çalınca", "her_karede"]
