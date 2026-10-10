@@ -69,7 +69,7 @@ döngüler, fiiller, modeller) için: [dil rehberi](dil-rehberi.md).
 | `dosya_var` | `dosya_var(yol) → mantık` | Dosya var mı? |
 | `dosya_sil` | `dosya_sil(yol) → mantık` | Dosyayı siler; silindiyse doğru. |
 | `dosya_taşı` | `dosya_taşı(eski, yeni) → mantık` | Dosyayı taşır ya da adını değiştirir (ör. yüklenen dosyayı statik/ klasörüne). |
-| `sql_sorgu` | `sql_sorgu(sorgu, [değerler]) → liste<sözlük<metin, metin>>` | SQLite veritabanında (veri/orhunca.sqlite) SELECT çalıştırır; her satır sütun adı → değer sözlüğüdür. `?` yerlerine değerler listesi konur: sql_sorgu("SELECT ad FROM Ürün WHERE fiyat > ?", ["100"]) |
+| `sql_sorgu` | `sql_sorgu(sorgu, [değerler]) → liste<sözlük<metin, metin>>` | Veritabanında (ORHUNCA_VERITABANI: SQLite, PostgreSQL, MySQL, SQL Server; ayar yoksa veri/orhunca.sqlite) SELECT çalıştırır; her satır sütun adı → değer sözlüğüdür. `?` yerlerine değerler listesi konur: sql_sorgu("SELECT ad FROM Ürün WHERE fiyat > ?", ["100"]) |
 | `sql_çalıştır` | `sql_çalıştır(sorgu, [değerler]) → sayı` | INSERT, UPDATE, DELETE, CREATE gibi SQL deyimlerini çalıştırır; değişen satır sayısını verir. Değerler `?` ile verilir (SQL enjeksiyonuna karşı güvenli). |
 
 ## Matematik

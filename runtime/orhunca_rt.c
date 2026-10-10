@@ -2726,23 +2726,314 @@ static int64_t kayit_sirasi(int64_t liste, int64_t kimlik) {
 }
 
 /* ---------------------------------------------------------------------- */
-/* SQLite: ORHUNCA_VERITABANI=sqlite ise modeller <veri>/orhunca.sqlite    */
-/* dosyasına yazılır. Kütüphane (Windows'ta winsqlite3.dll, Linux ve       */
-/* macOS'ta libsqlite3) çalışma anında yüklenir. Tablolar PHP çıktısıyla   */
-/* aynıdır: kimlik, sayı/mantık INTEGER, ondalık REAL, metin TEXT; liste,  */
-/* sözlük ve model alanları JSON metni olarak saklanır.                    */
+/* Veritabanları: ORHUNCA_VERITABANI ile modeller bir SQL veritabanına     */
+/* yazılır (yoksa veri/<Model>.json):                                      */
+/*   sqlite                                  <veri>/orhunca.sqlite         */
+/*   postgresql://kullanıcı:şifre@sunucu:kapı/ad                           */
+/*   mysql://kullanıcı:şifre@sunucu:kapı/ad          (MariaDB de)          */
+/*   sqlserver://kullanıcı:şifre@sunucu\ÖRNEK/ad     (kullanıcısız: Windows */
+/*                                                    kimlik doğrulaması)  */
+/* Sürücü kütüphaneleri (libsqlite3/winsqlite3, libpq, libmysql/libmariadb, */
+/* ODBC) çalışma anında yüklenir; programlar büyümez, derlemede bağımlılık  */
+/* gerekmez. Her model bir tablodur: kimlik, sayı/mantık tam sayı, ondalık  */
+/* kayan nokta, metin; liste, sözlük ve iç model alanları JSON metni.       */
+/* Tablolar SQLite ve MySQL'de PHP çıktısınınkiyle aynıdır.                */
 /* ---------------------------------------------------------------------- */
 
 #ifndef __wasm__
+#include <ctype.h>
+
+enum { VT_JSON, VT_SQLITE, VT_POSTGRES, VT_MYSQL, VT_MSSQL };
+
+/* Sorguya `?` yerine konan değer */
+typedef struct {
+    int tur; /* 0 NULL, 1 tam sayı, 2 ondalık, 3 metin */
+    int64_t s;
+    double o;
+    const char *m;
+} VtDeger;
+
+/* Bir deyimin sonucu: bütün değerler metin olarak (NULL hücre: SQL NULL) */
+typedef struct {
+    int sutun;
+    char **adlar;
+    int64_t satir_sayisi, kap;
+    char **hucreler; /* satir_sayisi × sutun */
+    int64_t degisen;
+    int64_t yeni_kimlik;
+} VtSonuc;
+
+static void vt_sonuc_birak(VtSonuc *s) {
+    for (int i = 0; i < s->sutun; i++) free(s->adlar[i]);
+    free(s->adlar);
+    for (int64_t i = 0; i < s->satir_sayisi * s->sutun; i++) free(s->hucreler[i]);
+    free(s->hucreler);
+    memset(s, 0, sizeof *s);
+}
+
+static void vt_sonuc_sutunlar(VtSonuc *s, int n) {
+    s->sutun = n;
+    s->adlar = ham_ayir(sizeof(char *) * (size_t)(n ? n : 1));
+    memset(s->adlar, 0, sizeof(char *) * (size_t)(n ? n : 1));
+}
+
+/* Yeni satırın hücreleri (hepsi NULL) */
+static char **vt_sonuc_satir(VtSonuc *s) {
+    if (s->satir_sayisi == s->kap) {
+        s->kap = s->kap ? s->kap * 2 : 16;
+        s->hucreler = ham_buyut(s->hucreler, sizeof(char *) * (size_t)(s->kap * (s->sutun ? s->sutun : 1)));
+    }
+    char **h = s->hucreler + s->satir_sayisi * s->sutun;
+    memset(h, 0, sizeof(char *) * (size_t)s->sutun);
+    s->satir_sayisi++;
+    return h;
+}
+
+static int ascii_esit(const char *a, const char *b) {
+    for (; *a && *b; a++, b++) {
+        char x = *a >= 'A' && *a <= 'Z' ? *a + 32 : *a, y = *b >= 'A' && *b <= 'Z' ? *b + 32 : *b;
+        if (x != y) return 0;
+    }
+    return !*a && !*b;
+}
+
+/* ---- Bağlantı adresi -------------------------------------------------- */
+
+typedef struct {
+    char *sunucu, *kullanici, *sifre, *ad, *secenekler;
+    int kapi;
+} VtAdres;
+
+static VtAdres vt_adres;
+static int vt_tur_durumu = -1;
+
+/* Adresin bir parçası; %C3%BC → ü */
+static char *adres_parcasi(const char *p, size_t n) {
+    char *k = ham_ayir(n + 1);
+    size_t j = 0;
+    for (size_t i = 0; i < n; i++) {
+        if (p[i] == '%' && i + 2 < n && isxdigit((unsigned char)p[i + 1]) && isxdigit((unsigned char)p[i + 2])) {
+            char h[3] = {p[i + 1], p[i + 2], 0};
+            k[j++] = (char)strtol(h, NULL, 16);
+            i += 2;
+        } else {
+            k[j++] = p[i];
+        }
+    }
+    k[j] = 0;
+    return k;
+}
+
+static void adres_coz(const char *v) {
+    const char *p = strstr(v, "://");
+    p = p ? p + 3 : v;
+    const char *yetki_son = p + strcspn(p, "/?");
+    const char *at = NULL;
+    for (const char *q = p; q < yetki_son; q++)
+        if (*q == '@') at = q;
+    const char *sunucu = p;
+    if (at) {
+        const char *iki = memchr(p, ':', (size_t)(at - p));
+        if (iki) {
+            vt_adres.kullanici = adres_parcasi(p, (size_t)(iki - p));
+            vt_adres.sifre = adres_parcasi(iki + 1, (size_t)(at - iki - 1));
+        } else {
+            vt_adres.kullanici = adres_parcasi(p, (size_t)(at - p));
+        }
+        sunucu = at + 1;
+    }
+    const char *sun_son = yetki_son;
+    for (const char *q = yetki_son; q > sunucu; q--) {
+        if (q[-1] == ':') {
+            vt_adres.kapi = atoi(q);
+            sun_son = q - 1;
+            break;
+        }
+        if (q[-1] < '0' || q[-1] > '9') break;
+    }
+    vt_adres.sunucu = adres_parcasi(sunucu, (size_t)(sun_son - sunucu));
+    if (*yetki_son == '/') {
+        const char *ad = yetki_son + 1;
+        size_t n = strcspn(ad, "?");
+        vt_adres.ad = adres_parcasi(ad, n);
+        yetki_son = ad + n;
+    }
+    if (*yetki_son == '?') vt_adres.secenekler = adres_parcasi(yetki_son + 1, strlen(yetki_son + 1));
+}
+
+static int vt_turu(void) {
+    if (vt_tur_durumu >= 0) return vt_tur_durumu;
+    vt_tur_durumu = VT_JSON;
+    const char *v = getenv("ORHUNCA_VERITABANI");
+    if (!v || !*v || ascii_esit(v, "json")) return vt_tur_durumu;
+    if (ascii_esit(v, "sqlite")) return vt_tur_durumu = VT_SQLITE;
+    size_t n = strcspn(v, ":");
+    char sema[16] = {0};
+    if (n < sizeof sema) memcpy(sema, v, n);
+    if (ascii_esit(sema, "postgresql") || ascii_esit(sema, "postgres"))
+        vt_tur_durumu = VT_POSTGRES;
+    else if (ascii_esit(sema, "mysql") || ascii_esit(sema, "mariadb"))
+        vt_tur_durumu = VT_MYSQL;
+    else if (ascii_esit(sema, "sqlserver") || ascii_esit(sema, "mssql"))
+        vt_tur_durumu = VT_MSSQL;
+    else {
+        char m[600];
+        snprintf(m, sizeof m,
+                 "ORHUNCA_VERITABANI anlaşılamadı: '%.300s'\nipucu: sqlite, postgresql://kullanıcı:şifre@sunucu/ad, "
+                 "mysql://... ya da sqlserver://... yazın",
+                 v);
+        hata(0, m);
+    }
+    /* `orhunca sına` gerçek veritabanına dokunmaz: sınamalar kendi geçici klasörlerindeki SQLite
+     * dosyasıyla çalışır. */
+    if (getenv("ORHUNCA_SINAMA")) return vt_tur_durumu = VT_SQLITE;
+    adres_coz(v);
+    return vt_tur_durumu;
+}
+
+/* Modeller SQL veritabanında mı? */
+static int vt_sql_mi(void) { return vt_turu() != VT_JSON; }
+
+/* Ham SQL'in veritabanı: JSON kipinde de SQLite dosyası kullanılır. */
+static int vt_etkin(void) { return vt_turu() == VT_JSON ? VT_SQLITE : vt_turu(); }
+
+/* ---- Kütüphane yükleme ------------------------------------------------ */
+
+static void *dinamik_ac(const char *yol) {
+#ifdef _WIN32
+    /* Tam yolla yüklenen kütüphanenin bağımlılıkları da kendi klasöründen aranır. */
+    if (strchr(yol, '\\')) return (void *)LoadLibraryExA(yol, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
+    return (void *)LoadLibraryA(yol);
+#else
+    return dlopen(yol, RTLD_NOW | RTLD_LOCAL);
+#endif
+}
+
+static void *dinamik_islev(void *k, const char *ad) {
+#ifdef _WIN32
+    return (void *)GetProcAddress((HMODULE)k, ad);
+#else
+    return dlsym(k, ad);
+#endif
+}
+
+#ifdef _WIN32
+/* "C:\Program Files\PostgreSQL\*" gibi bir desene uyan klasörlerden en yeni sürümün
+ * altındaki kütüphane: ör. ...\PostgreSQL\17\bin\libpq.dll */
+static void *windows_klasorde_ac(const char *desen, const char *alt) {
+    WIN32_FIND_DATAA b;
+    HANDLE h = FindFirstFileA(desen, &b);
+    if (h == INVALID_HANDLE_VALUE) return NULL;
+    char en_iyi[MAX_PATH] = {0};
+    do {
+        if ((b.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && b.cFileName[0] != '.') {
+            /* "9.6" < "16": önce uzunluk, sonra metin */
+            size_t a = strlen(b.cFileName), e = strlen(en_iyi);
+            if (!en_iyi[0] || a > e || (a == e && strcmp(b.cFileName, en_iyi) > 0))
+                snprintf(en_iyi, sizeof en_iyi, "%s", b.cFileName);
+        }
+    } while (FindNextFileA(h, &b));
+    FindClose(h);
+    if (!en_iyi[0]) return NULL;
+    char yol[MAX_PATH * 2];
+    size_t kok = strrchr(desen, '\\') ? (size_t)(strrchr(desen, '\\') - desen) : 0;
+    snprintf(yol, sizeof yol, "%.*s\\%s%s", (int)kok, desen, en_iyi, alt);
+    return dinamik_ac(yol);
+}
+#endif
+
+/* Önce ORHUNCA_VERITABANI_KUTUPHANESI, sonra bilinen adlar */
+static void *vt_kutuphane(const char **adlar, size_t n) {
+    const char *ozel = getenv("ORHUNCA_VERITABANI_KUTUPHANESI");
+    if (ozel && *ozel) return dinamik_ac(ozel);
+    void *k = NULL;
+    for (size_t i = 0; i < n && !k; i++) {
+#ifdef _WIN32
+        const char *yildiz = strchr(adlar[i], '*');
+        if (yildiz) {
+            /* "desen*|alt yol" */
+            const char *ayrac = strchr(adlar[i], '|');
+            char desen[MAX_PATH];
+            snprintf(desen, sizeof desen, "%.*s", (int)(ayrac - adlar[i]), adlar[i]);
+            k = windows_klasorde_ac(desen, ayrac + 1);
+            continue;
+        }
+#endif
+        k = dinamik_ac(adlar[i]);
+    }
+    return k;
+}
+
+/* ---- SQL metnini tarama: `?` yerleri ve deyim sonu (;) ----------------- */
+
+/* Tırnak, tanımlayıcı ve yorumların içindeki ? ve ; sayılmaz. Bulunan ? konumları
+ * `yerler`e yazılır (en çok `en_cok`); dönüş deyimin uzunluğudur, *sonraki ;'den sonrası. */
+static size_t sql_tara(const char *p, int tur, size_t *yerler, int en_cok, int *yer_sayisi, const char **sonraki) {
+    size_t i = 0;
+    *yer_sayisi = 0;
+    while (p[i]) {
+        char c = p[i];
+        if (c == ';') {
+            *sonraki = p + i + 1;
+            return i;
+        }
+        if (c == '?') {
+            if (*yer_sayisi < en_cok) yerler[*yer_sayisi] = i;
+            (*yer_sayisi)++;
+            i++;
+        } else if (c == '\'' || c == '"' || c == '`' || (c == '[' && tur == VT_MSSQL)) {
+            char kapa = c == '[' ? ']' : c;
+            i++;
+            while (p[i]) {
+                if (tur == VT_MYSQL && p[i] == '\\' && kapa != '`' && p[i + 1]) {
+                    i += 2;
+                    continue;
+                }
+                if (p[i] == kapa) {
+                    if (p[i + 1] == kapa) {
+                        i += 2;
+                        continue;
+                    }
+                    break;
+                }
+                i++;
+            }
+            if (p[i]) i++;
+        } else if (c == '-' && p[i + 1] == '-') {
+            while (p[i] && p[i] != '\n') i++;
+        } else if (c == '/' && p[i + 1] == '*') {
+            i += 2;
+            while (p[i] && !(p[i] == '*' && p[i + 1] == '/')) i++;
+            if (p[i]) i += 2;
+        } else if (c == '$' && tur == VT_POSTGRES) {
+            /* $etiket$ ... $etiket$ */
+            size_t j = i + 1;
+            while (isalnum((unsigned char)p[j]) || p[j] == '_') j++;
+            if (p[j] == '$') {
+                size_t en = j - i + 1;
+                const char *q = p + j + 1;
+                while (*q && strncmp(q, p + i, en)) q++;
+                i = *q ? (size_t)(q - p) + en : strlen(p);
+            } else {
+                i++;
+            }
+        } else {
+            i++;
+        }
+    }
+    *sonraki = p + i;
+    return i;
+}
+
+/* ---- SQLite ----------------------------------------------------------- */
+
 #define SQ_OK 0
 #define SQ_SATIR 100
 #define SQ_BITTI 101
-#define SQ_BOS 5
 #define SQ_KOPYALA ((void (*)(void *))(intptr_t)-1)
 
 typedef struct {
     int (*open_v2)(const char *, void **, int, const char *);
-    int (*exec)(void *, const char *, void *, void *, char **);
     int (*prepare_v2)(void *, const char *, int, void **, const char **);
     int (*bind_int64)(void *, int, int64_t);
     int (*bind_double)(void *, int, double);
@@ -2765,25 +3056,22 @@ typedef struct {
 } SqliteIslevleri;
 
 static SqliteIslevleri sq;
-static void *vt; /* sqlite3 bağlantısı */
+static void *sq_vt;
 
-static int vt_sqlite_mi(void) {
-    static int durum = -1;
-    if (durum < 0) {
-        const char *v = getenv("ORHUNCA_VERITABANI");
-        durum = v && (!strcmp(v, "sqlite") || !strcmp(v, "SQLite") || !strcmp(v, "SQLITE"));
+static void *dinamik_bagla(void *k, const char *on, const char *ad, int64_t satir, const char *kutuphane) {
+    char tam[96];
+    snprintf(tam, sizeof tam, "%s%s", on, ad);
+    void *f = dinamik_islev(k, tam);
+    if (!f) {
+        char m[300];
+        snprintf(m, sizeof m, "%s kütüphanesinde %s bulunamadı (sürümü çok eski olabilir)", kutuphane, tam);
+        hata(satir, m);
     }
-    return durum;
+    return f;
 }
 
-static void vt_hatasi(int64_t satir, const char *ne) {
-    char m[700];
-    snprintf(m, sizeof m, "veritabanı hatası (%s): %.500s", ne, vt ? sq.errmsg(vt) : "bağlantı yok");
-    hata(satir, m);
-}
-
-static void *vt_ac(int64_t satir) {
-    if (vt) return vt;
+static void sqlite_ac(int64_t satir) {
+    if (sq_vt) return;
     static const char *adlar[] = {
 #ifdef _WIN32
         "winsqlite3.dll", "sqlite3.dll",
@@ -2795,29 +3083,12 @@ static void *vt_ac(int64_t satir) {
         "libsqlite3.so.0", "libsqlite3.so",
 #endif
     };
-    void *k = NULL;
-    for (size_t i = 0; i < sizeof adlar / sizeof *adlar && !k; i++) {
-#ifdef _WIN32
-        k = (void *)LoadLibraryA(adlar[i]);
-#else
-        k = dlopen(adlar[i], RTLD_NOW | RTLD_GLOBAL);
-#endif
-    }
+    void *k = vt_kutuphane(adlar, sizeof adlar / sizeof *adlar);
     if (!k)
         hata(satir, "SQLite kütüphanesi bulunamadı (Linux'ta libsqlite3 paketini kurun); "
                     "ORHUNCA_VERITABANI ayarını kaldırırsanız kayıtlar JSON dosyalarına yazılır");
-#ifdef _WIN32
-#define SQ_ISLEV(ad) ((void *)GetProcAddress((HMODULE)k, "sqlite3_" #ad))
-#else
-#define SQ_ISLEV(ad) dlsym(k, "sqlite3_" #ad)
-#endif
-#define SQ_BAGLA(ad)                                                                                                   \
-    do {                                                                                                               \
-        *(void **)&sq.ad = SQ_ISLEV(ad);                                                                               \
-        if (!sq.ad) hata(satir, "SQLite kütüphanesinde sqlite3_" #ad " bulunamadı");                                    \
-    } while (0)
+#define SQ_BAGLA(ad) *(void **)&sq.ad = dinamik_bagla(k, "sqlite3_", #ad, satir, "SQLite")
     SQ_BAGLA(open_v2);
-    SQ_BAGLA(exec);
     SQ_BAGLA(prepare_v2);
     SQ_BAGLA(bind_int64);
     SQ_BAGLA(bind_double);
@@ -2838,7 +3109,6 @@ static void *vt_ac(int64_t satir) {
     SQ_BAGLA(last_insert_rowid);
     SQ_BAGLA(changes);
 #undef SQ_BAGLA
-#undef SQ_ISLEV
     klasor_olustur(veri_klasoru());
     Tampon yol = {0};
     t_yaz(&yol, veri_klasoru());
@@ -2852,136 +3122,1095 @@ static void *vt_ac(int64_t satir) {
         hata(satir, m);
     }
     free(yol.v);
-    vt = b;
+    sq_vt = b;
     /* Aynı dosyayı başka bir program yazarken beklenir (ör. Stüdyo ile sunucu). */
-    sq.busy_timeout(vt, 5000);
-    return vt;
+    sq.busy_timeout(sq_vt, 5000);
 }
 
-static void *vt_hazirla(const char *sql, int64_t satir) {
-    void *s = NULL;
-    if (sq.prepare_v2(vt_ac(satir), sql, -1, &s, NULL) != SQ_OK || !s) vt_hatasi(satir, sql);
-    return s;
+static char *sqlite_hucre(void *st, int i) {
+    char k[64];
+    switch (sq.column_type(st, i)) {
+    case 1: /* INTEGER */
+        snprintf(k, sizeof k, "%" PRId64, sq.column_int64(st, i));
+        return kopya_n(k, strlen(k));
+    case 2: { /* FLOAT: en kısa tam gösterim */
+        double x = sq.column_double(st, i);
+        snprintf(k, sizeof k, "%.15g", x);
+        if (strtod(k, NULL) != x) snprintf(k, sizeof k, "%.17g", x);
+        return kopya_n(k, strlen(k));
+    }
+    case 5: return NULL;
+    default: {
+        const char *t = (const char *)sq.column_text(st, i);
+        return kopya_n(t ? t : "", (size_t)sq.column_bytes(st, i));
+    }
+    }
 }
 
+/* SQLite'ta tek deyim: ? yerlerine değerler doğrudan bağlanır. */
+static const char *sqlite_deyim(const char *sql, VtDeger *d, int n, int *bagli, VtSonuc *s, int64_t satir) {
+    sqlite_ac(satir);
+    void *st = NULL;
+    const char *kalan = NULL;
+    if (sq.prepare_v2(sq_vt, sql, -1, &st, &kalan) != SQ_OK) {
+        char m[700];
+        snprintf(m, sizeof m, "veritabanı hatası (SQL): %.600s", sq.errmsg(sq_vt));
+        hata(satir, m);
+    }
+    if (!st) return NULL; /* yalnızca boşluk ya da yorum kaldı */
+    int k = sq.bind_parameter_count(st);
+    if (k > 0) {
+        if ((bagli && *bagli) || k != n) {
+            char m[200];
+            snprintf(m, sizeof m, "SQL sorgusunda %d yer tutucu (?) var ama %d değer verildi", k, bagli && *bagli ? 0 : n);
+            sq.finalize(st);
+            hata(satir, m);
+        }
+        for (int i = 0; i < k; i++) {
+            switch (d[i].tur) {
+            case 1: sq.bind_int64(st, i + 1, d[i].s); break;
+            case 2: sq.bind_double(st, i + 1, d[i].o); break;
+            case 3: sq.bind_text(st, i + 1, d[i].m, -1, SQ_KOPYALA); break;
+            default: sq.bind_null(st, i + 1);
+            }
+        }
+        if (bagli) *bagli = 1;
+    }
+    int c = sq.column_count(st);
+    vt_sonuc_sutunlar(s, c);
+    for (int i = 0; i < c; i++) {
+        const char *ad = sq.column_name(st, i);
+        s->adlar[i] = kopya_n(ad ? ad : "", ad ? strlen(ad) : 0);
+    }
+    int r;
+    while ((r = sq.step(st)) == SQ_SATIR) {
+        char **h = vt_sonuc_satir(s);
+        for (int i = 0; i < c; i++) h[i] = sqlite_hucre(st, i);
+    }
+    sq.finalize(st);
+    if (r != SQ_BITTI) {
+        char m[700];
+        snprintf(m, sizeof m, "veritabanı hatası (SQL): %.600s", sq.errmsg(sq_vt));
+        vt_sonuc_birak(s);
+        hata(satir, m);
+    }
+    s->degisen = sq.changes(sq_vt);
+    s->yeni_kimlik = sq.last_insert_rowid(sq_vt);
+    return kalan;
+}
+
+/* ---- PostgreSQL (libpq) ----------------------------------------------- */
+
+typedef struct {
+    void *(*PQconnectdb)(const char *);
+    int (*PQstatus)(const void *);
+    char *(*PQerrorMessage)(const void *);
+    void (*PQfinish)(void *);
+    void *(*PQexecParams)(void *, const char *, int, const unsigned *, const char *const *, const int *, const int *, int);
+    int (*PQresultStatus)(const void *);
+    char *(*PQresultErrorMessage)(const void *);
+    int (*PQntuples)(const void *);
+    int (*PQnfields)(const void *);
+    char *(*PQfname)(const void *, int);
+    char *(*PQgetvalue)(const void *, int, int);
+    int (*PQgetlength)(const void *, int, int);
+    int (*PQgetisnull)(const void *, int, int);
+    char *(*PQcmdTuples)(void *);
+    void (*PQclear)(void *);
+    void *(*PQsetNoticeProcessor)(void *, void (*)(void *, const char *), void *);
+} PgIslevleri;
+
+static PgIslevleri pg;
+static void *pg_vt;
+
+/* NOTICE iletileri (ör. "tablo zaten var") programın çıktısına karışmasın */
+static void pg_bildirim(void *a, const char *m) {
+    (void)a;
+    (void)m;
+}
+
+static void conninfo_ekle(Tampon *t, const char *ad, const char *deger) {
+    if (!deger || !*deger) return;
+    t_yaz(t, ad);
+    t_yaz(t, "='");
+    for (const char *p = deger; *p; p++) {
+        if (*p == '\'' || *p == '\\') t_yaz(t, "\\");
+        t_ekle(t, p, 1);
+    }
+    t_yaz(t, "' ");
+}
+
+static void *pg_baglan(const char *ad, char **hata_metni) {
+    Tampon t = {0};
+    conninfo_ekle(&t, "host", vt_adres.sunucu && *vt_adres.sunucu ? vt_adres.sunucu : "localhost");
+    if (vt_adres.kapi) {
+        char k[16];
+        snprintf(k, sizeof k, "%d", vt_adres.kapi);
+        conninfo_ekle(&t, "port", k);
+    }
+    conninfo_ekle(&t, "user", vt_adres.kullanici);
+    conninfo_ekle(&t, "password", vt_adres.sifre);
+    conninfo_ekle(&t, "dbname", ad);
+    conninfo_ekle(&t, "client_encoding", "UTF8");
+    conninfo_ekle(&t, "connect_timeout", "10");
+    /* ?sslmode=require gibi seçenekler olduğu gibi geçer */
+    if (vt_adres.secenekler) {
+        char *s = kopya_n(vt_adres.secenekler, strlen(vt_adres.secenekler));
+        for (char *parca = strtok(s, "&"); parca; parca = strtok(NULL, "&")) {
+            char *esit = strchr(parca, '=');
+            if (!esit) continue;
+            *esit = 0;
+            conninfo_ekle(&t, parca, esit + 1);
+        }
+        free(s);
+    }
+    void *c = pg.PQconnectdb(t.v ? t.v : "");
+    free(t.v);
+    if (c && pg.PQstatus(c) == 0) {
+        pg.PQsetNoticeProcessor(c, pg_bildirim, NULL);
+        return c;
+    }
+    const char *e = c ? pg.PQerrorMessage(c) : "bellek yetmedi";
+    *hata_metni = kopya_n(e, strlen(e));
+    if (c) pg.PQfinish(c);
+    return NULL;
+}
+
+static void pg_ac(int64_t satir) {
+    if (pg_vt) return;
+    static const char *adlar[] = {
+#ifdef _WIN32
+        "libpq.dll", "C:\\Program Files\\PostgreSQL\\*|\\bin\\libpq.dll",
+#elif defined(__APPLE__)
+        "libpq.5.dylib", "/opt/homebrew/opt/libpq/lib/libpq.5.dylib", "/usr/local/opt/libpq/lib/libpq.5.dylib",
+        "/opt/homebrew/lib/libpq.5.dylib", "/Applications/Postgres.app/Contents/Versions/latest/lib/libpq.5.dylib",
+#else
+        "libpq.so.5", "libpq.so",
+#endif
+    };
+    void *k = vt_kutuphane(adlar, sizeof adlar / sizeof *adlar);
+    if (!k)
+        hata(satir, "PostgreSQL istemci kütüphanesi (libpq) bulunamadı; PostgreSQL'i kurun (Linux'ta libpq5 "
+                    "paketi) ya da yolunu ORHUNCA_VERITABANI_KUTUPHANESI ile verin");
+#define PG_BAGLA(ad) *(void **)&pg.ad = dinamik_bagla(k, "", #ad, satir, "libpq")
+    PG_BAGLA(PQconnectdb);
+    PG_BAGLA(PQstatus);
+    PG_BAGLA(PQerrorMessage);
+    PG_BAGLA(PQfinish);
+    PG_BAGLA(PQexecParams);
+    PG_BAGLA(PQresultStatus);
+    PG_BAGLA(PQresultErrorMessage);
+    PG_BAGLA(PQntuples);
+    PG_BAGLA(PQnfields);
+    PG_BAGLA(PQfname);
+    PG_BAGLA(PQgetvalue);
+    PG_BAGLA(PQgetlength);
+    PG_BAGLA(PQgetisnull);
+    PG_BAGLA(PQcmdTuples);
+    PG_BAGLA(PQclear);
+    PG_BAGLA(PQsetNoticeProcessor);
+#undef PG_BAGLA
+    char *ilk_hata = NULL, *ikinci = NULL;
+    const char *ad = vt_adres.ad && *vt_adres.ad ? vt_adres.ad : NULL;
+    pg_vt = pg_baglan(ad, &ilk_hata);
+    if (!pg_vt && ad) {
+        /* Veritabanı yoksa oluşturulur: önce "postgres" veritabanına bağlanılır. */
+        void *c = pg_baglan("postgres", &ikinci);
+        if (c) {
+            const char *p[1] = {ad};
+            void *r = pg.PQexecParams(c, "SELECT 1 FROM pg_database WHERE datname = $1", 1, NULL, p, NULL, NULL, 0);
+            int var = r && pg.PQntuples(r) > 0;
+            if (r) pg.PQclear(r);
+            if (!var) {
+                Tampon q = {0};
+                t_yaz(&q, "CREATE DATABASE \"");
+                for (const char *x = ad; *x; x++) t_ekle(&q, *x == '"' ? "\"\"" : x, *x == '"' ? 2 : 1);
+                t_yaz(&q, "\"");
+                r = pg.PQexecParams(c, q.v, 0, NULL, NULL, NULL, NULL, 0);
+                free(q.v);
+                if (r) pg.PQclear(r);
+            }
+            pg.PQfinish(c);
+            free(ilk_hata);
+            ilk_hata = NULL;
+            pg_vt = pg_baglan(ad, &ilk_hata);
+        }
+        free(ikinci);
+    }
+    if (!pg_vt) {
+        char m[900];
+        /* libpq aynı satırı (SSL'li ve SSL'siz deneme için) iki kez yazabilir: tekrarlar atılır. */
+        if (ilk_hata) {
+            Tampon t = {0};
+            const char *onceki = NULL;
+            size_t onceki_n = 0;
+            for (const char *p = ilk_hata; *p;) {
+                size_t n = strcspn(p, "\n");
+                if (n && !(onceki && onceki_n == n && !strncmp(onceki, p, n))) {
+                    if (t.n) t_yaz(&t, "\n");
+                    t_ekle(&t, p, n);
+                    onceki = p;
+                    onceki_n = n;
+                }
+                p += n + (p[n] == '\n');
+            }
+            free(ilk_hata);
+            ilk_hata = t.v;
+        }
+        size_t n = ilk_hata ? strlen(ilk_hata) : 0;
+        while (n && (ilk_hata[n - 1] == '\n' || ilk_hata[n - 1] == ' ')) ilk_hata[--n] = 0;
+        snprintf(m, sizeof m,
+                 "PostgreSQL'e bağlanılamadı (%.100s): %.600s\nipucu: sunucu çalışıyor mu? Kullanıcı adı, şifre ve "
+                 "ORHUNCA_VERITABANI adresini denetleyin",
+                 vt_adres.sunucu && *vt_adres.sunucu ? vt_adres.sunucu : "localhost", ilk_hata ? ilk_hata : "");
+        hata(satir, m);
+    }
+}
+
+/* SQL'deki ? yerleri $1, $2 … olur; değerler metin olarak gider. */
+static void pg_calistir(const char *sql, size_t n, const size_t *yerler, int k, VtDeger *d, VtSonuc *s, int64_t satir) {
+    pg_ac(satir);
+    Tampon q = {0};
+    size_t onceki = 0;
+    for (int i = 0; i < k; i++) {
+        t_ekle(&q, sql + onceki, yerler[i] - onceki);
+        char b[16];
+        snprintf(b, sizeof b, "$%d", i + 1);
+        t_yaz(&q, b);
+        onceki = yerler[i] + 1;
+    }
+    t_ekle(&q, sql + onceki, n - onceki);
+    const char **degerler = ham_ayir(sizeof(char *) * (size_t)(k ? k : 1));
+    char **tampon = ham_ayir(sizeof(char *) * (size_t)(k ? k : 1));
+    for (int i = 0; i < k; i++) {
+        char b[64];
+        tampon[i] = NULL;
+        switch (d[i].tur) {
+        case 1:
+            snprintf(b, sizeof b, "%" PRId64, d[i].s);
+            degerler[i] = tampon[i] = kopya_n(b, strlen(b));
+            break;
+        case 2:
+            snprintf(b, sizeof b, "%.17g", d[i].o);
+            degerler[i] = tampon[i] = kopya_n(b, strlen(b));
+            break;
+        case 3: degerler[i] = d[i].m; break;
+        default: degerler[i] = NULL;
+        }
+    }
+    void *r = pg.PQexecParams(pg_vt, q.v ? q.v : "", k, NULL, degerler, NULL, NULL, 0);
+    free(q.v);
+    for (int i = 0; i < k; i++) free(tampon[i]);
+    free(tampon);
+    free(degerler);
+    int durum = r ? pg.PQresultStatus(r) : 7;
+    if (durum != 0 && durum != 1 && durum != 2) {
+        char m[800];
+        const char *e = r ? pg.PQresultErrorMessage(r) : pg.PQerrorMessage(pg_vt);
+        snprintf(m, sizeof m, "veritabanı hatası (SQL): %.600s", e);
+        size_t mn = strlen(m);
+        while (mn && (m[mn - 1] == '\n' || m[mn - 1] == ' ')) m[--mn] = 0;
+        if (r) pg.PQclear(r);
+        hata(satir, m);
+    }
+    if (durum == 2) {
+        int c = pg.PQnfields(r), sayi = pg.PQntuples(r);
+        vt_sonuc_sutunlar(s, c);
+        for (int i = 0; i < c; i++) {
+            const char *ad = pg.PQfname(r, i);
+            s->adlar[i] = kopya_n(ad, strlen(ad));
+        }
+        for (int y = 0; y < sayi; y++) {
+            char **h = vt_sonuc_satir(s);
+            for (int i = 0; i < c; i++)
+                if (!pg.PQgetisnull(r, y, i))
+                    h[i] = kopya_n(pg.PQgetvalue(r, y, i), (size_t)pg.PQgetlength(r, y, i));
+        }
+    }
+    s->degisen = strtoll(pg.PQcmdTuples(r), NULL, 10);
+    pg.PQclear(r);
+}
+
+/* ---- MySQL / MariaDB -------------------------------------------------- */
+
+typedef struct {
+    void *(*mysql_init)(void *);
+    int (*mysql_options)(void *, int, const void *);
+    void *(*mysql_real_connect)(void *, const char *, const char *, const char *, const char *, unsigned, const char *,
+                                unsigned long);
+    const char *(*mysql_error)(void *);
+    unsigned (*mysql_errno)(void *);
+    void (*mysql_close)(void *);
+    int (*mysql_set_character_set)(void *, const char *);
+    int (*mysql_select_db)(void *, const char *);
+    int (*mysql_real_query)(void *, const char *, unsigned long);
+    void *(*mysql_store_result)(void *);
+    unsigned (*mysql_field_count)(void *);
+    unsigned (*mysql_num_fields)(void *);
+    void *(*mysql_fetch_field_direct)(void *, unsigned);
+    char **(*mysql_fetch_row)(void *);
+    unsigned long *(*mysql_fetch_lengths)(void *);
+    void (*mysql_free_result)(void *);
+    uint64_t (*mysql_affected_rows)(void *);
+    uint64_t (*mysql_insert_id)(void *);
+    unsigned long (*mysql_real_escape_string)(void *, char *, const char *, unsigned long);
+} MyIslevleri;
+
+static MyIslevleri my;
+static void *my_vt;
+
+static void *my_baglan(const char *ad) {
+    void *c = my.mysql_init(NULL);
+    if (!c) return NULL;
+    unsigned sure = 10;
+    my.mysql_options(c, 0 /* MYSQL_OPT_CONNECT_TIMEOUT */, &sure);
+    my.mysql_options(c, 7 /* MYSQL_SET_CHARSET_NAME */, "utf8mb4");
+    const char *sunucu = vt_adres.sunucu && *vt_adres.sunucu ? vt_adres.sunucu : "localhost";
+    /* Bağlanamazsa da tutamak döner: çağıran mysql_errno ile bakar. */
+    my.mysql_real_connect(c, sunucu, vt_adres.kullanici, vt_adres.sifre ? vt_adres.sifre : "", ad,
+                          (unsigned)vt_adres.kapi, NULL, 0);
+    return c;
+}
+
+static void my_ac(int64_t satir) {
+    if (my_vt) return;
+    static const char *adlar[] = {
+#ifdef _WIN32
+        "libmariadb.dll", "libmysql.dll", "C:\\Program Files\\MySQL\\MySQL Server*|\\lib\\libmysql.dll",
+        "C:\\Program Files\\MariaDB*|\\lib\\libmariadb.dll", "C:\\xampp\\mysql\\lib\\libmariadb.dll",
+        "C:\\xampp\\mysql\\bin\\libmariadb.dll", "C:\\xampp\\mysql\\lib\\libmysql.dll",
+#elif defined(__APPLE__)
+        "libmysqlclient.dylib", "/opt/homebrew/opt/mysql-client/lib/libmysqlclient.dylib",
+        "/opt/homebrew/lib/libmysqlclient.dylib", "/usr/local/mysql/lib/libmysqlclient.dylib",
+        "/opt/homebrew/opt/mariadb-connector-c/lib/mariadb/libmariadb.3.dylib", "/opt/homebrew/lib/libmariadb.3.dylib",
+#else
+        "libmariadb.so.3", "libmysqlclient.so.24", "libmysqlclient.so.21", "libmysqlclient.so.20",
+        "libmysqlclient.so.18", "libmariadb.so", "libmysqlclient.so",
+#endif
+    };
+    void *k = vt_kutuphane(adlar, sizeof adlar / sizeof *adlar);
+    if (!k)
+        hata(satir, "MySQL/MariaDB istemci kütüphanesi bulunamadı (libmariadb ya da libmysql); MySQL'i ya da "
+                    "MariaDB'yi kurun ya da yolunu ORHUNCA_VERITABANI_KUTUPHANESI ile verin");
+#define MY_BAGLA(ad) *(void **)&my.ad = dinamik_bagla(k, "", #ad, satir, "MySQL")
+    MY_BAGLA(mysql_init);
+    MY_BAGLA(mysql_options);
+    MY_BAGLA(mysql_real_connect);
+    MY_BAGLA(mysql_error);
+    MY_BAGLA(mysql_errno);
+    MY_BAGLA(mysql_close);
+    MY_BAGLA(mysql_set_character_set);
+    MY_BAGLA(mysql_select_db);
+    MY_BAGLA(mysql_real_query);
+    MY_BAGLA(mysql_store_result);
+    MY_BAGLA(mysql_field_count);
+    MY_BAGLA(mysql_num_fields);
+    MY_BAGLA(mysql_fetch_field_direct);
+    MY_BAGLA(mysql_fetch_row);
+    MY_BAGLA(mysql_fetch_lengths);
+    MY_BAGLA(mysql_free_result);
+    MY_BAGLA(mysql_affected_rows);
+    MY_BAGLA(mysql_insert_id);
+    MY_BAGLA(mysql_real_escape_string);
+#undef MY_BAGLA
+    const char *ad = vt_adres.ad && *vt_adres.ad ? vt_adres.ad : NULL;
+    void *c = my_baglan(ad);
+    if (c && ad && my.mysql_errno(c) == 1049 /* ER_BAD_DB_ERROR */) {
+        /* Veritabanı yoksa oluşturulur. */
+        my.mysql_close(c);
+        c = my_baglan(NULL);
+        if (c && !my.mysql_errno(c)) {
+            Tampon q = {0};
+            t_yaz(&q, "CREATE DATABASE IF NOT EXISTS `");
+            for (const char *x = ad; *x; x++) t_ekle(&q, *x == '`' ? "``" : x, *x == '`' ? 2 : 1);
+            t_yaz(&q, "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            my.mysql_real_query(c, q.v, (unsigned long)q.n);
+            free(q.v);
+            my.mysql_select_db(c, ad);
+        }
+    }
+    if (!c || my.mysql_errno(c)) {
+        char m[900];
+        snprintf(m, sizeof m,
+                 "MySQL'e bağlanılamadı (%.100s): %.600s\nipucu: sunucu çalışıyor mu? Kullanıcı adı, şifre ve "
+                 "ORHUNCA_VERITABANI adresini denetleyin",
+                 vt_adres.sunucu && *vt_adres.sunucu ? vt_adres.sunucu : "localhost",
+                 c ? my.mysql_error(c) : "bellek yetmedi");
+        if (c) my.mysql_close(c);
+        hata(satir, m);
+    }
+    my.mysql_set_character_set(c, "utf8mb4");
+    my_vt = c;
+}
+
+/* MySQL ve SQL Server'da değerler, kaçırılarak SQL metnine yazılır. */
+static void deger_yaz(Tampon *q, VtDeger *d, int tur) {
+    char b[64];
+    switch (d->tur) {
+    case 1:
+        snprintf(b, sizeof b, "%" PRId64, d->s);
+        t_yaz(q, b);
+        break;
+    case 2:
+        snprintf(b, sizeof b, "%.17g", d->o);
+        t_yaz(q, b);
+        break;
+    case 3:
+        if (tur == VT_MYSQL) {
+            size_t n = strlen(d->m);
+            char *k = ham_ayir(2 * n + 1);
+            unsigned long kn = my.mysql_real_escape_string(my_vt, k, d->m, (unsigned long)n);
+            t_yaz(q, "'");
+            t_ekle(q, k, kn);
+            t_yaz(q, "'");
+            free(k);
+        } else {
+            t_yaz(q, "N'");
+            for (const char *p = d->m; *p; p++) t_ekle(q, *p == '\'' ? "''" : p, *p == '\'' ? 2 : 1);
+            t_yaz(q, "'");
+        }
+        break;
+    default: t_yaz(q, "NULL");
+    }
+}
+
+static char *degerleri_yerlestir(const char *sql, size_t n, const size_t *yerler, int k, VtDeger *d, int tur) {
+    Tampon q = {0};
+    size_t onceki = 0;
+    for (int i = 0; i < k; i++) {
+        t_ekle(&q, sql + onceki, yerler[i] - onceki);
+        deger_yaz(&q, &d[i], tur);
+        onceki = yerler[i] + 1;
+    }
+    t_ekle(&q, sql + onceki, n - onceki);
+    if (!q.v) t_yaz(&q, "");
+    return q.v;
+}
+
+static void my_calistir(const char *sql, size_t n, const size_t *yerler, int k, VtDeger *d, VtSonuc *s, int64_t satir) {
+    my_ac(satir);
+    char *q = degerleri_yerlestir(sql, n, yerler, k, d, VT_MYSQL);
+    int r = my.mysql_real_query(my_vt, q, (unsigned long)strlen(q));
+    free(q);
+    if (r) {
+        char m[800];
+        snprintf(m, sizeof m, "veritabanı hatası (SQL): %.600s", my.mysql_error(my_vt));
+        hata(satir, m);
+    }
+    void *sonuc = my.mysql_store_result(my_vt);
+    if (sonuc) {
+        unsigned c = my.mysql_num_fields(sonuc);
+        vt_sonuc_sutunlar(s, (int)c);
+        for (unsigned i = 0; i < c; i++) {
+            /* MYSQL_FIELD'in ilk üyesi her sürümde `char *name` */
+            const char *ad = *(char **)my.mysql_fetch_field_direct(sonuc, i);
+            s->adlar[i] = kopya_n(ad, strlen(ad));
+        }
+        char **satir_;
+        while ((satir_ = my.mysql_fetch_row(sonuc))) {
+            unsigned long *uz = my.mysql_fetch_lengths(sonuc);
+            char **h = vt_sonuc_satir(s);
+            for (unsigned i = 0; i < c; i++)
+                if (satir_[i]) h[i] = kopya_n(satir_[i], uz[i]);
+        }
+        my.mysql_free_result(sonuc);
+    } else if (my.mysql_field_count(my_vt)) {
+        char m[800];
+        snprintf(m, sizeof m, "veritabanı hatası (SQL): %.600s", my.mysql_error(my_vt));
+        hata(satir, m);
+    } else {
+        s->degisen = (int64_t)my.mysql_affected_rows(my_vt);
+        s->yeni_kimlik = (int64_t)my.mysql_insert_id(my_vt);
+    }
+}
+
+/* ---- SQL Server (ODBC) ------------------------------------------------ */
+
+typedef struct {
+    short (*SQLAllocHandle)(short, void *, void **);
+    short (*SQLSetEnvAttr)(void *, int, void *, int);
+    short (*SQLDriverConnectW)(void *, void *, const uint16_t *, short, uint16_t *, short, short *, unsigned short);
+    short (*SQLExecDirectW)(void *, const uint16_t *, int);
+    short (*SQLNumResultCols)(void *, short *);
+    short (*SQLDescribeColW)(void *, unsigned short, uint16_t *, short, short *, short *, uint64_t *, short *, short *);
+    short (*SQLFetch)(void *);
+    short (*SQLGetData)(void *, unsigned short, short, void *, int64_t, int64_t *);
+    short (*SQLRowCount)(void *, int64_t *);
+    short (*SQLMoreResults)(void *);
+    short (*SQLFreeHandle)(short, void *);
+    short (*SQLGetDiagRecW)(short, void *, short, uint16_t *, int *, uint16_t *, short, short *);
+} OdbcIslevleri;
+
+static OdbcIslevleri od;
+static void *od_ortam, *ms_vt;
+
+#define ODBC_TAMAM(r) ((r) == 0 || (r) == 1)
+
+/* UTF-8 → UTF-16 (sonu 0) */
+static uint16_t *u16_yap(const char *s) {
+    size_t n = strlen(s);
+    uint16_t *w = ham_ayir(sizeof(uint16_t) * (2 * n + 1));
+    size_t j = 0;
+    while (*s) {
+        uint32_t c = u8_oku(&s);
+        if (c >= 0x10000) {
+            c -= 0x10000;
+            w[j++] = (uint16_t)(0xD800 + (c >> 10));
+            w[j++] = (uint16_t)(0xDC00 + (c & 0x3FF));
+        } else {
+            w[j++] = (uint16_t)c;
+        }
+    }
+    w[j] = 0;
+    return w;
+}
+
+/* UTF-16 → UTF-8 */
+static void u16_yaz(Tampon *t, const uint16_t *w, size_t n) {
+    for (size_t i = 0; i < n; i++) {
+        uint32_t c = w[i];
+        if (c >= 0xD800 && c < 0xDC00 && i + 1 < n && w[i + 1] >= 0xDC00 && w[i + 1] < 0xE000) {
+            c = 0x10000 + ((c - 0xD800) << 10) + (w[i + 1] - 0xDC00);
+            i++;
+        }
+        u8_yaz(t, c);
+    }
+}
+
+/* Son ODBC hatası: "SQLSTATE: ileti" */
+static char *odbc_hatasi(short tur, void *h, char durum[6]) {
+    uint16_t d[6] = {0}, ileti[1024];
+    int yerel = 0;
+    short n = 0;
+    Tampon t = {0};
+    if (ODBC_TAMAM(od.SQLGetDiagRecW(tur, h, 1, d, &yerel, ileti, 1024, &n))) {
+        for (int i = 0; i < 5; i++) durum[i] = (char)d[i];
+        durum[5] = 0;
+        u16_yaz(&t, ileti, (size_t)(n < 1023 ? n : 1023));
+    } else {
+        durum[0] = 0;
+        t_yaz(&t, "bilinmeyen ODBC hatası");
+    }
+    return t.v;
+}
+
+static void ms_baglanti_ekle(Tampon *t, const char *ad, const char *deger) {
+    t_yaz(t, ad);
+    t_yaz(t, "={");
+    for (const char *p = deger; *p; p++) t_ekle(t, *p == '}' ? "}}" : p, *p == '}' ? 2 : 1);
+    t_yaz(t, "};");
+}
+
+static void ms_ac(int64_t satir);
+static void ms_calistir_metin(const char *sql, VtSonuc *s, int64_t satir);
+
+static void ms_ac(int64_t satir) {
+    if (ms_vt) return;
+    static const char *adlar[] = {
+#ifdef _WIN32
+        "odbc32.dll",
+#elif defined(__APPLE__)
+        "libodbc.2.dylib", "/opt/homebrew/lib/libodbc.2.dylib", "/usr/local/lib/libodbc.2.dylib",
+#else
+        "libodbc.so.2", "libodbc.so",
+#endif
+    };
+    void *k = vt_kutuphane(adlar, sizeof adlar / sizeof *adlar);
+    if (!k)
+        hata(satir, "ODBC kütüphanesi bulunamadı (Linux'ta unixodbc, macOS'ta unixodbc paketi gerekir)");
+#define OD_BAGLA(ad) *(void **)&od.ad = dinamik_bagla(k, "", #ad, satir, "ODBC")
+    OD_BAGLA(SQLAllocHandle);
+    OD_BAGLA(SQLSetEnvAttr);
+    OD_BAGLA(SQLDriverConnectW);
+    OD_BAGLA(SQLExecDirectW);
+    OD_BAGLA(SQLNumResultCols);
+    OD_BAGLA(SQLDescribeColW);
+    OD_BAGLA(SQLFetch);
+    OD_BAGLA(SQLGetData);
+    OD_BAGLA(SQLRowCount);
+    OD_BAGLA(SQLMoreResults);
+    OD_BAGLA(SQLFreeHandle);
+    OD_BAGLA(SQLGetDiagRecW);
+#undef OD_BAGLA
+    if (!ODBC_TAMAM(od.SQLAllocHandle(1 /* ENV */, NULL, &od_ortam)))
+        hata(satir, "ODBC ortamı oluşturulamadı");
+    od.SQLSetEnvAttr(od_ortam, 200 /* SQL_ATTR_ODBC_VERSION */, (void *)(intptr_t)3, 0);
+    /* Kurulu olan ilk SQL Server sürücüsü kullanılır; ?sürücü=... ile seçilebilir. */
+    const char *suruculer[] = {"ODBC Driver 18 for SQL Server", "ODBC Driver 17 for SQL Server",
+                               "ODBC Driver 13 for SQL Server", "SQL Server Native Client 11.0", "SQL Server"};
+    const char *istenen = NULL;
+    Tampon ek = {0};
+    if (vt_adres.secenekler) {
+        char *s = kopya_n(vt_adres.secenekler, strlen(vt_adres.secenekler));
+        for (char *parca = strtok(s, "&"); parca; parca = strtok(NULL, "&")) {
+            char *esit = strchr(parca, '=');
+            if (!esit) continue;
+            *esit = 0;
+            if (!strcmp(parca, "sürücü") || ascii_esit(parca, "surucu") || ascii_esit(parca, "driver"))
+                istenen = kopya_n(esit + 1, strlen(esit + 1));
+            else
+                ms_baglanti_ekle(&ek, parca, esit + 1);
+        }
+        free(s);
+    }
+    char *son_hata = NULL;
+    for (size_t i = 0; i < sizeof suruculer / sizeof *suruculer && !ms_vt; i++) {
+        const char *surucu = istenen ? istenen : suruculer[i];
+        Tampon t = {0};
+        ms_baglanti_ekle(&t, "Driver", surucu);
+        const char *sunucu = vt_adres.sunucu && *vt_adres.sunucu ? vt_adres.sunucu : "localhost";
+        if (vt_adres.kapi) {
+            char b[300];
+            snprintf(b, sizeof b, "%s,%d", sunucu, vt_adres.kapi);
+            ms_baglanti_ekle(&t, "Server", b);
+        } else {
+            ms_baglanti_ekle(&t, "Server", sunucu);
+        }
+        if (vt_adres.kullanici && *vt_adres.kullanici) {
+            ms_baglanti_ekle(&t, "UID", vt_adres.kullanici);
+            ms_baglanti_ekle(&t, "PWD", vt_adres.sifre ? vt_adres.sifre : "");
+        } else {
+            t_yaz(&t, "Trusted_Connection=yes;");
+        }
+        /* Bilgisayardaki SQL Server'ın kendi imzalı sertifikası kabul edilir. */
+        t_yaz(&t, "TrustServerCertificate=yes;");
+        if (ek.v) t_yaz(&t, ek.v);
+        void *c = NULL;
+        od.SQLAllocHandle(2 /* DBC */, od_ortam, &c);
+        uint16_t *w = u16_yap(t.v);
+        free(t.v);
+        short r = od.SQLDriverConnectW(c, NULL, w, -3 /* SQL_NTS */, NULL, 0, NULL, 0 /* NOPROMPT */);
+        free(w);
+        if (ODBC_TAMAM(r)) {
+            ms_vt = c;
+            break;
+        }
+        char durum[6];
+        free(son_hata);
+        son_hata = odbc_hatasi(2, c, durum);
+        od.SQLFreeHandle(2, c);
+        /* IM002: bu sürücü kurulu değil, sıradakine geçilir */
+        if (istenen || strcmp(durum, "IM002")) break;
+    }
+    free(ek.v);
+    if (!ms_vt) {
+        char m[1000];
+        snprintf(m, sizeof m,
+                 "SQL Server'a bağlanılamadı (%.100s): %.600s\nipucu: SQL Server çalışıyor mu? Örnek adını yazın "
+                 "(ör. localhost\\SQLEXPRESS); sürücü yoksa \"ODBC Driver 18 for SQL Server\" kurun",
+                 vt_adres.sunucu && *vt_adres.sunucu ? vt_adres.sunucu : "localhost", son_hata ? son_hata : "");
+        hata(satir, m);
+    }
+    free(son_hata);
+    if (vt_adres.ad && *vt_adres.ad) {
+        /* Veritabanı yoksa oluşturulur. */
+        Tampon q = {0}, ad = {0};
+        for (const char *x = vt_adres.ad; *x; x++) t_ekle(&ad, *x == ']' ? "]]" : x, *x == ']' ? 2 : 1);
+        t_yaz(&q, "IF DB_ID(N'");
+        for (const char *x = vt_adres.ad; *x; x++) t_ekle(&q, *x == '\'' ? "''" : x, *x == '\'' ? 2 : 1);
+        t_yaz(&q, "') IS NULL CREATE DATABASE [");
+        t_yaz(&q, ad.v);
+        t_yaz(&q, "]");
+        VtSonuc s = {0};
+        ms_calistir_metin(q.v, &s, satir);
+        vt_sonuc_birak(&s);
+        free(q.v);
+        q = (Tampon){0};
+        t_yaz(&q, "USE [");
+        t_yaz(&q, ad.v);
+        t_yaz(&q, "]");
+        ms_calistir_metin(q.v, &s, satir);
+        vt_sonuc_birak(&s);
+        free(q.v);
+        free(ad.v);
+    }
+}
+
+static void ms_hata(void *st, int64_t satir) {
+    char durum[6];
+    char *e = odbc_hatasi(3, st, durum);
+    char m[800];
+    snprintf(m, sizeof m, "veritabanı hatası (SQL): %.600s", e ? e : "");
+    free(e);
+    od.SQLFreeHandle(3, st);
+    hata(satir, m);
+}
+
+/* Bir toplu iş (batch): ilk sonuç kümesi alınır, değişen satır sayısı toplanır. */
+static void ms_calistir_metin(const char *sql, VtSonuc *s, int64_t satir) {
+    void *st = NULL;
+    if (!ODBC_TAMAM(od.SQLAllocHandle(3 /* STMT */, ms_vt, &st))) hata(satir, "ODBC deyimi oluşturulamadı");
+    uint16_t *w = u16_yap(sql);
+    short r = od.SQLExecDirectW(st, w, -3);
+    free(w);
+    if (!ODBC_TAMAM(r) && r != 100 /* SQL_NO_DATA */) ms_hata(st, satir);
+    int alindi = 0;
+    for (;;) {
+        short c = 0;
+        od.SQLNumResultCols(st, &c);
+        if (c > 0 && !alindi) {
+            alindi = 1;
+            vt_sonuc_sutunlar(s, c);
+            for (int i = 0; i < c; i++) {
+                uint16_t ad[256];
+                short n = 0, tip, ondalik_, bos;
+                uint64_t boy;
+                od.SQLDescribeColW(st, (unsigned short)(i + 1), ad, 256, &n, &tip, &boy, &ondalik_, &bos);
+                Tampon t = {0};
+                u16_yaz(&t, ad, (size_t)(n < 255 ? n : 255));
+                s->adlar[i] = t.v ? t.v : kopya_n("", 0);
+            }
+            while (ODBC_TAMAM(r = od.SQLFetch(st))) {
+                char **h = vt_sonuc_satir(s);
+                for (int i = 0; i < c; i++) {
+                    uint16_t b[2048];
+                    int64_t ind = 0;
+                    Tampon t = {0};
+                    int bos_ = 0;
+                    for (;;) {
+                        short g = od.SQLGetData(st, (unsigned short)(i + 1), -8 /* SQL_C_WCHAR */, b, sizeof b, &ind);
+                        if (g == 100) break;
+                        if (!ODBC_TAMAM(g)) ms_hata(st, satir);
+                        if (ind == -1 /* SQL_NULL_DATA */) {
+                            bos_ = 1;
+                            break;
+                        }
+                        size_t gelen = (ind == -4 /* SQL_NO_TOTAL */ || ind >= (int64_t)sizeof b)
+                                           ? sizeof b / 2 - 1
+                                           : (size_t)ind / 2;
+                        u16_yaz(&t, b, gelen);
+                        if (g == 0) break; /* hepsi geldi */
+                    }
+                    h[i] = bos_ ? NULL : (t.v ? t.v : kopya_n("", 0));
+                    if (bos_) free(t.v);
+                }
+            }
+            if (r != 100) ms_hata(st, satir);
+        } else if (c == 0) {
+            int64_t n = -1;
+            od.SQLRowCount(st, &n);
+            if (n >= 0) s->degisen = n;
+        }
+        r = od.SQLMoreResults(st);
+        if (r == 100) break;
+        if (!ODBC_TAMAM(r)) ms_hata(st, satir);
+    }
+    od.SQLFreeHandle(3, st);
+}
+
+static void ms_calistir(const char *sql, size_t n, const size_t *yerler, int k, VtDeger *d, VtSonuc *s, int64_t satir) {
+    ms_ac(satir);
+    char *q = degerleri_yerlestir(sql, n, yerler, k, d, VT_MSSQL);
+    ms_calistir_metin(q, s, satir);
+    free(q);
+}
+
+/* ---- Ortak: tek deyim -------------------------------------------------- */
+
+/* Metnin ilk deyimini çalıştırır, kalanını döndürür (bitince NULL ya da boş). `?` yer
+ * tutucularının sayısı değerlerle aynı olmalı; `bagli` verilirse (ham SQL) değerler
+ * yalnızca yer tutucusu olan ilk deyime bağlanır. */
+static const char *vt_deyim(const char *sql, VtDeger *d, int n, int *bagli, VtSonuc *s, int64_t satir) {
+    memset(s, 0, sizeof *s);
+    int tur = vt_etkin();
+    if (tur == VT_SQLITE) return sqlite_deyim(sql, d, n, bagli, s, satir);
+    size_t yer_kucuk[64];
+    size_t *yerler = yer_kucuk;
+    int k = 0;
+    const char *kalan = NULL;
+    size_t uz = sql_tara(sql, tur, yer_kucuk, 64, &k, &kalan);
+    if (k > 64) {
+        yerler = ham_ayir(sizeof(size_t) * (size_t)k);
+        sql_tara(sql, tur, yerler, k, &k, &kalan);
+    }
+    /* Yalnızca boşluk ve yorumdan oluşan deyim atlanır. */
+    int bos = 1;
+    for (size_t i = 0; i < uz && bos; i++) {
+        if (sql[i] == '-' && sql[i + 1] == '-') {
+            while (i < uz && sql[i] != '\n') i++;
+        } else if (sql[i] == '/' && sql[i + 1] == '*') {
+            i += 2;
+            while (i + 1 < uz && !(sql[i] == '*' && sql[i + 1] == '/')) i++;
+            i++;
+        } else if (!isspace((unsigned char)sql[i])) {
+            bos = 0;
+        }
+    }
+    if (!bos) {
+        if (k > 0) {
+            if ((bagli && *bagli) || k != n) {
+                char m[200];
+                snprintf(m, sizeof m, "SQL sorgusunda %d yer tutucu (?) var ama %d değer verildi", k,
+                         bagli && *bagli ? 0 : n);
+                if (yerler != yer_kucuk) free(yerler);
+                hata(satir, m);
+            }
+            if (bagli) *bagli = 1;
+        }
+        if (tur == VT_POSTGRES)
+            pg_calistir(sql, uz, yerler, k, d, s, satir);
+        else if (tur == VT_MYSQL)
+            my_calistir(sql, uz, yerler, k, d, s, satir);
+        else
+            ms_calistir(sql, uz, yerler, k, d, s, satir);
+    }
+    if (yerler != yer_kucuk) free(yerler);
+    return kalan && *kalan ? kalan : NULL;
+}
+
+/* Değersiz tek deyim, sonucu atılır */
 static void vt_calistir(const char *sql, int64_t satir) {
-    if (sq.exec(vt_ac(satir), sql, NULL, NULL, NULL) != SQ_OK) vt_hatasi(satir, sql);
+    VtSonuc s;
+    vt_deyim(sql, NULL, 0, NULL, &s, satir);
+    vt_sonuc_birak(&s);
 }
+
+static void vt_ac(int64_t satir) {
+    switch (vt_etkin()) {
+    case VT_SQLITE: sqlite_ac(satir); break;
+    case VT_POSTGRES: pg_ac(satir); break;
+    case VT_MYSQL: my_ac(satir); break;
+    default: ms_ac(satir);
+    }
+}
+
+/* ---- Lehçe farkları ---------------------------------------------------- */
 
 static void ad_tirnakla(Tampon *t, const char *ad) {
-    t_yaz(t, "\"");
-    for (const char *p = ad; *p; p++) t_ekle(t, *p == '"' ? "\"\"" : p, *p == '"' ? 2 : 1);
-    t_yaz(t, "\"");
+    int tur = vt_etkin();
+    char ac = tur == VT_MYSQL ? '`' : tur == VT_MSSQL ? '[' : '"';
+    char kapa = tur == VT_MSSQL ? ']' : ac;
+    t_ekle(t, &ac, 1);
+    for (const char *p = ad; *p; p++) {
+        t_ekle(t, p, 1);
+        if (*p == kapa) t_ekle(t, p, 1);
+    }
+    t_ekle(t, &kapa, 1);
 }
 
-static const char *sutun_tipi(int64_t kod) {
-    switch (kod % 8) {
+static const char *sutun_tipi(AlanBilgisi *a) {
+    int tur = vt_etkin();
+    switch (a->kod % 8) {
     case KOD_SAYI:
-    case KOD_MANTIK: return "INTEGER NOT NULL DEFAULT 0";
-    case KOD_ONDALIK: return "REAL NOT NULL DEFAULT 0";
-    default: return "TEXT";
+        return tur == VT_SQLITE ? "INTEGER NOT NULL DEFAULT 0" : "BIGINT NOT NULL DEFAULT 0";
+    case KOD_MANTIK:
+        return tur == VT_SQLITE     ? "INTEGER NOT NULL DEFAULT 0"
+               : tur == VT_POSTGRES ? "BOOLEAN NOT NULL DEFAULT FALSE"
+               : tur == VT_MYSQL    ? "TINYINT(1) NOT NULL DEFAULT 0"
+                                    : "BIT NOT NULL DEFAULT 0";
+    case KOD_ONDALIK:
+        return tur == VT_SQLITE     ? "REAL NOT NULL DEFAULT 0"
+               : tur == VT_POSTGRES ? "DOUBLE PRECISION NOT NULL DEFAULT 0"
+               : tur == VT_MYSQL    ? "DOUBLE NOT NULL DEFAULT 0"
+                                    : "FLOAT NOT NULL DEFAULT 0";
+    default:
+        if (tur == VT_MYSQL) return a->secenekler ? "VARCHAR(255)" : "LONGTEXT";
+        if (tur == VT_MSSQL) return a->secenekler ? "NVARCHAR(255)" : "NVARCHAR(MAX)";
+        return "TEXT";
     }
 }
 
-/* Alanın değerini hazırlanmış sorgunun `sira`. yerine bağlar. */
-static void alan_bagla(void *s, int sira, int64_t d, int64_t kod) {
-    switch (kod % 8) {
-    case KOD_SAYI: sq.bind_int64(s, sira, d); break;
-    case KOD_MANTIK: sq.bind_int64(s, sira, d ? 1 : 0); break;
-    case KOD_ONDALIK: sq.bind_double(s, sira, ondalik(d)); break;
-    case KOD_METIN: sq.bind_text(s, sira, d ? M(d) : "", -1, SQ_KOPYALA); break;
+static const char *kimlik_sutunu(void) {
+    switch (vt_etkin()) {
+    case VT_POSTGRES: return "\"kimlik\" BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY";
+    case VT_MYSQL: return "`kimlik` BIGINT AUTO_INCREMENT PRIMARY KEY";
+    case VT_MSSQL: return "[kimlik] BIGINT IDENTITY(1,1) PRIMARY KEY";
+    default: return "\"kimlik\" INTEGER PRIMARY KEY AUTOINCREMENT";
+    }
+}
+
+static void islem_baslat(int64_t satir) {
+    int tur = vt_etkin();
+    vt_calistir(tur == VT_MYSQL ? "START TRANSACTION" : tur == VT_MSSQL ? "BEGIN TRANSACTION" : "BEGIN", satir);
+}
+
+/* ---- Modeller ---------------------------------------------------------- */
+
+/* Alanın değeri sorgu değerine (liste, sözlük ve model JSON metni olur; metni çağıran bırakır) */
+static VtDeger alan_degeri(int64_t d, AlanBilgisi *a, char **ayrilan) {
+    VtDeger v = {0};
+    *ayrilan = NULL;
+    switch (a->kod % 8) {
+    case KOD_SAYI: v.tur = 1, v.s = d; break;
+    case KOD_MANTIK: v.tur = 1, v.s = d ? 1 : 0; break;
+    case KOD_ONDALIK: v.tur = 2, v.o = ondalik(d); break;
+    case KOD_METIN: v.tur = 3, v.m = d ? M(d) : ""; break;
     default:
-        if (kod % 8 == KOD_MODEL && !d) {
-            sq.bind_null(s, sira);
-        } else {
+        if (a->kod % 8 == KOD_MODEL && !d) break;
+        {
             Tampon t = {0};
-            json_yaz(&t, d, kod, 0);
-            sq.bind_text(s, sira, t.v ? t.v : "", (int)t.n, SQ_KOPYALA);
-            free(t.v);
+            json_yaz(&t, d, a->kod, 0);
+            if (!t.v) t_yaz(&t, "");
+            *ayrilan = t.v;
+            v.tur = 3, v.m = t.v;
         }
     }
+    return v;
 }
 
-/* Kaydı (kimliğiyle ya da kimliksiz) tabloya ekler; verilen kimliği döndürür. */
+/* Kaydı (kimliğiyle ya da kimliksiz) tabloya ekler; kimliği döndürür. */
 static int64_t vt_ekle(ModelBilgisi *m, int64_t n, int kimlikle, int64_t satir) {
+    int tur = vt_etkin();
     Tampon q = {0}, d = {0};
+    int64_t bas = kimlikle ? 0 : 1;
+    int adet = (int)(m->alan_sayisi - bas);
+    if (tur == VT_MSSQL && kimlikle) {
+        t_yaz(&q, "SET IDENTITY_INSERT ");
+        ad_tirnakla(&q, m->ad);
+        t_yaz(&q, " ON; ");
+    }
     t_yaz(&q, "INSERT INTO ");
     ad_tirnakla(&q, m->ad);
-    t_yaz(&q, " (");
-    int ilk = 1;
-    for (int64_t i = kimlikle ? 0 : 1; i < m->alan_sayisi; i++) {
-        if (!ilk) {
-            t_yaz(&q, ", ");
-            t_yaz(&d, ", ");
-        }
-        ilk = 0;
-        ad_tirnakla(&q, m->alanlar[i].ad);
-        t_yaz(&d, "?");
-    }
-    if (ilk) {
-        t_yaz(&q, ") DEFAULT VALUES");
+    if (adet == 0) {
+        t_yaz(&q, tur == VT_MYSQL ? " () VALUES ()" : tur == VT_MSSQL ? " OUTPUT INSERTED.[kimlik] DEFAULT VALUES" : " DEFAULT VALUES");
     } else {
-        t_yaz(&q, ") VALUES (");
+        t_yaz(&q, " (");
+        for (int64_t i = bas; i < m->alan_sayisi; i++) {
+            if (i > bas) {
+                t_yaz(&q, ", ");
+                t_yaz(&d, ", ");
+            }
+            ad_tirnakla(&q, m->alanlar[i].ad);
+            t_yaz(&d, "?");
+        }
+        t_yaz(&q, ")");
+        if (tur == VT_MSSQL && !kimlikle) t_yaz(&q, " OUTPUT INSERTED.[kimlik]");
+        t_yaz(&q, " VALUES (");
         t_yaz(&q, d.v);
         t_yaz(&q, ")");
     }
+    if (tur == VT_POSTGRES && !kimlikle) t_yaz(&q, " RETURNING \"kimlik\"");
+    if (tur == VT_MSSQL && kimlikle) {
+        t_yaz(&q, "; SET IDENTITY_INSERT ");
+        ad_tirnakla(&q, m->ad);
+        t_yaz(&q, " OFF");
+    }
     free(d.v);
-    void *s = vt_hazirla(q.v, satir);
+    VtDeger *degerler = ham_ayir(sizeof(VtDeger) * (size_t)(adet ? adet : 1));
+    char **ayrilan = ham_ayir(sizeof(char *) * (size_t)(adet ? adet : 1));
+    for (int i = 0; i < adet; i++) {
+        int64_t alan = bas + i;
+        degerler[i] = alan == 0 ? (VtDeger){1, ALAN(n, 0), 0, NULL}
+                                : alan_degeri(ALAN(n, alan), &m->alanlar[alan], &ayrilan[i]);
+        if (alan == 0) ayrilan[i] = NULL;
+    }
+    VtSonuc s;
+    if (tur == VT_MSSQL) {
+        /* SQL Server toplu işi tek seferde gider (? yerleri metne yazılır) */
+        ms_ac(satir);
+        size_t yer_kucuk[64];
+        size_t *yerler = adet > 64 ? ham_ayir(sizeof(size_t) * (size_t)adet) : yer_kucuk;
+        int k = 0;
+        const char *kalan;
+        /* Toplu işin tamamı taranır: ;'ler de dahil */
+        size_t toplam = 0, parca;
+        int toplam_k = 0;
+        const char *p = q.v;
+        while (*p) {
+            parca = sql_tara(p, VT_MSSQL, yerler + toplam_k, adet - toplam_k, &k, &kalan);
+            for (int i = 0; i < k; i++) yerler[toplam_k + i] += toplam;
+            toplam_k += k;
+            toplam += (size_t)(kalan - p);
+            (void)parca;
+            p = kalan;
+        }
+        char *son = degerleri_yerlestir(q.v, strlen(q.v), yerler, toplam_k, degerler, VT_MSSQL);
+        memset(&s, 0, sizeof s);
+        ms_calistir_metin(son, &s, satir);
+        free(son);
+        if (yerler != yer_kucuk) free(yerler);
+    } else {
+        vt_deyim(q.v, degerler, adet, NULL, &s, satir);
+    }
     free(q.v);
-    int sira = 1;
-    for (int64_t i = kimlikle ? 0 : 1; i < m->alan_sayisi; i++) alan_bagla(s, sira++, ALAN(n, i), m->alanlar[i].kod);
-    int r = sq.step(s);
-    sq.finalize(s);
-    if (r != SQ_BITTI) vt_hatasi(satir, "kayıt eklenemedi");
-    return kimlikle ? ALAN(n, 0) : sq.last_insert_rowid(vt);
+    for (int i = 0; i < adet; i++) free(ayrilan[i]);
+    free(ayrilan);
+    free(degerler);
+    int64_t kimlik = ALAN(n, 0);
+    if (!kimlikle) {
+        if ((tur == VT_POSTGRES || tur == VT_MSSQL) && s.satir_sayisi > 0 && s.hucreler[0])
+            kimlik = strtoll(s.hucreler[0], NULL, 10);
+        else
+            kimlik = s.yeni_kimlik;
+    }
+    vt_sonuc_birak(&s);
+    if (tur == VT_POSTGRES && kimlikle) {
+        /* Elle verilen kimlikten sonra sayaç ileri alınır. */
+        Tampon t = {0}, a = {0};
+        ad_tirnakla(&a, m->ad);
+        t_yaz(&t, "SELECT setval(pg_get_serial_sequence(?, 'kimlik'), (SELECT MAX(\"kimlik\") FROM ");
+        t_yaz(&t, a.v);
+        t_yaz(&t, "))");
+        VtDeger v = {3, 0, 0, a.v};
+        vt_deyim(t.v, &v, 1, NULL, &s, satir);
+        vt_sonuc_birak(&s);
+        free(t.v);
+        free(a.v);
+    }
+    return kimlik;
 }
 
 /* Modelin tablosu: yoksa oluşturulur (veri/<Model>.json varsa içe aktarılır), eksik sütunlar eklenir. */
 static void tablo_hazirla(ModelBilgisi *m, int64_t satir) {
     if (m->tablo_hazir) return;
     vt_ac(satir);
-    void *s = vt_hazirla("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", satir);
-    sq.bind_text(s, 1, m->ad, -1, SQ_KOPYALA);
-    int yeni = sq.step(s) != SQ_SATIR;
-    sq.finalize(s);
+    int tur = vt_etkin();
+    const char *var_sorgusu =
+        tur == VT_SQLITE     ? "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?"
+        : tur == VT_POSTGRES ? "SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema() "
+                               "AND table_name = ?"
+        : tur == VT_MYSQL    ? "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND "
+                               "table_name = ?"
+                             : "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = SCHEMA_NAME() AND "
+                               "TABLE_NAME = ?";
+    VtDeger ad = {3, 0, 0, m->ad};
+    VtSonuc s;
+    vt_deyim(var_sorgusu, &ad, 1, NULL, &s, satir);
+    int yeni = s.satir_sayisi == 0;
+    vt_sonuc_birak(&s);
     Tampon q = {0};
     if (yeni) {
-        t_yaz(&q, "CREATE TABLE IF NOT EXISTS ");
+        t_yaz(&q, "CREATE TABLE ");
         ad_tirnakla(&q, m->ad);
-        t_yaz(&q, " (\"kimlik\" INTEGER PRIMARY KEY AUTOINCREMENT");
+        t_yaz(&q, " (");
+        t_yaz(&q, kimlik_sutunu());
         for (int64_t i = 1; i < m->alan_sayisi; i++) {
             t_yaz(&q, ", ");
             ad_tirnakla(&q, m->alanlar[i].ad);
             t_yaz(&q, " ");
-            t_yaz(&q, sutun_tipi(m->alanlar[i].kod));
+            t_yaz(&q, sutun_tipi(&m->alanlar[i]));
         }
-        t_yaz(&q, ")");
+        t_yaz(&q, tur == VT_MYSQL ? ") DEFAULT CHARSET=utf8mb4" : ")");
         vt_calistir(q.v, satir);
         free(q.v);
     } else {
         /* Modele sonradan eklenen alanlar için sütun eklenir; kaldırılan alanların sütunları kalır. */
-        t_yaz(&q, "PRAGMA table_info(");
-        ad_tirnakla(&q, m->ad);
-        t_yaz(&q, ")");
-        s = vt_hazirla(q.v, satir);
-        free(q.v);
+        const char *sutun_sorgusu =
+            tur == VT_SQLITE     ? "SELECT name FROM pragma_table_info(?)"
+            : tur == VT_POSTGRES ? "SELECT column_name FROM information_schema.columns WHERE table_schema = "
+                                   "current_schema() AND table_name = ?"
+            : tur == VT_MYSQL    ? "SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() "
+                                   "AND table_name = ?"
+                                 : "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = SCHEMA_NAME() "
+                                   "AND TABLE_NAME = ?";
+        vt_deyim(sutun_sorgusu, &ad, 1, NULL, &s, satir);
         char *var = ham_ayir((size_t)m->alan_sayisi);
         memset(var, 0, (size_t)m->alan_sayisi);
-        while (sq.step(s) == SQ_SATIR) {
-            const char *ad = (const char *)sq.column_text(s, 1);
-            int64_t i = ad ? alan_sirasi(m, ad) : -1;
+        for (int64_t r = 0; r < s.satir_sayisi; r++) {
+            const char *a = s.hucreler[r * s.sutun];
+            int64_t i = a ? alan_sirasi(m, a) : -1;
             if (i >= 0) var[i] = 1;
         }
-        sq.finalize(s);
+        vt_sonuc_birak(&s);
         for (int64_t i = 1; i < m->alan_sayisi; i++) {
             if (var[i]) continue;
             Tampon a = {0};
             t_yaz(&a, "ALTER TABLE ");
             ad_tirnakla(&a, m->ad);
-            t_yaz(&a, " ADD COLUMN ");
+            t_yaz(&a, tur == VT_MSSQL ? " ADD " : " ADD COLUMN ");
             ad_tirnakla(&a, m->alanlar[i].ad);
             t_yaz(&a, " ");
-            t_yaz(&a, sutun_tipi(m->alanlar[i].kod));
+            t_yaz(&a, sutun_tipi(&m->alanlar[i]));
             vt_calistir(a.v, satir);
             free(a.v);
         }
@@ -2989,11 +4218,11 @@ static void tablo_hazirla(ModelBilgisi *m, int64_t satir) {
     }
     m->tablo_hazir = 1;
     if (yeni) {
-        /* JSON'dan SQLite'a geçiş: önceki kayıtlar kimlikleriyle aktarılır (JSON dosyası silinmez). */
+        /* JSON'dan geçiş: önceki kayıtlar kimlikleriyle aktarılır (JSON dosyası silinmez). */
         int64_t liste = kayitlari_oku(m, satir);
         Liste *l = ORNEK(liste);
         if (l->uzunluk) {
-            vt_calistir("BEGIN", satir);
+            islem_baslat(satir);
             for (int64_t i = 0; i < l->uzunluk; i++) vt_ekle(m, l->ogeler[i], 1, satir);
             vt_calistir("COMMIT", satir);
         }
@@ -3010,16 +4239,16 @@ static void tablolari_hazirla(int64_t satir) {
     }
 }
 
-/* Sorgunun o anki satırından model nesnesi: satır JSON nesnesine çevrilip okunur. */
-static int64_t satirdan_nesne(void *s, ModelBilgisi *m, int64_t satir) {
+/* Sonucun `r`. satırından model nesnesi: satır JSON nesnesine çevrilip okunur. */
+static int64_t satirdan_nesne(VtSonuc *s, int64_t r, ModelBilgisi *m, int64_t satir) {
     Tampon t = {0};
     char k[64];
     t_yaz(&t, "{");
     int ilk = 1;
-    int n = sq.column_count(s);
-    for (int c = 0; c < n; c++) {
-        int64_t i = alan_sirasi(m, sq.column_name(s, c));
-        if (i < 0 || sq.column_type(s, c) == SQ_BOS) continue;
+    for (int c = 0; c < s->sutun; c++) {
+        const char *h = s->hucreler[r * s->sutun + c];
+        int64_t i = alan_sirasi(m, s->adlar[c]);
+        if (i < 0 || !h) continue;
         int64_t kod = m->alanlar[i].kod;
         if (!ilk) t_yaz(&t, ",");
         ilk = 0;
@@ -3027,19 +4256,21 @@ static int64_t satirdan_nesne(void *s, ModelBilgisi *m, int64_t satir) {
         t_yaz(&t, ":");
         switch (kod % 8) {
         case KOD_SAYI:
-            snprintf(k, sizeof k, "%" PRId64, sq.column_int64(s, c));
+            snprintf(k, sizeof k, "%" PRId64, (int64_t)strtoll(h, NULL, 10));
             t_yaz(&t, k);
             break;
-        case KOD_MANTIK: t_yaz(&t, sq.column_int64(s, c) ? "true" : "false"); break;
-        case KOD_ONDALIK:
-            snprintf(k, sizeof k, "%.17g", sq.column_double(s, c));
+        case KOD_MANTIK:
+            t_yaz(&t, (!strcmp(h, "1") || !strcmp(h, "t") || ascii_esit(h, "true")) ? "true" : "false");
+            break;
+        case KOD_ONDALIK: {
+            double x = strtod(h, NULL);
+            if (!isfinite(x)) x = 0;
+            snprintf(k, sizeof k, "%.17g", x);
             t_yaz(&t, k);
             break;
-        case KOD_METIN: json_metin(&t, (const char *)sq.column_text(s, c)); break;
-        default: {
-            const char *j = (const char *)sq.column_text(s, c);
-            t_yaz(&t, j && *j ? j : "null");
         }
+        case KOD_METIN: json_metin(&t, h); break;
+        default: t_yaz(&t, *h ? h : "null");
         }
     }
     t_yaz(&t, "}");
@@ -3055,51 +4286,61 @@ static int64_t satirdan_nesne(void *s, ModelBilgisi *m, int64_t satir) {
     return nesne;
 }
 
-/* SELECT * FROM <Model> [WHERE kimlik = ?] */
-static void *vt_secim(ModelBilgisi *m, const char *bas, const char *son, int64_t satir) {
+/* SELECT * FROM <Model> … */
+static void vt_secim(ModelBilgisi *m, const char *bas, const char *son, VtDeger *d, int n, VtSonuc *s, int64_t satir) {
     tablo_hazirla(m, satir);
     Tampon q = {0};
     t_yaz(&q, bas);
     ad_tirnakla(&q, m->ad);
     t_yaz(&q, son);
-    void *s = vt_hazirla(q.v, satir);
+    vt_deyim(q.v, d, n, NULL, s, satir);
     free(q.v);
-    return s;
 }
 
 static int64_t vt_hepsi(ModelBilgisi *m, int64_t satir) {
-    void *s = vt_secim(m, "SELECT * FROM ", " ORDER BY \"kimlik\"", satir);
+    VtSonuc s;
+    int tur = vt_etkin();
+    const char *sira = tur == VT_MSSQL ? " ORDER BY [kimlik]" : tur == VT_MYSQL ? " ORDER BY `kimlik`" : " ORDER BY \"kimlik\"";
+    vt_secim(m, "SELECT * FROM ", sira, NULL, 0, &s, satir);
     int64_t liste = ohc_liste_yeni();
-    int r;
-    while ((r = sq.step(s)) == SQ_SATIR) ohc_liste_ekle(liste, satirdan_nesne(s, m, satir));
-    sq.finalize(s);
-    if (r != SQ_BITTI) vt_hatasi(satir, "kayıtlar okunamadı");
+    for (int64_t r = 0; r < s.satir_sayisi; r++) ohc_liste_ekle(liste, satirdan_nesne(&s, r, m, satir));
+    vt_sonuc_birak(&s);
     return liste;
 }
 
+static const char *kimlik_kosulu(void) {
+    switch (vt_etkin()) {
+    case VT_MYSQL: return " WHERE `kimlik` = ?";
+    case VT_MSSQL: return " WHERE [kimlik] = ?";
+    default: return " WHERE \"kimlik\" = ?";
+    }
+}
+
 static int64_t vt_bul(ModelBilgisi *m, int64_t kimlik, int64_t varsayilan, int64_t satir) {
-    void *s = vt_secim(m, "SELECT * FROM ", " WHERE \"kimlik\" = ?", satir);
-    sq.bind_int64(s, 1, kimlik);
-    int64_t n = sq.step(s) == SQ_SATIR ? satirdan_nesne(s, m, satir) : varsayilan;
-    sq.finalize(s);
+    VtSonuc s;
+    VtDeger d = {1, kimlik, 0, NULL};
+    vt_secim(m, "SELECT * FROM ", kimlik_kosulu(), &d, 1, &s, satir);
+    int64_t n = s.satir_sayisi > 0 ? satirdan_nesne(&s, 0, m, satir) : varsayilan;
+    vt_sonuc_birak(&s);
     return n;
 }
 
 static int vt_var(ModelBilgisi *m, int64_t kimlik, int64_t satir) {
-    void *s = vt_secim(m, "SELECT 1 FROM ", " WHERE \"kimlik\" = ?", satir);
-    sq.bind_int64(s, 1, kimlik);
-    int var = sq.step(s) == SQ_SATIR;
-    sq.finalize(s);
+    VtSonuc s;
+    VtDeger d = {1, kimlik, 0, NULL};
+    vt_secim(m, "SELECT 1 FROM ", kimlik_kosulu(), &d, 1, &s, satir);
+    int var = s.satir_sayisi > 0;
+    vt_sonuc_birak(&s);
     return var;
 }
 
 static int vt_sil(ModelBilgisi *m, int64_t kimlik, int64_t satir) {
-    void *s = vt_secim(m, "DELETE FROM ", " WHERE \"kimlik\" = ?", satir);
-    sq.bind_int64(s, 1, kimlik);
-    int r = sq.step(s);
-    sq.finalize(s);
-    if (r != SQ_BITTI) vt_hatasi(satir, "kayıt silinemedi");
-    return sq.changes(vt) > 0;
+    VtSonuc s;
+    VtDeger d = {1, kimlik, 0, NULL};
+    vt_secim(m, "DELETE FROM ", kimlik_kosulu(), &d, 1, &s, satir);
+    int silindi = s.degisen > 0;
+    vt_sonuc_birak(&s);
+    return silindi;
 }
 
 static int64_t vt_kaydet(ModelBilgisi *m, int64_t n, int64_t satir) {
@@ -3116,14 +4357,20 @@ static int64_t vt_kaydet(ModelBilgisi *m, int64_t n, int64_t satir) {
             ad_tirnakla(&q, m->alanlar[i].ad);
             t_yaz(&q, " = ?");
         }
-        t_yaz(&q, " WHERE \"kimlik\" = ?");
-        void *s = vt_hazirla(q.v, satir);
+        t_yaz(&q, kimlik_kosulu());
+        int adet = (int)m->alan_sayisi;
+        VtDeger *d = ham_ayir(sizeof(VtDeger) * (size_t)adet);
+        char **ayrilan = ham_ayir(sizeof(char *) * (size_t)adet);
+        for (int64_t i = 1; i < m->alan_sayisi; i++) d[i - 1] = alan_degeri(ALAN(n, i), &m->alanlar[i], &ayrilan[i - 1]);
+        d[adet - 1] = (VtDeger){1, kimlik, 0, NULL};
+        ayrilan[adet - 1] = NULL;
+        VtSonuc s;
+        vt_deyim(q.v, d, adet, NULL, &s, satir);
+        vt_sonuc_birak(&s);
         free(q.v);
-        for (int64_t i = 1; i < m->alan_sayisi; i++) alan_bagla(s, (int)i, ALAN(n, i), m->alanlar[i].kod);
-        sq.bind_int64(s, (int)m->alan_sayisi, kimlik);
-        int r = sq.step(s);
-        sq.finalize(s);
-        if (r != SQ_BITTI) vt_hatasi(satir, "kayıt güncellenemedi");
+        for (int i = 0; i < adet; i++) free(ayrilan[i]);
+        free(ayrilan);
+        free(d);
         return kimlik;
     }
     kimlik = vt_ekle(m, n, kimlik > 0, satir);
@@ -3132,53 +4379,33 @@ static int64_t vt_kaydet(ModelBilgisi *m, int64_t n, int64_t satir) {
 }
 
 /* Ham SQL: `?` yerlerine liste<metin> değerleri bağlanır. Birden çok deyim (;) sırayla çalışır.
- * `sonuc` verilirse son deyimin satırları sözlük<metin, metin> olarak eklenir. */
+ * `sonuc` verilirse satırlar sözlük<metin, metin> olarak eklenir. */
 static int64_t sql_yurut(int64_t sorgu, int64_t degerler, int64_t sonuc, int64_t satir) {
     vt_ac(satir);
-    if (vt_sqlite_mi()) tablolari_hazirla(satir);
-    const char *p = M(sorgu);
+    if (vt_sql_mi()) tablolari_hazirla(satir);
     Liste *dl = degerler ? ORNEK(degerler) : NULL;
+    int n = dl ? (int)dl->uzunluk : 0;
+    VtDeger *d = ham_ayir(sizeof(VtDeger) * (size_t)(n ? n : 1));
+    for (int i = 0; i < n; i++) d[i] = (VtDeger){3, 0, 0, M(dl->ogeler[i])};
     int64_t degisen = 0;
     int bagli = 0;
+    const char *p = M(sorgu);
     while (p && *p) {
-        void *s = NULL;
-        const char *kalan = NULL;
-        if (sq.prepare_v2(vt, p, -1, &s, &kalan) != SQ_OK) vt_hatasi(satir, "SQL");
-        if (!s) break; /* yalnızca boşluk ya da yorum kaldı */
-        int n = sq.bind_parameter_count(s);
-        if (n > 0) {
-            int64_t verilen = dl ? dl->uzunluk : 0;
-            if (bagli || verilen != n) {
-                char m[200];
-                snprintf(m, sizeof m, "SQL sorgusunda %d yer tutucu (?) var ama %" PRId64 " değer verildi", n,
-                         bagli ? 0 : verilen);
-                sq.finalize(s);
-                hata(satir, m);
-            }
-            for (int i = 0; i < n; i++) sq.bind_text(s, i + 1, M(dl->ogeler[i]), -1, SQ_KOPYALA);
-            bagli = 1;
-        }
-        int r;
-        while ((r = sq.step(s)) == SQ_SATIR) {
-            if (!sonuc) continue;
+        VtSonuc s;
+        p = vt_deyim(p, d, n, &bagli, &s, satir);
+        for (int64_t r = 0; sonuc && r < s.satir_sayisi; r++) {
             int64_t sz = ohc_sozluk_yeni();
-            int c = sq.column_count(s);
-            for (int i = 0; i < c; i++) {
-                const char *ad = sq.column_name(s, i);
-                const char *d = (const char *)sq.column_text(s, i);
-                ohc_sozluk_koy(sz, metin_yap(ad, strlen(ad)), d ? metin_yap(d, (size_t)sq.column_bytes(s, i)) : D(""),
+            for (int c = 0; c < s.sutun; c++) {
+                const char *h = s.hucreler[r * s.sutun + c];
+                ohc_sozluk_koy(sz, metin_yap(s.adlar[c], strlen(s.adlar[c])), h ? metin_yap(h, strlen(h)) : D(""),
                                KOD_METIN);
             }
             ohc_liste_ekle(sonuc, sz);
         }
-        if (r != SQ_BITTI) {
-            sq.finalize(s);
-            vt_hatasi(satir, "SQL");
-        }
-        degisen = sq.changes(vt);
-        sq.finalize(s);
-        p = kalan;
+        degisen = s.degisen;
+        vt_sonuc_birak(&s);
     }
+    free(d);
     return degisen;
 }
 
@@ -3190,7 +4417,7 @@ int64_t ohc_sql_sorgu(int64_t sorgu, int64_t degerler, int64_t satir) {
 
 int64_t ohc_sql_calistir(int64_t sorgu, int64_t degerler, int64_t satir) { return sql_yurut(sorgu, degerler, 0, satir); }
 #else
-static int vt_sqlite_mi(void) { return 0; }
+static int vt_sql_mi(void) { return 0; }
 static int64_t vt_hepsi(ModelBilgisi *m, int64_t satir) { (void)m; return satir; }
 static int64_t vt_bul(ModelBilgisi *m, int64_t k, int64_t v, int64_t satir) { (void)m; (void)k; (void)satir; return v; }
 static int vt_var(ModelBilgisi *m, int64_t k, int64_t satir) { (void)m; (void)k; (void)satir; return 0; }
@@ -3206,26 +4433,26 @@ int64_t ohc_sql_calistir(int64_t sorgu, int64_t degerler, int64_t satir) { retur
 #endif
 
 int64_t ohc_model_hepsi(int64_t tanim, int64_t satir) {
-    if (vt_sqlite_mi()) return vt_hepsi(model_bilgisi(M(tanim)), satir);
+    if (vt_sql_mi()) return vt_hepsi(model_bilgisi(M(tanim)), satir);
     return kayitlari_oku(model_bilgisi(M(tanim)), satir);
 }
 
 /* Kimliği verilen kaydı döndürür; yoksa `varsayilan` nesnesini (kimlik 0). */
 int64_t ohc_model_yukle(int64_t varsayilan, int64_t kimlik, int64_t satir) {
-    if (vt_sqlite_mi()) return vt_bul(nesne_bilgisi(varsayilan), kimlik, varsayilan, satir);
+    if (vt_sql_mi()) return vt_bul(nesne_bilgisi(varsayilan), kimlik, varsayilan, satir);
     int64_t liste = kayitlari_oku(nesne_bilgisi(varsayilan), satir);
     int64_t i = kayit_sirasi(liste, kimlik);
     return i < 0 ? varsayilan : ORNEK(liste)->ogeler[i];
 }
 
 int64_t ohc_model_var(int64_t tanim, int64_t kimlik, int64_t satir) {
-    if (vt_sqlite_mi()) return vt_var(model_bilgisi(M(tanim)), kimlik, satir);
+    if (vt_sql_mi()) return vt_var(model_bilgisi(M(tanim)), kimlik, satir);
     return kayit_sirasi(kayitlari_oku(model_bilgisi(M(tanim)), satir), kimlik) >= 0;
 }
 
 int64_t ohc_model_sil(int64_t tanim, int64_t kimlik, int64_t satir) {
     ModelBilgisi *m = model_bilgisi(M(tanim));
-    if (vt_sqlite_mi()) return vt_sil(m, kimlik, satir);
+    if (vt_sql_mi()) return vt_sil(m, kimlik, satir);
     veri_kilitle(m);
     int64_t liste = kayitlari_oku(m, satir);
     int64_t i = kayit_sirasi(liste, kimlik);
@@ -3252,7 +4479,7 @@ int64_t ohc_model_kaydet(int64_t n, int64_t satir) {
                      m->alanlar[i].ad);
             hata(satir, mesaj);
         }
-    if (vt_sqlite_mi()) return vt_kaydet(m, n, satir);
+    if (vt_sql_mi()) return vt_kaydet(m, n, satir);
     veri_kilitle(m);
     int64_t liste = kayitlari_oku(m, satir);
     int64_t kimlik = ALAN(n, 0);

@@ -27,8 +27,17 @@ yönetici olur. Orhunca Stüdyo'da **F5** sunucuyu başlatır ve sayfayı canlı
 ## Veritabanı
 
 `.env` dosyasındaki `ORHUNCA_VERITABANI=sqlite` satırı kayıtları `veri/orhunca.sqlite`
-veritabanına yazar (Kullanıcı ve Ürün tabloları). Veritabanını DB Browser for SQLite ile
-açabilir ya da kodda SQL yazabilirsiniz:
+veritabanına yazar (Kullanıcı ve Ürün tabloları). SQL Server, PostgreSQL ya da MySQL için yalnızca
+bu satır değişir; kod aynı kalır:
+
+```
+ORHUNCA_VERITABANI=sqlserver://localhost\SQLEXPRESS/panel
+ORHUNCA_VERITABANI=postgresql://kullanıcı:şifre@localhost/panel
+ORHUNCA_VERITABANI=mysql://kullanıcı:şifre@localhost/panel
+```
+
+Veritabanı ve tablolar ilk çalıştırmada oluşturulur. Tabloları SSMS, pgAdmin, MySQL Workbench ya da
+DB Browser for SQLite ile açabilir, kodda SQL de yazabilirsiniz:
 
 ```
 sql_sorgu("SELECT kategori, COUNT(*) AS adet FROM Ürün GROUP BY kategori")

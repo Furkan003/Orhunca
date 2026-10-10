@@ -223,7 +223,7 @@ pub const YERLESIKLER: &[Yerlesik] = &[
     y!(
         "sql_sorgu",
         "sql_sorgu(sorgu, [değerler]) → liste<sözlük<metin, metin>>",
-        "SQLite veritabanında (veri/orhunca.sqlite) SELECT çalıştırır; her satır sütun adı → değer sözlüğüdür. `?` yerlerine değerler listesi konur: sql_sorgu(\"SELECT ad FROM Ürün WHERE fiyat > ?\", [\"100\"])"
+        "Veritabanında (ORHUNCA_VERITABANI: SQLite, PostgreSQL, MySQL, SQL Server; ayar yoksa veri/orhunca.sqlite) SELECT çalıştırır; her satır sütun adı → değer sözlüğüdür. `?` yerlerine değerler listesi konur: sql_sorgu(\"SELECT ad FROM Ürün WHERE fiyat > ?\", [\"100\"])"
     ),
     y!(
         "sql_çalıştır",

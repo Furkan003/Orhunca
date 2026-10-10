@@ -347,14 +347,36 @@ Kitap.var_mı(3)  ·  Kitap.sil(3)  ·  k'yı sil.
 k.json()  ·  json(değer)      # JSON metni
 ```
 
-**SQLite.** `.env` dosyasına `ORHUNCA_VERITABANI=sqlite` yazılırsa kayıtlar `veri/orhunca.sqlite`
-veritabanına yazılır: her model bir tablodur (`kimlik`, sayı/mantık `INTEGER`, ondalık `REAL`,
-metin `TEXT`; liste, sözlük ve iç model alanları JSON metni). Kod değişmez; önceki `veri/<Model>.json`
-kayıtları ilk açılışta kimlikleriyle aktarılır, modele eklenen alanlar tabloya sütun olarak eklenir.
-Veritabanı DB Browser for SQLite gibi araçlarla açılabilir. SQLite kütüphanesi Windows'ta ve macOS'ta
-hazır gelir; Linux'ta `libsqlite3` paketi gerekir. `orhunca yayınla --php` de aynı tabloları kullanır.
+**Veritabanları.** `.env` dosyasındaki `ORHUNCA_VERITABANI` ayarıyla kayıtlar JSON dosyaları yerine
+bir SQL veritabanına yazılır. Kod değişmez (`kaydet`, `hepsi()`, `bul()`, `sil` aynen çalışır):
 
-Doğrudan SQL de yazılabilir (JSON kipinde de aynı veritabanı dosyasını kullanır):
+```
+ORHUNCA_VERITABANI=sqlite                                         # veri/orhunca.sqlite
+ORHUNCA_VERITABANI=postgresql://kullanıcı:şifre@localhost/dükkan
+ORHUNCA_VERITABANI=mysql://kullanıcı:şifre@localhost:3306/dükkan  # MariaDB de
+ORHUNCA_VERITABANI=sqlserver://localhost\SQLEXPRESS/dükkan        # Windows kimlik doğrulaması
+ORHUNCA_VERITABANI=sqlserver://sa:şifre@localhost/dükkan           # SQL Server kullanıcısıyla
+```
+
+- Her model bir tablodur: `kimlik`, sayı/mantık tam sayı (PostgreSQL'de `BOOLEAN`, SQL Server'da
+  `BIT`), ondalık kayan nokta, metin (`TEXT`, `LONGTEXT`, `NVARCHAR`); liste, sözlük ve iç model
+  alanları JSON metni. Tablolar ilk kullanımda oluşturulur, modele eklenen alanlar sütun olarak
+  eklenir; veritabanı yoksa o da oluşturulur. Önceki `veri/<Model>.json` kayıtları ilk açılışta
+  kimlikleriyle aktarılır.
+- Tablolar veritabanının kendi aracıyla açılabilir: SQLite için DB Browser for SQLite, SQL Server
+  için SSMS, PostgreSQL için pgAdmin, MySQL için MySQL Workbench ya da phpMyAdmin.
+- İstemci kütüphanesi çalışma anında yüklenir: SQLite Windows'ta ve macOS'ta hazırdır (Linux'ta
+  `libsqlite3`); PostgreSQL için `libpq` (PostgreSQL kurulumundan bulunur), MySQL için `libmysql` ya da
+  `libmariadb` (MySQL, MariaDB ya da XAMPP kurulumundan bulunur), SQL Server için ODBC ve
+  "ODBC Driver 18 for SQL Server" (yoksa Windows'taki eski "SQL Server" sürücüsü). Başka bir yerdeki
+  kütüphane `ORHUNCA_VERITABANI_KUTUPHANESI=yol` ile verilir.
+- Şifredeki özel karakterler adreste `%` ile yazılır (`@` → `%40`). PostgreSQL'de `?sslmode=require`
+  gibi seçenekler, SQL Server'da `?sürücü=ODBC Driver 17 for SQL Server` eklenebilir.
+- `orhunca sına` sınamaları gerçek veritabanına dokunmaz; geçici bir SQLite dosyası kullanılır.
+- `orhunca yayınla --php` çıktısı MySQL'i (`orhunca/ayarlar.php`) ve SQLite'ı kullanır.
+
+Doğrudan SQL de yazılabilir; sorgu seçilen veritabanının kendi SQL'iyle yazılır (JSON kipinde
+`veri/orhunca.sqlite` kullanılır). Birden çok deyim `;` ile ayrılabilir:
 
 ```
 sonuç = sql_sorgu("SELECT ad, fiyat FROM Ürün WHERE fiyat > ? ORDER BY fiyat", ["100"])

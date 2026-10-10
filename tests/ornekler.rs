@@ -627,3 +627,57 @@ fn sqlite_kipinde_kayitlar_veritabanina_yazilir() {
     assert!(klasor.join("veri/orhunca.sqlite").is_file());
     let _ = std::fs::remove_dir_all(&klasor);
 }
+
+/// PostgreSQL, MySQL ve SQL Server: sunucu gerektiği için yalnızca adresi verilince çalışır, ör.
+/// ORHUNCA_DENEME_POSTGRESQL=postgresql://kullanıcı:şifre@localhost/orhunca_deneme
+/// ORHUNCA_DENEME_MYSQL=mysql://... · ORHUNCA_DENEME_SQLSERVER=sqlserver://...
+/// Her biri SQLite ile aynı çıktıyı vermeli.
+#[test]
+fn sunucu_veritabanlari_sqlite_ile_ayni_sonucu_verir() {
+    let program = "seçenek Tür: kitap, dergi\nmodel Yazar:\n    ad: metin\nmodel Ürün:\n    ad: metin\n    \
+         fiyat: ondalık\n    stok: sayı\n    satışta: mantık\n    tür: Tür\n    etiketler: liste<metin>\n    \
+         yazar: Yazar\n\
+         her ü için Ürün.hepsi()'nden:\n    ü'yü sil.\n\
+         ü = Ürün(ad: \"Nutuk 'Özel' \\\"baskı\\\"\", fiyat: 149.9, stok: 3, satışta: doğru, etiketler: [\"a\", \"b\"])\n\
+         ü.yazar = Yazar(ad: \"Atatürk\")\nü'yü kaydet.\nü.stok = 5\nü'yü kaydet.\n\
+         d = Ürün(ad: \"Bilim; ?\", fiyat: 0.1 + 0.2, tür: Tür.dergi)\nd'yi kaydet.\n\
+         her x için Ürün.hepsi()'nden:\n    \
+         x.ad + \" | \" + x.fiyat + \" | \" + x.stok + \" | \" + x.satışta + \" | \" + x.tür + \" | \" + uzunluk(x.etiketler) + \" | \" + x.yazar.ad'ı yaz.\n\
+         (Ürün.bul(d.kimlik).fiyat == 0.1 + 0.2)'yi yaz.\nÜrün.sil(d.kimlik)'yi yaz.\nÜrün.var_mı(d.kimlik)'yi yaz.\n\
+         sql_çalıştır(\"UPDATE Ürün SET stok = stok + 1 WHERE ad = ?\", [ü.ad])'i yaz.\nÜrün.bul(ü.kimlik).stok'u yaz.\n";
+    let klasor = std::env::temp_dir().join(format!("orhunca-sunucu-vt-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&klasor);
+    std::fs::create_dir_all(&klasor).unwrap();
+    let dosya = klasor.join("p.ohc");
+    std::fs::write(&dosya, program).unwrap();
+    let calistir = |vt: &str| {
+        let c = orhunca()
+            .arg("çalıştır")
+            .arg(&dosya)
+            .env("ORHUNCA_VERI", klasor.join("veri"))
+            .env("ORHUNCA_VERITABANI", vt)
+            .output()
+            .unwrap();
+        assert!(
+            c.status.success(),
+            "{vt}: {}",
+            String::from_utf8_lossy(&c.stderr)
+        );
+        String::from_utf8_lossy(&c.stdout).into_owned()
+    };
+    let beklenen = calistir("sqlite");
+    assert!(
+        beklenen.contains("Nutuk 'Özel' \"baskı\" | 149.9 | 5 | doğru | kitap | 2 | Atatürk"),
+        "{beklenen}"
+    );
+    for degisken in [
+        "ORHUNCA_DENEME_POSTGRESQL",
+        "ORHUNCA_DENEME_MYSQL",
+        "ORHUNCA_DENEME_SQLSERVER",
+    ] {
+        if let Ok(adres) = std::env::var(degisken) {
+            assert_eq!(calistir(&adres), beklenen, "{degisken}");
+        }
+    }
+    let _ = std::fs::remove_dir_all(&klasor);
+}

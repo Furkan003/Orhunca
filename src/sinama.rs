@@ -504,8 +504,8 @@ fn ust_duzey_sina(dosya: &Path, sure_siniri: Duration) -> Result<Sonuc, String> 
 }
 
 /// Programı çalıştırır; (çıktı ve hata akışı, çıkış kodu, süre doldu mu).
-/// Her sınama kendi boş veri klasörüyle çalışır: modellerin kayıtları (JSON ya da SQLite)
-/// projenin gerçek `veri/` klasörüne dokunmaz ve sınamalar birbirini etkilemez.
+/// Her sınama kendi boş veri klasörüyle çalışır: modellerin kayıtları projenin gerçek `veri/`
+/// klasörüne ya da veritabanı sunucusuna dokunmaz ve sınamalar birbirini etkilemez.
 fn calistir(program: &Path, klasor: &Path, sinir: Duration) -> Result<(String, i32, bool), String> {
     static SIRA: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let veri = std::env::temp_dir().join(format!(
@@ -528,6 +528,9 @@ fn calistir_verisiyle(
     let mut c = crate::komut(program)
         .current_dir(klasor)
         .env("ORHUNCA_VERI", veri)
+        // Sunucu veritabanı (PostgreSQL, MySQL, SQL Server) ayarlıysa sınamalar onun yerine
+        // geçici klasördeki SQLite dosyasını kullanır.
+        .env("ORHUNCA_SINAMA", "1")
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())

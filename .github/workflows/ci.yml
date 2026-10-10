@@ -139,6 +139,57 @@ jobs:
         env:
           PYTHONUTF8: "1"
         run: python araclar/ayiklama_sinamasi.py target/debug/orhunca.exe "$RUNNER_TEMP/ayiklama"
+      - name: Veritabanları (Windows'ta SQLite; varsa SQL Server LocalDB, Windows kimlik doğrulaması)
+        shell: bash
+        run: |
+          if command -v sqllocaldb > /dev/null 2>&1; then
+            sqllocaldb start MSSQLLocalDB
+            export ORHUNCA_DENEME_SQLSERVER='sqlserver://(localdb)\MSSQLLocalDB/orhunca_sinama'
+          else
+            echo "LocalDB yok; yalnızca SQLite sınanıyor"
+          fi
+          cargo test --test ornekler sunucu_veritabanlari
+  veritabani:
+    if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')
+    # Modeller ve sql_sorgu gerçek sunucularla: PostgreSQL, MariaDB (MySQL protokolü) ve
+    # SQL Server 2022 (ODBC Driver 18). Her biri SQLite ile aynı çıktıyı vermeli.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: orhunca
+          POSTGRES_PASSWORD: gizli
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-retries 20
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: gizli
+        ports: ["3306:3306"]
+        options: --health-cmd "healthcheck.sh --connect" --health-interval 5s --health-retries 30
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: Orhunca_Gizli1
+          MSSQL_PID: Express
+        ports: ["1433:1433"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: İstemci kütüphaneleri (libpq, libmariadb, unixODBC, ODBC Driver 18)
+        run: |
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y libpq5 libmariadb3 unixodbc msodbcsql18
+      - run: cargo build --tests
+      - name: SQL Server'ın açılmasını bekle
+        run: for i in $(seq 60); do (echo > /dev/tcp/127.0.0.1/1433) 2> /dev/null && break; sleep 2; done; sleep 10
+      - run: cargo test --test ornekler sunucu_veritabanlari
+        env:
+          ORHUNCA_DENEME_POSTGRESQL: postgresql://orhunca:gizli@localhost/orhunca_sinama
+          ORHUNCA_DENEME_MYSQL: mysql://root:gizli@127.0.0.1/orhunca_sinama
+          ORHUNCA_DENEME_SQLSERVER: sqlserver://sa:Orhunca_Gizli1@localhost/orhunca_sinama
   kabuk:
     if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')
     # Hazır pencere kabuklarını (orhunca paketle) kaynaktan derler, gerçek bir
