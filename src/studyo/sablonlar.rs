@@ -9,6 +9,11 @@ mod gomulu {
     include!(concat!(env!("OUT_DIR"), "/sablon_dosyalari.rs"));
 }
 
+/// Resmi paketlerin (kütüphaneler/) kaynakları: şablonlar projeye kopyalar.
+mod gomulu_kutuphane {
+    include!(concat!(env!("OUT_DIR"), "/kutuphane_dosyalari.rs"));
+}
+
 fn gomulu_dosya(yol: &str) -> Option<&'static str> {
     gomulu::DOSYALAR
         .iter()
@@ -191,6 +196,41 @@ pub const SABLONLAR: &[Sablon] = &[
         giris: "sunucu.ohc",
     },
     Sablon {
+        kimlik: "yonetim_paneli",
+        ad: "Yönetim Paneli",
+        aciklama: "Giriş ve kayıt, özet grafikleri, ürün yönetimi ve kullanıcı rolleri; SQLite veritabanıyla.",
+        simge: "dashboard",
+        kategoriler: &["Web", "Sunucu"],
+        etiketler: &["Orhunca", "Web", "Sunucu", "SQLite", "Giriş"],
+        yakinda: None,
+        dosyalar: &[
+            "sunucu.ohc",
+            "modeller/ürün.ohc",
+            "yollar/hesap.ohc",
+            "yollar/panel.ohc",
+            "yollar/ürünler.ohc",
+            "yollar/kullanıcılar.ohc",
+            "görünümler/düzen.ohchtml",
+            "görünümler/panel_düzeni.ohchtml",
+            "görünümler/giriş.ohchtml",
+            "görünümler/kayıt.ohchtml",
+            "görünümler/panel.ohchtml",
+            "görünümler/ürünler.ohchtml",
+            "görünümler/ürün_formu.ohchtml",
+            "görünümler/kullanıcılar.ohchtml",
+            "statik/panel.css",
+            "kütüphaneler/giriş/giriş.ohc",
+            "kütüphaneler/özet/özet.ohc",
+            "kütüphaneler/grafik_svg/grafik_svg.ohc",
+            "kütüphaneler/sayfala/sayfala.ohc",
+            "kütüphaneler/insancıl/insancıl.ohc",
+            ".env",
+            "{ad}.ohcproj",
+            "BENİOKU.md",
+        ],
+        giris: "sunucu.ohc",
+    },
+    Sablon {
         kimlik: "arayuz",
         ad: "Arayüz Uygulaması",
         aciklama: "Türkçe arayüz diliyle düğmeli, listeli bir uygulama; tarayıcıda çalışır.",
@@ -249,7 +289,17 @@ pub fn icerik(sablon: &Sablon, dosya: &str, ad: &str, ornek: bool) -> String {
              - `bileşen Ad(...):` — arayüzün yeniden kullanılan parçaları\n"
         );
     }
-    if dosya == "BENİOKU.md" && web_mi(sablon) {
+    // Şablonun kullandığı paketler projenin kütüphaneler/ klasörüne kopyalanır.
+    if let Some(yol) = dosya.strip_prefix("kütüphaneler/") {
+        return gomulu_kutuphane::DOSYALAR
+            .iter()
+            .find(|(y, _)| *y == yol)
+            .and_then(|(_, b)| std::str::from_utf8(b).ok())
+            .unwrap_or_default()
+            .to_string();
+    }
+    let kendi_benioku = gomulu_dosya(&format!("{}/BENİOKU.md", sablon.kimlik)).is_some();
+    if dosya == "BENİOKU.md" && web_mi(sablon) && !kendi_benioku {
         return format!(
             "# {ad}\n\n{} şablonuyla oluşturulmuş bir Orhunca web projesi.\n\n\
              ## Çalıştırma\n\n```\norhunca çalıştır\n```\n\n\

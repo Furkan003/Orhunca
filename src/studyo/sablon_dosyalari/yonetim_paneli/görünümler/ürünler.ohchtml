@@ -1,0 +1,40 @@
+@model (ürünler: liste<Ürün>, aranan: metin, bilgi: metin, bağlantılar: metin, anahtar: metin)
+@düzen "panel_düzeni"
+@başlık "Ürünler"
+<div class="ust">
+    <h1>Ürünler</h1>
+    <a class="dugme" href="/ürünler/yeni">Yeni ürün</a>
+</div>
+<form class="arama" method="get" action="/ürünler">
+    <input type="search" name="ara" value="@aranan" placeholder="Ürün adında ara" aria-label="Ürün ara">
+    <button class="dugme ikincil">Ara</button>
+</form>
+<div class="kutu">
+    @eğer uzunluk(ürünler) == 0 {
+    <p class="bos">Ürün bulunamadı.</p>
+    } @değilse {
+    <table>
+        <thead><tr><th>Ad</th><th>Kategori</th><th class="sag">Fiyat</th><th class="sag">Stok</th><th></th></tr></thead>
+        <tbody>
+            @her ü için ürünler'den {
+            <tr>
+                <td><a href="/ürünler/@ü.kimlik">@ü.ad</a></td>
+                <td>@kategori_adı(ü.kategori)</td>
+                <td class="sag">@para(ü.fiyat) TL</td>
+                <td class="sag">@eğer ü.stok < 5 {<span class="etiket-uyari">@ü.stok</span>} @değilse {@ü.stok}</td>
+                <td class="sag">
+                    <form method="post" action="/ürünler/@ü.kimlik/sil" onsubmit="return confirm('Bu ürün silinsin mi?')">
+                        <input type="hidden" name="form_anahtarı" value="@anahtar">
+                        <button class="sil">Sil</button>
+                    </form>
+                </td>
+            </tr>
+            }
+        </tbody>
+    </table>
+    }
+    <div class="alt">
+        <span class="bilgi">@bilgi</span>
+        @ham(bağlantılar)
+    </div>
+</div>

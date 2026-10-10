@@ -1,0 +1,16 @@
+@model (sorun: metin, anahtar: metin, ad: metin, e_posta: metin)
+@düzen "düzen"
+@başlık "Kayıt"
+<h1>Hesap oluştur</h1>
+@eğer sorun != "" {
+<p class="uyari" role="alert">@sorun</p>
+}
+<form method="post" class="form">
+    <input type="hidden" name="form_anahtarı" value="@anahtar">
+    <label>Ad soyad <input name="ad" value="@ad" autocomplete="name" required autofocus></label>
+    <label>E-posta <input type="email" name="e_posta" value="@e_posta" autocomplete="username" required></label>
+    <label>Şifre <input type="password" name="şifre" autocomplete="new-password" minlength="8" required>
+        <small>En az 8 karakter; harf ve rakam içermeli.</small></label>
+    <button class="dugme">Kayıt ol</button>
+</form>
+<p class="alt-not">Hesabınız var mı? <a href="/giriş">Giriş yapın</a></p>

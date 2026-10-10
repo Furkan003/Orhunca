@@ -1,0 +1,29 @@
+# Ürün kategorileri: formda açılır liste olarak gösterilir
+seçenek Kategori: kırtasiye, elektronik, giyim, gıda, ev
+
+model Ürün:
+    ad: metin, zorunlu, en_fazla 80
+    kategori: Kategori
+    fiyat: ondalık, zorunlu, en_az 0
+    stok: sayı = 0, en_az 0
+    açıklama: metin, en_fazla 500
+    eklenme: ondalık
+
+# "kırtasiye" → "Kırtasiye"
+işlev kategori_adı(k: Kategori) -> metin:
+    h = harfler("" + k)
+    döndür büyük_harf(h[0]) + birleştir(parça(h, 1, uzunluk(h) - 1), "")
+
+işlev kategori_adları() -> liste<metin>:
+    döndür dönüştür(Kategori.hepsi(), işlev(k) -> kategori_adı(Kategori(k)))
+
+işlev örnek_ürünleri_ekle():
+    şimdi = zaman()
+    Ürün(ad: "Defter (A4, kareli)", kategori: Kategori.kırtasiye, fiyat: 45.5, stok: 120, eklenme: şimdi)'yi kaydet.
+    Ürün(ad: "Tükenmez kalem", kategori: Kategori.kırtasiye, fiyat: 12.0, stok: 300, eklenme: şimdi)'yı kaydet.
+    Ürün(ad: "Kablosuz fare", kategori: Kategori.elektronik, fiyat: 349.9, stok: 18, eklenme: şimdi)'yi kaydet.
+    Ürün(ad: "Kulaklık", kategori: Kategori.elektronik, fiyat: 799.0, stok: 3, eklenme: şimdi)'yı kaydet.
+    Ürün(ad: "Pamuklu tişört", kategori: Kategori.giyim, fiyat: 229.0, stok: 40, eklenme: şimdi)'yi kaydet.
+    Ürün(ad: "Mont", kategori: Kategori.giyim, fiyat: 1499.0, stok: 2, eklenme: şimdi)'yi kaydet.
+    Ürün(ad: "Fındık ezmesi", kategori: Kategori.gıda, fiyat: 129.5, stok: 60, eklenme: şimdi)'yi kaydet.
+    Ürün(ad: "Seramik kupa", kategori: Kategori.ev, fiyat: 89.0, stok: 25, eklenme: şimdi)'yı kaydet.

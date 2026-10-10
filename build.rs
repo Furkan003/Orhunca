@@ -60,4 +60,5 @@ fn main() {
     gom("studio", "studio_dosyalari.rs");
     // Stüdyo'nun yeni proje şablonlarının dosyaları
     gom("src/studyo/sablon_dosyalari", "sablon_dosyalari.rs");
+    gom("kütüphaneler", "kutuphane_dosyalari.rs");
 }

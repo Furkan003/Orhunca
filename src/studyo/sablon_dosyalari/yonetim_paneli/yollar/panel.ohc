@@ -1,0 +1,28 @@
+# Özet sayfası: sayılar, grafikler (grafik_svg paketi) ve son eklenen ürünler
+al "/panel":
+    k = oturumdaki_kullanıcı(istek)
+    eğer k.kimlik == 0 ise:
+        döndür yönlendir("/giriş")
+    ürünler = Ürün.hepsi()
+    stok_değeri = 0.0
+    azalanlar: liste<Ürün> = []
+    her ü için ürünler'den:
+        stok_değeri += ü.fiyat * ü.stok
+        eğer ü.stok < 5 ise:
+            ü'yü azalanlar'a ekle.
+    # Kategorilere göre ürün sayısı ve stok değeri
+    sayılar: liste<ondalık> = []
+    tutarlar: liste<ondalık> = []
+    her kat için Kategori.hepsi()'nden:
+        n = 0.0
+        tutar = 0.0
+        her ü için ürünler'den:
+            eğer ü.kategori == Kategori(kat) ise:
+                n += 1.0
+                tutar += ü.fiyat * ü.stok
+        n'yi sayılar'a ekle.
+        tutar'ı tutarlar'a ekle.
+    çubuk = çubuk_grafiği("Kategoriye göre ürün sayısı", kategori_adları(), sayılar)
+    halka = halka_grafiği("Kategoriye göre stok değeri (TL)", kategori_adları(), tutarlar)
+    son_eklenenler = parça(ters(ürünler), 0, 5)
+    döndür görünüm("panel", k, uzunluk(ürünler), stok_değeri, azalanlar, uzunluk(Kullanıcı.hepsi()), çubuk, halka, son_eklenenler)

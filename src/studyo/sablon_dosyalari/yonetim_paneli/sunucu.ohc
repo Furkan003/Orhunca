@@ -1,0 +1,24 @@
+# «ad» — yönetim paneli: giriş, özet grafikleri, ürünler ve kullanıcılar.
+#   kütüphaneler/ hazır paketler: giriş (üyelik), özet, grafik_svg, sayfala, insancıl
+#   modeller/     veri tipleri ve kuralları
+#   yollar/       adresler ve yaptıkları işler
+#   görünümler/   sayfalar (.ohchtml)
+#   statik/       stil dosyası
+# Kayıtlar .env dosyasındaki ayarla veri/orhunca.sqlite veritabanına yazılır.
+# İlk kayıt olan kullanıcı yönetici olur.
+kullan "kütüphaneler/giriş/giriş.ohc"
+kullan "kütüphaneler/grafik_svg/grafik_svg.ohc"
+kullan "kütüphaneler/sayfala/sayfala.ohc"
+kullan "kütüphaneler/insancıl/insancıl.ohc"
+kullan "modeller/ürün.ohc"
+kullan "yollar/hesap.ohc"
+kullan "yollar/panel.ohc"
+kullan "yollar/ürünler.ohc"
+kullan "yollar/kullanıcılar.ohc"
+
+al "/":
+    döndür yönlendir("/panel")
+
+# İlk çalıştırmada örnek ürünler eklenir (Ürünler sayfasından silebilirsiniz).
+eğer uzunluk(Ürün.hepsi()) == 0 ise:
+    örnek_ürünleri_ekle()

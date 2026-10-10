@@ -1,0 +1,64 @@
+# Ürünler: arama, sayfalama (sayfala paketi), ekleme, düzenleme ve silme.
+# Formlar form anahtarıyla gönderilir (başka sitelerin sizin adınıza form göndermesine karşı).
+sabit SAYFA_BOYUTU = 6
+
+al "/ürünler":
+    eğer değil giriş_yapıldı_mı(istek) ise:
+        döndür yönlendir("/giriş")
+    aranan = kırp(değer(istek.sorgu, "ara", ""))
+    bulunan: liste<Ürün> = []
+    her ü için Ürün.hepsi()'nden:
+        eğer aranan == "" veya içerir(küçük_harf(ü.ad), küçük_harf(aranan)) ise:
+            ü'yü bulunan'a ekle.
+    toplam_sayfa = sayfa_sayısı(uzunluk(bulunan), SAYFA_BOYUTU)
+    sayfa = sayfa_düzelt(sayfa_oku(değer(istek.sorgu, "sayfa", "1")), toplam_sayfa)
+    görünen = parça(bulunan, sayfa_başı(sayfa, SAYFA_BOYUTU), SAYFA_BOYUTU)
+    bilgi = sayfa_bilgisi(sayfa, SAYFA_BOYUTU, uzunluk(bulunan))
+    bağlantılar = sayfalama_html(sayfa, toplam_sayfa, "/ürünler?ara=" + url_kodla(aranan) + "&sayfa={}")
+    döndür görünüm("ürünler", görünen, aranan, bilgi, bağlantılar, form_anahtarı(istek))
+
+al "/ürünler/yeni":
+    eğer değil giriş_yapıldı_mı(istek) ise:
+        döndür yönlendir("/giriş")
+    döndür görünüm("ürün_formu", Ürün(), [], form_anahtarı(istek))
+
+gönder "/ürünler/yeni":
+    eğer değil giriş_yapıldı_mı(istek) ise:
+        döndür yönlendir("/giriş")
+    eğer değil form_anahtarı_doğru_mu(istek) ise:
+        döndür yanıt(400, "Geçersiz form")
+    ü = Ürün.formdan(istek)
+    ü.eklenme = zaman()
+    eğer değil ü.geçerli_mi() ise:
+        döndür görünüm("ürün_formu", ü, ü.hatalar(), form_anahtarı(istek))
+    ü'yü kaydet.
+    döndür yönlendir("/ürünler")
+
+al "/ürünler/{kimlik: sayı}":
+    eğer değil giriş_yapıldı_mı(istek) ise:
+        döndür yönlendir("/giriş")
+    ü = Ürün.bul(kimlik)
+    eğer ü.kimlik == 0 ise:
+        döndür yanıt(404, "Ürün bulunamadı")
+    döndür görünüm("ürün_formu", ü, [], form_anahtarı(istek))
+
+gönder "/ürünler/{kimlik: sayı}":
+    eğer değil giriş_yapıldı_mı(istek) ise:
+        döndür yönlendir("/giriş")
+    eğer değil form_anahtarı_doğru_mu(istek) ise:
+        döndür yanıt(400, "Geçersiz form")
+    ü = Ürün.formdan(istek)
+    ü.kimlik = kimlik
+    ü.eklenme = Ürün.bul(kimlik).eklenme
+    eğer değil ü.geçerli_mi() ise:
+        döndür görünüm("ürün_formu", ü, ü.hatalar(), form_anahtarı(istek))
+    ü'yü kaydet.
+    döndür yönlendir("/ürünler")
+
+gönder "/ürünler/{kimlik: sayı}/sil":
+    eğer değil giriş_yapıldı_mı(istek) ise:
+        döndür yönlendir("/giriş")
+    eğer değil form_anahtarı_doğru_mu(istek) ise:
+        döndür yanıt(400, "Geçersiz form")
+    Ürün.sil(kimlik)
+    döndür yönlendir("/ürünler")

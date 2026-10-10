@@ -1,0 +1,35 @@
+# Giriş, kayıt ve çıkış. Asıl işi giriş paketi yapar (kütüphaneler/giriş/giriş.ohc):
+# şifreler tuzlu karma olarak saklanır, 5 hatalı denemede hesap 15 dakika kilitlenir.
+sabit SÜRESİ_DOLDU = "Sayfanın süresi doldu, yeniden deneyin."
+
+al "/giriş":
+    eğer giriş_yapıldı_mı(istek) ise:
+        döndür yönlendir("/panel")
+    döndür görünüm("giriş", "", form_anahtarı(istek))
+
+gönder "/giriş":
+    eğer değil form_anahtarı_doğru_mu(istek) ise:
+        döndür görünüm("giriş", SÜRESİ_DOLDU, form_anahtarı(istek))
+    sorun = giriş_yap(istek, değer(istek.form, "e_posta", ""), değer(istek.form, "şifre", ""))
+    eğer sorun != "" ise:
+        döndür görünüm("giriş", sorun, form_anahtarı(istek))
+    döndür yönlendir("/panel")
+
+al "/kayıt":
+    döndür görünüm("kayıt", "", form_anahtarı(istek), "", "")
+
+gönder "/kayıt":
+    ad = değer(istek.form, "ad", "")
+    e_posta = değer(istek.form, "e_posta", "")
+    şifre = değer(istek.form, "şifre", "")
+    eğer değil form_anahtarı_doğru_mu(istek) ise:
+        döndür görünüm("kayıt", SÜRESİ_DOLDU, form_anahtarı(istek), ad, e_posta)
+    sorun = kayıt_ol(ad, e_posta, şifre)
+    eğer sorun != "" ise:
+        döndür görünüm("kayıt", sorun, form_anahtarı(istek), ad, e_posta)
+    giriş_yap(istek, e_posta, şifre)
+    döndür yönlendir("/panel")
+
+gönder "/çıkış":
+    çıkış_yap(istek)
+    döndür yönlendir("/giriş")

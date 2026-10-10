@@ -1,0 +1,41 @@
+@model (ürün: Ürün, hatalar: liste<metin>, anahtar: metin)
+@düzen "panel_düzeni"
+@başlık "Ürün"
+<div class="ust">
+    @eğer ürün.kimlik > 0 {
+    <h1>Ürünü düzenle</h1>
+    } @değilse {
+    <h1>Yeni ürün</h1>
+    }
+</div>
+@eğer uzunluk(hatalar) > 0 {
+<ul class="uyari" role="alert">
+    @her h için hatalar'dan {
+    <li>@h</li>
+    }
+</ul>
+}
+<form method="post" class="form kutu">
+    <input type="hidden" name="form_anahtarı" value="@anahtar">
+    <label>Ad <input name="ad" value="@ürün.ad" required></label>
+    <label>Kategori
+        <select name="kategori">
+            @her k için Kategori.hepsi()'nden {
+            @eğer Kategori(k) == ürün.kategori {
+            <option value="@k" selected>@kategori_adı(Kategori(k))</option>
+            } @değilse {
+            <option value="@k">@kategori_adı(Kategori(k))</option>
+            }
+            }
+        </select>
+    </label>
+    <div class="yan-yana">
+        <label>Fiyat (TL) <input name="fiyat" value="@ürün.fiyat" inputmode="decimal"></label>
+        <label>Stok <input name="stok" value="@ürün.stok" inputmode="numeric"></label>
+    </div>
+    <label>Açıklama <textarea name="açıklama" rows="4">@ürün.açıklama</textarea></label>
+    <div class="dugmeler">
+        <button class="dugme">Kaydet</button>
+        <a href="/ürünler">Vazgeç</a>
+    </div>
+</form>

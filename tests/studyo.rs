@@ -192,6 +192,7 @@ fn sablonlar_derlenir_ve_calisir() {
         ("acilis", "sunucu.ohc"),
         ("web_api", "sunucu.ohc"),
         ("tam_yigin", "sunucu.ohc"),
+        ("yonetim_paneli", "sunucu.ohc"),
         ("arayuz", "uygulama.ohc"),
     ] {
         for ornek in [true, false] {

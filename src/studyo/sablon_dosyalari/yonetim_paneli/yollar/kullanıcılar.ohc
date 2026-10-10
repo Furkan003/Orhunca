@@ -1,0 +1,26 @@
+# Kullanıcılar: yalnızca yöneticiler görür; rol değiştirebilir.
+al "/kullanıcılar":
+    eğer değil rolü_var_mı(istek, "yönetici") ise:
+        döndür yanıt(403, "Bu sayfa yalnızca yöneticiler içindir.")
+    döndür görünüm("kullanıcılar", Kullanıcı.hepsi(), oturumdaki_kullanıcı(istek).kimlik, form_anahtarı(istek))
+
+gönder "/kullanıcılar/{kimlik: sayı}/rol":
+    eğer değil rolü_var_mı(istek, "yönetici") ise:
+        döndür yanıt(403, "Bu sayfa yalnızca yöneticiler içindir.")
+    eğer değil form_anahtarı_doğru_mu(istek) ise:
+        döndür yanıt(400, "Geçersiz form")
+    k = Kullanıcı.bul(kimlik)
+    # Yönetici kendi rolünü değiştiremez (panelde yönetici kalmaması olmasın)
+    eğer k.kimlik != 0 ve k.kimlik != oturumdaki_kullanıcı(istek).kimlik ise:
+        eğer k.rol == "yönetici" ise:
+            k.rol = "üye"
+        değilse:
+            k.rol = "yönetici"
+        k'yı kaydet.
+    döndür yönlendir("/kullanıcılar")
+
+# "5 dakika önce" (insancıl paketi)
+işlev son_giriş_yazısı(k: Kullanıcı) -> metin:
+    eğer k.son_giriş == 0.0 ise:
+        döndür "henüz giriş yapmadı"
+    döndür göreli_zaman(k.son_giriş, zaman())

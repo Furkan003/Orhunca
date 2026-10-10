@@ -1,0 +1,35 @@
+@model (kullanıcılar: liste<Kullanıcı>, ben: sayı, anahtar: metin)
+@düzen "panel_düzeni"
+@başlık "Kullanıcılar"
+<div class="ust">
+    <h1>Kullanıcılar</h1>
+</div>
+<div class="kutu">
+    <table>
+        <thead><tr><th>Ad</th><th>E-posta</th><th>Rol</th><th>Son giriş</th><th></th></tr></thead>
+        <tbody>
+            @her k için kullanıcılar'dan {
+            <tr>
+                <td>@k.ad</td>
+                <td>@k.e_posta</td>
+                <td><span class="rozet">@k.rol</span></td>
+                <td>@son_giriş_yazısı(k)</td>
+                <td class="sag">
+                    @eğer k.kimlik != ben {
+                    <form method="post" action="/kullanıcılar/@k.kimlik/rol">
+                        <input type="hidden" name="form_anahtarı" value="@anahtar">
+                        @eğer k.rol == "yönetici" {
+                        <button class="sil">Üye yap</button>
+                        } @değilse {
+                        <button class="dugme ikincil">Yönetici yap</button>
+                        }
+                    </form>
+                    } @değilse {
+                    <span class="bilgi">siz</span>
+                    }
+                </td>
+            </tr>
+            }
+        </tbody>
+    </table>
+</div>

@@ -1,0 +1,47 @@
+@model (kullanıcı: Kullanıcı, ürün_sayısı: sayı, stok_değeri: ondalık, azalanlar: liste<Ürün>, kullanıcı_sayısı: sayı, çubuk: metin, halka: metin, son_eklenenler: liste<Ürün>)
+@düzen "panel_düzeni"
+@başlık "Özet"
+<div class="ust">
+    <h1>Hoş geldiniz, @kullanıcı.ad</h1>
+    <span class="rozet">@kullanıcı.rol</span>
+</div>
+<section class="kartlar">
+    <div class="kart"><span>Ürün</span><strong>@ürün_sayısı</strong></div>
+    <div class="kart"><span>Stok değeri</span><strong>@para(stok_değeri) TL</strong></div>
+    <div class="kart"><span>Stoğu azalan</span><strong>@uzunluk(azalanlar)</strong></div>
+    <div class="kart"><span>Kullanıcı</span><strong>@kullanıcı_sayısı</strong></div>
+</section>
+<section class="grafikler">
+    <div class="kutu">@ham(çubuk)</div>
+    <div class="kutu">@ham(halka)</div>
+</section>
+<section class="ikili">
+    <div class="kutu">
+        <h2>Son eklenenler</h2>
+        @eğer uzunluk(son_eklenenler) == 0 {
+        <p class="bos">Henüz ürün yok.</p>
+        } @değilse {
+        <table>
+            <tbody>
+                @her ü için son_eklenenler'den {
+                <tr><td><a href="/ürünler/@ü.kimlik">@ü.ad</a></td><td class="sag">@para(ü.fiyat) TL</td></tr>
+                }
+            </tbody>
+        </table>
+        }
+    </div>
+    <div class="kutu">
+        <h2>Stoğu azalanlar (5'ten az)</h2>
+        @eğer uzunluk(azalanlar) == 0 {
+        <p class="bos">Stoğu azalan ürün yok.</p>
+        } @değilse {
+        <table>
+            <tbody>
+                @her ü için azalanlar'dan {
+                <tr><td><a href="/ürünler/@ü.kimlik">@ü.ad</a></td><td class="sag"><span class="etiket-uyari">@ü.stok adet</span></td></tr>
+                }
+            </tbody>
+        </table>
+        }
+    </div>
+</section>

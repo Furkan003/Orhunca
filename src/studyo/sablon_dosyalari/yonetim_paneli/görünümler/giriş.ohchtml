@@ -1,0 +1,14 @@
+@model (sorun: metin, anahtar: metin)
+@düzen "düzen"
+@başlık "Giriş"
+<h1>Giriş yap</h1>
+@eğer sorun != "" {
+<p class="uyari" role="alert">@sorun</p>
+}
+<form method="post" class="form">
+    <input type="hidden" name="form_anahtarı" value="@anahtar">
+    <label>E-posta <input type="email" name="e_posta" autocomplete="username" required autofocus></label>
+    <label>Şifre <input type="password" name="şifre" autocomplete="current-password" required></label>
+    <button class="dugme">Giriş yap</button>
+</form>
+<p class="alt-not">Hesabınız yok mu? <a href="/kayıt">Kayıt olun</a></p>

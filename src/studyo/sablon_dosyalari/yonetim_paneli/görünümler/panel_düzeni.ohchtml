@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>@başlık · «ad»</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/panel.css">
+</head>
+<body>
+    <aside class="kenar">
+        <a class="logo" href="/panel">«ad»</a>
+        <nav>
+            <a href="/panel">Özet</a>
+            <a href="/ürünler">Ürünler</a>
+            <a href="/kullanıcılar">Kullanıcılar</a>
+        </nav>
+        <form method="post" action="/çıkış"><button class="cikis">Çıkış yap</button></form>
+    </aside>
+    <main class="icerik">
+        @içerik
+    </main>
+</body>
+</html>
