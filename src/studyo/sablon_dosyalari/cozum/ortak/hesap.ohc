@@ -1,0 +1,26 @@
+# Ortak kod: hem web sunucusu (web/) hem telefon uygulaması (mobil/) bunu kullanır.
+# Burada yalnızca tanımlar olur; ekran ya da sunucu kodu yazılmaz.
+
+# Hesabı bölüşmek: bahşiş eklenmiş toplamın kişi başına düşen payı.
+işlev kişi_başı(tutar: ondalık, bahşiş_yüzdesi: ondalık, kişi: sayı) -> ondalık:
+    eğer kişi < 1 ise:
+        döndür 0.0
+    toplam = tutar * (1.0 + bahşiş_yüzdesi / 100.0)
+    döndür yuvarla(toplam / kişi * 100.0) / 100.0
+
+# Kullanıcının yazdığı tutar: "1.250,50" ya da "1250.5" olabilir.
+işlev tutar_çöz(m: metin) -> ondalık:
+    t = kırp(m)
+    eğer içerir(t, ",") ise:
+        t = değiştir(değiştir(t, ".", ""), ",", ".")
+    eğer ondalık_mı(t) veya sayı_mı(t) ise:
+        döndür ondalık(t)
+    döndür 0.0
+
+işlev hesap_yazısı(tutar: metin, yüzde: metin, kişi: metin) -> metin:
+    k = 0
+    eğer sayı_mı(kırp(kişi)) ise:
+        k = sayı(kırp(kişi))
+    eğer k < 1 ise:
+        döndür "Kişi sayısı en az 1 olmalı."
+    döndür "Kişi başı: " + para(kişi_başı(tutar_çöz(tutar), tutar_çöz(yüzde), k))

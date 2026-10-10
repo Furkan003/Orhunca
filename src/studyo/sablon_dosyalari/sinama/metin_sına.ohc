@@ -1,0 +1,11 @@
+# Yerleşik metin işlevlerinin davranışını belgeleyen sınamalar: bir işlevin nasıl
+# çalıştığından emin değilseniz, bir sınama yazıp görün.
+
+işlev sına_türkçe_büyük_harf():
+    eşit_olmalı(büyük_harf("istanbul"), "İSTANBUL")
+    eşit_olmalı(küçük_harf("IŞIK"), "ışık")
+
+işlev sına_böl_ve_birleştir():
+    parçalar = böl("elma,armut,kiraz", ",")
+    eşit_olmalı(uzunluk(parçalar), 3)
+    eşit_olmalı(birleştir(parçalar, " + "), "elma + armut + kiraz")

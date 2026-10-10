@@ -1,0 +1,13 @@
+kullan "komutlar.ohc"
+
+işlev sına_seçenekler_ayrılır():
+    a = ["ara", "x.txt", "--büyük-küçük", "kelime"]
+    eşit_olmalı(seçenekler(a), ["--büyük-küçük"])
+    eşit_olmalı(değerler_(a), ["ara", "x.txt", "kelime"])
+
+işlev sına_say_ve_ara():
+    dosyaya_yaz("deneme.txt", "Merhaba dünya\nOrhunca ile merhaba")
+    eşit_olmalı(say("deneme.txt"), "2 satır, 5 kelime, 33 harf")
+    eşit_olmalı(uzunluk(ara("deneme.txt", "merhaba", yanlış)), 2)
+    eşit_olmalı(uzunluk(ara("deneme.txt", "merhaba", doğru)), 1)
+    dosya_sil("deneme.txt")

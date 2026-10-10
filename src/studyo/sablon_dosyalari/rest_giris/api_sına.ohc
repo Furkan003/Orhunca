@@ -1,0 +1,14 @@
+# Sınamalar: Stüdyo'daki Sınamalar panelinden ya da "orhunca sına" ile çalışır.
+# Her sınama boş bir veri klasörüyle başlar.
+kullan "kütüphaneler/giriş/giriş.ohc"
+
+işlev sına_kayıt_giriş_ve_anahtar():
+    eşit_olmalı(kayıt_ol("Ayşe", "ayse@örnek.com", "Güçlü.Şifre42"), "")
+    eşit_olmalı(kimlik_doğrula("ayse@örnek.com", "Güçlü.Şifre42"), "")
+    anahtar = api_anahtarı_üret(kullanıcı_bul("ayse@örnek.com"))
+    istek = İstek(başlıklar: {"authorization": "Bearer " + anahtar})
+    eşit_olmalı(istekteki_kullanıcı(istek).ad, "Ayşe")
+
+işlev sına_yanlış_anahtar_reddedilir():
+    istek = İstek(başlıklar: {"authorization": "Bearer yanlış"})
+    eşit_olmalı(istekteki_kullanıcı(istek).kimlik, 0)

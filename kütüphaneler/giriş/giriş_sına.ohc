@@ -66,3 +66,14 @@ işlev sına_form_anahtarı():
 işlev sil_hepsi():
     her k için Kullanıcı.hepsi()'nden:
         k'yı sil.
+
+işlev sına_api_anahtarı():
+    kayıt_ol("Api", "api@örnek.com", "Uzun.Şifre123")
+    eşit_olmalı(kimlik_doğrula("api@örnek.com", "yanlış şifre"), GİRİŞ_YANLIŞ)
+    eşit_olmalı(kimlik_doğrula("api@örnek.com", "Uzun.Şifre123"), "")
+    anahtar = api_anahtarı_üret(kullanıcı_bul("api@örnek.com"))
+    eşit_olmalı(uzunluk(anahtar), 64)
+    istek = İstek(başlıklar: {"authorization": "Bearer " + anahtar})
+    eşit_olmalı(istekteki_kullanıcı(istek).e_posta, "api@örnek.com")
+    doğrula(api_anahtarını_sil(istek))
+    eşit_olmalı(istekteki_kullanıcı(istek).kimlik, 0)

@@ -1,0 +1,32 @@
+# «ad» — sınanacak kod. Sınamalar *_sına.ohc dosyalarındadır:
+#   Stüdyo'da sol çubuktaki Sınamalar panelinden ya da terminalde: orhunca sına
+# Bu dosya bir kütüphanedir: yalnızca tanımlar içerir.
+
+# Sepet tutarı: KDV ve indirim kodu uygulanmış toplam (kuruş hassasiyetinde).
+işlev sepet_tutarı(fiyatlar: liste<ondalık>, kdv_oranı: ondalık, indirim_kodu: metin) -> ondalık:
+    ara_toplam = 0.0
+    her f için fiyatlar'dan:
+        eğer f < 0.0 ise:
+            hata_ver("fiyat eksi olamaz: " + f)
+        ara_toplam += f
+    indirimli = ara_toplam * (1.0 - indirim_oranı(indirim_kodu))
+    döndür yuvarla(indirimli * (1.0 + kdv_oranı) * 100.0) / 100.0
+
+işlev indirim_oranı(kod: metin) -> ondalık:
+    eğer kod == "ÖĞRENCİ" ise:
+        döndür 0.2
+    eğer kod == "HOŞGELDİN" ise:
+        döndür 0.1
+    döndür 0.0
+
+# Not ortalamasından harf notu.
+işlev harf_notu(ortalama: ondalık) -> metin:
+    eğer ortalama >= 85.0 ise:
+        döndür "AA"
+    eğer ortalama >= 70.0 ise:
+        döndür "BA"
+    eğer ortalama >= 60.0 ise:
+        döndür "BB"
+    eğer ortalama >= 50.0 ise:
+        döndür "CC"
+    döndür "FF"

@@ -1,0 +1,77 @@
+# Komutların işleri. araç.ohc bunları çağırır; araç_sına.ohc sınar.
+
+sabit SÜRÜM = "0.1.0"
+
+işlev yardım_yazısı() -> metin:
+    döndür "«ad» " + SÜRÜM + "\n\nKullanım:\n  «ad» <komut> [değerler] [seçenekler]\n\nKomutlar:\n  say <dosya>            satır, kelime ve harf sayısı\n  ara <dosya> <kelime>   kelimenin geçtiği satırlar\n  büyüt <metin>          metni büyük harfe çevirir\n\nSeçenekler:\n  --büyük-küçük          aramada büyük/küçük harfi ayırt et\n  -y, --yardım           bu yardımı gösterir\n  -s, --sürüm            sürümü gösterir"
+
+# Seçenekleri (- ile başlayanlar) değerlerden ayırır.
+işlev seçenekler(a: liste<metin>) -> liste<metin>:
+    s: liste<metin> = []
+    her x için a'dan:
+        eğer başlar(x, "-") ise:
+            x'i s'ye ekle.
+    döndür s
+
+işlev değerler_(a: liste<metin>) -> liste<metin>:
+    d: liste<metin> = []
+    her x için a'dan:
+        eğer değil başlar(x, "-") ise:
+            x'i d'ye ekle.
+    döndür d
+
+işlev hata(mesaj: metin):
+    ("hata: " + mesaj)'yı yaz.
+    "Yardım için: «ad» --yardım"'ı yaz.
+    çık(1)
+
+işlev say(yol: metin) -> metin:
+    içerik = dosya_oku(yol)
+    kelime = 0
+    her s için satırlar(içerik)'dan:
+        her k için böl(s, " ")'den:
+            eğer kırp(k) != "" ise:
+                kelime += 1
+    döndür uzunluk(satırlar(içerik)) + " satır, " + kelime + " kelime, " + uzunluk(içerik) + " harf"
+
+işlev ara(yol: metin, kelime: metin, ayırt: mantık) -> liste<metin>:
+    bulunan: liste<metin> = []
+    no = 0
+    her s için satırlar(dosya_oku(yol))'dan:
+        no += 1
+        a = s
+        k = kelime
+        eğer değil ayırt ise:
+            a = küçük_harf(s)
+            k = küçük_harf(kelime)
+        eğer içerir(a, k) ise:
+            (no + ": " + s)'yi bulunan'a ekle.
+    döndür bulunan
+
+işlev ana(a: liste<metin>):
+    s = seçenekler(a)
+    d = değerler_(a)
+    eğer içerir(s, "-y") veya içerir(s, "--yardım") veya uzunluk(d) == 0 ise:
+        yardım_yazısı()'nı yaz.
+        döndür
+    eğer içerir(s, "-s") veya içerir(s, "--sürüm") ise:
+        SÜRÜM'ü yaz.
+        döndür
+    komut = d[0]
+    eğer komut == "say" ise:
+        eğer uzunluk(d) < 2 ise:
+            hata("say için bir dosya adı verin")
+        eğer değil dosya_var(d[1]) ise:
+            hata("dosya bulunamadı: " + d[1])
+        say(d[1])'i yaz.
+    değilse eğer komut == "ara" ise:
+        eğer uzunluk(d) < 3 ise:
+            hata("ara için dosya ve kelime verin")
+        eğer değil dosya_var(d[1]) ise:
+            hata("dosya bulunamadı: " + d[1])
+        her satır_ için ara(d[1], d[2], içerir(s, "--büyük-küçük"))'dan:
+            satır_'ı yaz.
+    değilse eğer komut == "büyüt" ise:
+        büyük_harf(birleştir(parça(d, 1, uzunluk(d) - 1), " "))'yi yaz.
+    değilse:
+        hata("bilinmeyen komut: " + komut)

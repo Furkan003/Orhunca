@@ -1,0 +1,18 @@
+# «ad» — telefon uygulaması. Web sunucusuyla aynı ortak kodu kullanır.
+#   Tarayıcıda denemek:  orhunca çalıştır mobil/uygulama.ohc
+#   Android paketi:      orhunca paketle mobil/uygulama.ohc --hedef android
+#   iPhone (Xcode):      orhunca paketle mobil/uygulama.ohc --hedef ios
+kullan "../ortak/hesap.ohc"
+
+durum tutar = "300"
+durum yüzde = "10"
+durum kişi = "3"
+
+arayüz:
+    başlık("Hesap bölüşme")
+    giriş(tutar, "Tutar (₺)")
+    giriş(yüzde, "Bahşiş (%)")
+    giriş(kişi, "Kişi sayısı")
+    yazı(hesap_yazısı(tutar, yüzde, kişi), boyut: 22)
+    düğme("Paylaş") tıklanınca:
+        paylaş(hesap_yazısı(tutar, yüzde, kişi))

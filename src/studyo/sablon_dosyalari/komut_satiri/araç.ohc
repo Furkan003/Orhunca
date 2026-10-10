@@ -1,0 +1,8 @@
+# «ad» — komut satırı aracı. Alt komutlar ve seçenekler:
+#   orhunca çalıştır -- say dosya.txt
+#   orhunca çalıştır -- ara dosya.txt kelime --büyük-küçük
+#   orhunca çalıştır -- --yardım
+# Derleyip tek dosya olarak dağıtmak için: orhunca derle araç.ohc
+kullan "komutlar.ohc"
+
+ana(argümanlar())

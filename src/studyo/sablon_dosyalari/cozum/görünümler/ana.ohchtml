@@ -1,0 +1,28 @@
+@model (sonuç: metin, tutar: metin, yüzde: metin, kişi: metin)
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>«ad»</title>
+<style>
+body { font-family: system-ui, sans-serif; max-width: 420px; margin: 40px auto; padding: 0 16px; }
+label { display: block; margin: 12px 0; }
+input { width: 100%; padding: 8px; font-size: 16px; box-sizing: border-box; }
+button { padding: 10px 18px; font-size: 16px; }
+.sonuc { font-size: 22px; font-weight: 600; }
+</style>
+</head>
+<body>
+<h1>Hesap bölüşme</h1>
+<form method="post">
+    <label>Tutar (₺) <input name="tutar" value="@tutar" inputmode="decimal" required></label>
+    <label>Bahşiş (%) <input name="yüzde" value="@yüzde" inputmode="decimal"></label>
+    <label>Kişi sayısı <input name="kişi" value="@kişi" inputmode="numeric"></label>
+    <button>Hesapla</button>
+</form>
+@eğer sonuç != "" {
+<p class="sonuc">@sonuç</p>
+}
+</body>
+</html>

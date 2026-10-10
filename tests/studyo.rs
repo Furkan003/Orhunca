@@ -193,10 +193,21 @@ fn sablonlar_derlenir_ve_calisir() {
         ("web_api", "sunucu.ohc"),
         ("tam_yigin", "sunucu.ohc"),
         ("yonetim_paneli", "sunucu.ohc"),
+        ("rest_giris", "sunucu.ohc"),
+        ("cozum", "web/sunucu.ohc"),
+        ("cozum", "mobil/uygulama.ohc"),
+        ("komut_satiri", "araç.ohc"),
+        ("arka_plan", "iş.ohc"),
+        ("sinama", "hesap_sına.ohc"),
         ("arayuz", "uygulama.ohc"),
     ] {
         for ornek in [true, false] {
-            let ad = format!("{sablon}_{ornek}");
+            let ek = if giris.starts_with("mobil/") {
+                "_mobil"
+            } else {
+                ""
+            };
+            let ad = format!("{sablon}{ek}_{ornek}");
             let r = s.api(
                 "/api/proje/olustur",
                 serde_json::json!({ "sablon": sablon, "ad": ad, "konum": konum, "git": false, "ornek": ornek }),

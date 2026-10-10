@@ -1,0 +1,48 @@
+# «ad» — arka plan işi: her ARALIK saniyede bir çalışır, günlük tutar, durumunu saklar.
+# Günlük ayarları .env dosyasındadır (GUNLUK_DOSYASI, GUNLUK_DUZEYI).
+# Bir kez çalıştırmak için:         orhunca çalıştır -- --bir-kez
+# Sürekli çalıştırmak için:         orhunca çalıştır
+# Sunucuda hizmet olarak (Linux):   orhunca derle iş.ohc  →  systemd ya da cron ile başlatın
+#   cron örneği (her 5 dakikada bir): */5 * * * * cd /yol/«ad» && ./iş --bir-kez
+kullan "kütüphaneler/günlük/günlük.ohc"
+
+sabit ARALIK = 60
+sabit DURUM_DOSYASI = "iş_durumu.json"
+
+# Asıl iş burada yapılır: bir adresi denetlemek, rapor üretmek, eski dosyaları silmek...
+# Örnek: bir web adresinin ayakta olup olmadığına bakar.
+işlev işi_yap(tur: sayı) -> metin:
+    adres = ortam("IS_ADRESI")
+    eğer adres == "" ise:
+        döndür "tur " + tur + " tamamlandı (IS_ADRESI boş, denetlenecek adres yok)"
+    dene:
+        yanıt_ = http_al(adres)
+        döndür adres + " yanıt verdi (" + uzunluk(yanıt_) + " bayt)"
+    yakala h:
+        günlük_hata(adres + " yanıt vermedi: " + h)
+        döndür "hata"
+
+işlev son_tur() -> sayı:
+    eğer değil dosya_var(DURUM_DOSYASI) ise:
+        döndür 0
+    t = json_al(dosya_oku(DURUM_DOSYASI), "tur")
+    eğer sayı_mı(t) ise:
+        döndür sayı(t)
+    döndür 0
+
+işlev durumu_yaz(tur: sayı, sonuç: metin):
+    dosyaya_yaz(DURUM_DOSYASI, json({"tur": metin(tur), "zaman": tarih(), "sonuç": sonuç}))
+
+işlev bir_tur():
+    tur = son_tur() + 1
+    sonuç = işi_yap(tur)
+    durumu_yaz(tur, sonuç)
+    günlük_bilgi(sonuç)
+
+günlük_bilgi("«ad» başladı")
+eğer içerir(argümanlar(), "--bir-kez") ise:
+    bir_tur()
+değilse:
+    doğru olduğu sürece:
+        bir_tur()
+        bekle(ARALIK)

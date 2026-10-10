@@ -11,7 +11,7 @@ orhunca stüdyo
 
 Tarayıcıda Orhunca'nın geliştirme ortamını açar: son projeler, şablon sihirbazı (Konsol Uygulaması,
 Sayı Tahmin Oyunu, Kütüphane; Boş Web Sayfası, Web Sitesi, Web Uygulaması, Açılış Sayfası, Web API,
-Tam Yığın Uygulama; Yönetim Paneli; Arayüz Uygulaması), sözdizimi renklendirmeli düzenleyici (`.ohc`, `.ohchtml`, CSS, JavaScript),
+Tam Yığın Uygulama; Yönetim Paneli; REST API + Giriş; Çözüm: Web + Mobil; Komut Satırı Aracı; Arka Plan İşi; Sınama Projesi; Arayüz Uygulaması), sözdizimi renklendirmeli düzenleyici (`.ohc`, `.ohchtml`, CSS, JavaScript),
 yazarken hata gösterimi, F5 ile derleyip çalıştırma (programın girdisi terminalden verilir),
 kesme noktalı hata ayıklayıcı, Linux/Windows için dağıtım derlemesi ve masaüstü paketleme ve Türkçe anahtar kelime rehberi. İnternet gerekmez; arayüz ve
 yazı tipleri ikili dosyanın içindedir.

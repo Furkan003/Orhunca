@@ -1,0 +1,62 @@
+# Notlar: her kullanıcı yalnızca kendi notlarını görür ve değiştirir.
+
+model Not:
+    sahibi: sayı
+    başlık: metin, zorunlu, en_fazla 120
+    içerik: metin, en_fazla 5000
+    zaman: metin
+
+işlev not_json(n: Not) -> sözlük<metin, metin>:
+    döndür {"kimlik": metin(n.kimlik), "başlık": n.başlık, "içerik": n.içerik, "zaman": n.zaman}
+
+# Kullanıcının notu; başkasınınsa veya yoksa kimliği 0 olan boş not.
+işlev kendi_notu(k: Kullanıcı, kimlik: sayı) -> Not:
+    n = Not.bul(kimlik)
+    eğer n.kimlik == 0 veya n.sahibi != k.kimlik ise:
+        döndür Not()
+    döndür n
+
+al "/notlar":
+    k = istekteki_kullanıcı(istek)
+    eğer k.kimlik == 0 ise:
+        döndür yetkisiz()
+    liste_: liste<sözlük<metin, metin>> = []
+    her n için Not.hepsi()'nden:
+        eğer n.sahibi == k.kimlik ise:
+            not_json(n)'yi liste_'ye ekle.
+    döndür json_yanıtı(liste_)
+
+gönder "/notlar":
+    k = istekteki_kullanıcı(istek)
+    eğer k.kimlik == 0 ise:
+        döndür yetkisiz()
+    n = Not(sahibi: k.kimlik, başlık: alan(istek, "başlık"), içerik: alan(istek, "içerik"), zaman: tarih())
+    eğer değil n.geçerli_mi() ise:
+        döndür json_yanıtı({"hatalar": n.hatalar()}, 422)
+    n'yi kaydet.
+    döndür json_yanıtı(not_json(n), 201)
+
+al "/notlar/{kimlik: sayı}":
+    n = kendi_notu(istekteki_kullanıcı(istek), kimlik)
+    eğer n.kimlik == 0 ise:
+        döndür hata_yanıtı("Not bulunamadı.", 404)
+    döndür not_json(n)
+
+koy "/notlar/{kimlik: sayı}":
+    n = kendi_notu(istekteki_kullanıcı(istek), kimlik)
+    eğer n.kimlik == 0 ise:
+        döndür hata_yanıtı("Not bulunamadı.", 404)
+    eğer alan(istek, "başlık") != "" ise:
+        n.başlık = alan(istek, "başlık")
+    n.içerik = alan(istek, "içerik")
+    eğer değil n.geçerli_mi() ise:
+        döndür json_yanıtı({"hatalar": n.hatalar()}, 422)
+    n'yi kaydet.
+    döndür not_json(n)
+
+sil "/notlar/{kimlik: sayı}":
+    n = kendi_notu(istekteki_kullanıcı(istek), kimlik)
+    eğer n.kimlik == 0 ise:
+        döndür hata_yanıtı("Not bulunamadı.", 404)
+    Not.sil(n.kimlik)
+    döndür {"sonuç": "silindi"}

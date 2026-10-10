@@ -1,0 +1,27 @@
+# Hesap uç noktaları. Asıl işi giriş paketi yapar: şifreler tuzlu karma olarak saklanır,
+# 5 hatalı denemede hesap 15 dakika kilitlenir, API anahtarlarının yalnızca özeti tutulur.
+
+gönder "/kayıt":
+    sorun = kayıt_ol(alan(istek, "ad"), alan(istek, "e_posta"), alan(istek, "şifre"))
+    eğer sorun != "" ise:
+        döndür hata_yanıtı(sorun, 422)
+    k = kullanıcı_bul(alan(istek, "e_posta"))
+    döndür json_yanıtı({"kimlik": metin(k.kimlik), "ad": k.ad, "anahtar": api_anahtarı_üret(k)}, 201)
+
+gönder "/giriş":
+    e_posta = alan(istek, "e_posta")
+    sorun = kimlik_doğrula(e_posta, alan(istek, "şifre"))
+    eğer sorun != "" ise:
+        döndür hata_yanıtı(sorun, 401)
+    döndür {"anahtar": api_anahtarı_üret(kullanıcı_bul(e_posta)), "geçerlilik_gün": "30"}
+
+al "/ben":
+    k = istekteki_kullanıcı(istek)
+    eğer k.kimlik == 0 ise:
+        döndür yetkisiz()
+    döndür {"kimlik": metin(k.kimlik), "ad": k.ad, "e_posta": k.e_posta, "rol": k.rol}
+
+gönder "/çıkış":
+    eğer değil api_anahtarını_sil(istek) ise:
+        döndür yetkisiz()
+    döndür {"sonuç": "çıkış yapıldı"}

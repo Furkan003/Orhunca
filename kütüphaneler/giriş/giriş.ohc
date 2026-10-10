@@ -37,7 +37,15 @@ model Kullanıcı:
     sıfırlama_özeti: metin
     sıfırlama_bitişi: ondalık
 
+# API anahtarı (REST istemcileri için): anahtarın kendisi değil, yalnızca özeti saklanır.
+model ApiAnahtarı:
+    kullanıcı: sayı
+    özet: metin
+    oluşturma: ondalık
+    bitiş: ondalık
+
 sabit GİRİŞ_EN_ÇOK_DENEME = 5
+sabit GİRİŞ_API_SÜRESİ = 2592000.0
 sabit GİRİŞ_KİLİT_SÜRESİ = 900.0
 sabit GİRİŞ_SIFIRLAMA_SÜRESİ = 3600.0
 sabit GİRİŞ_OTURUM_ANAHTARI = "giriş_kimlik"
@@ -102,6 +110,15 @@ işlev kayıt_ol(ad: metin, e_posta: metin, şifre: metin) -> metin:
 
 # E-posta ve şifreyi denetler, doğruysa kullanıcıyı oturuma alır. Başarılıysa boş metin döner.
 işlev giriş_yap(istek: İstek, e_posta: metin, şifre: metin) -> metin:
+    hata = kimlik_doğrula(e_posta, şifre)
+    eğer hata != "" ise:
+        döndür hata
+    # Yeni oturum sözlüğü: sunucu yeni bir oturum kimliği verir.
+    istek.oturum = {GİRİŞ_OTURUM_ANAHTARI: metin(kullanıcı_bul(e_posta).kimlik)}
+    döndür ""
+
+# E-posta ve şifreyi denetler (kilit ve deneme sayısıyla); oturum açmaz. Doğruysa boş metin.
+işlev kimlik_doğrula(e_posta: metin, şifre: metin) -> metin:
     k = kullanıcı_bul(e_posta)
     şimdi = zaman()
     eğer k.kimlik == 0 ise:
@@ -120,9 +137,41 @@ işlev giriş_yap(istek: İstek, e_posta: metin, şifre: metin) -> metin:
     k.hatalı_deneme = 0
     k.son_giriş = şimdi
     k'yı kaydet.
-    # Yeni oturum sözlüğü: sunucu yeni bir oturum kimliği verir.
-    istek.oturum = {GİRİŞ_OTURUM_ANAHTARI: metin(k.kimlik)}
     döndür ""
+
+# Kullanıcıya 30 gün geçerli bir API anahtarı verir. İstemci bunu her istekte
+# "Authorization: Bearer <anahtar>" başlığıyla gönderir.
+işlev api_anahtarı_üret(k: Kullanıcı) -> metin:
+    anahtar = güvenli_anahtar(32)
+    şimdi = zaman()
+    ApiAnahtarı(kullanıcı: k.kimlik, özet: sha256(anahtar), oluşturma: şimdi, bitiş: şimdi + GİRİŞ_API_SÜRESİ)'yı kaydet.
+    döndür anahtar
+
+işlev gr_istek_anahtarı(istek: İstek) -> metin:
+    b = kırp(değer(istek.başlıklar, "authorization", ""))
+    eğer uzunluk(b) > 7 ve küçük_harf(parça(b, 0, 7)) == "bearer " ise:
+        döndür kırp(parça(b, 7, uzunluk(b)))
+    döndür ""
+
+# İsteği yapan kullanıcı: önce API anahtarına, yoksa oturuma bakar. Bulunamazsa kimliği 0.
+işlev istekteki_kullanıcı(istek: İstek) -> Kullanıcı:
+    anahtar = gr_istek_anahtarı(istek)
+    eğer anahtar == "" ise:
+        döndür oturumdaki_kullanıcı(istek)
+    özet_ = sha256(anahtar)
+    şimdi = zaman()
+    her a için ApiAnahtarı.hepsi()'nden:
+        eğer a.özet == özet_ ve a.bitiş > şimdi ise:
+            döndür Kullanıcı.bul(a.kullanıcı)
+    döndür Kullanıcı()
+
+# İstekteki API anahtarını geçersiz kılar (çıkış). Silindiyse doğru.
+işlev api_anahtarını_sil(istek: İstek) -> mantık:
+    özet_ = sha256(gr_istek_anahtarı(istek))
+    her a için ApiAnahtarı.hepsi()'nden:
+        eğer a.özet == özet_ ise:
+            döndür ApiAnahtarı.sil(a.kimlik)
+    döndür yanlış
 
 işlev çıkış_yap(istek: İstek):
     istek.oturum = {}

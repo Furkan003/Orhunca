@@ -1,0 +1,11 @@
+# Ortak kodun sınamaları: web ve telefon aynı sonucu verir.
+kullan "hesap.ohc"
+
+işlev sına_kişi_başı():
+    eşit_olmalı(kişi_başı(300.0, 10.0, 3), 110.0)
+    eşit_olmalı(kişi_başı(100.0, 0.0, 0), 0.0)
+
+işlev sına_tutar_çöz():
+    eşit_olmalı(tutar_çöz("1.250,50"), 1250.5)
+    eşit_olmalı(tutar_çöz("80"), 80.0)
+    eşit_olmalı(tutar_çöz("abc"), 0.0)

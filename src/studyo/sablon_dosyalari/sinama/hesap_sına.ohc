@@ -1,0 +1,25 @@
+# Adı sına_ ile başlayan her işlev bir sınamadır. Kullanılabilecek denetimler:
+#   eşit_olmalı(gerçek, beklenen)   doğrula(koşul)
+kullan "hesap.ohc"
+
+işlev sına_indirimsiz_sepet():
+    eşit_olmalı(sepet_tutarı([100.0, 50.0], 0.2, ""), 180.0)
+
+işlev sına_öğrenci_indirimi():
+    eşit_olmalı(sepet_tutarı([100.0], 0.2, "ÖĞRENCİ"), 96.0)
+
+işlev sına_boş_sepet():
+    eşit_olmalı(sepet_tutarı([], 0.2, "HOŞGELDİN"), 0.0)
+
+işlev sına_eksi_fiyat_hata_verir():
+    hata_geldi = yanlış
+    dene:
+        sepet_tutarı([-5.0], 0.2, "")
+    yakala h:
+        hata_geldi = doğru
+    doğrula(hata_geldi)
+
+işlev sına_harf_notu_sınırları():
+    eşit_olmalı(harf_notu(85.0), "AA")
+    eşit_olmalı(harf_notu(84.9), "BA")
+    eşit_olmalı(harf_notu(49.9), "FF")

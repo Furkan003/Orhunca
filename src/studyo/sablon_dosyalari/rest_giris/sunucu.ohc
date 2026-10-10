@@ -1,0 +1,27 @@
+# «ad» — REST API: kayıt, giriş ve API anahtarıyla korunan uç noktalar.
+#   kütüphaneler/  hazır paketler: giriş (üyelik, API anahtarı), özet (şifre karması)
+#   yollar/        uç noktalar
+# İstemci önce /giriş'e e-posta ve şifre gönderir, aldığı anahtarı sonraki isteklerde
+# "Authorization: Bearer <anahtar>" başlığıyla yollar. Örnekler BENİOKU.md dosyasında.
+kullan "kütüphaneler/giriş/giriş.ohc"
+kullan "yollar/hesap.ohc"
+kullan "yollar/notlar.ohc"
+
+al "/":
+    döndür {"ad": "«ad»", "sürüm": "0.1.0", "uç_noktalar": "POST /kayıt, POST /giriş, GET /ben, POST /çıkış, GET|POST /notlar, GET|PUT|DELETE /notlar/{kimlik}"}
+
+# Gövdedeki alan: form (a=1&b=2) ya da JSON ({"a": "1"}) olabilir.
+işlev alan(istek: İstek, ad: metin) -> metin:
+    v = değer(istek.form, ad, "")
+    eğer v == "" ve kırp(istek.gövde) != "" ise:
+        dene:
+            v = json_al(istek.gövde, ad)
+        yakala h:
+            v = ""
+    döndür v
+
+işlev hata_yanıtı(mesaj: metin, durum: sayı) -> Yanıt:
+    döndür json_yanıtı({"hata": mesaj}, durum)
+
+işlev yetkisiz() -> Yanıt:
+    döndür hata_yanıtı("Giriş gerekli: Authorization: Bearer <anahtar> başlığını gönderin.", 401)

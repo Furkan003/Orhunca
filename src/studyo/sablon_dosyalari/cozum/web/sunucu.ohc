@@ -1,0 +1,20 @@
+# «ad» — web sunucusu. Hesap kodu ortak/ klasöründen gelir; telefon uygulaması da onu kullanır.
+#   Çalıştırma: orhunca çalıştır (proje kökünde)  →  http://localhost:3000
+#   JSON:       http://localhost:3000/api/hesap?tutar=300&yüzde=10&kişi=3
+kullan "../ortak/hesap.ohc"
+
+al "/":
+    döndür görünüm("ana", "", "300", "10", "3")
+
+gönder "/":
+    tutar = değer(istek.form, "tutar", "")
+    yüzde = değer(istek.form, "yüzde", "0")
+    kişi = değer(istek.form, "kişi", "1")
+    döndür görünüm("ana", hesap_yazısı(tutar, yüzde, kişi), tutar, yüzde, kişi)
+
+al "/api/hesap":
+    k = değer(istek.sorgu, "kişi", "1")
+    eğer değil sayı_mı(k) ise:
+        döndür json_yanıtı({"hata": "kişi bir sayı olmalı"}, 400)
+    pay = kişi_başı(tutar_çöz(değer(istek.sorgu, "tutar", "0")), tutar_çöz(değer(istek.sorgu, "yüzde", "0")), sayı(k))
+    döndür {"kişi_başı": metin(pay)}

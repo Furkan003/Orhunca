@@ -231,6 +231,91 @@ pub const SABLONLAR: &[Sablon] = &[
         giris: "sunucu.ohc",
     },
     Sablon {
+        kimlik: "rest_giris",
+        ad: "REST API + Giriş",
+        aciklama: "Kayıt, giriş ve API anahtarıyla korunan JSON uç noktaları; her kullanıcının kendi notları.",
+        simge: "key",
+        kategoriler: &["Web", "Sunucu"],
+        etiketler: &["Orhunca", "Sunucu", "REST", "Giriş", "SQLite"],
+        yakinda: None,
+        dosyalar: &[
+            "sunucu.ohc",
+            "yollar/hesap.ohc",
+            "yollar/notlar.ohc",
+            "kütüphaneler/giriş/giriş.ohc",
+            "kütüphaneler/özet/özet.ohc",
+            "api_sına.ohc",
+            ".env",
+            "{ad}.ohcproj",
+            "BENİOKU.md",
+        ],
+        giris: "sunucu.ohc",
+    },
+    Sablon {
+        kimlik: "cozum",
+        ad: "Çözüm: Web + Mobil",
+        aciklama: "Ortak kodu paylaşan bir web sunucusu ve bir telefon uygulaması; tek depoda üç proje.",
+        simge: "hub",
+        kategoriler: &["Web", "Sunucu", "Telefon"],
+        etiketler: &["Orhunca", "Web", "Telefon", "Çözüm"],
+        yakinda: None,
+        dosyalar: &[
+            "ortak/hesap.ohc",
+            "ortak/hesap_sına.ohc",
+            "web/sunucu.ohc",
+            "görünümler/ana.ohchtml",
+            "mobil/uygulama.ohc",
+            "{ad}.ohcproj",
+            "BENİOKU.md",
+        ],
+        giris: "web/sunucu.ohc",
+    },
+    Sablon {
+        kimlik: "komut_satiri",
+        ad: "Komut Satırı Aracı",
+        aciklama: "Alt komutları, seçenekleri ve yardım metniyle bir terminal aracı.",
+        simge: "terminal",
+        kategoriler: &["Konsol"],
+        etiketler: &["Orhunca", "Konsol", "CLI"],
+        yakinda: None,
+        dosyalar: &["araç.ohc", "komutlar.ohc", "araç_sına.ohc", "{ad}.ohcproj", "BENİOKU.md"],
+        giris: "araç.ohc",
+    },
+    Sablon {
+        kimlik: "arka_plan",
+        ad: "Arka Plan İşi",
+        aciklama: "Belirli aralıklarla çalışan, günlük tutan ve durumunu dosyada saklayan bir iş.",
+        simge: "schedule",
+        kategoriler: &["Konsol"],
+        etiketler: &["Orhunca", "Konsol", "Zamanlanmış"],
+        yakinda: None,
+        dosyalar: &[
+            "iş.ohc",
+            "kütüphaneler/günlük/günlük.ohc",
+            ".env",
+            "{ad}.ohcproj",
+            "BENİOKU.md",
+        ],
+        giris: "iş.ohc",
+    },
+    Sablon {
+        kimlik: "sinama",
+        ad: "Sınama Projesi",
+        aciklama: "Kodu ve sınamaları ayrı dosyalarda; Sınamalar panelinde tek tıkla çalışır.",
+        simge: "task_alt",
+        kategoriler: &["Kütüphane"],
+        etiketler: &["Orhunca", "Sınama", "Kütüphane"],
+        yakinda: None,
+        dosyalar: &[
+            "hesap.ohc",
+            "hesap_sına.ohc",
+            "metin_sına.ohc",
+            "{ad}.ohcproj",
+            "BENİOKU.md",
+        ],
+        giris: "hesap.ohc",
+    },
+    Sablon {
         kimlik: "arayuz",
         ad: "Arayüz Uygulaması",
         aciklama: "Türkçe arayüz diliyle düğmeli, listeli bir uygulama; tarayıcıda çalışır.",
@@ -313,7 +398,7 @@ pub fn icerik(sablon: &Sablon, dosya: &str, ad: &str, ornek: bool) -> String {
             sablon.ad
         );
     }
-    if dosya == "BENİOKU.md" {
+    if dosya == "BENİOKU.md" && !kendi_benioku {
         return format!(
             "# {ad}\n\n{} şablonuyla oluşturulmuş bir Orhunca projesi.\n\n\
              ## Çalıştırma\n\n```\norhunca çalıştır\n```\n\n\
