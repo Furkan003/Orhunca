@@ -326,6 +326,16 @@ pub fn derle_ortulu(
     programi_derle(program, dosya, cikti, None, false).map(|_| ())
 }
 
+/// Sınama kapsamı için: `derle_ortulu` gibi, ama hata ayıklama kancalarıyla (satır sayımı).
+pub fn derle_ortulu_ayiklamali(
+    dosya: &Path,
+    ortulu: &HashMap<PathBuf, String>,
+    cikti: &Path,
+) -> Result<Vec<String>, DerlemeHatasi> {
+    let program = yukle_ortulu(dosya, ortulu)?;
+    programi_derle(program, dosya, cikti, None, true)
+}
+
 fn derle_secenekli(
     dosya: &Path,
     cikti: &Path,

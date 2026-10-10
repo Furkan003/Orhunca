@@ -6,6 +6,21 @@ ne yapacağınız ve ne görmeniz gerektiği yazıyor. Beklenmeyen bir şey gör
 
 [← README](../README.md)
 
+## 1.2: Visual Studio gibi özellikler
+
+- [ ] **Sağ tık.** Gezginde bir dosyaya sağ tıklayın: Yeniden adlandır, Çoğalt, Sil, Dosya gezgininde göster çalışır; silmeden önce sorar.
+- [ ] **Sürükle-bırak.** Bir dosyayı bir klasörün üstüne sürükleyin; taşınır, açık sekmesi de yeni yeri gösterir.
+- [ ] **Yeni öğe.** Ctrl+Shift+A → Model → ad "ürün" → Ekle: `ürün.ohc` hazır bir modelle açılır.
+- [ ] **Bul / değiştir.** Ctrl+F ile arayın (sayı "1 / 3" gibi görünür), Ctrl+H ile "Hepsi" değiştirir; Ctrl+Z geri alır.
+- [ ] **Dışarıdan değişiklik.** Açık dosyayı Not Defteri ile değiştirip kaydedin; Stüdyo'ya dönünce yeni hâli görünür.
+- [ ] **F12.** Başka dosyadaki bir işlevin adına tıklayıp F12'ye basın; tanımı açılır. Alt+← geri getirir.
+- [ ] **Ctrl+P ve Ctrl+Shift+P.** Dosya adının birkaç harfiyle dosya açılır; komut paletinde "böl" yazınca Ekranı böl çıkar.
+- [ ] **Bilgi balonu.** Kendi yazdığınız bir işlevin üzerine fareyle gelin; imzası görünür. `işlev_adı(` yazınca parametre yardımı çıkar.
+- [ ] **Proje özellikleri.** Dosya → Proje özellikleri → Çalıştırma: ortam değişkeni `AD=deneme` ekleyin; `ortam("AD")'yi yaz.` F5'te "deneme" yazar.
+- [ ] **Git.** Git panelinde dal adına tıklayın → Yeni dal; geçmişteki bir işlemeye tıklayınca değişiklikler görünür.
+- [ ] **Önizleme.** Bir `.md` dosyasında sağ üstteki "Önizle", `.csv`'de "Tablo" çalışır; bir PNG resim açılınca resim görünür.
+- [ ] **Kapsam.** Sınama projesinde Sınamalar → Kapsamı ölç: dosya yüzdeleri çıkar, denenmeyen satırlar kırmızı işaretlenir.
+
 ## 1. Windows (Stüdyo masaüstü uygulaması)
 
 - [ ] **Kurulum.** `Orhunca-Studyo-Windows-Kurulum.exe` kurulur, Başlat menüsünde "Orhunca Stüdyo" çıkar.

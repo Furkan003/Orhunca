@@ -163,6 +163,27 @@ Kaydedilen temalar ayar klasöründedir (Linux `~/.config/orhunca/temalar`, Wind
 ![Görünüm ve temalar](ekran/temalar.png)
 
 
+## Visual Studio gibi çalışmak (1.2)
+
+- **Gezgin:** sağ tık menüsünde yeni öğe, yeni dosya/klasör, kes/kopyala/yapıştır, çoğalt,
+  yeniden adlandır (F2), sil (Delete), yolu kopyala, dosya gezgininde göster ve iki dosyayı
+  karşılaştırma. Dosyalar sürükle-bırakla taşınır (Ctrl ile kopyalanır).
+- **Yeni öğe ekle** (Ctrl+Shift+A): model (sınıf), seçenek, sınama, web yolu, görünüm, arayüz
+  bileşeni, CSS, JavaScript, JSON, Markdown.
+- **Bul / değiştir** (Ctrl+F / Ctrl+H), **tanıma git** (F12, Ctrl+tıklama; Alt+← geri),
+  **hızlı aç** (Ctrl+P), **komut paleti** (Ctrl+Shift+P), **ekranı böl** (Ctrl+\\),
+  kapanan sekmeyi geri aç (Ctrl+Shift+T), sekmelerde sağ tık menüsü.
+- Üzerine gelince işlevin imzası, `işlev(` yazınca parametre yardımı; satır başında `işlev`,
+  `eğer`, `her`, `model`, `al`, `sına` gibi bir sözcük yazıp Tab'a basınca kod parçacığı.
+- **Proje özellikleri** (Dosya menüsü): ad, sürüm, giriş dosyası, veritabanı adresi, program
+  argümanları ve ortam değişkenleri. **Ayarlar**'da girinti, kod yazı tipi, kaydederken biçimlendirme.
+- **Git:** dal adına tıklayınca dal oluşturma, geçiş, birleştirme, silme; işlemeye tıklayınca
+  değişiklikleri; imlecin bulunduğu satırın sonunda o satırı en son kimin değiştirdiği.
+- Resim, Markdown, CSV ve JSON önizlemesi; Stüdyo dışında değişen dosyaları fark etme; sorunlar
+  süzgeci; YAPILACAKLAR ve YER İMLERİ (Ctrl+Alt+K) sekmeleri; birden çok kabuk.
+- **Sınama kapsamı:** Sınamalar panelindeki *Kapsamı ölç* (ya da `orhunca sına --kapsam`)
+  sınamaların hangi satırları çalıştırdığını gösterir; çalışmayan satırlar kırmızı işaretlenir.
+
 ## Veritabanı, kabuk ve profil
 
 - **Veritabanı** (sol çubuk): `veri/` klasöründeki JSON kayıtlarını ve SQL tablolarını

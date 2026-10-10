@@ -17,6 +17,7 @@
 use crate::agac::{Deyim, Ifade, IfadeTuru, IkiliOp, Program, TekliOp};
 use crate::hata::{Hata, Konum};
 use serde_json::{json, Value};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -327,7 +328,56 @@ fn sinama_islevleri(p: &Program, suzgec: Option<&str>) -> Vec<(String, usize)> {
 }
 
 /// Bir sınama dosyasını çalıştırır: her sınama işlevi `dene:` içinde çağrılır.
+/// Sınama kapsamı: dosya → (satır → kaç kez çalıştı).
+pub type Kapsam = BTreeMap<String, BTreeMap<usize, u64>>;
+
 pub fn dosyayi_sina(dosya: &Path, suzgec: Option<&str>, sure_siniri: Duration) -> DosyaSonucu {
+    dosyayi_sina_kapsamli(dosya, suzgec, sure_siniri, None)
+}
+
+/// Satır sayımlarını (çalışma zamanının profil dosyası) kapsama ekler.
+fn kapsami_ekle(k: &mut Kapsam, rapor: &Path, dosyalar: &[String]) {
+    if let Ok(m) = std::fs::read_to_string(rapor) {
+        for s in crate::profil::raporu_oku(&m, dosyalar).satirlar {
+            let d = std::fs::canonicalize(&s.dosya)
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or(s.dosya);
+            *k.entry(d).or_default().entry(s.satir).or_default() += s.kez;
+        }
+    }
+}
+
+/// Derler (kapsam ölçülüyorsa satır kancalarıyla) ve çalıştırır.
+fn derle_calistir(
+    dosya: &Path,
+    ortulu: &std::collections::HashMap<PathBuf, String>,
+    program_yolu: &Path,
+    klasor: &Path,
+    sinir: Duration,
+    kapsam: Option<&mut Kapsam>,
+) -> Result<(String, i32, bool), String> {
+    match kapsam {
+        None => {
+            crate::derleme::derle_ortulu(dosya, ortulu, program_yolu).map_err(|h| h.metin)?;
+            calistir(program_yolu, klasor, sinir, None)
+        }
+        Some(k) => {
+            let dosyalar = crate::derleme::derle_ortulu_ayiklamali(dosya, ortulu, program_yolu)
+                .map_err(|h| h.metin)?;
+            let rapor = program_yolu.with_file_name("kapsam.txt");
+            let sonuc = calistir(program_yolu, klasor, sinir, Some(&rapor));
+            kapsami_ekle(k, &rapor, &dosyalar);
+            sonuc
+        }
+    }
+}
+
+pub fn dosyayi_sina_kapsamli(
+    dosya: &Path,
+    suzgec: Option<&str>,
+    sure_siniri: Duration,
+    kapsam: Option<&mut Kapsam>,
+) -> DosyaSonucu {
     let bas = Instant::now();
     let mut sonuc = DosyaSonucu {
         dosya: dosya.to_path_buf(),
@@ -358,7 +408,7 @@ pub fn dosyayi_sina(dosya: &Path, suzgec: Option<&str>, sure_siniri: Duration) -
         if !uyuyor || program.ana.is_empty() {
             return bitir(sonuc, None);
         }
-        return match ust_duzey_sina(dosya, sure_siniri) {
+        return match ust_duzey_sina(dosya, sure_siniri, kapsam) {
             Ok(t) => {
                 sonuc.sinamalar.push(t);
                 bitir(sonuc, None)
@@ -388,15 +438,11 @@ pub fn dosyayi_sina(dosya: &Path, suzgec: Option<&str>, sure_siniri: Duration) -
     } else {
         "sinama"
     });
-    if let Err(h) = crate::derleme::derle_ortulu(dosya, &ortulu, &program_yolu) {
-        let _ = std::fs::remove_dir_all(&gecici);
-        return bitir(sonuc, Some(h.metin));
-    }
     let klasor = dosya
         .parent()
         .filter(|k| !k.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
-    let calisma = calistir(&program_yolu, klasor, sure_siniri);
+    let calisma = derle_calistir(dosya, &ortulu, &program_yolu, klasor, sure_siniri, kapsam);
     let _ = std::fs::remove_dir_all(&gecici);
     let (cikti, kod, sure_doldu) = match calisma {
         Ok(c) => c,
@@ -450,22 +496,29 @@ pub fn dosyayi_sina(dosya: &Path, suzgec: Option<&str>, sure_siniri: Duration) -
 }
 
 /// `sına_` işlevi olmayan sınama dosyası: program olduğu gibi çalışır; hatasız biterse geçer.
-fn ust_duzey_sina(dosya: &Path, sure_siniri: Duration) -> Result<Sonuc, String> {
+fn ust_duzey_sina(
+    dosya: &Path,
+    sure_siniri: Duration,
+    kapsam: Option<&mut Kapsam>,
+) -> Result<Sonuc, String> {
     let gecici = crate::derleme::gecici_klasor("sina")?;
     let program_yolu = gecici.join(if cfg!(windows) {
         "sinama.exe"
     } else {
         "sinama"
     });
-    if let Err(h) = crate::derleme::derle_ortulu(dosya, &Default::default(), &program_yolu) {
-        let _ = std::fs::remove_dir_all(&gecici);
-        return Err(h.metin);
-    }
     let klasor = dosya
         .parent()
         .filter(|k| !k.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
-    let calisma = calistir(&program_yolu, klasor, sure_siniri);
+    let calisma = derle_calistir(
+        dosya,
+        &Default::default(),
+        &program_yolu,
+        klasor,
+        sure_siniri,
+        kapsam,
+    );
     let _ = std::fs::remove_dir_all(&gecici);
     let (cikti, kod, sure_doldu) = calisma?;
     let ad = dosya
@@ -506,14 +559,19 @@ fn ust_duzey_sina(dosya: &Path, sure_siniri: Duration) -> Result<Sonuc, String> 
 /// Programı çalıştırır; (çıktı ve hata akışı, çıkış kodu, süre doldu mu).
 /// Her sınama kendi boş veri klasörüyle çalışır: modellerin kayıtları projenin gerçek `veri/`
 /// klasörüne ya da veritabanı sunucusuna dokunmaz ve sınamalar birbirini etkilemez.
-fn calistir(program: &Path, klasor: &Path, sinir: Duration) -> Result<(String, i32, bool), String> {
+fn calistir(
+    program: &Path,
+    klasor: &Path,
+    sinir: Duration,
+    profil: Option<&Path>,
+) -> Result<(String, i32, bool), String> {
     static SIRA: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let veri = std::env::temp_dir().join(format!(
         "orhunca-sinama-verisi-{}-{}",
         std::process::id(),
         SIRA.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     ));
-    let sonuc = calistir_verisiyle(program, klasor, sinir, &veri);
+    let sonuc = calistir_verisiyle(program, klasor, sinir, &veri, profil);
     let _ = std::fs::remove_dir_all(&veri);
     sonuc
 }
@@ -523,9 +581,14 @@ fn calistir_verisiyle(
     klasor: &Path,
     sinir: Duration,
     veri: &Path,
+    profil: Option<&Path>,
 ) -> Result<(String, i32, bool), String> {
     use std::io::Read;
-    let mut c = crate::komut(program)
+    let mut komut = crate::komut(program);
+    if let Some(p) = profil {
+        komut.env("ORHUNCA_PROFIL", p);
+    }
+    let mut c = komut
         .current_dir(klasor)
         .env("ORHUNCA_VERI", veri)
         // Sunucu veritabanı (PostgreSQL, MySQL, SQL Server) ayarlıysa sınamalar onun yerine
@@ -572,6 +635,119 @@ fn goreli_yol(p: &Path, kok: &Path) -> String {
     let p = p.strip_prefix(kok).unwrap_or(p);
     let p = p.strip_prefix(".").unwrap_or(p);
     p.to_string_lossy().replace('\\', "/")
+}
+
+/// Çalıştırılabilir satırlar (yaklaşık): boş, yorum, tanım başlığı, model/seçenek gövdesi ve
+/// çok satırlı ifadelerin devam satırları sayılmaz.
+pub fn kod_satirlari(kaynak: &str) -> Vec<usize> {
+    let mut l = Vec::new();
+    let mut atla: Option<usize> = None;
+    let mut derinlik: i32 = 0;
+    for (i, satir) in kaynak.lines().enumerate() {
+        let t = satir.trim();
+        let devam = derinlik > 0;
+        let mut tirnak = false;
+        for c in t.chars() {
+            match c {
+                '"' => tirnak = !tirnak,
+                '#' if !tirnak => break,
+                '(' | '[' | '{' if !tirnak => derinlik += 1,
+                ')' | ']' | '}' if !tirnak => derinlik -= 1,
+                _ => {}
+            }
+        }
+        derinlik = derinlik.max(0);
+        if t.is_empty() || t.starts_with('#') || devam {
+            continue;
+        }
+        let girinti = satir.len() - satir.trim_start().len();
+        if let Some(a) = atla {
+            if girinti > a {
+                continue;
+            }
+            atla = None;
+        }
+        if t.starts_with("model ") || t.starts_with("seçenek ") {
+            atla = Some(girinti);
+            continue;
+        }
+        let baslik = [
+            "işlev ",
+            "fiil ",
+            "kullan ",
+            "bileşen ",
+            "sabit ",
+            "yakala",
+            "@",
+        ]
+        .iter()
+        .any(|b| t.starts_with(b))
+            || matches!(t, "değilse:" | "dene:" | "arayüz:");
+        if !baslik {
+            l.push(i + 1);
+        }
+    }
+    l
+}
+
+/// Kapsam özeti: proje dosyaları (sınama dosyaları hariç) için yüzde ve çalışmayan satırlar.
+pub fn kapsam_ozeti(k: &Kapsam, kok: &Path) -> Vec<Value> {
+    let kok_tam = std::fs::canonicalize(kok).unwrap_or_else(|_| kok.to_path_buf());
+    let mut dosyalar: Vec<PathBuf> = dosyalari_bul_hepsi(&kok_tam)
+        .into_iter()
+        .filter(|d| !sinama_dosyasi_mi(d))
+        .collect();
+    dosyalar.sort();
+    dosyalar
+        .iter()
+        .filter_map(|d| {
+            let tam = std::fs::canonicalize(d).ok()?;
+            let kaynak = std::fs::read_to_string(&tam).ok()?;
+            let calisan = k.get(&tam.to_string_lossy().into_owned());
+            let satirlar = kod_satirlari(&kaynak);
+            if satirlar.is_empty() {
+                return None;
+            }
+            let calismayan: Vec<usize> = satirlar
+                .iter()
+                .copied()
+                .filter(|s| calisan.is_none_or(|c| !c.contains_key(s)))
+                .collect();
+            let toplam = satirlar.len();
+            let kapsanan = toplam - calismayan.len();
+            Some(json!({
+                "dosya": goreli_yol(&tam, &kok_tam),
+                "toplam": toplam,
+                "kapsanan": kapsanan,
+                "yuzde": (kapsanan * 100) / toplam,
+                "calismayan": calismayan,
+            }))
+        })
+        .collect()
+}
+
+/// Projedeki bütün .ohc dosyaları (gizli klasörler, cikti/ ve paketler/ hariç).
+fn dosyalari_bul_hepsi(kok: &Path) -> Vec<PathBuf> {
+    fn gez(k: &Path, l: &mut Vec<PathBuf>, derinlik: usize) {
+        let Ok(o) = std::fs::read_dir(k) else { return };
+        for g in o.flatten() {
+            let p = g.path();
+            let ad = g.file_name().to_string_lossy().into_owned();
+            if ad.starts_with('.') || ad == "cikti" || ad == "target" || ad == "paketler" {
+                continue;
+            }
+            if p.is_dir() {
+                if derinlik < 8 {
+                    gez(&p, l, derinlik + 1);
+                }
+            } else if ad.ends_with(".ohc") {
+                l.push(p);
+            }
+        }
+    }
+    let mut l = Vec::new();
+    gez(kok, &mut l, 0);
+    l
 }
 
 pub fn json_sonuc(l: &[DosyaSonucu], kok: &Path) -> Value {
@@ -623,16 +799,28 @@ pub fn listele(kok: &Path) -> Value {
 }
 
 /// Stüdyo: projedeki bütün sınamalar, bir dosya ya da tek bir sınama.
-pub fn calistir_json(kok: &Path, dosya: Option<&Path>, ad: Option<&str>) -> Value {
+pub fn calistir_json(kok: &Path, dosya: Option<&Path>, ad: Option<&str>, kapsamli: bool) -> Value {
     let dosyalar = match dosya {
         Some(d) => vec![d.to_path_buf()],
         None => dosyalari_bul(kok),
     };
+    let mut kapsam = Kapsam::new();
     let sonuclar: Vec<DosyaSonucu> = dosyalar
         .iter()
-        .map(|d| dosyayi_sina(d, ad, Duration::from_secs(60)))
+        .map(|d| {
+            dosyayi_sina_kapsamli(
+                d,
+                ad,
+                Duration::from_secs(60),
+                kapsamli.then_some(&mut kapsam),
+            )
+        })
         .collect();
-    json_sonuc(&sonuclar, kok)
+    let mut j = json_sonuc(&sonuclar, kok);
+    if kapsamli {
+        j["kapsam"] = json!(kapsam_ozeti(&kapsam, kok));
+    }
+    j
 }
 
 /// `orhunca sına [dosya ya da klasör ...] [--ad parça] [--json]`
@@ -640,17 +828,19 @@ pub fn komut(args: &[String]) -> Result<bool, String> {
     let mut yollar = Vec::new();
     let mut suzgec = None;
     let mut json_cikti = false;
+    let mut kapsamli = false;
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
             "--json" => json_cikti = true,
+            "--kapsam" => kapsamli = true,
             "--ad" => {
                 i += 1;
                 suzgec = Some(args.get(i).ok_or("--ad bir sınama adı (ya da parçası) alır")?.clone());
             }
             a if a.starts_with("--") => {
                 return Err(format!(
-                    "bilinmeyen seçenek '{a}'\nKullanım: orhunca sına [dosya ya da klasör ...] [--ad parça] [--json]"
+                    "bilinmeyen seçenek '{a}'\nKullanım: orhunca sına [dosya ya da klasör ...] [--ad parça] [--kapsam] [--json]"
                 ))
             }
             a => yollar.push(PathBuf::from(a)),
@@ -680,18 +870,56 @@ pub fn komut(args: &[String]) -> Result<bool, String> {
     }
     let bas = Instant::now();
     let mut sonuclar = Vec::new();
+    let mut kapsam = Kapsam::new();
     for d in &dosyalar {
-        let s = dosyayi_sina(d, suzgec.as_deref(), Duration::from_secs(60));
+        let s = dosyayi_sina_kapsamli(
+            d,
+            suzgec.as_deref(),
+            Duration::from_secs(60),
+            kapsamli.then_some(&mut kapsam),
+        );
         if !json_cikti {
             yazdir(&s, &kok);
         }
         sonuclar.push(s);
     }
-    let j = json_sonuc(&sonuclar, &kok);
+    let mut j = json_sonuc(&sonuclar, &kok);
     let basarili = j["kaldi"] == 0;
+    let ozet = if kapsamli {
+        kapsam_ozeti(&kapsam, &kok)
+    } else {
+        Vec::new()
+    };
     if json_cikti {
+        if kapsamli {
+            j["kapsam"] = json!(ozet);
+        }
         println!("{j}");
     } else {
+        if kapsamli {
+            println!("\nKapsam (sınamalarda çalışan satırlar)");
+            for d in &ozet {
+                let calismayan: Vec<String> = d["calismayan"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .take(12)
+                    .map(|s| s.to_string())
+                    .collect();
+                println!(
+                    "  %{:>3}  {:>4}/{:<4}  {}{}",
+                    d["yuzde"],
+                    d["kapsanan"],
+                    d["toplam"],
+                    d["dosya"].as_str().unwrap_or(""),
+                    if calismayan.is_empty() {
+                        String::new()
+                    } else {
+                        format!("  (çalışmayan: {})", calismayan.join(", "))
+                    }
+                );
+            }
+        }
         let toplam = j["gecti"].as_u64().unwrap_or(0) + j["kaldi"].as_u64().unwrap_or(0);
         println!(
             "\n{toplam} sınama: {} geçti, {} kaldı ({:.1} sn)",
@@ -729,6 +957,12 @@ fn yazdir(s: &DosyaSonucu, kok: &Path) {
 #[cfg(test)]
 mod sinamalar {
     use super::*;
+
+    #[test]
+    fn kod_satirlari_tanimlari_saymaz() {
+        let k = "# yorum\nişlev f(x: sayı) -> sayı:\n    eğer x > 0 ise:\n        döndür 1\n    döndür [\n        2,\n    ][0]\nmodel A:\n    ad: metin\nf(1)'i yaz.\n";
+        assert_eq!(kod_satirlari(k), vec![3, 4, 5, 10]);
+    }
 
     #[test]
     fn dosya_adlari() {

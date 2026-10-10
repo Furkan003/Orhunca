@@ -243,6 +243,8 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
             metin(&g, "yeni"),
             g["tamKelime"].as_bool() == Some(true),
         ),
+        ("GET", "/api/ham") => ham_dosya(istek.sorgu("yol")),
+        ("GET", "/api/yapilacaklar") => yapilacaklar(istek.sorgu("kok")),
         ("POST", "/api/dosya/sil") => dosya_sil(metin(&g, "yol")),
         ("POST", "/api/dosya/tasi") => dosya_tasi(metin(&g, "yol"), metin(&g, "yeni"), false),
         ("POST", "/api/dosya/kopyala") => dosya_tasi(metin(&g, "yol"), metin(&g, "yeni"), true),
@@ -933,6 +935,93 @@ fn dosya_zamanlari(yollar: &Value) -> Yanit {
     Yanit::json(&json!({ "zamanlar": z }))
 }
 
+/// Resim önizlemesi için dosyanın kendisi (yalnızca resim türleri).
+fn ham_dosya(yol: &str) -> Yanit {
+    let p = Path::new(yol);
+    if !izinli_mi(p) {
+        return Yanit::hata(403, "bu dosyaya erişim yok");
+    }
+    let uzanti = p
+        .extension()
+        .map(|u| u.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    let tur = match uzanti.as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        "bmp" => "image/bmp",
+        "ico" => "image/x-icon",
+        _ => return hata("Bu dosya türü önizlenemez."),
+    };
+    match std::fs::read(p) {
+        Ok(b) if b.len() > 20 * 1024 * 1024 => hata("Dosya önizleme için çok büyük."),
+        Ok(govde) => Yanit {
+            durum: 200,
+            tur,
+            govde,
+            csp: false,
+        },
+        Err(e) => hata(format!("Dosya okunamadı: {e}")),
+    }
+}
+
+/// Projedeki YAPILACAK / TODO / DÜZELT / FIXME notları.
+fn yapilacaklar(kok: &str) -> Yanit {
+    let kok = PathBuf::from(kok);
+    if !izinli_mi(&kok) {
+        return Yanit::hata(403, "bu klasöre erişim yok");
+    }
+    const ISARETLER: [&str; 6] = ["YAPILACAK", "TODO", "DÜZELT", "FIXME", "HACK", "NOT:"];
+    fn gez(kok: &Path, k: &Path, l: &mut Vec<Value>, derinlik: usize) {
+        let Ok(o) = std::fs::read_dir(k) else { return };
+        for g in o.flatten() {
+            let p = g.path();
+            let ad = g.file_name().to_string_lossy().into_owned();
+            if ad.starts_with('.')
+                || ["cikti", "target", "paketler", "node_modules", "veri"].contains(&ad.as_str())
+            {
+                continue;
+            }
+            if p.is_dir() {
+                if derinlik < 8 {
+                    gez(kok, &p, l, derinlik + 1);
+                }
+                continue;
+            }
+            let metin_mi = ["ohc", "ohchtml", "js", "css", "html", "md", "txt", "json"]
+                .iter()
+                .any(|u| ad.ends_with(&format!(".{u}")));
+            if !metin_mi || l.len() > 500 {
+                continue;
+            }
+            let Ok(m) = std::fs::read_to_string(&p) else {
+                continue;
+            };
+            for (i, satir) in m.lines().enumerate() {
+                // Yalnızca yorumlardaki işaretler (# // /* <!--)
+                let yorum = ["#", "//", "/*", "<!--"]
+                    .iter()
+                    .filter_map(|y| satir.find(y).map(|b| &satir[b..]))
+                    .min_by_key(|y| y.len().wrapping_neg());
+                let Some(yorum) = yorum else { continue };
+                if let Some(tur) = ISARETLER.iter().find(|t| yorum.contains(*t)) {
+                    l.push(json!({
+                        "dosya": p.strip_prefix(kok).unwrap_or(&p).to_string_lossy().replace('\\', "/"),
+                        "satir": i + 1,
+                        "tur": tur.trim_end_matches(':'),
+                        "metin": satir.trim(),
+                    }));
+                }
+            }
+        }
+    }
+    let mut l = Vec::new();
+    gez(&kok, &kok, &mut l, 0);
+    Yanit::json(&json!({ "notlar": l }))
+}
+
 /// Proje kökünün kendisi silinemez, taşınamaz.
 fn proje_koku_mu(p: &Path) -> bool {
     std::fs::canonicalize(p)
@@ -1479,6 +1568,7 @@ fn sina(g: &Value) -> Yanit {
         &kok,
         dosya.as_deref(),
         ad.as_deref(),
+        g["kapsam"] == true,
     ))
 }
 
