@@ -60,6 +60,12 @@
       if (ad && !D.izlenenler.includes(ad)) { D.izlenenler.push(ad); ayarYaz('izlenenler', D.izlenenler); }
       cizYanPanel(); setTimeout(() => $('#izlemeEkle')?.focus(), 0); return;
     }
+    if (e.target.id === 'kabukGirdi' && e.key === 'Enter') { kabukKomutu(e.target.value); e.target.value = ''; return; }
+    if (e.target.id === 'kabukGirdi' && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      const g = D.kabukGecmis; if (!g.length) return;
+      D.kabukSira = Math.max(0, Math.min(g.length, (D.kabukSira ?? g.length) + (e.key === 'ArrowUp' ? -1 : 1)));
+      e.target.value = g[D.kabukSira] || ''; e.preventDefault(); return;
+    }
     if (e.target.id === 'terminalGirdi' && e.key === 'Enter' && D.calisma) {
       const metin = e.target.value;
       e.target.value = '';

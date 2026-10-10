@@ -42,6 +42,8 @@
     }
     if (!(await degisiklikleriKoru())) return;
     if (D.calisma) await durdur();
+    if (D.kabuk) api('/api/durdur', { kimlik: D.kabuk.kimlik }).catch(() => {});
+    D.kabuk = null; D.kabukSatir = [];
     D.proje = bilgi; D.kisitliSeritKapali = false; D.sinamalar = null; D.vt = null; D.sinamaSonuc = {}; D.git = null; D.gitMesaj = '';
     D.onizleme = null;
     D.sekmeler = []; D.etkin = null; D.sorunlar = []; D.uyarilar = []; D.terminal = []; D.cikti = [];

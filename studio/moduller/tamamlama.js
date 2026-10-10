@@ -148,6 +148,10 @@
       const hatalar = D.sorunlar.map((h, i) => `<div class="sorun" data-e="sorunaGit" data-a="${i}">${S('error')}<div><span>${kac(h.mesaj)}</span><span class="yer">${kac(h.dosya ? goreliYol(h.dosya) : '')}${h.satir ? `:${h.satir}:${h.sutun}` : ''}</span>${h.ipucu ? `<div class="ipucu">ipucu: ${kac(h.ipucu)}</div>` : ''}</div>${h.duzeltme ? `<span class="duzelt" data-e="hataDuzelt" data-a="${i}" title="${kac(h.duzeltme.baslik)}">Düzelt</span>` : ''}</div>`).join('');
       const uyarilar = D.uyarilar.map((h, i) => `<div class="sorun uyari" data-e="uyariyaGit" data-a="${i}">${S('warning')}<div><span>${kac(h.mesaj)}</span><span class="yer">${kac(goreliYol(h.dosya))}:${h.satir}:${h.sutun}</span></div><span class="duzelt" data-e="uyariDuzelt" data-a="${i}">Düzelt</span></div>`).join('');
       icerik = hatalar + uyarilar || '<div class="tl dim">Sorun yok.</div>';
+    } else if (D.altSekme === 'kabuk') {
+      if (!D.kabuk) setTimeout(kabukAc, 0);
+      icerik = D.kabukSatir.map(l => `<div class="tl ${l.c || ''}">${kac(l.t.replace(/\n$/, ''))}</div>`).join('')
+        + `<div class="terminal-girdi"><span>${D.kabuk ? '$' : '…'}</span><input id="kabukGirdi" placeholder="Komut yazıp Enter'a basın (ör. orhunca sına, git status)" autocomplete="off" spellcheck="false"></div>`;
     } else {
       const liste = D.altSekme === 'cikti' ? D.cikti : D.terminal;
       icerik = liste.map(l => `<div class="tl ${l.c || ''}">${kac(l.t.replace(/\n$/, ''))}</div>`).join('')
@@ -155,12 +159,48 @@
         + (!liste.length && !D.calisma ? `<div class="tl dim">${D.altSekme === 'cikti' ? 'Derleme çıktısı burada görünür.' : 'Çalıştırmak için F5’e basın.'}</div>` : '');
     }
     const odak = odakKaydet();
-    p.innerHTML = `<div class="alt-sekmeler">${sekme('terminal', 'TERMİNAL')}${sekme('sorunlar', `SORUNLAR${sorunSayisi ? ' (' + sorunSayisi + ')' : ''}`)}${sekme('cikti', 'ÇIKTI')}
+    p.innerHTML = `<div class="alt-sekmeler">${sekme('terminal', 'TERMİNAL')}${sekme('sorunlar', `SORUNLAR${sorunSayisi ? ' (' + sorunSayisi + ')' : ''}`)}${sekme('cikti', 'ÇIKTI')}${sekme('kabuk', 'KABUK')}
       <div style="flex:1"></div><span class="simge" title="${D.calisma ? 'Durdur' : 'Çalıştır'}" data-e="${D.calisma ? 'durdur' : 'calistir'}">${D.calisma ? 'stop' : 'add'}</span><span class="simge" title="Temizle" data-e="terminalTemizle">delete</span></div>
       <div class="terminal" id="terminal">${icerik}</div>`;
     const t = $('#terminal');
     t.scrollTop = t.scrollHeight;
-    if (odak && odak.id === 'terminalGirdi') odakGeriYukle(odak);
+    if (odak && (odak.id === 'terminalGirdi' || odak.id === 'kabukGirdi')) odakGeriYukle(odak);
+  }
+
+  /** KABUK sekmesi: proje klasöründe bir komut kabuğu (bash / cmd). */
+  async function kabukAc() {
+    if (D.kabuk || D.kabukAciliyor || !D.proje) return;
+    if (!(await guvenSor('Kabuk açmak'))) return;
+    D.kabukAciliyor = true;
+    const r = await api('/api/kabuk', { kok: D.proje.yol }).catch(x => ({ hata: x.message }));
+    D.kabukAciliyor = false;
+    if (r.hata) { D.kabukSatir.push({ t: r.hata, c: 'err' }); cizAltPanel(); return; }
+    const k = D.kabuk = { kimlik: r.kimlik, konum: 0 };
+    D.kabukSatir.push({ t: `Kabuk açıldı: ${D.proje.yol}`, c: 'dim' });
+    cizAltPanel();
+    while (D.kabuk === k) {
+      const c = await api('/api/cikti?' + sorgu({ kimlik: k.kimlik, konum: k.konum })).catch(() => null);
+      if (!c || c.hata) break;
+      k.konum = c.konum;
+      for (const p of c.parcalar) D.kabukSatir.push({ t: p.t, c: p.tur === 'hata' ? 'err' : '' });
+      if (D.kabukSatir.length > 2000) D.kabukSatir.splice(0, D.kabukSatir.length - 2000);
+      if (c.bitti) { D.kabukSatir.push({ t: '— Kabuk kapandı', c: 'dim' }); D.kabuk = null; }
+      if ((c.parcalar.length || c.bitti) && D.altSekme === 'kabuk' && D.ekran === 'duzenleyici') cizAltPanel();
+      if (c.bitti) break;
+      await bekle(c.parcalar.length ? 30 : 120);
+    }
+  }
+
+  async function kabukKomutu(komut) {
+    if (!D.kabuk) { await kabukAc(); if (!D.kabuk) return; }
+    if (komut.trim()) { D.kabukGecmis.push(komut); if (D.kabukGecmis.length > 100) D.kabukGecmis.shift(); }
+    D.kabukSira = null;
+    if (/^\s*(clear|cls|temizle)\s*$/.test(komut)) { D.kabukSatir = []; cizAltPanel(); return; }
+    D.kabukSatir.push({ t: '$ ' + komut, c: 'girdi-yanki' });
+    cizAltPanel();
+    $('#kabukGirdi')?.focus();
+    const r = await api('/api/girdi', { kimlik: D.kabuk.kimlik, metin: komut + '\n' }).catch(x => ({ hata: x.message }));
+    if (r.hata) bildir(r.hata, true);
   }
 
   function cizDurum() {

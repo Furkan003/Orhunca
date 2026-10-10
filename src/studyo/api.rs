@@ -251,13 +251,14 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
             Yanit::json(&json!({ "tamam": true }))
         }
         ("POST", "/api/girdi") => girdi(&g),
+        ("POST", "/api/kabuk") => kabuk_baslat(metin(&g, "kok")),
         ("POST", "/api/ayikla") => ayikla(&g),
         ("POST", "/api/durdur") => {
             calisma::durdur(g["kimlik"].as_u64().unwrap_or(0));
             Yanit::json(&json!({ "tamam": true }))
         }
         ("POST", "/api/derle") => derle(metin(&g, "dosya"), metin(&g, "hedef")),
-        ("GET", "/api/veritabani") => vt_islemi(istek.sorgu("kok"), |k| veritabani::ozet(k)),
+        ("GET", "/api/veritabani") => vt_islemi(istek.sorgu("kok"), veritabani::ozet),
         ("GET", "/api/veritabani/json") => vt_islemi(istek.sorgu("kok"), |k| {
             veritabani::json_kayitlari(k, istek.sorgu("model"))
         }),
@@ -1030,6 +1031,53 @@ fn paket_listesi(kok: &str) -> Yanit {
 
 /// Kısıtlı mod: güvenilmeyen projede kod çalıştıran ya da indiren işlemler yapılmaz. Arayüz
 /// `guvensiz` yanıtını görünce kullanıcıya projeye güvenip güvenmediğini sorar.
+/// Stüdyo'nun KABUK sekmesi: proje klasöründe bir komut kabuğu açar. Girdi ve çıktı
+/// programlarınkiyle aynı yoldan (/api/girdi, /api/cikti) akar.
+fn kabuk_baslat(kok: &str) -> Yanit {
+    let kok = PathBuf::from(kok);
+    if !izinli_mi(&kok) || !kok.is_dir() {
+        return Yanit::hata(403, "bu klasöre erişim yok");
+    }
+    if let Some(y) = guven_gerekli(&kok, "kabuk") {
+        return y;
+    }
+    let (program, argumanlar): (PathBuf, Vec<String>) = if cfg!(windows) {
+        (
+            "cmd.exe".into(),
+            vec!["/Q".into(), "/K".into(), "chcp 65001 >nul".into()],
+        )
+    } else if Path::new("/bin/bash").exists() {
+        (
+            "/bin/bash".into(),
+            vec!["--noprofile".into(), "--norc".into(), "-s".into()],
+        )
+    } else {
+        ("/bin/sh".into(), vec!["-s".into()])
+    };
+    let gecici = match derleme::gecici_klasor("kabuk") {
+        Ok(k) => k,
+        Err(e) => return hata(e),
+    };
+    // Orhunca komutu kabukta da bulunsun: Stüdyo'nun kendi ikili dosyasının klasörü PATH'e eklenir.
+    let mut yol = std::env::var_os("PATH").unwrap_or_default();
+    if let Some(k) = std::env::current_exe()
+        .ok()
+        .and_then(|e| e.parent().map(Path::to_path_buf))
+    {
+        let mut l = vec![k];
+        l.extend(std::env::split_paths(&yol));
+        yol = std::env::join_paths(l).unwrap_or(yol);
+    }
+    let ortam = [
+        ("TERM", "dumb".to_string()),
+        ("PATH", yol.to_string_lossy().to_string()),
+    ];
+    match calisma::baslat(&program, &kok, &argumanlar, &ortam, gecici, None) {
+        Ok(kimlik) => Yanit::json(&json!({ "kimlik": kimlik })),
+        Err(e) => hata(e),
+    }
+}
+
 /// Veritabanı görüntüleyicisi: açık ve güvenilir bir projede çalışır.
 fn vt_islemi(kok: &str, islem: impl FnOnce(&Path) -> Result<Value, String>) -> Yanit {
     let kok = PathBuf::from(kok);

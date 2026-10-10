@@ -562,7 +562,7 @@
     altSorunlar() { D.altPanel = true; D.altSekme = 'sorunlar'; guncelle('alt'); },
     altCikti() { D.altPanel = true; D.altSekme = 'cikti'; guncelle('alt'); },
     altPanelAcKapa() { D.altPanel = !D.altPanel; guncelle('alt'); },
-    terminalTemizle() { if (D.altSekme === 'cikti') D.cikti = []; else D.terminal = []; guncelle('alt'); },
+    terminalTemizle() { if (D.altSekme === 'cikti') D.cikti = []; else if (D.altSekme === 'kabuk') D.kabukSatir = []; else D.terminal = []; guncelle('alt'); },
     calistir() { calistir(); },
     durdur() { durdur(); },
     onizlemeYenile() { onizlemeyiYenile(); },

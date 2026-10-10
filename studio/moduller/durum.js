@@ -16,7 +16,7 @@
     olusturuluyor: false,
     proje: null, agac: [], kapaliKlasorler: new Set(),
     sekmeler: [], etkin: null, imlec: { satir: 1, sutun: 1 },
-    terminal: [], cikti: [], sorunlar: [], uyarilar: [], altSekme: 'terminal', altPanel: true,
+    terminal: [], cikti: [], kabuk: null, kabukSatir: [], kabukGecmis: [], sorunlar: [], uyarilar: [], altSekme: 'terminal', altPanel: true,
     calisma: null, argumanlar: '',
     // Kesme noktaları: { tam dosya yolu: [satır, ...] }
     kesmeler: ayarOku('kesmeler', {}),
