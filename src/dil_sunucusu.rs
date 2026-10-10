@@ -1053,6 +1053,22 @@ impl Sunucu {
     }
 }
 
+/// Stüdyo için tek seferlik sorgu: düzenleyicideki (kaydedilmemiş olabilir) metinle
+/// `bilgi` (üzerine gelince) ya da `tanim` (tanıma git). `karakter` UTF-16 sırasıdır.
+pub fn studyo_sorgusu(tur: &str, yol: &Path, metin: &str, satir: usize, karakter: usize) -> Value {
+    let uri = yol_uri(yol);
+    let mut s = Sunucu {
+        belgeler: HashMap::new(),
+        yayimlanan: HashMap::new(),
+    };
+    s.belgeler.insert(uri.clone(), metin.to_string());
+    let p = json!({ "textDocument": { "uri": uri }, "position": { "line": satir, "character": karakter } });
+    match tur {
+        "tanim" => s.tanima_git(&p),
+        _ => s.uzerine_gelince(&p),
+    }
+}
+
 pub fn calistir() -> Result<(), String> {
     let mut okuyucu = BufReader::new(std::io::stdin().lock());
     let mut s = Sunucu {

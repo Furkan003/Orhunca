@@ -58,6 +58,7 @@
         ${m.hata ? `<div class="modal-hata">${kac(m.hata)}</div>` : ''}`,
         `${m.calisiyor ? '<div class="donen kucuk"></div><span class="ipucu-metni">Klonlanıyor…</span>' : ''}<div class="dugme" data-e="modalKapat">İptal</div><div class="dugme birincil ${m.calisiyor ? 'pasif' : ''}" data-e="klonla">Klonla</div>`);
     }
+    if (m.tur === 'hizli') return cizHizli(m);
     if (m.tur === 'yeniOge') {
       return kabuk('Yeni öğe ekle', cizYeniOge(m),
         `<div class="dugme" data-e="modalKapat">İptal</div><div class="dugme birincil" data-e="yeniOgeOlustur">Ekle</div>`, 'genis-orta');
@@ -130,7 +131,7 @@
         `<div class="dugme birincil" data-e="modalKapat">Kapat</div>`);
     }
     if (m.tur === 'kisayollar') {
-      const k = [['Çalıştır', 'F5'], ['Hata ayıkla', 'F6'], ['Durdur', '⇧+F5'], ['Denetle', 'F7'], ['Kesme noktası', 'F9'], ['Üstünden / içine adım', 'F10 / F11'], ['Kaydet', 'Ctrl+S'], ['Tümünü kaydet', 'Ctrl+Alt+S'], ['Satırı yorum yap', 'Ctrl+/'], ['Biçimlendir', 'Ctrl+⇧+F'], ['Satırı çoğalt', 'Ctrl+⇧+D'], ['Satırı yukarı / aşağı taşı', 'Alt+↑ / Alt+↓'], ['Satıra git', 'Ctrl+G'], ['Dosyada bul / değiştir', 'Ctrl+F / Ctrl+H'], ['Yeni öğe ekle', 'Ctrl+⇧+A'], ['Gezginde sil / adlandır', 'Delete / F2'], ['Yeniden adlandır / başvurular', 'F2 / ⇧+F12'], ['Alt paneli göster/gizle', 'Ctrl+J'], ['Girinti / geri girinti', 'Tab / ⇧+Tab'], ['Projelerde ara', 'Alt+S'], ['Yeni proje', 'Ctrl+⇧+N'], ['ç ğ ı ö ş ü (Türkçe klavyesi olmayanlar için)', 'Alt+C/G/I/O/S/U'], ['Ç Ğ İ Ö Ş Ü', 'Alt+⇧+C/G/I/O/S/U']];
+      const k = [['Çalıştır', 'F5'], ['Hata ayıkla', 'F6'], ['Durdur', '⇧+F5'], ['Denetle', 'F7'], ['Kesme noktası', 'F9'], ['Üstünden / içine adım', 'F10 / F11'], ['Kaydet', 'Ctrl+S'], ['Tümünü kaydet', 'Ctrl+Alt+S'], ['Satırı yorum yap', 'Ctrl+/'], ['Biçimlendir', 'Ctrl+⇧+F'], ['Satırı çoğalt', 'Ctrl+⇧+D'], ['Satırı yukarı / aşağı taşı', 'Alt+↑ / Alt+↓'], ['Satıra git', 'Ctrl+G'], ['Dosyada bul / değiştir', 'Ctrl+F / Ctrl+H'], ['Hızlı aç / komut paleti', 'Ctrl+P / Ctrl+⇧+P'], ['Tanıma git / geri', 'F12 (Ctrl+tıklama) / Alt+←'], ['Kapanan sekmeyi aç / sekmeyi kapat', 'Ctrl+⇧+T / Ctrl+W'], ['Ekranı böl', 'Ctrl+\\'], ['Yeni öğe ekle', 'Ctrl+⇧+A'], ['Gezginde sil / adlandır', 'Delete / F2'], ['Yeniden adlandır / başvurular', 'F2 / ⇧+F12'], ['Alt paneli göster/gizle', 'Ctrl+J'], ['Girinti / geri girinti', 'Tab / ⇧+Tab'], ['Projelerde ara', 'Alt+S'], ['Yeni proje', 'Ctrl+⇧+N'], ['ç ğ ı ö ş ü (Türkçe klavyesi olmayanlar için)', 'Alt+C/G/I/O/S/U'], ['Ç Ğ İ Ö Ş Ü', 'Alt+⇧+C/G/I/O/S/U']];
       return kabuk('Klavye kısayolları', `<div class="kisayol-listesi">${k.map(([a, b]) => `<span>${a}</span><span>${b}</span>`).join('')}</div>`, `<div class="dugme birincil" data-e="modalKapat">Kapat</div>`);
     }
     if (m.tur === 'hataBildir') {

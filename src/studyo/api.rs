@@ -178,6 +178,8 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
         }),
         ("POST", "/api/basvurular") => basvurular(&g),
         ("POST", "/api/adlandir") => adlandir(&g),
+        ("POST", "/api/bilgi") => dil_bilgisi(&g, "bilgi"),
+        ("POST", "/api/tanim") => dil_bilgisi(&g, "tanim"),
         ("GET", "/api/sinamalar") => {
             let kok = PathBuf::from(istek.sorgu("kok"));
             if !izinli_mi(&kok) {
@@ -1376,6 +1378,30 @@ fn basvurular(g: &Value) -> Yanit {
 }
 
 /// İsmi projenin bütün dosyalarında yeniden adlandırır; dosyaların önceki hâlleri yerel geçmişe.
+/// Üzerine gelince bilgi ve tanıma git (dil sunucusunun aynı işlevleriyle).
+fn dil_bilgisi(g: &Value, tur: &str) -> Yanit {
+    let dosya = PathBuf::from(metin(g, "dosya"));
+    if !izinli_mi(&dosya) {
+        return Yanit::hata(403, "bu dosyaya erişim yok");
+    }
+    let tam = std::fs::canonicalize(&dosya).unwrap_or(dosya);
+    let satir = g["satir"].as_u64().unwrap_or(0) as usize;
+    let sutun = g["sutun"].as_u64().unwrap_or(0) as usize;
+    let v = crate::dil_sunucusu::studyo_sorgusu(tur, &tam, metin(g, "icerik"), satir, sutun);
+    if tur == "bilgi" {
+        return Yanit::json(&json!({ "metin": v["contents"]["value"] }));
+    }
+    let Some(yol) = v["uri"].as_str().and_then(crate::dil_sunucusu::uri_yol) else {
+        return Yanit::json(&json!({ "yok": true }));
+    };
+    let yol = std::fs::canonicalize(&yol).unwrap_or(yol);
+    Yanit::json(&json!({
+        "dosya": yol.to_string_lossy(),
+        "satir": v["range"]["start"]["line"].as_u64().unwrap_or(0) + 1,
+        "sutun": v["range"]["start"]["character"].as_u64().unwrap_or(0) + 1,
+    }))
+}
+
 fn adlandir(g: &Value) -> Yanit {
     let dosya = PathBuf::from(metin(g, "dosya"));
     if !izinli_mi(&dosya) {

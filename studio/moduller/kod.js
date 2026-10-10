@@ -356,9 +356,11 @@
       const metin = s.icerik.split('\n')[satir - 1] || '';
       const kelime = kelimeBul(metin, sutun - 1);
       const y = kelime && D.yerlesikler.find(x => x.ad === kelime);
-      baloncukGoster(y ? { bilgi: true, mesaj: y.kullanim, ipucu: y.aciklama } : null, e.clientX, e.clientY);
+      if (y) baloncukGoster({ bilgi: true, mesaj: y.kullanim, ipucu: y.aciklama }, e.clientX, e.clientY);
+      else if (kelime) kullaniciBilgisi(satir, sutun, e.clientX, e.clientY);
+      else baloncukGoster(null);
     });
-    ta.addEventListener('mouseleave', () => baloncukGoster(null));
+    ta.addEventListener('mouseleave', () => { bilgiZamanlayici && clearTimeout(bilgiZamanlayici); baloncukGoster(null); });
     ta.addEventListener('keydown', e => {
       const v = ta.value, bas = ta.selectionStart, son = ta.selectionEnd;
       // Kendiliğinden açılan listede Enter yeni satırdır (yazılan kelime sessizce değişmesin);
