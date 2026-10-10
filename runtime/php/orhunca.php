@@ -1223,6 +1223,7 @@ final class OVT
 {
     public static ?PDO $pdo = null;
     public static bool $mysql = false;
+    public static bool $pg = false;
     public static array $hazir = [];
 }
 
@@ -1233,7 +1234,16 @@ function o_vt(): PDO
     }
     $a = is_file(OHC_KOK . '/orhunca/ayarlar.php') ? (require OHC_KOK . '/orhunca/ayarlar.php') : [];
     try {
-        if (!empty($a['veritabani'])) {
+        if (!empty($a['veritabani']) && in_array(strtolower($a['tur'] ?? ''), ['postgresql', 'postgres', 'pgsql'], true)) {
+            OVT::$pg = true;
+            OVT::$pdo = new PDO(
+                'pgsql:host=' . ($a['sunucu'] ?? 'localhost') . ';dbname=' . $a['veritabani'],
+                $a['kullanici'] ?? '',
+                $a['sifre'] ?? '',
+                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+            );
+            OVT::$pdo->exec("SET client_encoding TO 'UTF8'");
+        } elseif (!empty($a['veritabani'])) {
             OVT::$mysql = true;
             OVT::$pdo = new PDO(
                 'mysql:host=' . ($a['sunucu'] ?? 'localhost') . ';dbname=' . $a['veritabani'] . ';charset=utf8mb4',
@@ -1270,6 +1280,13 @@ function o_sutun_tipi($t): string
             default => 'LONGTEXT',
         };
     }
+    if (OVT::$pg) {
+        return match ($tur) {
+            's', 'b' => 'BIGINT NOT NULL DEFAULT 0',
+            'o' => 'DOUBLE PRECISION NOT NULL DEFAULT 0',
+            default => 'TEXT',
+        };
+    }
     return match ($tur) {
         's', 'b' => 'INTEGER NOT NULL DEFAULT 0',
         'o' => 'REAL NOT NULL DEFAULT 0',
@@ -1292,14 +1309,17 @@ function o_tablo(string $sinif): string
             $sutunlar[] = o_ad_tirnakla($a) . ' ' . o_sutun_tipi($tanim['t']);
         }
     }
-    $kimlik = OVT::$mysql ? '`kimlik` BIGINT AUTO_INCREMENT PRIMARY KEY' : '"kimlik" INTEGER PRIMARY KEY AUTOINCREMENT';
+    $kimlik = OVT::$mysql ? '`kimlik` BIGINT AUTO_INCREMENT PRIMARY KEY'
+        : (OVT::$pg ? '"kimlik" BIGSERIAL PRIMARY KEY' : '"kimlik" INTEGER PRIMARY KEY AUTOINCREMENT');
     $yeni = !o_tablo_var($q, $ad);
     $vt->exec("CREATE TABLE IF NOT EXISTS $q ($kimlik" . ($sutunlar ? ', ' . implode(', ', $sutunlar) : '') . ')'
         . (OVT::$mysql ? ' DEFAULT CHARSET=utf8mb4' : ''));
     if (!$yeni) {
         $var = OVT::$mysql
             ? array_column($vt->query("SHOW COLUMNS FROM $q")->fetchAll(PDO::FETCH_ASSOC), 'Field')
-            : array_column($vt->query("PRAGMA table_info($q)")->fetchAll(PDO::FETCH_ASSOC), 'name');
+            : (OVT::$pg
+                ? array_column($vt->query('SELECT column_name FROM information_schema.columns WHERE table_name = ' . $vt->quote($ad))->fetchAll(PDO::FETCH_ASSOC), 'column_name')
+                : array_column($vt->query("PRAGMA table_info($q)")->fetchAll(PDO::FETCH_ASSOC), 'name'));
         foreach ($sinif::ALANLAR as $a => $tanim) {
             if (!in_array($a, $var, true)) {
                 $vt->exec("ALTER TABLE $q ADD COLUMN " . o_ad_tirnakla($a) . ' ' . o_sutun_tipi($tanim['t']));
@@ -1316,6 +1336,10 @@ function o_tablo(string $sinif): string
             $n->kimlik = (int)($k['kimlik'] ?? 0);
             o_ekle_kayit($n, true);
         }
+        if (OVT::$pg && $kayitlar) {
+            // İçe aktarılan kimliklerden sonra sayaç kaldığı yerden devam etsin.
+            $vt->exec("SELECT setval(pg_get_serial_sequence(" . $vt->quote($q) . ", 'kimlik'), COALESCE((SELECT MAX(\"kimlik\") FROM $q), 1))");
+        }
     }
     return $q;
 }
@@ -1325,6 +1349,9 @@ function o_tablo_var(string $q, string $ad): bool
     $vt = o_vt();
     if (OVT::$mysql) {
         return (bool)$vt->query('SHOW TABLES LIKE ' . $vt->quote($ad))->fetch();
+    }
+    if (OVT::$pg) {
+        return (bool)$vt->query('SELECT 1 FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = ' . $vt->quote($ad))->fetch();
     }
     return (bool)$vt->query("SELECT name FROM sqlite_master WHERE type='table' AND name=" . $vt->quote($ad))->fetch();
 }
@@ -1372,6 +1399,9 @@ function o_ekle_kayit(OModel $n, bool $kimlikle): int
     }
     $s = o_vt()->prepare("INSERT INTO $q (" . implode(', ', $adlar) . ') VALUES (' . implode(', ', array_fill(0, count($adlar), '?')) . ')');
     $s->execute($degerler);
+    if (!$kimlikle && OVT::$pg) {
+        return (int)o_vt()->query("SELECT currval(pg_get_serial_sequence(" . o_vt()->quote($q) . ", 'kimlik'))")->fetchColumn();
+    }
     return $kimlikle ? $n->kimlik : (int)o_vt()->lastInsertId();
 }
 

@@ -972,7 +972,9 @@ const AYARLAR: &str = "<?php
 // Veritabanı ayarları. Barındırma panelinizde (cPanel → MySQL Veritabanları) bir veritabanı
 // ve kullanıcı oluşturup bilgileri buraya yazın. Boş bırakılırsa kayıtlar
 // veri/orhunca.sqlite dosyasında (SQLite) tutulur. Tablolar kendiliğinden oluşturulur.
+// PostgreSQL için 'tur' => 'postgresql' yazın (varsayılan MySQL / MariaDB).
 return [
+    'tur' => 'mysql',
     'sunucu' => 'localhost',
     'veritabani' => '',
     'kullanici' => '',

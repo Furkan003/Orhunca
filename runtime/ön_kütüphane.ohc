@@ -308,8 +308,9 @@ işlev tarih_günü(t: metin, satır: sayı) -> sayı:
 
 işlev sıfırla(n: sayı, hane: sayı) -> metin:
     m = metin(n)
+    sıfır = "0"
     uzunluk(m) < hane olduğu sürece:
-        m = "0" + m
+        m = sıfır + m
     döndür m
 
 işlev günden_tarih(n: sayı, satır: sayı) -> metin:
