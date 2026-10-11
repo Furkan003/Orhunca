@@ -3,6 +3,99 @@
 use std::process::Command;
 
 #[test]
+fn esitlik_metin_biciminden_bagimsizdir() {
+    let k = std::env::temp_dir().join(format!("orhunca-gercek-esitlik-{}", std::process::id()));
+    std::fs::create_dir_all(&k).unwrap();
+    let kaynak = r#"
+model Ölçüm:
+    değer: ondalık
+işlev sına_ondalık():
+    a = 1.000000000000001
+    b = 1.000000000000002
+    doğrula(a != b)
+    eşit_olmalı(a, b)
+işlev sına_liste():
+    eşit_olmalı([1.000000000000001], [1.000000000000002])
+işlev sına_metin_listesi():
+    eşit_olmalı(["a, b"], ["a", "b"])
+işlev sına_sözlük_farkı():
+    eşit_olmalı({"a": [1.000000000000001]}, {"a": [1.000000000000002]})
+işlev sına_model():
+    eşit_olmalı(Ölçüm(değer: 1.000000000000001), Ölçüm(değer: 1.000000000000002))
+işlev sına_aynı():
+    eşit_olmalı(1.000000000000001, 1.000000000000001)
+    eşit_olmalı([[1, 2]], [[1, 2]])
+    eşit_olmalı([], [])
+    eşit_olmalı({}, {})
+    eşit_olmalı({"a": 1, "b": 2}, {"b": 2, "a": 1})
+    eşit_olmalı(Ölçüm(değer: 1.5), Ölçüm(değer: 1.5))
+"#;
+    std::fs::write(k.join("eşitlik_sına.ohc"), kaynak).unwrap();
+    let c = Command::new(env!("CARGO_BIN_EXE_orhunca"))
+        .args(["sına", "--json"])
+        .current_dir(&k)
+        .output()
+        .unwrap();
+    let j: serde_json::Value = serde_json::from_slice(&c.stdout).unwrap();
+    assert_eq!(j["gecti"], 1, "{j}");
+    assert_eq!(j["kaldi"], 5, "{j}");
+    assert!(!c.status.success());
+    std::fs::remove_dir_all(k).unwrap();
+}
+
+#[test]
+fn esitlik_web_ve_ceviride_de_korunur() {
+    let k = std::env::temp_dir().join(format!("orhunca-esitlik-hedefler-{}", std::process::id()));
+    std::fs::create_dir_all(&k).unwrap();
+    // Liste eşitliği yardımcı işlev gerektirir; ondalıkların metin hâli aynıdır.
+    for (ad, kaynak, basarili) in [
+        ("iyi", "eşit_olmalı({\"a\": [1.5]}, {\"a\": [1.5]})\n", true),
+        (
+            "kotu",
+            "eşit_olmalı([1.000000000000001], [1.000000000000002])\n",
+            false,
+        ),
+    ] {
+        let dosya = k.join(format!("{ad}.ohc"));
+        std::fs::write(&dosya, kaynak).unwrap();
+        let c = Command::new(env!("CARGO_BIN_EXE_orhunca"))
+            .args(["çalıştır", dosya.to_str().unwrap(), "--hedef", "web"])
+            .output()
+            .unwrap();
+        assert_eq!(
+            c.status.success(),
+            basarili,
+            "Web: {}",
+            String::from_utf8_lossy(&c.stderr)
+        );
+        for (dil, komut, uzanti) in [("python", "python3", "py"), ("javascript", "node", "js")] {
+            let ceviri = Command::new(env!("CARGO_BIN_EXE_orhunca"))
+                .args(["çevir", dosya.to_str().unwrap(), "--dil", dil])
+                .output()
+                .unwrap();
+            assert!(
+                ceviri.status.success(),
+                "{}",
+                String::from_utf8_lossy(&ceviri.stderr)
+            );
+            let betik = k.join(format!("{ad}.{uzanti}"));
+            std::fs::write(&betik, ceviri.stdout).unwrap();
+            let c = Command::new(komut)
+                .arg(betik)
+                .output()
+                .expect("Node.js ve Python gerekli");
+            assert_eq!(
+                c.status.success(),
+                basarili,
+                "{dil}: {}",
+                String::from_utf8_lossy(&c.stderr)
+            );
+        }
+    }
+    std::fs::remove_dir_all(k).unwrap();
+}
+
+#[test]
 fn orhunca_sina() {
     let k = std::env::temp_dir().join(format!("orhunca-sina-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&k);

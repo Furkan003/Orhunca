@@ -9,7 +9,9 @@
 mod api;
 mod asistan;
 mod calisma;
+mod cop;
 mod depo;
+mod dosya;
 mod gecmis;
 mod git;
 pub use depo::ayar_klasoru;

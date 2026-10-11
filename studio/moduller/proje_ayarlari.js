@@ -100,12 +100,13 @@
     if (!D.proje) return;
     D.menu = null;
     const pd = projeDosyasi();
-    const oku = async y => { const r = await api('/api/dosya?' + sorgu({ yol: tamYol(y) })).catch(() => ({})); return r.icerik ?? ''; };
-    const metin = pd ? await oku(pd) : '';
+    const surumler = {};
+    const oku = async y => { const r = await api('/api/dosya?' + sorgu({ yol: tamYol(y) })).catch(() => ({})); surumler[y] = r.surum; return r.icerik ?? ''; };
+    const metin = await oku(pd || `${D.proje.ad}.ohcproj`);
     const env = await oku('.env');
     const c = calismaAyarlari();
     D.modal = {
-      tur: 'projeOzellikleri', sekme, pd, metin, env,
+      tur: 'projeOzellikleri', sekme, pd, metin, env, surumler,
       ayar: projeAyarlariniOku(metin),
       vt: envOku(env, 'ORHUNCA_VERITABANI'),
       argumanlar: D.argumanlar || c.argumanlar, ortam: c.ortam,
@@ -133,7 +134,7 @@
   }
   async function ozellikleriKaydet() {
     const m = D.modal;
-    const yaz = async (y, icerik) => { const r = await api('/api/dosya', { yol: tamYol(y), icerik }).catch(e => ({ hata: e.message })); if (r.hata) throw new Error(r.hata); };
+    const yaz = async (y, icerik) => { const r = await api('/api/dosya', { yol: tamYol(y), icerik, surum: m.surumler[y] }).catch(e => ({ hata: e.message })); if (r.hata) throw new Error(r.hata); m.surumler[y] = r.surum; };
     try {
       const pd = m.pd || `${D.proje.ad}.ohcproj`;
       const yeniProje = projeAyarlariniYaz(m.metin, m.ayar);
@@ -143,7 +144,7 @@
       D.argumanlar = m.argumanlar;
       ayarYaz(calismaAnahtari(), { argumanlar: m.argumanlar, ortam: m.ortam });
       // Açık sekmeler diskteki yeni hâli gösterir.
-      for (const s of D.sekmeler) if ((s.yol === pd || s.yol === '.env') && s.icerik === s.kayitli) { const d = await api('/api/dosya?' + sorgu({ yol: tamYol(s.yol) })); if (!d.hata) { s.icerik = s.kayitli = d.icerik; s.zaman = d.zaman; } }
+      for (const s of D.sekmeler) if ((s.yol === pd || s.yol === '.env') && s.icerik === s.kayitli) { const d = await api('/api/dosya?' + sorgu({ yol: tamYol(s.yol) })); if (!d.hata) { s.icerik = s.kayitli = d.icerik; s.zaman = d.zaman; s.surum = d.surum; } }
       D.modal = null;
       await agaciYukle();
       if (m.pd || Object.values(m.ayar).some(Boolean)) D.proje.giris = m.ayar['giriş'] || null;
@@ -182,7 +183,7 @@
     for (const s of D.sekmeler) {
       if (s.ikili || s.icerik !== s.kayitli) continue;
       const d = await api('/api/dosya?' + sorgu({ yol: tamYol(s.yol) })).catch(() => ({ hata: 1 }));
-      if (!d.hata && !d.ikili) { s.icerik = s.kayitli = d.icerik; s.zaman = d.zaman; }
+      if (!d.hata && !d.ikili) { s.icerik = s.kayitli = d.icerik; s.zaman = d.zaman; s.surum = d.surum; }
     }
     D.sekmeler = D.sekmeler.filter(s => s.icerik !== s.kayitli || D.agac.some(g => g.yol === s.yol));
     if (D.etkin && !D.sekmeler.some(s => s.yol === D.etkin)) D.etkin = D.sekmeler[0]?.yol || null;

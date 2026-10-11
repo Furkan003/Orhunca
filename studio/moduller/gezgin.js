@@ -63,7 +63,8 @@
   async function ogeSil(yol) {
     const g = D.agac.find(x => x.yol === yol);
     const ne = g?.klasor ? `“${sonParca(yol)}” klasörü ve içindeki her şey` : `“${sonParca(yol)}” dosyası`;
-    if (!(await onayla(`${ne} silinsin mi? Dosyaların son hâli Dosya geçmişinden geri alınabilir.`, { baslik: 'Sil', dugme: 'Sil', tehlikeli: true }))) return;
+    if (!(await onayla(`${ne} silinsin mi? Dosya → Silinenleri geri al menüsünden geri yükleyebilirsiniz.`, { baslik: 'Sil', dugme: 'Sil', tehlikeli: true }))) return;
+    if (!(await tumunuKaydet())) return;
     const r = await api('/api/dosya/sil', { yol: tamYol(yol) }).catch(x => ({ hata: x.message }));
     if (r.hata) return bildir(r.hata, true);
     D.sekmeler = D.sekmeler.filter(s => s.yol !== yol && !s.yol.startsWith(yol + '/'));
@@ -239,7 +240,7 @@
     if (!m.ad.trim() || /[\\/]/.test(m.ad) || klasor.split('/').includes('..')) { m.hata = 'Geçerli bir ad girin.'; katmanlariCiz(); return; }
     const r = await api('/api/dosya/yeni', { yol: tamYol(yol), klasor: false });
     if (r.hata) { m.hata = r.hata; katmanlariCiz(); return; }
-    const kayit = await api('/api/dosya', { yol: tamYol(yol), icerik: s.icerik(ad) });
+    const kayit = await api('/api/dosya', { yol: tamYol(yol), icerik: s.icerik(ad), surum: r.surum });
     if (kayit.hata) bildir(kayit.hata, true);
     D.modal = null;
     await agaciYukle();
@@ -268,20 +269,32 @@
   let disDenetimSuruyor = false;
   async function disDegisiklikleriDenetle() {
     if (disDenetimSuruyor || D.ekran !== 'duzenleyici' || !D.proje || document.hidden) return;
-    const sekmeler = D.sekmeler.filter(s => !s.ikili && s.zaman);
+    const proje = D.proje;
+    const sekmeler = D.sekmeler.filter(s => !s.ikili && s.zaman && !s.kayitSuruyor && !s.cakisma);
     if (!sekmeler.length) return;
     disDenetimSuruyor = true;
     try {
       const r = await api('/api/dosya/zamanlar', { yollar: sekmeler.map(s => tamYol(s.yol)) }).catch(() => ({}));
+      if (D.proje !== proje) return;
       for (const s of sekmeler) {
+        if (D.proje !== proje) return;
+        if (!D.sekmeler.includes(s) || s.kayitSuruyor) continue;
         const z = r.zamanlar?.[tamYol(s.yol)];
         if (z === undefined || !s.zaman || z === s.zaman) continue;
         if (z === 0) { s.zaman = 0; bildir(`“${sonParca(s.yol)}” Stüdyo dışında silindi ya da taşındı.`, true); continue; }
         const kirli = s.icerik !== s.kayitli;
-        if (kirli && !(await onayla(`“${sonParca(s.yol)}” Stüdyo dışında değişti. Diskteki hâli yüklensin mi? (Hayır derseniz sizin değişiklikleriniz korunur.)`, { baslik: 'Dosya değişti', dugme: 'Diskten yükle' }))) { s.zaman = z; continue; }
+        const { icerik, kayitli, zaman, yol } = s;
+        const degismedi = () => D.proje === proje && D.sekmeler.includes(s) && !s.kayitSuruyor
+          && s.yol === yol && s.icerik === icerik && s.kayitli === kayitli && s.zaman === zaman;
+        if (kirli && !(await onayla(`“${sonParca(s.yol)}” Stüdyo dışında değişti. Diskteki hâli yüklensin mi? (Hayır derseniz sizin değişiklikleriniz korunur.)`, { baslik: 'Dosya değişti', dugme: 'Diskten yükle' }))) {
+          if (degismedi()) s.zaman = z;
+          continue;
+        }
+        if (!degismedi()) continue;
         const d = await api('/api/dosya?' + sorgu({ yol: tamYol(s.yol) })).catch(x => ({ hata: x.message }));
-        if (d.hata || d.ikili) continue;
-        s.icerik = s.kayitli = d.icerik; s.zaman = d.zaman;
+        // İstek veya onay beklenirken yazılan kodu eski disk yanıtıyla ezme.
+        if (d.hata || d.ikili || !degismedi()) continue;
+        s.icerik = s.kayitli = d.icerik; s.zaman = d.zaman; s.surum = d.surum; s.cakisma = null;
         if (!kirli) bildir(`“${sonParca(s.yol)}” dışarıda değişti; yeniden yüklendi.`);
         if (s.yol === D.etkin) guncelle('kod', 'sekmeler');
         else guncelle('sekmeler');
@@ -290,3 +303,25 @@
   }
   window.addEventListener('focus', () => { if (D.ekran === 'duzenleyici' && D.proje) { disDegisiklikleriDenetle(); agaciYukle().then(() => D.yanPanel === 'gezgin' && cizYanPanel()); } });
   setInterval(disDegisiklikleriDenetle, 4000);
+
+  Object.assign(EYLEM, {
+    async silinenlerModal() {
+      if (!D.proje) return;
+      const proje = D.proje;
+      const r = await api('/api/cop?' + sorgu({ kok: proje.yol })).catch(e => ({ hata: e.message }));
+      if (D.proje !== proje) return;
+      if (r.hata) return bildir(r.hata, true);
+      D.modal = { tur: 'silinenler', proje, kayitlar: r.kayitlar || [] }; D.menu = null;
+      katmanlariCiz();
+    },
+    async silineniGeriAl(kimlik) {
+      const m = D.modal;
+      if (m?.tur !== 'silinenler' || D.proje !== m.proje) return;
+      const r = await api('/api/cop/geri-al', { kok: m.proje.yol, kimlik }).catch(e => ({ hata: e.message }));
+      if (r.hata) return bildir(r.hata, true);
+      if (D.proje !== m.proje) return;
+      await agaciTazele();
+      await EYLEM.silinenlerModal();
+      bildir('Silinen öğe geri yüklendi.');
+    },
+  });

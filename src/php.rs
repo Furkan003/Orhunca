@@ -397,7 +397,7 @@ impl<'a> Uretici<'a> {
         } else {
             self.yereller = f.yereller.iter().cloned().collect();
             self.donus = f.donus.clone();
-            if !f.ad.starts_with(ON_EK) {
+            if !f.ad.starts_with(ON_EK) || f.ad.starts_with(crate::sinama::ESITLIK_ON_EK) {
                 self.yaz("$ohc_derinlik = new ODerinlik();");
             }
             for d in &f.govde {

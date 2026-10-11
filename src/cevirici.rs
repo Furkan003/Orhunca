@@ -493,10 +493,11 @@ impl Cevirici {
         }
         let mut ozel = false;
         for f in &p.islevler {
-            if f.ad.starts_with(ON_EK)
-                || f.ad.starts_with('‹')
-                || f.ad.contains('.')
-                || f.konum.dosya >= p.dosyalar.len()
+            if !f.ad.starts_with(crate::sinama::ESITLIK_ON_EK)
+                && (f.ad.starts_with(ON_EK)
+                    || f.ad.starts_with('‹')
+                    || f.ad.contains('.')
+                    || f.konum.dosya >= p.dosyalar.len())
             {
                 continue;
             }

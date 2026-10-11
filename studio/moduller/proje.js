@@ -74,7 +74,7 @@
     if (!D.sekmeler.some(s => s.yol === yol)) {
       const r = await api('/api/dosya?' + sorgu({ yol: tamYol(yol) }));
       if (r.hata) { bildir(r.hata, true); return; }
-      D.sekmeler.push({ yol, icerik: r.icerik ?? '', kayitli: r.icerik ?? '', ikili: !!r.ikili, zaman: r.zaman || 0 });
+      D.sekmeler.push({ yol, icerik: r.icerik ?? '', kayitli: r.icerik ?? '', ikili: !!r.ikili, zaman: r.zaman || 0, surum: r.surum });
       fiilleriTopla();
     }
     D.etkin = yol;
@@ -82,17 +82,38 @@
   }
 
   async function kaydet(s = etkinSekme(), sessiz = false, otomatik = false) {
+    const proje = D.proje;
+    // Aynı sekmeye ait kayıtlar sırayla tamamlanır; eski bir isteğin yeni
+    // içeriğin üstüne yazmasını önler.
+    while (s?.kayitSuruyor) {
+      if (!(await s.kayitSuruyor)) return false;
+    }
+    if (D.proje !== proje) return false;
     if (!s || s.ikili || s.icerik === s.kayitli) return true;
+    const islem = sekmeyiKaydet(s, sessiz, otomatik);
+    s.kayitSuruyor = islem;
+    try { return await islem; }
+    finally { if (s.kayitSuruyor === islem) s.kayitSuruyor = null; }
+  }
+
+  async function sekmeyiKaydet(s, sessiz, otomatik) {
+    if (otomatik && s.cakisma) return false;
     const icerik = s.icerik;
+    const eskiZaman = s.zaman;
     s.zaman = 0; // kayıt sürerken dış değişiklik denetimi bu sekmeyi atlar
-    const r = await api('/api/dosya', { yol: tamYol(s.yol), icerik }).catch(e => ({ hata: e.message }));
+    const r = await api('/api/dosya', { yol: tamYol(s.yol), icerik, surum: s.surum }).catch(e => ({ hata: e.message }));
     if (r.hata) {
+      s.zaman = eskiZaman;
+      if (r.cakisma) {
+        s.cakisma = r;
+        if (!otomatik) kayitCakismasiniAc(s);
+      }
       // Otomatik kaydetmede aynı hata her duraklamada yeniden gösterilmez.
       if (!otomatik || s.otoHata !== r.hata) bildir(r.hata, true);
       if (otomatik) s.otoHata = r.hata;
       return false;
     }
-    s.otoHata = null;
+    s.otoHata = null; s.cakisma = null; s.surum = r.surum;
     s.kayitli = icerik;
     s.zaman = r.zaman || 0;
     gitYenilePlanla();
@@ -112,14 +133,17 @@
   }
 
   let kaydetmeZamani;
-  /** Otomatik kaydetme: yazmaya ara verildikten 1,5 sn sonra açık dosya kaydedilir. */
+  /** Otomatik kaydetme: yazmaya ara verildikten 1,5 sn sonra değişen sekmeler kaydedilir. */
   function kaydetmeyiPlanla() {
     if (!D.otomatikKaydet) return;
     clearTimeout(kaydetmeZamani);
+    const proje = D.proje;
     kaydetmeZamani = setTimeout(async () => {
-      const s = etkinSekme();
-      if (!s || s.ikili || s.icerik === s.kayitli) return;
-      await kaydet(s, true, true);
+      if (!D.otomatikKaydet || D.proje !== proje) return;
+      for (const s of [...D.sekmeler]) {
+        if (D.proje !== proje) return;
+        if (D.sekmeler.includes(s) && !s.ikili && s.icerik !== s.kayitli) await kaydet(s, true, true);
+      }
       if (D.ekran === 'duzenleyici') cizSekmeler();
     }, 1500);
   }
@@ -556,5 +580,34 @@
     if (r.hata) { m.hata = r.hata; katmanlariCiz(); return; }
     Object.assign(m, { yol: r.yol, ust: r.ust, klasorler: r.klasorler, proje: r.proje, secili: null });
     katmanlariCiz();
+  }
+
+
+  function kayitCakismasiniAc(s) {
+    D.modal = { tur: 'kayitCakismasi', sekme: s, proje: D.proje, disk: s.cakisma };
+    katmanlariCiz();
+  }
+
+  async function kayitCakismasiCoz(secim) {
+      const m = D.modal;
+      if (m?.tur !== 'kayitCakismasi' || D.proje !== m.proje || !D.sekmeler.includes(m.sekme)) return;
+      const s = m.sekme;
+      if (secim === 'disk') {
+        // Yanıt geldikten sonra yazılmış kod için yeniden onay alınır.
+        const icerik = s.icerik;
+        if (!(await onayla('Editördeki değişiklikler yerine diskteki hâl yüklensin mi?', { dugme: 'Diskten yükle', tehlikeli: true }))) return;
+        if (D.proje !== m.proje || !D.sekmeler.includes(s)) return;
+        const r = await api('/api/dosya?' + sorgu({ yol: tamYol(s.yol) }));
+        if (r.hata) return bildir(r.hata, true);
+        if (D.proje !== m.proje || !D.sekmeler.includes(s) || s.icerik !== icerik || s.kayitSuruyor) return;
+        s.icerik = s.kayitli = r.icerik; s.surum = r.surum; s.zaman = r.zaman; s.cakisma = null;
+        D.modal = null; guncelle('kod', 'sekmeler', 'katman');
+      } else {
+        // Yalnızca gösterilen disk sürümünün üstüne yazılabilir; yeniden değiştiyse
+        // sunucu tekrar çakışma döndürür.
+        s.surum = m.disk.surum; s.kayitli = m.disk.icerik; s.cakisma = null;
+        D.modal = null; katmanlariCiz();
+        await kaydet(s);
+      }
   }
 

@@ -5,6 +5,153 @@ use std::net::TcpStream;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
+#[test]
+fn editor_kayit_yarislari() {
+    let c = Command::new("node")
+        .arg(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/studyo_kayit.js"))
+        .output()
+        .expect("Stüdyo kayıt testleri için Node.js gerekli");
+    assert!(c.status.success(), "{}", String::from_utf8_lossy(&c.stderr));
+}
+
+#[test]
+fn kayit_cakismasi_ve_eszamanli_istemciler() {
+    use serde_json::json;
+    let s = baslat("kayit-cakismasi");
+    let p = s.ev.join("proje");
+    std::fs::create_dir_all(&p).unwrap();
+    s.api("/api/proje/ac", json!({ "yol": p }));
+    let yol = p.join("a.ohc");
+    std::fs::write(&yol, "ilk").unwrap();
+    let oku = || {
+        s.api_get(&format!(
+            "/api/dosya?yol={}",
+            url_kodla(yol.to_str().unwrap())
+        ))
+    };
+    let ilk = oku();
+    std::fs::write(&yol, "dış değişiklik").unwrap();
+    let r = s.api(
+        "/api/dosya",
+        json!({ "yol": yol, "icerik": "eski istemci", "surum": ilk["surum"] }),
+    );
+    assert_eq!(r["cakisma"], true, "{r}");
+    assert_eq!(std::fs::read_to_string(&yol).unwrap(), "dış değişiklik");
+    let surum = oku()["surum"].clone();
+    let sonuclar = std::thread::scope(|scope| {
+        let isler: Vec<_> = ["birinci", "ikinci"]
+            .into_iter()
+            .map(|icerik| {
+                let (s, yol, surum) = (&s, &yol, &surum);
+                scope.spawn(move || {
+                    s.api(
+                        "/api/dosya",
+                        json!({ "yol": yol, "icerik": icerik, "surum": surum }),
+                    )
+                })
+            })
+            .collect();
+        isler
+            .into_iter()
+            .map(|i| i.join().unwrap())
+            .collect::<Vec<_>>()
+    });
+    assert_eq!(sonuclar.iter().filter(|r| r["tamam"] == true).count(), 1);
+    assert_eq!(sonuclar.iter().filter(|r| r["cakisma"] == true).count(), 1);
+    let (durum, _) = s.istek(
+        "POST",
+        "/api/dosya",
+        Some(&json!({"yol": yol, "icerik": "sürümsüz"}).to_string()),
+        true,
+    );
+    assert_eq!(durum, 428);
+    let onceki = oku();
+    std::fs::remove_file(&yol).unwrap();
+    assert_eq!(
+        s.api(
+            "/api/dosya",
+            json!({"yol": yol, "icerik": "yeniden", "surum": onceki["surum"]})
+        )["cakisma"],
+        true
+    );
+    assert!(!yol.exists());
+}
+
+#[test]
+fn silinen_klasor_ikili_dosyalarla_ve_yeniden_baslatinca_kurtarilir() {
+    use serde_json::json;
+    let mut s = baslat("kurtarma");
+    let p = s.ev.join("proje");
+    std::fs::create_dir_all(p.join("alt/ic")).unwrap();
+    let veri = vec![255; 2 * 1024 * 1024];
+    std::fs::write(p.join("alt/ic/resim.bin"), &veri).unwrap();
+    std::fs::write(p.join("alt/kod.ohc"), "özgün").unwrap();
+    s.api("/api/proje/ac", json!({"yol": p}));
+    let r = s.api("/api/dosya/sil", json!({"yol": p.join("alt")}));
+    assert_eq!(r["tamam"], true, "{r}");
+    assert!(!p.join("alt").exists());
+    s.cocuk.kill().unwrap();
+    s.cocuk.wait().unwrap();
+    let ayar = s.ev.join(".config").to_string_lossy().into_owned();
+    let ikinci = baslat_ortamli("kurtarma-yeniden", &[("XDG_CONFIG_HOME", &ayar)]);
+    ikinci.api("/api/proje/ac", json!({"yol": p}));
+    let l = ikinci.api_get(&format!("/api/cop?kok={}", url_kodla(p.to_str().unwrap())));
+    assert_eq!(l["kayitlar"].as_array().unwrap().len(), 1, "{l}");
+    std::fs::create_dir(p.join("alt")).unwrap();
+    let istek = json!({"kok": p, "kimlik": r["kimlik"]});
+    assert!(ikinci.api("/api/cop/geri-al", istek.clone())["hata"].is_string());
+    std::fs::remove_dir(p.join("alt")).unwrap();
+    let sonuc = ikinci.api("/api/cop/geri-al", istek);
+    assert_eq!(sonuc["tamam"], true, "{sonuc}");
+    assert_eq!(std::fs::read(p.join("alt/ic/resim.bin")).unwrap(), veri);
+    assert_eq!(
+        std::fs::read_to_string(p.join("alt/kod.ohc")).unwrap(),
+        "özgün"
+    );
+    assert!(
+        ikinci.api("/api/cop/geri-al", json!({"kok": p, "kimlik": "../../dış"}))["hata"]
+            .is_string()
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn baglantilarla_proje_disina_yazilamaz_ve_kopyalanamaz() {
+    use serde_json::json;
+    use std::os::unix::fs::symlink;
+    let s = baslat("baglanti-siniri");
+    let p = s.ev.join("proje");
+    let dis = s.ev.join("dış");
+    std::fs::create_dir_all(p.join("alt")).unwrap();
+    std::fs::create_dir(&dis).unwrap();
+    std::fs::write(dis.join("ozel.txt"), "özel").unwrap();
+    s.api("/api/proje/ac", json!({"yol": p}));
+    symlink(dis.join("yeni.txt"), p.join("kopuk")).unwrap();
+    let (durum, _) = s.istek(
+        "POST",
+        "/api/dosya",
+        Some(&json!({"yol": p.join("kopuk"), "icerik": "sızma", "surum":"yok"}).to_string()),
+        true,
+    );
+    assert_eq!(durum, 403);
+    assert!(!dis.join("yeni.txt").exists());
+    symlink(&dis, p.join("alt/bağ")).unwrap();
+    let r = s.api(
+        "/api/dosya/kopyala",
+        json!({"yol":p.join("alt"),"yeni":p.join("kopya")}),
+    );
+    assert!(r["hata"].is_string(), "{r}");
+    assert!(!p.join("kopya/bağ/ozel.txt").exists());
+    symlink(&p, p.join("takma")).unwrap();
+    let r = s.api(
+        "/api/dosya/kopyala",
+        json!({"yol":p.join("alt"),"yeni":p.join("takma/alt/iç")}),
+    );
+    assert!(r["hata"].is_string(), "{r}");
+    let agac = s.api_get(&format!("/api/agac?kok={}", url_kodla(p.to_str().unwrap())));
+    assert!(!agac.to_string().contains("ozel.txt"));
+}
+
 struct Sunucu {
     cocuk: Child,
     kapi: u16,
@@ -90,7 +237,13 @@ impl Sunucu {
         (durum, govde)
     }
 
-    fn api(&self, yol: &str, govde: serde_json::Value) -> serde_json::Value {
+    fn api(&self, yol: &str, mut govde: serde_json::Value) -> serde_json::Value {
+        // Normal istemci gibi okunan sürümü gönder; çakışma testleri açık sürüm verir.
+        if yol == "/api/dosya" && govde.get("surum").is_none() {
+            let dosya = govde["yol"].as_str().unwrap();
+            govde["surum"] =
+                self.api_get(&format!("/api/dosya?yol={}", url_kodla(dosya)))["surum"].clone();
+        }
         let (_, g) = self.istek("POST", yol, Some(&govde.to_string()), true);
         serde_json::from_str(&g).unwrap()
     }
@@ -162,7 +315,7 @@ fn guvenlik() {
         "POST",
         "/api/dosya",
         Some(
-            &serde_json::json!({ "yol": konum.join("p").join("yeni.ohc"), "icerik": "x" })
+            &serde_json::json!({ "yol": konum.join("p").join("yeni.ohc"), "icerik": "x", "surum": "yok" })
                 .to_string(),
         ),
         true,

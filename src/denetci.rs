@@ -240,6 +240,13 @@ pub fn denetle(p: &mut Program) -> Sonuc<()> {
         .iter()
         .filter_map(|ad| d.biten.remove(ad))
         .collect();
+    let mut yardimcilar: Vec<_> = d
+        .biten
+        .into_values()
+        .filter(|f| f.ad.starts_with(crate::sinama::ESITLIK_ON_EK))
+        .collect();
+    yardimcilar.sort_by(|a, b| a.ad.cmp(&b.ad));
+    p.islevler.extend(yardimcilar);
     Ok(())
 }
 
@@ -1886,6 +1893,43 @@ impl Denetci {
         tipler: Vec<Tip>,
         konum: Konum,
     ) -> Sonuc<Tip> {
+        if ad_ == crate::sinama::ESITLIK {
+            if tipler.len() != 3 || tipler[2] != Tip::Sayi {
+                return Err(Hata::yeni(konum, "Geçersiz sınama eşitliği"));
+            }
+            let tip = tipler[0]
+                .birlestir(&tipler[1])
+                .ok_or_else(|| Hata::yeni(konum, "eşit_olmalı aynı tipte iki değer bekler"))?;
+            // Boş koleksiyonların bilinmeyen öğesi hiçbir zaman okunmaz; yardımcı
+            // işlevin imzasında sayı olarak somutlaştırılır.
+            fn somut(t: Tip) -> Tip {
+                match t {
+                    Tip::Bilinmeyen => Tip::Sayi,
+                    Tip::Liste(t) => Tip::Liste(Box::new(somut(*t))),
+                    Tip::Sozluk(a, b) => Tip::Sozluk(Box::new(somut(*a)), Box::new(somut(*b))),
+                    t => t,
+                }
+            }
+            let tip = somut(tip);
+            let ad = crate::sinama::esitlik_adi(&tip);
+            if !self.imzalar.contains_key(&ad) {
+                let model = match &tip {
+                    Tip::Model(m) => self.modeller.get(m),
+                    _ => None,
+                };
+                let f = crate::sinama::esitlik_islevi(&tip, model)?;
+                self.imzalar.insert(
+                    ad.clone(),
+                    Imza {
+                        parametreler: f.parametreler.iter().map(|(_, t)| t.clone()).collect(),
+                        haller: Vec::new(),
+                        donus: Some(Tip::Mantik),
+                    },
+                );
+                self.bekleyen.insert(ad.clone(), f);
+            }
+            *ad_ = ad;
+        }
         // Ön kütüphanenin içinden yerleşik çağrı: programın tanımları gölgelemez.
         // (Önek kalır: kod üretici de programın tanımına değil yerleşiğe bağlar.)
         if let Some(y) = ad_.strip_prefix(YERLESIK_ON_EK) {

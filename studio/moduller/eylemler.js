@@ -5,6 +5,7 @@
   // Eylemler
   // =====================================================================
   const EYLEM = {
+    kayitCakismasiCoz(secim) { return kayitCakismasiCoz(secim); },
     hic() { /* modalın içine tıklama örtüyü kapatmasın */ },
     git(ekran) {
       if (ekran === 'yapilandir') {
@@ -253,10 +254,10 @@
       const m = D.modal;
       if (!D.proje) return bildir('Önce bir proje açın.', true);
       const yol = tamYol('AGENTS.md');
-      const varmi = await api('/api/dosya?yol=' + encodeURIComponent(yol)).then(r => !r.hata).catch(() => false);
-      if (varmi && !(await onayla('Projede zaten bir AGENTS.md var. Üzerine yazılsın mı?', { dugme: 'Üzerine yaz' }))) return;
-      if (!varmi) { const r = await api('/api/dosya/yeni', { yol, klasor: false }); if (r.hata) return bildir(r.hata, true); }
-      const r = await api('/api/dosya', { yol, icerik: m.talimat });
+      const onceki = await api('/api/dosya?yol=' + encodeURIComponent(yol));
+      if (!onceki.surum) return bildir(onceki.hata || 'Dosya okunamadı.', true);
+      if (!onceki.hata && !(await onayla('Projede zaten bir AGENTS.md var. Üzerine yazılsın mı?', { dugme: 'Üzerine yaz' }))) return;
+      const r = await api('/api/dosya', { yol, icerik: m.talimat, surum: onceki.surum });
       if (r.hata) return bildir(r.hata, true);
       bildir('AGENTS.md projeye eklendi.');
       EYLEM.agaciYenile();
@@ -406,7 +407,7 @@
         const s = D.sekmeler.find(x => x.yol === yol);
         if (!s) continue;
         const d = await api('/api/dosya?' + sorgu({ yol: tamYol(yol) }));
-        if (!d.hata && !d.ikili) s.icerik = s.kayitli = d.icerik;
+        if (!d.hata && !d.ikili) { s.icerik = s.kayitli = d.icerik; s.surum = d.surum; s.zaman = d.zaman; }
       }
       bildir(r.sayi ? `${r.sayi} yer, ${r.degisen.length} dosyada değiştirildi.` : 'Değiştirilecek bir şey bulunamadı.');
       fiilleriTopla();
@@ -483,7 +484,7 @@
     sinamalariYukle() { sinamalariYukle(); },
     gitYukle() { gitYukle(); },
     gitBaslat() { gitIslem('/api/git/baslat', {}, 'Git deposu başlatıldı.'); },
-    gitCek() { gitIslem('/api/git/cek', {}, r => r.mesaj).then(ok => ok && Promise.all(D.sekmeler.map(async s => { if (s.icerik !== s.kayitli) return; const d = await api('/api/dosya?' + sorgu({ yol: tamYol(s.yol) })); if (!d.hata && !d.ikili) s.icerik = s.kayitli = d.icerik; })).then(() => guncelle('kod', 'sekmeler'))); },
+    gitCek() { gitIslem('/api/git/cek', {}, r => r.mesaj).then(ok => ok && Promise.all(D.sekmeler.map(async s => { if (s.icerik !== s.kayitli) return; const d = await api('/api/dosya?' + sorgu({ yol: tamYol(s.yol) })); if (!d.hata && !d.ikili) { s.icerik = s.kayitli = d.icerik; s.surum = d.surum; s.zaman = d.zaman; } })).then(() => guncelle('kod', 'sekmeler'))); },
     gitGonder() { gitIslem('/api/git/gonder', {}, r => r.mesaj); },
     gitHazirla(a) {
       const geri = a[0] === '-', yol = a.slice(1);
@@ -498,7 +499,7 @@
         const s = D.sekmeler.find(x => x.yol === yol);
         if (s) {
           const d = await api('/api/dosya?' + sorgu({ yol: tamYol(yol) }));
-          if (d.hata) D.sekmeler = D.sekmeler.filter(x => x !== s); else if (!d.ikili) s.icerik = s.kayitli = d.icerik;
+          if (d.hata) D.sekmeler = D.sekmeler.filter(x => x !== s); else if (!d.ikili) { s.icerik = s.kayitli = d.icerik; s.surum = d.surum; s.zaman = d.zaman; }
           if (D.etkin === yol && d.hata) D.etkin = D.sekmeler[0]?.yol || null;
           guncelle('sekmeler', 'kod');
         }

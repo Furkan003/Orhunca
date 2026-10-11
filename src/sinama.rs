@@ -23,6 +23,8 @@ use std::time::{Duration, Instant};
 
 pub const DOGRULA: &str = "doğrula";
 pub const ESIT_OLMALI: &str = "eşit_olmalı";
+pub const ESITLIK: &str = "‹sınama_eşit›";
+pub const ESITLIK_ON_EK: &str = "‹öz›sınama_";
 
 fn ifade(tur: IfadeTuru, k: Konum) -> Ifade {
     Ifade::yeni(tur, k)
@@ -152,8 +154,8 @@ impl Indirgeyici<'_> {
         let g_ad = format!("sınama_gerçek_{}_{}", k.satir, k.sutun);
         let b_ad = format!("sınama_beklenen_{}_{}", k.satir, k.sutun);
         let isim = |a: &str| ifade(IfadeTuru::Isim(a.into()), k);
-        // Karşılaştırma metin hâlleriyle yapılır: listeler, sözlükler ve modeller de
-        // karşılaştırılabilsin. İki değerin aynı tipte olması, ikisini bir listeye koyarak
+        // Değerler tiplerine göre karşılaştırılır. İki değerin aynı tipte olması,
+        // ikisini bir listeye koyarak
         // denetlenir (eşit_olmalı(1, "1") derleme hatası verir).
         let tip_denetimi = Deyim::Atama {
             hedef: format!("sınama_tipler_{}_{}", k.satir, k.sutun),
@@ -161,7 +163,6 @@ impl Indirgeyici<'_> {
             deger: ifade(IfadeTuru::Liste(vec![isim(&g_ad), isim(&b_ad)]), k),
             konum: k,
         };
-        let metni = |a: &str| cagri("metin", vec![isim(a)], k);
         let mesaj = topla(
             topla(
                 topla(
@@ -188,10 +189,13 @@ impl Indirgeyici<'_> {
             tip_denetimi,
             Deyim::Eger {
                 kosul: ifade(
-                    IfadeTuru::Ikili(
-                        IkiliOp::EsitDegil,
-                        Box::new(metni(&g_ad)),
-                        Box::new(metni(&b_ad)),
+                    IfadeTuru::Tekli(
+                        TekliOp::Degil,
+                        Box::new(cagri(
+                            ESITLIK,
+                            vec![isim(&g_ad), isim(&b_ad), ifade(IfadeTuru::Sayi(0), k)],
+                            k,
+                        )),
                     ),
                     k,
                 ),
@@ -952,6 +956,93 @@ fn yazdir(s: &DosyaSonucu, kok: &Path) {
             }
         }
     }
+}
+
+pub fn esitlik_adi(tip: &crate::agac::Tip) -> String {
+    let ozet: String = crate::guncelleme::sha256(tip.to_string().as_bytes())
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    format!("{ESITLIK_ON_EK}{ozet}")
+}
+
+/// Tip denetçisi için sıradan AST üretir; tüm arka uçlar aynı eşitlik kuralını kullanır.
+/// Metne dönüştürme karşılaştırmaya katılmaz. Döngüsel/çok derin değerler yanlış
+/// başarı vermek yerine anlaşılır bir çalışma hatası üretir.
+pub fn esitlik_islevi(
+    tip: &crate::agac::Tip,
+    model: Option<&crate::agac::Model>,
+) -> Result<crate::agac::Islev, Hata> {
+    use crate::agac::*;
+    let govde = match tip {
+        Tip::Liste(_) => "    eğer uzunluk(a) != uzunluk(b) ise:
+        döndür yanlış
+    i = 0
+    i < uzunluk(a) olduğu sürece:
+        eğer değil sinama_esit(a[i], b[i], derinlik + 1) ise:
+            döndür yanlış
+        i += 1
+    döndür doğru
+"
+        .to_string(),
+        Tip::Sozluk(_, _) => "    eğer uzunluk(a) != uzunluk(b) ise:
+        döndür yanlış
+    her anahtar için anahtarlar(a)'dan:
+        eğer değil içerir(b, anahtar) ise:
+            döndür yanlış
+        eğer değil sinama_esit(a[anahtar], b[anahtar], derinlik + 1) ise:
+            döndür yanlış
+    döndür doğru
+"
+        .to_string(),
+        Tip::Model(_) => {
+            let mut m = "    eğer a == b ise:
+        döndür doğru
+"
+            .to_string();
+            for alan in &model
+                .ok_or_else(|| Hata::yeni(Konum::default(), "Sınama modeli bulunamadı"))?
+                .alanlar
+            {
+                m.push_str(&format!(
+                    "    eğer değil sinama_esit(a.{0}, b.{0}, derinlik + 1) ise:
+        döndür yanlış
+",
+                    alan.ad
+                ));
+            }
+            m.push_str(
+                "    döndür doğru
+",
+            );
+            m
+        }
+        _ => "    döndür a == b
+"
+        .to_string(),
+    };
+    let kaynak = format!(
+        "işlev kıyasla(a, b, derinlik: sayı) -> mantık:
+    eğer derinlik > 128 ise:
+        hata_ver(\"Eşitlik karşılaştırması çok derin veya döngüsel.\")
+{govde}"
+    );
+    let sozcukler = crate::sozcuk::sozcukle(&kaynak)?;
+    let mut p = crate::ayristirici::ayristir_cok(vec![sozcukler], Vec::new())?;
+    let mut f = p.islevler.remove(0);
+    f.ad = esitlik_adi(tip);
+    f.parametreler[0].1 = tip.clone();
+    f.parametreler[1].1 = tip.clone();
+    ifadeleri_gez(&mut f.govde, &mut |e| {
+        if let IfadeTuru::Cagri(ad, _) = &mut e.tur {
+            *ad = if ad == "sinama_esit" {
+                ESITLIK.into()
+            } else {
+                format!("{}{ad}", crate::on_kutuphane::YERLESIK_ON_EK)
+            };
+        }
+    });
+    Ok(f)
 }
 
 #[cfg(test)]

@@ -90,6 +90,14 @@
     if (m.tur === 'vt') return cizVt(kabuk);
     if (m.tur === 'gorunum') return cizGorunum(kabuk);
     if (m.tur === 'ceviri') return cizCeviri(kabuk);
+    if (m.tur === 'kayitCakismasi') return kabuk('Dosya değişti',
+      `<p>Diskte başka değişiklikler var. Kodunuz editörde korunuyor. Gerekirse bu metinleri kopyalayıp birleştirin.</p>
+       <label>Editördeki kod</label><textarea class="metin-girdi" readonly rows="8">${kac(m.sekme.icerik)}</textarea>
+       <label>Diskteki kod</label><textarea class="metin-girdi" readonly rows="8">${kac(m.disk.icerik ?? '(Dosya silinmiş veya metin değil.)')}</textarea>`,
+      `<div class="dugme" data-e="modalKapat">Vazgeç</div><div class="dugme" data-e="kayitCakismasiCoz" data-a="disk">Diskten yükle</div><div class="dugme tehlikeli" data-e="kayitCakismasiCoz" data-a="kaydet">Benimkini kaydet</div>`);
+    if (m.tur === 'silinenler') return kabuk('Silinenleri geri al',
+      `<p>Dosyalar ve klasörler özgün yerlerine geri yüklenir. Aynı yerde bir dosya varsa üzerine yazılmaz.</p>${m.kayitlar.length ? m.kayitlar.map(k => `<div class="gecmis-oge"><span class="esnek">${kac(k.yol)} · ${tarihBicim(k.zaman)}</span><div class="dugme" data-e="silineniGeriAl" data-a="${kac(k.kimlik)}">Geri al</div></div>`).join('') : '<p>Silinen öğe yok.</p>'}`,
+      '<div class="dugme" data-e="modalKapat">Kapat</div>');
     if (m.tur === 'gecmis') return cizGecmis(kabuk);
     if (m.tur === 'satiraGit') {
       const n = etkinSekme()?.icerik.split('\n').length || 1;
