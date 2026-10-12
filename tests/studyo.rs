@@ -1044,13 +1044,13 @@ fn yerel_gecmis() {
             .clone()
     };
     assert!(liste(&s).is_empty());
-    // İlk kayıtta diskteki önceki hâl de saklanır; bir dakika içindeki kayıtlar birleşir.
+    // İlk hâl ve hızlı kayıtların her biri ayrı kurtarılabilir.
     for icerik in ["ikinci\n", "üçüncü\n", "dördüncü\n"] {
         let r = s.api("/api/dosya", json!({ "yol": dosya, "icerik": icerik }));
         assert_eq!(r["tamam"], true, "{r}");
     }
     let l = liste(&s);
-    assert_eq!(l.len(), 2, "{l:?}");
+    assert_eq!(l.len(), 4, "{l:?}");
     let oku = |z: &serde_json::Value| {
         s.api_get(&format!(
             "/api/gecmis/oku?yol={}&zaman={}",
@@ -1060,7 +1060,9 @@ fn yerel_gecmis() {
             .clone()
     };
     assert_eq!(oku(&l[0]["zaman"]), "dördüncü\n");
-    assert_eq!(oku(&l[1]["zaman"]), "ilk\n");
+    assert_eq!(oku(&l[1]["zaman"]), "üçüncü\n");
+    assert_eq!(oku(&l[2]["zaman"]), "ikinci\n");
+    assert_eq!(oku(&l[3]["zaman"]), "ilk\n");
     // Proje dışındaki bir dosyanın geçmişi istenemez.
     let (durum, _) = s.istek("GET", "/api/gecmis?yol=%2Fetc%2Fpasswd", None, true);
     assert_eq!(durum, 403);
@@ -1385,4 +1387,192 @@ fn kosullu_kesme_ve_gunluk_noktasi() {
             .contains("deyime denk gelmiyor"),
         "{r}"
     );
+}
+
+#[test]
+fn proje_kurtarma_profiller_ve_gecisler() {
+    use serde_json::json;
+    let s = baslat("gelistirme");
+    let p = s.ev.join("proje");
+    std::fs::create_dir_all(p.join("gecisler")).unwrap();
+    std::fs::write(
+        p.join("deneme.ohcproj"),
+        "ad = \"deneme\"\ngiriş = \"ana.ohc\"\n",
+    )
+    .unwrap();
+    std::fs::write(p.join("ana.ohc"), "42'yi yaz.\n").unwrap();
+    std::fs::write(
+        p.join(".env"),
+        "ORHUNCA_VERITABANI=sqlite\nAPI_TOKEN=gizli-deger\n",
+    )
+    .unwrap();
+    s.api("/api/proje/ac", json!({"yol":p}));
+    s.api("/api/proje/guven", json!({"yol":p,"guven":true}));
+    let islem = |islem: &str, mut v: serde_json::Value| {
+        v["islem"] = json!(islem);
+        v["kok"] = json!(p);
+        s.api("/api/gelistirme", v)
+    };
+    let y = islem("yedek", json!({}));
+    assert!(y["kimlik"].is_string(), "{y}");
+    std::fs::write(p.join("ana.ohc"), "0'ı yaz.\n").unwrap();
+    let r = islem("yedek-dene", json!({"kimlik":y["kimlik"]}));
+    let kurtar = std::path::Path::new(r["yol"].as_str().unwrap_or_else(|| panic!("{r}")));
+    assert_eq!(
+        std::fs::read_to_string(kurtar.join("ana.ohc")).unwrap(),
+        "42'yi yaz.\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(p.join("ana.ohc")).unwrap(),
+        "0'ı yaz.\n"
+    );
+    let sekme =
+        json!([{"yol":"ana.ohc","icerik":"kaydedilmedi","kayitli":"0'ı yaz.\n","surum":"eski"}]);
+    assert_eq!(
+        islem("taslak", json!({"oturum":"test","sira":2,"sekmeler":sekme}))["tamam"],
+        true
+    );
+    assert_eq!(
+        islem("taslak", json!({"oturum":"test","sira":1,"sekmeler":[]}))["atlandi"],
+        true
+    );
+    assert_eq!(
+        islem("kurtarma", json!({}))["taslaklar"][0]["sekmeler"][0]["icerik"],
+        "kaydedilmedi"
+    );
+    assert!(islem(
+        "taslak",
+        json!({"oturum":"test","sira":3,"sekmeler":[{"yol":"../dis","icerik":"x"}]})
+    )["hata"]
+        .is_string());
+    let demo = islem("demo", json!({}));
+    let demo = std::path::Path::new(demo["yol"].as_str().unwrap_or_else(|| panic!("{demo}")));
+    assert!(!std::fs::read_to_string(demo.join(".env"))
+        .unwrap()
+        .contains("gizli"));
+    let acik_adres = "https://api.example.test/</script><script>istenmeyen()</script>";
+    std::fs::write(
+        p.join(".env"),
+        format!("ORHUNCA_VERITABANI=sqlite\nAPI_TOKEN=gizli-deger\nAPI_ADRESI={acik_adres}\n"),
+    )
+    .unwrap();
+    std::fs::write(p.join("ana.ohc"), "a = ortam(\"API_ADRESI\")\na'yı yaz.\n").unwrap();
+    let mut a = islem("ayarlar", json!({}));
+    for p in a["ayarlar"]["profiller"].as_array_mut().unwrap() {
+        if p["ad"] == "teslim" {
+            p["acik_ortam"] = json!({"API_ADRESI":"${API_ADRESI}"});
+        }
+    }
+    let kaydet = islem(
+        "ayar-kaydet",
+        json!({"surum":a["surum"],"ayarlar":a["ayarlar"]}),
+    );
+    assert_eq!(kaydet["tamam"], true, "{kaydet}");
+    let teslim = islem("profil-derle", json!({"profil":"teslim"}));
+    assert_eq!(teslim["tamam"], true, "{teslim}");
+    let teslim = std::path::Path::new(teslim["yol"].as_str().unwrap());
+    let c = Command::new("node")
+        .arg(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/profil_web.js"))
+        .arg(teslim.join("uygulama.html"))
+        .arg(acik_adres)
+        .output()
+        .unwrap();
+    assert!(c.status.success(), "{}", String::from_utf8_lossy(&c.stderr));
+    assert!(teslim.join("uygulama.html").is_file());
+    assert!(!teslim.join("kaynak/.env").exists());
+    assert!(teslim.join("teslim.json").is_file());
+    std::fs::write(
+        p.join("gecisler/001_ilk.sql"),
+        "CREATE TABLE ornek (ad TEXT);",
+    )
+    .unwrap();
+    std::fs::write(p.join("gecisler/001_ilk.geri.sql"), "DROP TABLE ornek;").unwrap();
+    std::fs::write(p.join("ana.ohc"), "model Kayit:\n    ad: metin\n0'ı yaz.\n").unwrap();
+    let plan = islem("gecis-onizle", json!({}));
+    assert_eq!(plan["modeller"][0]["ad"], "Kayit", "{plan}");
+    assert!(plan["modeller"][0]["eklenen"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|a| a == "ad"));
+    assert!(plan["surum"].is_string(), "{plan}");
+    assert!(islem("gecis-uygula", json!({"surum":"eski"}))["hata"].is_string());
+    let r = islem("gecis-uygula", json!({"surum":plan["surum"]}));
+    assert_eq!(r["tamam"], true, "{r}");
+    let r = islem("gecis-geri", json!({"surum":r["plan"]["surum"]}));
+    assert_eq!(r["tamam"], true, "{r}");
+    std::fs::write(
+        p.join("gecisler/002_bozuk.sql"),
+        "CREATE TABLE yarim (ad TEXT); HATALI SQL;",
+    )
+    .unwrap();
+    let plan = islem("gecis-onizle", json!({}));
+    assert!(islem("gecis-uygula", json!({"surum":plan["surum"]}))["hata"].is_string());
+    let plan = islem("gecis-onizle", json!({}));
+    assert!(
+        !plan["sema"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|t| t["name"] == "yarim" || t["name"] == "ornek"),
+        "{plan}"
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn farkli_diskte_silme_ve_kurtarma() {
+    use serde_json::json;
+    use std::os::unix::fs::MetadataExt;
+    let s = baslat("diskler-arasi");
+    let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("target")
+        .join(format!("kurtarma-disk-{}", std::process::id()));
+    std::fs::create_dir_all(p.join("sil")).unwrap();
+    let veri = vec![0x90; 2 * 1024 * 1024];
+    std::fs::write(p.join("sil/ikili"), &veri).unwrap();
+    assert_ne!(std::fs::metadata(&p).unwrap().dev(), 0);
+    let farkli = std::fs::metadata(&p).unwrap().dev() != std::fs::metadata(&s.ev).unwrap().dev();
+    s.api("/api/proje/ac", json!({"yol":p}));
+    let sil = s.api("/api/dosya/sil", json!({"yol":p.join("sil")}));
+    assert_eq!(sil["tamam"], true, "{sil}; farklı disk: {farkli}");
+    assert!(!p.join("sil").exists());
+    let r = s.api("/api/cop/geri-al", json!({"kok":p,"kimlik":sil["kimlik"]}));
+    assert_eq!(r["tamam"], true, "{r}");
+    assert_eq!(std::fs::read(p.join("sil/ikili")).unwrap(), veri);
+    std::fs::remove_dir_all(p).unwrap();
+}
+
+#[test]
+fn api_senaryolari_ve_gizli_ayarlar() {
+    use serde_json::json;
+    let s = baslat("api-senaryo");
+    let p = s.ev.join("proje");
+    std::fs::create_dir_all(&p).unwrap();
+    std::fs::write(p.join(".env"), "API_TOKEN=korunacak-anahtar\n").unwrap();
+    s.api("/api/proje/ac", json!({"yol":p}));
+    s.api("/api/proje/guven", json!({"yol":p,"guven":true}));
+    let adres = format!("http://127.0.0.1:{}/api/durum", s.kapi);
+    let ayar = json!({"profiller":[],"senaryolar":[
+        {"ad":"Yetkisiz","url":adres,"yontem":"GET","beklenen":403},
+        {"ad":"Kesinti","kip":"cevrimdisi","beklenen":0},
+        {"ad":"Hatalı servis","kip":"hatali-yanit","beklenen":503,"icerir":"Benzetilmiş"}
+    ]});
+    let r = s.api(
+        "/api/gelistirme",
+        json!({"kok":p,"islem":"ayar-kaydet","surum":"yok","ayarlar":ayar}),
+    );
+    assert_eq!(r["tamam"], true, "{r}");
+    let r = s.api("/api/gelistirme", json!({"kok":p,"islem":"api-sina"}));
+    assert_eq!(r["gecti"], 3, "{r}");
+    assert_eq!(r["kaldi"], 0, "{r}");
+    let gizli = json!({"profiller":[{"ad":"test","hedef":"web","kip":"teslim","ortam":{"API_TOKEN":"duz-metin-anahtar"}}],"senaryolar":[]});
+    let r = s.api(
+        "/api/gelistirme",
+        json!({"kok":p,"islem":"ayar-kaydet","surum":"yok","ayarlar":gizli}),
+    );
+    assert!(r["hata"].is_string(), "{r}");
+    assert!(!std::fs::read_to_string(p.join("studyo.ayar.json"))
+        .unwrap()
+        .contains("duz-metin-anahtar"));
 }

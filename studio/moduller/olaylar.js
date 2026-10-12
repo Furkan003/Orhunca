@@ -32,7 +32,7 @@
   // ile çalışır; yalnızca simgeden oluşanlar ekran okuyucuya başlığıyla tanıtılır.
   function erisilebilirYap(kok) {
     kok.querySelectorAll?.('[data-e]:not([tabindex])').forEach(el => {
-      if (el.matches('button, a, input, select, textarea')) return;
+      if (el.matches('button, a, input, select, textarea') || ['hic', 'modalDis'].includes(el.dataset.e)) return;
       el.setAttribute('tabindex', '0');
       el.setAttribute('role', 'button');
       if (!el.getAttribute('aria-label') && el.title && el.classList.contains('simge')) el.setAttribute('aria-label', el.title);
@@ -122,3 +122,30 @@
     fetch('/api/asistan/durdur', { method: 'POST', keepalive: true, headers: { 'X-Orhunca-Anahtar': ANAHTAR || '', 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {});
   });
 
+
+  // İletişim kutusunda odak görünür kalır, Tab dışarı kaçmaz, kapanınca geri döner.
+  let oncekiModal = null, modalOncesiOdak = null;
+  const modalGozlem = new MutationObserver(() => {
+    const modal = document.querySelector('.modal');
+    if (modal) {
+      if (!oncekiModal) modalOncesiOdak = document.activeElement;
+      modal.setAttribute('role', 'dialog'); modal.setAttribute('aria-modal', 'true');
+      modal.setAttribute('aria-label', modal.querySelector('h2')?.textContent || 'İletişim kutusu');
+      modal.removeAttribute('tabindex');
+      modal.querySelectorAll('input,select,textarea').forEach(el => {
+        if (!el.labels?.length && !el.getAttribute('aria-label')) el.setAttribute('aria-label', el.placeholder || el.id || 'Girdi');
+      });
+      if (!modal.contains(document.activeElement)) modal.querySelector('button,input,textarea,select,[tabindex="0"]')?.focus();
+    } else if (oncekiModal && modalOncesiOdak?.isConnected) modalOncesiOdak.focus();
+    oncekiModal = modal;
+  });
+  modalGozlem.observe(document.body, {childList:true,subtree:true});
+  document.addEventListener('keydown', e => {
+    const modal = document.querySelector('.modal');
+    if (e.key !== 'Tab' || !modal) return;
+    const liste = [...modal.querySelectorAll('button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex="0"]')].filter(el => el.getClientRects().length);
+    if (!liste.length) return;
+    const ilk = liste[0], son = liste.at(-1);
+    if (e.shiftKey && (document.activeElement === ilk || !modal.contains(document.activeElement))) { e.preventDefault(); son.focus(); }
+    else if (!e.shiftKey && (document.activeElement === son || !modal.contains(document.activeElement))) { e.preventDefault(); ilk.focus(); }
+  });

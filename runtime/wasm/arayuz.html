@@ -59,7 +59,7 @@ __YUKLEYICI__
     },
     satirOku: function () { return window.prompt('Girdi:'); },
     dosyalar: Orhunca.tarayiciDosyalari('orhunca:' + document.title + ':'),
-    ortam: {},
+    ortam: __ORTAM__,
     argumanlar: [],
   }).catch(function (h) { yaz('Çalışma hatası: ' + h + '\n', true); });
 })();

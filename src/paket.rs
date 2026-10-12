@@ -635,9 +635,9 @@ fn yukle_ic(
                 return Err(format!("geçersiz paket adı '{ad}' ({isteyen})"));
             }
             if let Some(k) = kurulan.get(&ad) {
-                if kaynagi_ayir(&k.kaynak).0 != kaynagi_ayir(&kaynak).0 {
+                if kaynak_parcalari(&k.kaynak) != kaynak_parcalari(&kaynak) {
                     return Err(format!(
-                        "'{ad}' paketi iki farklı kaynaktan isteniyor: '{}' ve '{kaynak}' ({isteyen})",
+                        "'{ad}' paketi çakışan kaynak veya sürümlerle isteniyor: '{}' ve '{kaynak}' ({isteyen})",
                         k.kaynak
                     ));
                 }
@@ -662,6 +662,7 @@ fn yukle_ic(
                     (gecici, i)
                 }
             };
+            paket_denetim::dogrula(&klasor)?;
             let izinler = paket_denetim::izinler(&klasor);
             let ozet = paket_denetim::icerik_ozeti(&klasor);
             if let Some(b) = beklenen.get(&ad) {
@@ -923,7 +924,8 @@ pub fn incele(kaynak: &str) -> Result<Inceleme, String> {
     let gecici = crate::derleme::gecici_klasor("paket-incele")?;
     let hedef = gecici.join("p");
     let mut g = Vec::new();
-    let sonuc = getir(&kaynak, None, &hedef, &mut g).map(|isleme| {
+    let sonuc = getir(&kaynak, None, &hedef, &mut g).and_then(|isleme| {
+        paket_denetim::dogrula(&hedef)?;
         let proje = Proje::ac(&hedef).ok();
         let ayar = |a: &[&str]| {
             proje
@@ -931,7 +933,7 @@ pub fn incele(kaynak: &str) -> Result<Inceleme, String> {
                 .and_then(|p| p.ayarlar.deger(None, a))
                 .unwrap_or_default()
         };
-        Inceleme {
+        Ok(Inceleme {
             ad: proje
                 .as_ref()
                 .map(|p| p.ad())
@@ -942,7 +944,7 @@ pub fn incele(kaynak: &str) -> Result<Inceleme, String> {
             isleme,
             ozet: paket_denetim::icerik_ozeti(&hedef),
             izinler: paket_denetim::izinler(&hedef),
-        }
+        })
     });
     let _ = std::fs::remove_dir_all(&gecici);
     sonuc

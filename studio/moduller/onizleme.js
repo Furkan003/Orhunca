@@ -18,7 +18,7 @@
     const genislik = ayarOku('onizlemeGenisligi', 0);
     k.style.width = genislik ? `${Math.min(genislik, window.innerWidth * 0.7)}px` : '';
     if (!$('#onizlemeGovde')) {
-      k.innerHTML = `<div class="onizleme-tutamac" title="Genişliği değiştirmek için sürükleyin"></div><div class="onizleme-baslik"><span>CANLI ÖNİZLEME</span>
+      k.innerHTML = `<div class="onizleme-tutamac" title="Genişliği değiştirmek için sürükleyin"></div><div class="onizleme-baslik"><span>CANLI ÖNİZLEME</span><button class="dugme" data-e="onizlemeTelefon" title="390 piksel telefon önizlemesi">Telefon</button><button class="dugme" data-e="onizlemeTablet" title="768 piksel tablet önizlemesi">Tablet</button><button class="dugme" data-e="onizlemeMasaustu" title="Esnek masaüstü önizlemesi">Masaüstü</button>
           <span class="simge" title="Yenile" data-e="onizlemeYenile">refresh</span>
           <span class="simge" title="Tarayıcıda aç" data-e="onizlemeTarayici">open_in_new</span>
           <span class="simge" title="Gizle" data-e="onizlemeAcKapa">close</span></div>

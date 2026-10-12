@@ -40,10 +40,12 @@
       iskeletVar = false; ciz();
       return;
     }
+    if (typeof taslagiSakla === 'function') await taslagiSakla();
     if (!(await degisiklikleriKoru())) return;
     if (D.calisma) await durdur();
     if (D.kabuk) api('/api/durdur', { kimlik: D.kabuk.kimlik }).catch(() => {});
     D.kabuk = null; D.kabukSatir = []; D.baslangic = null;
+    if (typeof yedekZamani !== 'undefined') yedekZamani = 0;
     D.proje = bilgi; D.kisitliSeritKapali = false; D.sinamalar = null; D.vt = null; D.sinamaSonuc = {}; D.git = null; D.gitMesaj = '';
     D.onizleme = null;
     D.sekmeler = []; D.etkin = null; D.sorunlar = []; D.uyarilar = []; D.terminal = []; D.cikti = [];
@@ -60,6 +62,7 @@
     D.ekran = 'duzenleyici';
     iskeletVar = false;
     ciz();
+    if (typeof kurtarmayiDenetle === 'function') kurtarmayiDenetle(bilgi);
     if (bilgi.uyari) bildir(bilgi.uyari, true);
     else if (girisHatasi()) bildir(girisHatasi(), true);
     if (ilkCalistirma && giris) calistir();
@@ -113,9 +116,11 @@
       if (otomatik) s.otoHata = r.hata;
       return false;
     }
+    if (r.uyarilar?.length) bildir("Dosya kaydedildi; geçmiş uyarısı: " + r.uyarilar.join("; "), true);
     s.otoHata = null; s.cakisma = null; s.surum = r.surum;
     s.kayitli = icerik;
     s.zaman = r.zaman || 0;
+    if (typeof taslagiPlanla === 'function') { taslagiPlanla(); otomatikYedek(); }
     gitYenilePlanla();
     if (!sessiz) { cizSekmeler(); kayittanSonra(s.yol); }
     return true;
@@ -200,7 +205,7 @@
    *  satır vurgulanır, değişkenler güncellenir (öğretmek için). */
   function yavasCalistir() { calistir(true, { yavas: true }); }
 
-  async function calistir(ayikla = false, { yavas = false } = {}) {
+  async function calistir(ayikla = false, { yavas = false, profil = null } = {}) {
     if (!D.proje) return;
     if (D.calisma) await durdur();
     if (!(await guvenSor(ayikla ? 'Hata ayıklamak' : 'Programı çalıştırmak'))) return;
@@ -213,7 +218,8 @@
     guncelle('alt');
     const ca = calismaAyarlari();
     const argumanlar = (D.argumanlar || ca.argumanlar).match(/"[^"]*"|\S+/g)?.map(a => a.replace(/^"|"$/g, '')) || [];
-    const r = await api('/api/calistir', { dosya: tamYol(giris), klasor: D.proje.yol, argumanlar, ortam: ortamNesnesi(ca.ortam), ayikla, ilkte_dur: yavas, kesmeler: ayikla ? kesmeListesi() : [] }).catch(e => ({ hata: e.message }));
+    const r = await api('/api/calistir', { dosya: tamYol(giris), klasor: D.proje.yol, profil, argumanlar, ortam: ortamNesnesi(ca.ortam), ayikla, ilkte_dur: yavas, kesmeler: ayikla ? kesmeListesi() : [] }).catch(e => ({ hata: e.message }));
+    if (r.uyari) terminaleEkle(r.uyari, 'err');
     if (r.derleme_hatasi) {
       terminaleEkle('✗ Derleme başarısız', 'err');
       terminaleEkle(r.derleme_hatasi, 'err');
@@ -323,6 +329,7 @@
     D.cikti.push({ t: `${ad} için derleniyor: ${giris}`, c: 'mut' });
     guncelle('alt');
     const r = await api('/api/derle', { dosya: tamYol(giris), hedef }).catch(e => ({ hata: e.message }));
+    if (r.uyari) terminaleEkle(r.uyari, 'err');
     if (r.derleme_hatasi) {
       D.cikti.push({ t: r.derleme_hatasi, c: 'err' });
       if (r.hatalar?.[0]?.satir) { D.sorunlar = r.hatalar; guncelle('isaretler', 'durum'); }
@@ -584,7 +591,8 @@
 
 
   function kayitCakismasiniAc(s) {
-    D.modal = { tur: 'kayitCakismasi', sekme: s, proje: D.proje, disk: s.cakisma };
+    const birlesim = ucYolluBirlestir(s.kayitli ?? '', s.icerik, s.cakisma?.icerik ?? '');
+    D.modal = { tur: 'kayitCakismasi', sekme: s, proje: D.proje, disk: s.cakisma, ilkIcerik: s.icerik, birlesim };
     katmanlariCiz();
   }
 
@@ -605,9 +613,32 @@
       } else {
         // Yalnızca gösterilen disk sürümünün üstüne yazılabilir; yeniden değiştiyse
         // sunucu tekrar çakışma döndürür.
+        if (secim === 'birlestir') {
+          if (s.icerik !== m.ilkIcerik) return bildir('Editördeki kod değişti; karşılaştırmayı yeniden açın.', true);
+          const metin = $('#birlestirilenKod')?.value;
+          if (metin === undefined) return;
+          s.icerik = metin;
+        }
         s.surum = m.disk.surum; s.kayitli = m.disk.icerik; s.cakisma = null;
         D.modal = null; katmanlariCiz();
         await kaydet(s);
       }
   }
 
+
+  /** Ayrı satır aralıklarını birleştirir; örtüşen düzenlemeler kullanıcıya bırakılır. */
+  function ucYolluBirlestir(taban, yerel, disk) {
+    if (yerel === disk || disk === taban) return { metin: yerel, cakisma: false };
+    if (yerel === taban) return { metin: disk, cakisma: false };
+    const a = taban.split('\n');
+    const fark = metin => {
+      const b = metin.split('\n'); let bas = 0, sonA = a.length, sonB = b.length;
+      while (bas < sonA && bas < sonB && a[bas] === b[bas]) bas++;
+      while (sonA > bas && sonB > bas && a[sonA - 1] === b[sonB - 1]) { sonA--; sonB--; }
+      return { bas, son: sonA, yeni: b.slice(bas, sonB) };
+    };
+    const x = fark(yerel), y = fark(disk);
+    if ((x.bas === y.bas) || !(x.son <= y.bas || y.son <= x.bas)) return { metin: yerel, cakisma: true };
+    for (const f of [x, y].sort((x, y) => y.bas - x.bas)) a.splice(f.bas, f.son - f.bas, ...f.yeni);
+    return { metin: a.join('\n'), cakisma: false };
+  }

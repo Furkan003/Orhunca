@@ -26,6 +26,10 @@ object = { version = "0.40", default-features = false, features = ["read_core", 
 # İşletim sisteminin güvenli rastgele sayı üreteci; WebAssembly (tarayıcıda deneme) hedefinde yok.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 getrandom = "0.2"
+cap-std = "3.4.5"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+rustix = { version = "1", features = ["fs"] }
 
 [dev-dependencies]
 wasmparser = "0.261"

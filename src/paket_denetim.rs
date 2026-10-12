@@ -107,7 +107,8 @@ fn metin_izinleri(metin: &str, izinler: &mut BTreeSet<Izin>) {
     }
 }
 
-/// Paket klasöründeki kaynak dosyalar (gizli dosyalar, derleme çıktıları ve paketin kendi
+/// Paket klasöründeki tüm kaynaklar (yalnız Git iç verisi ve kurulum işaretçisi hariç).
+/// Önceki sürümde gizli dosyalar, derleme çıktıları ve paketin kendi
 /// bağımlılıkları hariç), göreli yollarıyla ve sıralı.
 fn dosyalar(klasor: &Path) -> Vec<(String, std::path::PathBuf)> {
     fn gez(k: &Path, kok: &Path, l: &mut Vec<(String, std::path::PathBuf)>) {
@@ -115,13 +116,10 @@ fn dosyalar(klasor: &Path) -> Vec<(String, std::path::PathBuf)> {
         for x in g.flatten() {
             let ad = x.file_name().to_string_lossy().into_owned();
             let Ok(tur) = x.file_type() else { continue };
-            if ad.starts_with('.') || tur.is_symlink() {
+            if matches!(ad.as_str(), ".git" | ".orhunca-isleme") || tur.is_symlink() {
                 continue;
             }
             let p = x.path();
-            if k == kok && matches!(ad.as_str(), "paketler" | "cikti" | "target" | "veri") {
-                continue;
-            }
             if tur.is_dir() {
                 gez(&p, kok, l);
             } else {
@@ -193,6 +191,28 @@ pub fn icerik_ozeti(klasor: &Path) -> String {
     )
 }
 
+/// Denetlenemeyen kaynaklar sessizce atlanmaz. Git iç verisi paket kaynağı değildir.
+pub fn dogrula(klasor: &Path) -> Result<(), String> {
+    for g in std::fs::read_dir(klasor).map_err(|e| e.to_string())? {
+        let g = g.map_err(|e| e.to_string())?;
+        if g.file_name() == ".git" {
+            continue;
+        }
+        let t = g.file_type().map_err(|e| e.to_string())?;
+        if t.is_dir() {
+            dogrula(&g.path())?;
+        } else if t.is_file() {
+            std::fs::read(g.path()).map_err(|e| e.to_string())?;
+        } else {
+            return Err(format!(
+                "Paket bağlantı veya özel dosya içeriyor: {}",
+                g.path().display()
+            ));
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod sinamalar {
     use super::*;
@@ -220,6 +240,21 @@ mod sinamalar {
             izinleri_coz("dosya, ağ, bilinmeyen"),
             [Izin::Dosya, Izin::Ag].into_iter().collect()
         );
+    }
+
+    #[test]
+    fn gizli_ve_cikti_kaynaklari_da_denetlenir() {
+        let k = crate::derleme::gecici_klasor("paket-denetim").unwrap();
+        std::fs::create_dir(k.join(".gizli")).unwrap();
+        std::fs::create_dir(k.join("cikti")).unwrap();
+        std::fs::write(k.join(".gizli/kod.ohc"), "x = dosya_oku(\"a\")\n").unwrap();
+        std::fs::write(k.join("cikti/kod.ohc"), "x = http_al(\"http://ornek\")\n").unwrap();
+        assert!(izinler(&k).contains(&Izin::Dosya));
+        assert!(izinler(&k).contains(&Izin::Ag));
+        let eski = icerik_ozeti(&k);
+        std::fs::write(k.join(".gizli/kod.ohc"), "x = 1\n").unwrap();
+        assert_ne!(eski, icerik_ozeti(&k));
+        std::fs::remove_dir_all(k).unwrap();
     }
 
     #[test]

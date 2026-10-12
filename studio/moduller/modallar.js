@@ -87,16 +87,18 @@
     }
     if (m.tur === 'soru') return kabuk(kac(m.baslik), `<div class="soru-mesaj">${kac(m.mesaj)}</div>${m.girdi !== null ? `<input id="soruGirdi" class="metin-girdi" value="${kac(m.girdi)}" spellcheck="false" autocomplete="off">` : ''}`,
       `<div style="flex:1"></div><div class="dugme" data-e="modalKapat">İptal</div><div class="dugme birincil ${m.tehlikeli ? 'tehlikeli' : ''}" id="soruOnay" tabindex="0" data-e="soruOnayla">${kac(m.dugme)}</div>`);
+    if (m.tur === 'gelistirme') return cizGelistirme(kabuk);
     if (m.tur === 'vt') return cizVt(kabuk);
     if (m.tur === 'gorunum') return cizGorunum(kabuk);
     if (m.tur === 'ceviri') return cizCeviri(kabuk);
     if (m.tur === 'kayitCakismasi') return kabuk('Dosya değişti',
-      `<p>Diskte başka değişiklikler var. Kodunuz editörde korunuyor. Gerekirse bu metinleri kopyalayıp birleştirin.</p>
+      `<p>Diskte başka değişiklikler var. Kodunuz editörde korunuyor. Farklı satırlardaki değişiklikler birleştirilebilir; sonucu inceleyerek kaydedin.</p>
        <label>Editördeki kod</label><textarea class="metin-girdi" readonly rows="8">${kac(m.sekme.icerik)}</textarea>
-       <label>Diskteki kod</label><textarea class="metin-girdi" readonly rows="8">${kac(m.disk.icerik ?? '(Dosya silinmiş veya metin değil.)')}</textarea>`,
-      `<div class="dugme" data-e="modalKapat">Vazgeç</div><div class="dugme" data-e="kayitCakismasiCoz" data-a="disk">Diskten yükle</div><div class="dugme tehlikeli" data-e="kayitCakismasiCoz" data-a="kaydet">Benimkini kaydet</div>`);
+       <label>Diskteki kod</label><textarea class="metin-girdi" readonly rows="8">${kac(m.disk.icerik ?? '(Dosya silinmiş veya metin değil.)')}</textarea>
+       <label for="birlestirilenKod">Birleştirilen kod — ${m.birlesim?.cakisma ? 'aynı satırlar değişmiş; elle düzenleyin' : 'ayrı değişiklikler birleştirildi'}</label><textarea id="birlestirilenKod" class="metin-girdi" rows="10">${kac(m.birlesim?.metin ?? m.sekme.icerik)}</textarea>`,
+      `<div class="dugme" data-e="modalKapat">Vazgeç</div><div class="dugme" data-e="kayitCakismasiCoz" data-a="disk">Diskten yükle</div><div class="dugme" data-e="kayitCakismasiCoz" data-a="birlestir">Birleştirip kaydet</div><div class="dugme tehlikeli" data-e="kayitCakismasiCoz" data-a="kaydet">Benimkini kaydet</div>`);
     if (m.tur === 'silinenler') return kabuk('Silinenleri geri al',
-      `<p>Dosyalar ve klasörler özgün yerlerine geri yüklenir. Aynı yerde bir dosya varsa üzerine yazılmaz.</p>${m.kayitlar.length ? m.kayitlar.map(k => `<div class="gecmis-oge"><span class="esnek">${kac(k.yol)} · ${tarihBicim(k.zaman)}</span><div class="dugme" data-e="silineniGeriAl" data-a="${kac(k.kimlik)}">Geri al</div></div>`).join('') : '<p>Silinen öğe yok.</p>'}`,
+      `<p>Dosyalar ve klasörler özgün yerlerine geri yüklenir. Aynı yerde bir dosya varsa üzerine yazılmaz.</p>${m.kayitlar.length ? m.kayitlar.map(k => `<div class="gecmis-oge"><span class="esnek">${kac(k.yol)} · ${tarihBicim(k.zaman)} · ${Math.ceil((k.boyut || 0) / 1024)} KiB</span><div class="dugme" data-e="silineniGeriAl" data-a="${kac(k.kimlik)}">Geri al</div><button class="dugme tehlikeli" data-e="silineniTemizle" data-a="${kac(k.kimlik)}">Kalıcı sil</button></div>`).join('') : '<p>Silinen öğe yok.</p>'}`,
       '<div class="dugme" data-e="modalKapat">Kapat</div>');
     if (m.tur === 'gecmis') return cizGecmis(kabuk);
     if (m.tur === 'satiraGit') {

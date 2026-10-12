@@ -195,8 +195,8 @@ pub fn degisikligi_at(kok: &Path, yol: &str, takipsiz: bool) -> Result<(), Strin
     guvenli_yol(yol)?;
     let tam = kok.join(yol);
     if let Ok(icerik) = std::fs::read_to_string(&tam) {
-        super::gecmis::ilk_hali_sakla(&tam);
-        super::gecmis::kaydet(&tam, &icerik);
+        super::gecmis::ilk_hali_sakla(&tam).map_err(|e| format!("Geçmiş korunamadı: {e}"))?;
+        super::gecmis::kaydet(&tam, &icerik).map_err(|e| format!("Geçmiş korunamadı: {e}"))?;
     }
     if takipsiz {
         return std::fs::remove_file(&tam).map_err(|e| format!("silinemedi: {e}"));

@@ -984,3 +984,15 @@ details.tema-grup summary { cursor: pointer; }
 .kabuk-secici > span.secili { background: var(--vurgu-12); color: var(--vurgu); }
 .kabuk-secici .simge { font-size: 15px; cursor: pointer; }
 .kabuk-secici .kapat { font-size: 13px; opacity: .6; }
+
+/* Proje araçları ve klavye odağı. */
+:focus-visible { outline: 2px solid var(--vurgu, #7f9fff); outline-offset: 2px; }
+.gel-sekmeler { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.modal pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 360px; overflow: auto; }
+.modal label { display: block; margin-top: 10px; }
+.modal button.dugme { color: inherit; font: inherit; margin: 4px; }
+.modal button:disabled { opacity: .5; cursor: wait; }
+@media (max-width: 700px) { .modal.genis { width: 96vw; } .menuler { overflow-x: auto; } }
+.modal-govde > * { flex-shrink: 0; }
+.modal-govde > pre { min-height: 2em; padding: 12px; border-radius: 6px; background: var(--koyu); }
+.gel-sekmeler button[aria-current="page"] { border-color: var(--vurgu); color: var(--vurgu); }

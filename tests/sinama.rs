@@ -22,6 +22,15 @@ işlev sına_sözlük_farkı():
     eşit_olmalı({"a": [1.000000000000001]}, {"a": [1.000000000000002]})
 işlev sına_model():
     eşit_olmalı(Ölçüm(değer: 1.000000000000001), Ölçüm(değer: 1.000000000000002))
+işlev sına_model_nan():
+    n = 100000000000000000000.0
+    i = 0
+    i < 5 olduğu sürece:
+        n = n * n
+        i += 1
+    a = Ölçüm(değer: n - n)
+    doğrula(a.değer != a.değer)
+    eşit_olmalı(a, a)
 işlev sına_aynı():
     eşit_olmalı(1.000000000000001, 1.000000000000001)
     eşit_olmalı([[1, 2]], [[1, 2]])
@@ -38,7 +47,14 @@ işlev sına_aynı():
         .unwrap();
     let j: serde_json::Value = serde_json::from_slice(&c.stdout).unwrap();
     assert_eq!(j["gecti"], 1, "{j}");
-    assert_eq!(j["kaldi"], 5, "{j}");
+    assert_eq!(j["kaldi"], 6, "{j}");
+    let nan = j["dosyalar"][0]["sinamalar"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["ad"] == "sına_model_nan")
+        .unwrap();
+    assert!(nan["mesaj"].as_str().unwrap().contains("beklenen"), "{nan}");
     assert!(!c.status.success());
     std::fs::remove_dir_all(k).unwrap();
 }
@@ -286,4 +302,61 @@ fn resmi_paketler_birlikte_kullanilabilir() {
         .unwrap();
     let _ = std::fs::remove_dir_all(&klasor);
     assert!(c.status.success(), "{}", String::from_utf8_lossy(&c.stderr));
+}
+
+#[test]
+fn dongulu_model_esitligi() {
+    let k = std::env::temp_dir().join(format!("orhunca-dongu-esitlik-{}", std::process::id()));
+    std::fs::create_dir_all(&k).unwrap();
+    let p = k.join("dongu.ohc");
+    std::fs::write(&p,"model Düğüm:\n    değer: sayı\n    sonraki: liste<Düğüm>\na = Düğüm(değer: 1)\nb = Düğüm(değer: 1)\na.sonraki = [a]\nb.sonraki = [b]\neşit_olmalı(a, b)\n").unwrap();
+    for args in [
+        vec!["çalıştır", p.to_str().unwrap()],
+        vec!["çalıştır", p.to_str().unwrap(), "--hedef", "web"],
+    ] {
+        let c = Command::new(env!("CARGO_BIN_EXE_orhunca"))
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(c.status.success(), "{}", String::from_utf8_lossy(&c.stderr));
+    }
+    let kaynak = std::fs::read_to_string(&p).unwrap();
+    std::fs::write(
+        &p,
+        kaynak.replace("eşit_olmalı(a, b)", "b.değer = 2\neşit_olmalı(a, b)"),
+    )
+    .unwrap();
+    let c = Command::new(env!("CARGO_BIN_EXE_orhunca"))
+        .args(["çalıştır", p.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(!c.status.success());
+    assert!(String::from_utf8_lossy(&c.stderr).contains("beklenen <"));
+    std::fs::write(&p, kaynak.replace("eşit_olmalı(a, b)", "json(a)'yı yaz.")).unwrap();
+    let c = Command::new(env!("CARGO_BIN_EXE_orhunca"))
+        .args(["çalıştır", p.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(!c.status.success());
+    assert!(String::from_utf8_lossy(&c.stderr).contains("JSON yazımı çok derin veya döngüsel"));
+    std::fs::remove_dir_all(k).unwrap();
+}
+
+#[test]
+fn silinen_json_kimligi_yeniden_verilmez() {
+    let k = std::env::temp_dir().join(format!("orhunca-json-kimlik-{}", std::process::id()));
+    std::fs::create_dir_all(&k).unwrap();
+    let p = k.join("kimlik.ohc");
+    std::fs::write(&p,"model Hesap:\n    ad: metin\na = Hesap(ad: \"eski\")\na.kaydet()\nHesap.sil(a.kimlik)\nb = Hesap(ad: \"yeni\")\nb.kaydet()\ndoğrula(b.kimlik > a.kimlik)\n").unwrap();
+    for _ in 0..2 {
+        let c = Command::new(env!("CARGO_BIN_EXE_orhunca"))
+            .args(["çalıştır", p.to_str().unwrap()])
+            .current_dir(&k)
+            .env("ORHUNCA_VERITABANI", "json")
+            .env("ORHUNCA_VERI", k.join("veri"))
+            .output()
+            .unwrap();
+        assert!(c.status.success(), "{}", String::from_utf8_lossy(&c.stderr));
+    }
+    std::fs::remove_dir_all(k).unwrap();
 }

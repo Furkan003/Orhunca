@@ -375,3 +375,57 @@ fn paket_izinleri_ve_magaza_dogrulamasi() {
     assert!(!ok && m.contains("işlemeyi göstermiyor"), "{m}");
     let _ = std::fs::remove_dir_all(&kok);
 }
+
+#[test]
+fn farkli_surumu_sessizce_secmez() {
+    let kok = std::env::temp_dir().join(format!("orhunca-surum-cakisma-{}", std::process::id()));
+    std::fs::create_dir_all(&kok).unwrap();
+    let ortak = depo(
+        &kok,
+        "ortak",
+        &[
+            ("ortak.ohcproj", "ad = \"ortak\"\n"),
+            ("ortak.ohc", "x = 1\n"),
+        ],
+    );
+    git(&ortak, &["tag", "v1"]);
+    git(&ortak, &["tag", "v2"]);
+    let a = depo(
+        &kok,
+        "a",
+        &[(
+            "a.ohcproj",
+            &format!(
+                "ad = \"a\"\n[bağımlılıklar]\nortak = \"{}#v1\"\n",
+                ortak.display()
+            ),
+        )],
+    );
+    let b = depo(
+        &kok,
+        "b",
+        &[(
+            "b.ohcproj",
+            &format!(
+                "ad = \"b\"\n[bağımlılıklar]\nortak = \"{}#v2\"\n",
+                ortak.display()
+            ),
+        )],
+    );
+    let proje = kok.join("proje");
+    std::fs::create_dir_all(&proje).unwrap();
+    std::fs::write(
+        proje.join("p.ohcproj"),
+        format!(
+            "ad = \"p\"\n[bağımlılıklar]\na = \"{}\"\nb = \"{}\"\n",
+            a.display(),
+            b.display()
+        ),
+    )
+    .unwrap();
+    let (ok, m) = orhunca(&proje, &["paket", "yükle"]);
+    assert!(!ok, "{m}");
+    assert!(m.contains("çakışan kaynak veya sürümler"), "{m}");
+    assert!(!proje.join("orhunca.kilit").exists());
+    std::fs::remove_dir_all(kok).unwrap();
+}

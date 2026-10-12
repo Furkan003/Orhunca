@@ -23,6 +23,7 @@ use std::time::{Duration, Instant};
 
 pub const DOGRULA: &str = "doğrula";
 pub const ESIT_OLMALI: &str = "eşit_olmalı";
+pub const ESITLIK_METNI: &str = "‹sınama_metni›";
 pub const ESITLIK: &str = "‹sınama_eşit›";
 pub const ESITLIK_ON_EK: &str = "‹öz›sınama_";
 
@@ -167,11 +168,11 @@ impl Indirgeyici<'_> {
             topla(
                 topla(
                     metin(format!("{yer}: beklenen "), k),
-                    cagri("metin", vec![isim(&b_ad)], k),
+                    cagri(ESITLIK_METNI, vec![isim(&b_ad)], k),
                 ),
                 metin(", bulunan ".into(), k),
             ),
-            cagri("metin", vec![isim(&g_ad)], k),
+            cagri(ESITLIK_METNI, vec![isim(&g_ad)], k),
         );
         Ok(vec![
             Deyim::Atama {
@@ -972,9 +973,10 @@ pub fn esitlik_adi(tip: &crate::agac::Tip) -> String {
 pub fn esitlik_islevi(
     tip: &crate::agac::Tip,
     model: Option<&crate::agac::Model>,
+    modeller: &[String],
 ) -> Result<crate::agac::Islev, Hata> {
     use crate::agac::*;
-    let govde = match tip {
+    let mut govde = match tip {
         Tip::Liste(_) => "    eğer uzunluk(a) != uzunluk(b) ise:
         döndür yanlış
     i = 0
@@ -996,10 +998,7 @@ pub fn esitlik_islevi(
 "
         .to_string(),
         Tip::Model(_) => {
-            let mut m = "    eğer a == b ise:
-        döndür doğru
-"
-            .to_string();
+            let mut m = String::new();
             for alan in &model
                 .ok_or_else(|| Hata::yeni(Konum::default(), "Sınama modeli bulunamadı"))?
                 .alanlar
@@ -1021,10 +1020,27 @@ pub fn esitlik_islevi(
 "
         .to_string(),
     };
+    let ziyaret_adlari: Vec<String> = modeller
+        .iter()
+        .enumerate()
+        .flat_map(|(i, _)| [format!("iz_a{i}"), format!("iz_b{i}")])
+        .collect();
+    let ek = if ziyaret_adlari.is_empty() {
+        String::new()
+    } else {
+        format!(", {}", ziyaret_adlari.join(", "))
+    };
+    govde = govde.replace("derinlik + 1)", &format!("derinlik + 1{ek})"));
+    let ziyaret = if let Tip::Model(ad) = tip {
+        let i = modeller.iter().position(|m| m == ad).unwrap();
+        format!("    eğer boş_mu(a) veya boş_mu(b) ise:\n        döndür boş_mu(a) ve boş_mu(b)\n    i = 0\n    i < uzunluk(iz_a{i}) olduğu sürece:\n        eğer a == iz_a{i}[i] ve b == iz_b{i}[i] ise:\n            döndür doğru\n        i += 1\n    a'yı iz_a{i}'a ekle.\n    b'yi iz_b{i}'a ekle.\n")
+    } else {
+        String::new()
+    };
     let kaynak = format!(
-        "işlev kıyasla(a, b, derinlik: sayı) -> mantık:
-    eğer derinlik > 128 ise:
-        hata_ver(\"Eşitlik karşılaştırması çok derin veya döngüsel.\")
+        "işlev kıyasla(a, b, derinlik: sayı{ek}) -> mantık:
+{ziyaret}    eğer derinlik > 512 ise:
+        hata_ver(\"Eşitlik karşılaştırması 512 düzey sınırını aştı.\")
 {govde}"
     );
     let sozcukler = crate::sozcuk::sozcukle(&kaynak)?;
@@ -1033,6 +1049,10 @@ pub fn esitlik_islevi(
     f.ad = esitlik_adi(tip);
     f.parametreler[0].1 = tip.clone();
     f.parametreler[1].1 = tip.clone();
+    for (i, ad) in modeller.iter().enumerate() {
+        f.parametreler[3 + i * 2].1 = Tip::Liste(Box::new(Tip::Model(ad.clone())));
+        f.parametreler[4 + i * 2].1 = Tip::Liste(Box::new(Tip::Model(ad.clone())));
+    }
     ifadeleri_gez(&mut f.govde, &mut |e| {
         if let IfadeTuru::Cagri(ad, _) = &mut e.tur {
             *ad = if ad == "sinama_esit" {

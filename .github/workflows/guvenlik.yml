@@ -1,0 +1,33 @@
+name: Bağımlılık güvenliği
+on:
+  pull_request:
+    paths:
+      - '**/Cargo.toml'
+      - '**/Cargo.lock'
+      - 'ucuncu_taraf/**'
+      - 'araclar/guvenlik_taramasi.sh'
+      - '.github/workflows/guvenlik.yml'
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  rustsec:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Tarayıcıyı kur
+        run: cargo install cargo-audit --version 0.22.2 --locked
+      - name: Kilitli bağımlılıkları tara
+        run: araclar/guvenlik_taramasi.sh
+  glib:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: GLib geliştirme bağımlılıkları
+        run: sudo apt-get update && sudo apt-get install -y libglib2.0-dev
+      - name: Geri taşınan bellek güvenliği düzeltmesi
+        run: cargo test --release --manifest-path ucuncu_taraf/glib/Cargo.toml --lib variant_iter

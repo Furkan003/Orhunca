@@ -2189,7 +2189,17 @@ static void json_metin(Tampon *t, const char *s) {
 }
 
 /* `bosluklu`: ", " ve ": " ayraçları (veri dosyaları okunaklı olsun diye). */
+static void json_yaz_ic(Tampon *t, int64_t d, int64_t kod, int bosluklu);
 static void json_yaz(Tampon *t, int64_t d, int64_t kod, int bosluklu) {
+    static int derinlik = 0;
+    if (++derinlik > 200) {
+        derinlik = 0;
+        hata(0, "JSON yazımı çok derin veya döngüsel; kayıt yapılmadı.");
+    }
+    json_yaz_ic(t, d, kod, bosluklu);
+    derinlik--;
+}
+static void json_yaz_ic(Tampon *t, int64_t d, int64_t kod, int bosluklu) {
     const char *virgul = bosluklu ? ", " : ",", *iki_nokta = bosluklu ? ": " : ":";
     char k[64];
     switch (kod % 8) {
@@ -2586,7 +2596,7 @@ static char *veri_dosyasi(ModelBilgisi *m) {
  * Kaydetme ve silme "oku → değiştir → yaz" adımlarından oluşur. Aynı veri klasörünü
  * kullanan iki program bunu aynı anda yaparsa biri ötekinin kaydını silebilir. Bu yüzden
  * bu adımlar <Model>.json.kilit dosyası üzerinde süreçler arası bir kilitle yapılır.
- * Kilit alınamazsa (ör. salt okunur klasör) eskisi gibi kilitsiz devam edilir.
+ * Kilit alınamazsa kayıt durur; kilitsiz yazılmaz.
  */
 #ifdef _WIN32
 static HANDLE veri_kilidi = INVALID_HANDLE_VALUE;
@@ -2648,6 +2658,11 @@ static void veri_kilitle(ModelBilgisi *m) {
     }
 #endif
     free(t.v);
+#ifdef _WIN32
+    if (veri_kilidi == INVALID_HANDLE_VALUE) hata(0, "Veri kayıt kilidi alınamadı");
+#elif !defined(__wasm__)
+    if (veri_kilidi < 0) hata(0, "Veri kayıt kilidi alınamadı");
+#endif
 }
 
 /* Modelin tüm kayıtlarını okur (dosya yoksa boş liste). */
@@ -2706,6 +2721,70 @@ static int64_t kayitlari_oku(ModelBilgisi *m, int64_t satir) {
     return liste;
 }
 
+/* İçerik önce aynı dosya sisteminde kalıcılaştırılır; eski dosya en son değiştirilir. */
+static void veri_metnini_yaz(const char *yol, const char *metin, size_t boy, int64_t satir) {
+    Tampon g = {0};
+    t_yaz(&g, yol);
+    t_yaz(&g, ".");
+    unsigned char rastgele[16];
+    if (!sistem_rastgele(rastgele, sizeof rastgele)) hata(satir, "Güvenli geçici dosya oluşturulamadı");
+    for (size_t i = 0; i < sizeof rastgele; i++) {
+        char ek[3];
+        snprintf(ek, sizeof ek, "%02x", rastgele[i]);
+        t_yaz(&g, ek);
+    }
+    t_yaz(&g, ".yeni");
+    FILE *f = dosya_ac(g.v, "wbx");
+    int ok = f && fwrite(metin, 1, boy, f) == boy;
+    if (f && fflush(f) != 0) ok = 0;
+#ifdef _WIN32
+    if (f && _commit(_fileno(f)) != 0) ok = 0;
+#elif !defined(__wasm__)
+    if (f && fsync(fileno(f)) != 0) ok = 0;
+#endif
+    if (f && fclose(f) != 0) ok = 0;
+    if (ok) ok = dosya_tasi(g.v, yol);
+    if (!ok) {
+        ohc_dosya_sil((int64_t)(intptr_t)g.v);
+        free(g.v);
+        hata(satir, "Veri dosyası yazılamadı; eski içerik korunuyor.");
+    }
+#if !defined(_WIN32) && !defined(__wasm__)
+    int klasor = open(veri_klasoru(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (klasor < 0 || fsync(klasor) != 0) hata(satir, "Veri klasörü diske eşitlenemedi.");
+    close(klasor);
+#endif
+    free(g.v);
+}
+
+/* Silinen kimlikleri tekrar dağıtmaz. Çağıran model kilidini tutar. */
+static int64_t kimlik_sirasini_sakla(ModelBilgisi *m, int64_t liste, int yeni, int64_t satir) {
+    char *yol = veri_dosyasi(m);
+    Tampon ad = {0}; t_yaz(&ad, yol); t_yaz(&ad, ".sira"); free(yol);
+    int64_t son = 0;
+    FILE *f = dosya_ac(ad.v, "rb");
+    if (f) {
+        char b[64] = {0}, *bitis;
+        size_t n = fread(b, 1, sizeof b - 1, f);
+        int bozuk = ferror(f) || n == sizeof b - 1;
+        fclose(f);
+        errno = 0;
+        son = strtoll(b, &bitis, 10);
+        if (bozuk || !n || errno || son < 0 || *bitis) hata(satir, "Model kimlik sayacı bozuk; kayıt durduruldu.");
+    } else if (errno != ENOENT) hata(satir, "Model kimlik sayacı okunamadı.");
+    Liste *l = ORNEK(liste);
+    for (int64_t i = 0; i < l->uzunluk; i++)
+        if (ALAN(l->ogeler[i], 0) > son) son = ALAN(l->ogeler[i], 0);
+    if (yeni) {
+        if (son == INT64_MAX) hata(satir, "Model kimlik alanı doldu.");
+        son++;
+    }
+    char b[32]; snprintf(b, sizeof b, "%" PRId64, son);
+    veri_metnini_yaz(ad.v, b, strlen(b), satir);
+    free(ad.v);
+    return son;
+}
+
 static void kayitlari_yaz(ModelBilgisi *m, int64_t liste, int64_t satir) {
     klasor_olustur(veri_klasoru());
     char *yol = veri_dosyasi(m);
@@ -2717,36 +2796,8 @@ static void kayitlari_yaz(ModelBilgisi *m, int64_t liste, int64_t satir) {
         json_yaz(&t, l->ogeler[i], KOD_MODEL, 1);
     }
     t_yaz(&t, l->uzunluk ? "\n]\n" : "]\n");
-    /* Geçici dosyanın adı programa özgüdür; iki program aynı geçici dosyaya yazmaz. */
-    Tampon g = {0};
-    t_yaz(&g, yol);
-    char ek[48];
-#ifdef _WIN32
-    snprintf(ek, sizeof ek, ".%lu.yeni", (unsigned long)GetCurrentProcessId());
-#elif defined(__wasm__)
-    snprintf(ek, sizeof ek, ".yeni");
-#else
-    snprintf(ek, sizeof ek, ".%ld.yeni", (long)getpid());
-#endif
-    t_yaz(&g, ek);
-    FILE *f = dosya_ac(g.v, "wb");
-    int ok = f && fwrite(t.v, 1, t.n, f) == t.n;
-    if (f && fclose(f) != 0) ok = 0;
-    if (ok) ok = dosya_tasi(g.v, yol);
-    if (!ok) {
-        char mesaj[700];
-        ohc_dosya_sil((int64_t)(intptr_t)g.v);
-        snprintf(mesaj, sizeof mesaj,
-                 "'%.400s' yazılamadı (klasöre yazma izni olmayabilir ya da dosya başka bir programda "
-                 "açık olabilir)",
-                 yol);
-        free(t.v);
-        free(g.v);
-        free(yol);
-        hata(satir, mesaj);
-    }
+    veri_metnini_yaz(yol, t.v, t.n, satir);
     free(t.v);
-    free(g.v);
     free(yol);
 }
 
@@ -4492,6 +4543,7 @@ int64_t ohc_model_sil(int64_t tanim, int64_t kimlik, int64_t satir) {
         veri_kilidi_birak();
         return 0;
     }
+    kimlik_sirasini_sakla(m, liste, 0, satir);
     ohc_liste_sil(liste, i, satir);
     kayitlari_yaz(m, liste, satir);
     veri_kilidi_birak();
@@ -4517,17 +4569,14 @@ int64_t ohc_model_kaydet(int64_t n, int64_t satir) {
     int64_t kimlik = ALAN(n, 0);
     int64_t i = kimlik > 0 ? kayit_sirasi(liste, kimlik) : -1;
     if (kimlik <= 0) {
-        kimlik = 0;
-        Liste *l = ORNEK(liste);
-        for (int64_t j = 0; j < l->uzunluk; j++)
-            if (ALAN(l->ogeler[j], 0) > kimlik) kimlik = ALAN(l->ogeler[j], 0);
-        kimlik++;
+        kimlik = kimlik_sirasini_sakla(m, liste, 1, satir);
         ALAN(n, 0) = kimlik;
     }
     if (i >= 0)
         ORNEK(liste)->ogeler[i] = n;
     else
         ohc_liste_ekle(liste, n);
+    kimlik_sirasini_sakla(m, liste, 0, satir);
     kayitlari_yaz(m, liste, satir);
     veri_kilidi_birak();
     return kimlik;

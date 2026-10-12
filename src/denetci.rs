@@ -1890,11 +1890,43 @@ impl Denetci {
         &mut self,
         ad_: &mut String,
         arg: &mut Vec<Ifade>,
-        tipler: Vec<Tip>,
+        mut tipler: Vec<Tip>,
         konum: Konum,
     ) -> Sonuc<Tip> {
+        if ad_ == crate::sinama::ESITLIK_METNI {
+            let tip = tipler
+                .first()
+                .ok_or_else(|| Hata::yeni(konum, "Sınama değeri eksik."))?;
+            if tip.ic_model().is_some() {
+                let ad = format!("{}metin", crate::sinama::esitlik_adi(tip));
+                if !self.imzalar.contains_key(&ad) {
+                    // Döngüsel modelin hata mesajı için yeniden tüm grafiği yazdırma.
+                    let m = serde_json::to_string(&format!("<{tip}>")).unwrap();
+                    let kaynak = format!("işlev bilgi(a) -> metin:\n    döndür {m}\n");
+                    let mut p = crate::ayristirici::ayristir_cok(
+                        vec![crate::sozcuk::sozcukle(&kaynak)?],
+                        Vec::new(),
+                    )?;
+                    let mut f = p.islevler.remove(0);
+                    f.ad = ad.clone();
+                    f.parametreler[0].1 = tip.clone();
+                    self.imzalar.insert(
+                        ad.clone(),
+                        Imza {
+                            parametreler: vec![tip.clone()],
+                            haller: Vec::new(),
+                            donus: Some(Tip::Metin),
+                        },
+                    );
+                    self.bekleyen.insert(ad.clone(), f);
+                }
+                *ad_ = ad;
+            } else {
+                *ad_ = format!("{YERLESIK_ON_EK}metin");
+            }
+        }
         if ad_ == crate::sinama::ESITLIK {
-            if tipler.len() != 3 || tipler[2] != Tip::Sayi {
+            if tipler.len() < 3 || tipler[2] != Tip::Sayi {
                 return Err(Hata::yeni(konum, "Geçersiz sınama eşitliği"));
             }
             let tip = tipler[0]
@@ -1911,13 +1943,26 @@ impl Denetci {
                 }
             }
             let tip = somut(tip);
+            let mut modeller: Vec<String> = self.modeller.keys().cloned().collect();
+            modeller.sort();
+            if tipler.len() == 3 {
+                for ad in &modeller {
+                    for _ in 0..2 {
+                        let tip = Tip::Liste(Box::new(Tip::Model(ad.clone())));
+                        let mut ifade = Ifade::yeni(IfadeTuru::Liste(Vec::new()), konum);
+                        ifade.tip = tip.clone();
+                        arg.push(ifade);
+                        tipler.push(tip);
+                    }
+                }
+            }
             let ad = crate::sinama::esitlik_adi(&tip);
             if !self.imzalar.contains_key(&ad) {
                 let model = match &tip {
                     Tip::Model(m) => self.modeller.get(m),
                     _ => None,
                 };
-                let f = crate::sinama::esitlik_islevi(&tip, model)?;
+                let f = crate::sinama::esitlik_islevi(&tip, model, &modeller)?;
                 self.imzalar.insert(
                     ad.clone(),
                     Imza {

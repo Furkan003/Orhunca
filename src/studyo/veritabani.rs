@@ -165,6 +165,10 @@ pub fn sorgula(kok: &Path, sql: &str) -> Result<Value, String> {
     sonuc
 }
 
+pub fn veri_turu(kok: &Path) -> String {
+    tur(&adres(kok)).to_string()
+}
+
 #[cfg(test)]
 mod sinamalar {
     use super::*;

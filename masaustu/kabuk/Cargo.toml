@@ -24,3 +24,7 @@ lto = true
 opt-level = "s"
 strip = true
 panic = "abort"
+
+# RUSTSEC-2024-0429: GTK 3 zinciri için geri taşınan GLib düzeltmesi.
+[patch.crates-io]
+glib = { path = "../../ucuncu_taraf/glib" }

@@ -7,13 +7,17 @@
 //! derleyiciye erişmesi engellenir.
 
 mod api;
+mod arsiv;
 mod asistan;
 mod calisma;
 mod cop;
 mod depo;
 mod dosya;
+mod gecis;
 mod gecmis;
+mod gelistirme;
 mod git;
+mod gizlilik;
 pub use depo::ayar_klasoru;
 mod http;
 pub mod sablonlar;

@@ -429,9 +429,10 @@ pub fn ayar_kaydet(g: &Value) -> Result<Value, String> {
     }
     a["saglayicilar"][s.kimlik] = ayar;
     let klasor = depo::ayar_klasoru();
-    std::fs::create_dir_all(&klasor).map_err(|e| e.to_string())?;
+    super::dosya::ozel_klasor(&klasor).map_err(|e| e.to_string())?;
     let yol = ayar_dosyasi();
-    std::fs::write(&yol, serde_json::to_vec_pretty(&a).unwrap()).map_err(|e| e.to_string())?;
+    super::dosya::atomik_yaz(&yol, &serde_json::to_vec_pretty(&a).unwrap())
+        .map_err(|e| e.to_string())?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;

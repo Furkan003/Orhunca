@@ -15,6 +15,7 @@ const EN_FAZLA_CIKTI: usize = 4 * 1024 * 1024;
 pub struct Calisma {
     /// (tür, metin): tür "cikti" ya da "hata"
     parcalar: Mutex<Vec<(&'static str, String)>>,
+    gizli: Vec<String>,
     toplam: Mutex<usize>,
     cocuk: Mutex<Child>,
     girdi: Mutex<Option<ChildStdin>>,
@@ -160,6 +161,7 @@ fn akisi_oku(
     tur: &'static str,
 ) -> std::thread::JoinHandle<()> {
     std::thread::spawn(move || {
+        let mut gizleyici = super::gizlilik::Gizleyici::yeni(c.gizli.clone());
         let mut tampon = [0u8; 8192];
         let mut artan: Vec<u8> = Vec::new();
         loop {
@@ -174,13 +176,23 @@ fn akisi_oku(
                     };
                     let parca: Vec<u8> = artan.drain(..gecerli).collect();
                     if !parca.is_empty() {
-                        c.ekle(tur, String::from_utf8_lossy(&parca).into_owned());
+                        let s = gizleyici.ekle(&String::from_utf8_lossy(&parca));
+                        if !s.is_empty() {
+                            c.ekle(tur, s);
+                        }
                     }
                 }
             }
         }
         if !artan.is_empty() {
-            c.ekle(tur, String::from_utf8_lossy(&artan).into_owned());
+            let s = gizleyici.ekle(&String::from_utf8_lossy(&artan));
+            if !s.is_empty() {
+                c.ekle(tur, s);
+            }
+        }
+        let s = gizleyici.bitir();
+        if !s.is_empty() {
+            c.ekle(tur, s);
         }
     })
 }
@@ -288,6 +300,7 @@ pub fn baslat(
     let girdi = cocuk.stdin.take();
     let c = Arc::new(Calisma {
         parcalar: Mutex::new(Vec::new()),
+        gizli: super::gelistirme::gizli_degerler(klasor, &ortam),
         toplam: Mutex::new(0),
         cocuk: Mutex::new(cocuk),
         girdi: Mutex::new(girdi),

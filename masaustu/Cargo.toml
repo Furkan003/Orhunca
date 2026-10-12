@@ -27,3 +27,7 @@ codegen-units = 1
 lto = true
 opt-level = "s"
 strip = true
+
+# RUSTSEC-2024-0429: GTK 3 zinciri için geri taşınan GLib düzeltmesi.
+[patch.crates-io]
+glib = { path = "../ucuncu_taraf/glib" }

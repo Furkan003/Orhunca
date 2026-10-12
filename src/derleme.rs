@@ -6,7 +6,6 @@ use crate::{agac, ayristirici, denetci, hata, sablon, sozcuk, uretici, wasm_uret
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::sync::atomic::{AtomicU64, Ordering};
 use target_lexicon::Triple;
 
 const CALISMA_ZAMANI_KAYNAGI: &str = include_str!("../runtime/orhunca_rt.c");
@@ -115,6 +114,11 @@ pub fn yukle_kesmeli(
     let mut kuyruk = vec![(dosya.to_path_buf(), None::<hata::Konum>)];
     while let Some((yol, nereden)) = kuyruk.pop() {
         let tam = std::fs::canonicalize(&yol).unwrap_or_else(|_| yol.clone());
+        if tam.components().any(|c| c.as_os_str() == ".git") {
+            return Err(DerlemeHatasi::duz(
+                "Git iç verisi kaynak olarak içe aktarılamaz.",
+            ));
+        }
         if yollar.contains(&tam) {
             continue;
         }
@@ -290,10 +294,22 @@ pub fn windows_mu(hedef: Option<&str>) -> bool {
 /// Aynı süreçte aynı anda birden fazla derleme yapılabilir (Stüdyo); her birine
 /// ayrı bir geçici klasör verilir.
 pub fn gecici_klasor(ad: &str) -> Result<PathBuf, String> {
-    static SAYAC: AtomicU64 = AtomicU64::new(0);
-    let n = SAYAC.fetch_add(1, Ordering::Relaxed);
-    let k = std::env::temp_dir().join(format!("orhunca-{ad}-{}-{n}", std::process::id()));
-    std::fs::create_dir_all(&k).map_err(|e| format!("geçici klasör oluşturulamadı: {e}"))?;
+    if ad.is_empty() || !ad.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') {
+        return Err("Geçersiz geçici klasör adı".into());
+    }
+    let mut rastgele = [0u8; 16];
+    crate::guvenli_rastgele(&mut rastgele)?;
+    let ek: String = rastgele.iter().map(|b| format!("{b:02x}")).collect();
+    let k = std::env::temp_dir().join(format!("orhunca-{ad}-{ek}"));
+    let mut olustur = std::fs::DirBuilder::new();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        olustur.mode(0o700);
+    }
+    olustur
+        .create(&k)
+        .map_err(|e| format!("Geçici klasör oluşturulamadı: {e}"))?;
     Ok(k)
 }
 
@@ -723,6 +739,26 @@ fn macos_uygulamasi(cikti: &Path, baslik: &str, program: &[u8]) -> Result<(), De
 /// Programı ve çalışma zamanını (base64) içeren tarayıcı sayfası. Arayüz
 /// programları tüm sayfayı kullanır; diğerlerinin çıktısı bir konsolda görünür.
 pub fn web_sayfasi(baslik: &str, wasm: &[u8], arayuz: bool) -> String {
+    let ortam = std::env::var("ORHUNCA_ACIK_ORTAM_JSON")
+        .ok()
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+        .filter(serde_json::Value::is_object)
+        .unwrap_or_else(|| serde_json::json!({}));
+    web_sayfasi_ortamli(baslik, wasm, arayuz, &ortam)
+}
+
+/// İstemciye yalnızca açıkça paylaşılabilir olarak işaretlenen ayarlar gömülür.
+pub fn web_sayfasi_ortamli(
+    baslik: &str,
+    wasm: &[u8],
+    arayuz: bool,
+    ortam: &serde_json::Value,
+) -> String {
+    let ortam = ortam
+        .to_string()
+        .replace('<', "\\u003c")
+        .replace('\u{2028}', "\\u2028")
+        .replace('\u{2029}', "\\u2029");
     let baslik = baslik
         .replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -734,6 +770,7 @@ pub fn web_sayfasi(baslik: &str, wasm: &[u8], arayuz: bool) -> String {
         .replace("__YUKLEYICI__", WASM_YUKLEYICI)
         .replace("__CALISMA_ZAMANI__", &base64(WASM_CALISMA_ZAMANI))
         .replace("__PROGRAM__", &base64(wasm))
+        .replace("__ORTAM__", &ortam)
 }
 
 fn base64(veri: &[u8]) -> String {
