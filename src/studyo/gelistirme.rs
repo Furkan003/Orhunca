@@ -910,7 +910,9 @@ pub fn gizli_degerler(kok: &Path, ek: &[(&str, String)]) -> Vec<String> {
     o.into_iter()
         .filter(|(k, v)| {
             let k = k.to_uppercase();
-            !v.is_empty()
+            // Kısa değerler ("1", "true") gizlenmez: program çıktısındaki sıradan sayı ve
+            // sözcükler bozulur, üstelik böyle bir değer gerçek bir anahtar olamaz.
+            v.chars().count() >= 8
                 && v.len() <= 65536
                 && [
                     "KEY",
