@@ -87,8 +87,11 @@ def kur(kok):
         tamamlanan += bilgi["bytes"]
     modelleri_dogrula(kok)
     durum_yaz("Türkçe ses denetleniyor", 97)
-    subprocess.run([str(python), str(Path(__file__).resolve()), "dene"],
-                   stdout=sys.stderr, stderr=sys.stderr, timeout=90)
+    deneme = subprocess.run([str(python), str(Path(__file__).resolve()), "dene"],
+                            stdout=subprocess.DEVNULL, stderr=sys.stderr, timeout=90)
+    if deneme.returncode != 0:
+        # Ses üretemeyen paket hazır sayılmaz; kullanıcı sistem sesiyle devam eder.
+        raise ValueError("Türkçe ses denemesi başarısız oldu; ses paketini yeniden kurmayı deneyin.")
     (kok / "hazir.json").write_text(json.dumps({"surum": SURUM}), encoding="utf-8")
     durum_yaz("EMA Türkçe ses paketi hazır", 100)
 
