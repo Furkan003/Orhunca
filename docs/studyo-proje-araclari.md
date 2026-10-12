@@ -174,3 +174,26 @@ API/veritabanı kullanan akışlar için ayrıca benzetim ve yerel örnek veri s
 
 Önizleme başlığındaki Telefon/Tablet/Masaüstü düğmeleri ekran genişliğini değiştirir.
 Odak işaretleri, iletişim kutusu etiketleri ve Tab odağının kutuda tutulması eklendi.
+
+## Sesli kod desteği
+
+Ayarlar → Sesli kod desteği bölümünden açılır; varsayılan olarak kapalıdır.
+Türkçe sesi dene düğmesi kurulu sesi sınar. Ses listesi geç yüklenebilir.
+Türkçe ses bulunmazsa işletim sistemine Türkçe ses paketi kurulmalıdır.
+Ses sağlayıcısına göre internet gerekebilir; çevrimdışı çalışma garantisi yoktur.
+
+- Ctrl+Alt+S: sesli modu aç/kapat.
+- Ctrl+Alt+L: etkin satırı, başındaki boşluk ve sekme sayısını oku.
+- Ctrl+Alt+H: etkin dosyanın bu satırındaki bildirilen hataları oku.
+- Ctrl+Alt+K: satır ve sütunu oku.
+- Ctrl+Alt+O: dosya adını, satır ve hata sayısını oku.
+- Ctrl+Alt+X: konuşmayı hemen durdur.
+
+Kod alanında yukarı/aşağı veya sayfa tuşlarıyla satır değiştirince satır okunur.
+Bildirimler sesli mod açıkken okunur; yeni okuma önceki konuşmayı keser.
+Mevcut ekran okuyucuyla çift ses olursa sesli modu kapatın. Bu destek ekran
+okuyucunun yerini tutmaz. EMA Lightning paketi bu sürüme eklenmemiştir;
+modelin çalıştırma motoru ve dağıtım koşulları ayrıca doğrulanmalıdır.
+
+Hedefli davranış denetimi: `node tests/studyo_sesli.js`.
+Gerçek ses ve ekran okuyucu uyumu Windows/macOS/Linux üzerinde ayrıca denenmelidir.

@@ -74,7 +74,7 @@
       return kabuk('Ayarlar', `
         <div class="secenek" style="cursor:default"><div class="esnek"><div class="secenek-ad">Düzenleyici yazı boyutu</div><div class="secenek-alt">Kod ve satır numaraları</div></div>
           <div class="kare-dugme simge" style="width:32px;height:32px;font-size:18px" data-e="yaziKucult">remove</div><span class="mono" style="width:32px;text-align:center">${D.yaziBoyutu}</span><div class="kare-dugme simge" style="width:32px;height:32px;font-size:18px" data-e="yaziBuyut">add</div></div>
-        ${duzenleyiciAyarlari()}<div class="ayar-bolum">Genel</div>
+        ${sesliAyarlari()}${duzenleyiciAyarlari()}<div class="ayar-bolum">Genel</div>
         <div class="secenek" data-e="yazarkenDenetleDegistir"><div class="esnek"><div class="secenek-ad">Yazarken denetle</div><div class="secenek-alt">Hatalar siz yazarken altı çizili gösterilir.</div></div><div class="anahtar ${D.yazarkenDenetle ? 'acik' : ''}"><div></div></div></div>
         <div class="secenek" style="cursor:default"><div class="esnek"><div class="secenek-ad">Tema</div><div class="secenek-alt">Sınıfta projektör için açık tema önerilir.</div></div>
           <div class="tema-secim">${[['koyu', 'Koyu'], ['acik', 'Açık'], ['sistem', 'Sistem']].map(([t, ad]) => `<span class="${!D.ozelTema && D.tema === t ? 'secili' : ''}" data-e="temaSec" data-a="${t}">${ad}</span>`).join('')}</div></div>
@@ -182,6 +182,7 @@
   let bildirimZamani;
   function bildir(metin, hata = false) {
     D.bildirim = { metin, hata };
+    sesliOku(metin);
     clearTimeout(bildirimZamani);
     bildirimZamani = setTimeout(() => { D.bildirim = null; katmanlariCiz(); }, hata ? 6000 : 3500);
     katmanlariCiz();

@@ -19,7 +19,7 @@
       <div class="etkin-satir" id="etkinSatir"></div><div class="ayiklama-satir" id="ayiklamaSatir" hidden></div><div id="hataKatmani"></div><div id="parantezKatmani"></div>
       <div class="satir-nolari" id="satirNolari"></div>
       <pre class="vurgu-katman" id="vurguKatman"></pre>
-      <textarea class="kod-alani" id="kodAlani" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off"></textarea>
+      <textarea class="kod-alani" id="kodAlani" aria-label="Kod düzenleyici" aria-describedby="sesliKodYardim" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off"></textarea>
     </div></div>`;
     const ta = $('#kodAlani');
     ta.value = s.icerik;
