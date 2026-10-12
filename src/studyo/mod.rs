@@ -21,6 +21,7 @@ mod gizlilik;
 pub use depo::ayar_klasoru;
 mod http;
 pub mod sablonlar;
+mod sesli;
 mod temalar;
 mod veritabani;
 
@@ -223,6 +224,7 @@ fn acilacak_adres(adres: String, acilacak: Option<&Path>) -> String {
 /// Çalıştırılan programları (ör. web sunucularını) durdurur; uygulama kapanırken çağrılır.
 pub fn kapat() {
     calisma::hepsini_durdur();
+    sesli::durdur();
 }
 
 fn dinleyici_ac(kapi: u16) -> Result<(TcpListener, String, String), String> {
@@ -286,6 +288,7 @@ fn isle(mut akis: TcpStream, anahtar: &str, kapi: u16) {
                 &http::Yanit::json(&serde_json::json!({ "tamam": true })),
             );
             calisma::hepsini_durdur();
+            sesli::durdur();
             bilgi("Stüdyo kapatıldı.");
             std::process::exit(0);
         } else {

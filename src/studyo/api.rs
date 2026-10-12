@@ -74,6 +74,13 @@ pub fn yonlendir(istek: &Istek) -> Yanit {
     let g = govde(istek);
     match (istek.yontem.as_str(), istek.yol.as_str()) {
         ("GET", "/api/durum") => durum(),
+        ("GET", "/api/ses/durum") => Yanit::json(&super::sesli::durum()),
+        ("POST", "/api/ses/kur") => Yanit::json(&super::sesli::kur()),
+        ("POST", "/api/ses/oku") => super::sesli::oku(&g),
+        ("POST", "/api/ses/durdur") => {
+            super::sesli::durdur();
+            Yanit::json(&json!({"tamam": true}))
+        }
         ("POST", "/api/gelistirme") => gelistirme_islemi(&g),
         ("GET", "/api/guncelleme") => guncelleme_denetle(),
         ("GET", "/api/asistan") => Yanit::json(&asistan::durum()),

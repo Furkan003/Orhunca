@@ -15,6 +15,25 @@ fn editor_kayit_yarislari() {
 }
 
 #[test]
+fn editor_sesli_kod_ve_ema_akisi() {
+    for ad in ["studyo_sesli.js", "studyo_sesli_akis.js"] {
+        let c = Command::new("node")
+            .arg(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("tests")
+                    .join(ad),
+            )
+            .output()
+            .expect("Stüdyo ses testleri için Node.js gerekli");
+        assert!(
+            c.status.success(),
+            "{ad}: {}",
+            String::from_utf8_lossy(&c.stderr)
+        );
+    }
+}
+
+#[test]
 fn kayit_cakismasi_ve_eszamanli_istemciler() {
     use serde_json::json;
     let s = baslat("kayit-cakismasi");

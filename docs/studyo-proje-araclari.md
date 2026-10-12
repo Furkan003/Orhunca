@@ -178,22 +178,65 @@ Odak işaretleri, iletişim kutusu etiketleri ve Tab odağının kutuda tutulmas
 ## Sesli kod desteği
 
 Ayarlar → Sesli kod desteği bölümünden açılır; varsayılan olarak kapalıdır.
-Türkçe sesi dene düğmesi kurulu sesi sınar. Ses listesi geç yüklenebilir.
-Türkçe ses bulunmazsa işletim sistemine Türkçe ses paketi kurulmalıdır.
-Ses sağlayıcısına göre internet gerekebilir; çevrimdışı çalışma garantisi yoktur.
+**Sistem sesi** kurulu Türkçe sesi kullanır. Sesin bulunması ve çevrimdışı çalışması
+sisteme bağlıdır. **EMA Türkçe ses** seçeneği EMA Lightning'in LiteRT sürümüdür;
+kurulumdan sonra yerelde çalışır, okunacak kod/metin internete gönderilmez.
+Ses yapay zekâ tarafından üretilir; tek Türkçe ses vardır.
 
-- Ctrl+Alt+S: sesli modu aç/kapat.
-- Ctrl+Alt+L: etkin satırı, başındaki boşluk ve sekme sayısını oku.
-- Ctrl+Alt+H: etkin dosyanın bu satırındaki bildirilen hataları oku.
-- Ctrl+Alt+K: satır ve sütunu oku.
-- Ctrl+Alt+O: dosya adını, satır ve hata sayısını oku.
-- Ctrl+Alt+X: konuşmayı hemen durdur.
+### EMA kurulumu
 
-Kod alanında yukarı/aşağı veya sayfa tuşlarıyla satır değiştirince satır okunur.
-Bildirimler sesli mod açıkken okunur; yeni okuma önceki konuşmayı keser.
-Mevcut ekran okuyucuyla çift ses olursa sesli modu kapatın. Bu destek ekran
-okuyucunun yerini tutmaz. EMA Lightning paketi bu sürüme eklenmemiştir;
-modelin çalıştırma motoru ve dağıtım koşulları ayrıca doğrulanmalıdır.
+1. Sisteme Python 3.11–3.13 kurun; Windows'ta PATH'e ekleyin.
+2. Ayarlarda **EMA Türkçe ses paketini indir** düğmesine basın.
+3. İlerleme tamamlanınca **EMA Türkçe ses** ve **Türkçe sesi dene** düğmelerini kullanın.
 
-Hedefli davranış denetimi: `node tests/studyo_sesli.js`.
-Gerçek ses ve ekran okuyucu uyumu Windows/macOS/Linux üzerinde ayrıca denenmelidir.
+Model dosyaları yaklaşık 27 MB'dır. Python çalışma ortamı, LiteRT, NumPy ve
+kurulum önbelleğiyle Linux denemesinde yaklaşık **218 MB** disk alanı kullanıldı;
+Python'un kendi kurulumu buna dahil değildir. PyTorch veya GPU gerekmez.
+Kurulum seçilmedikçe paket indirilmez. Windows x64, Linux x64/ARM64 ve Apple
+Silicon için LiteRT tekerlek paketleri vardır; bu entegrasyon Linux x64 üzerinde
+denendi. Diğer sistemlerde sistem sesi kullanılabilir.
+
+Paket `orhunca` ayar klasörünün `ses-ema-litert-v1` altına kurulur. Kurucu PyPI'den
+sabit sürüm paketleri, Hugging Face'den sabit model sürümünü indirir. Her modelin
+boyutu ve SHA-256 özeti doğrulanır; yarım indirmeler etkin dosyayı değiştirmez.
+Çalıştırma öncesinde modeller yeniden denetlenir. **EMA paketini doğrula / onar**
+kurulumu tekrar dener. Eksik Python, indirme ve doğrulama hataları ayarlarda görünür.
+Python otomatik olarak sisteminize kurulmaz. Sunucuyu özel bir Python ile başlatmak
+isteyenler `ORHUNCA_SES_PYTHON` ortam değişkenine yürütülebilir dosya yolunu verebilir.
+
+Kurulum bağlantıları: `pypi.org`, `files.pythonhosted.org`, `huggingface.co` ve
+Hugging Face'in yönlendirdiği indirme sunucuları (denemede `us.aws.cdn.hf.co`).
+
+### Kod okuma ve telaffuz
+
+- Ctrl+Alt+Shift+S: sesli modu aç/kapat.
+- Ctrl+Alt+Shift+L: etkin satırı, boşluk/sekme girintisini ve kodu oku.
+- Ctrl+Alt+Shift+H: etkin dosyanın bu satırındaki bildirilen hataları oku.
+- Ctrl+Alt+Shift+K: satır ve sütunu oku.
+- Ctrl+Alt+Shift+O: dosya adını, satır ve hata sayısını oku.
+- Ctrl+Alt+Shift+X: konuşmayı hemen durdur.
+
+Önceki ses kısayollarına Shift eklendi; Ctrl+Alt+S (tümünü kaydet) ve yer imi
+kısayolları korunur. Kod alanında yukarı/aşağı veya sayfa tuşlarıyla satır
+değiştirince satır okunur. Kod işaretleri Türkçe adlarıyla seslendirilir:
+`+=` → “artır eşittir”, `[]` → “köşeli parantez aç/kapat”, `32.5` → “32 virgül 5”.
+Alt çizgiler, camelCase sınırları ve yaygın teknik adlar da okunur. Telaffuz sözlüğüne
+`{"API":"a pe i", "Orhunca":"or hunca"}` gibi en fazla 64 ad eklenebilir.
+Bu dönüşümler kaynak kodu değiştirmez. Okuma hızı 0,75–1,5 arasında seçilebilir.
+
+Model ve LiteRT grafikleri aynı işçide yeniden kullanılır. Sesler yalnızca bellekte
+sınırlı önbelleğe alınır (tarayıcıda 16 MB/32 kayıt, işçide 32 MB/48 kayıt); kod veya
+ses diske kaydedilmez. Kurulum dosyaları diskte kalır. Hızlı gezinmede yalnızca son
+bekleyen satır tutulur; eski yanıt çalınmaz. Durdurma oynatmayı keser; o anda çalışan
+bir üretim bitene kadar işçi meşgul kalabilir. EMA başarısızsa sistem sesi denenir.
+
+Linux x64 denemesinde 3,56 saniyelik sesin ilk API yanıtı model açılışıyla 1,13 saniye,
+aynı metnin önbellekten dönüşü 1–2 ms sürdü. Farklı cihazlarda süre değişir. Bunlar
+sesin hazırlanma süreleridir; duyulur gecikme tarayıcı ve ses aygıtına da bağlıdır.
+
+Mevcut ekran okuyucuyla çift ses olursa sesli modu kapatın. Bu özellik ekran
+okuyucunun yerini tutmaz. Gerçek ekran okuyucu uyumu ayrıca denenmelidir.
+
+Hedefli denetimler: `node tests/studyo_sesli.js`, `node tests/studyo_sesli_akis.js`,
+`python3 tests/studyo_ses_paketi.py`. İlk iki denetim `cargo test --test studyo`ya da
+bağlıdır. Testler model indirmez; gerçek indirme/ses üretimi ayrıca sınanmıştır.

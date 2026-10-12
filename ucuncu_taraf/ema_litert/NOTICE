@@ -1,0 +1,7 @@
+EMA Lightning LiteRT — Apache-2.0
+Kaynak: https://huggingface.co/litert-community/EMA-Lightning-LiteRT
+Sabit sürüm: 4720c1c02f8cbf3835189264bbf468378b16e8c5
+ema_host.py ve config.json kaynak sürümden alınmıştır.
+Temel model: canberk7/ema-lightning (Apache-2.0)
+Dönüştürme: litert-community; metin normalleştirme: Erdem Tuna (normalizer-tr).
+Üretilen ses yapay zekâ tarafından oluşturulur.
