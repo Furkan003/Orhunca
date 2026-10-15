@@ -58,6 +58,47 @@ fn izinli_mi(yol: &Path) -> bool {
         .any(|k| tam.starts_with(k))
 }
 
+/// Stüdyo'dan yapılan derlemelerde `kullan` ile eklenen dosyalar ve görünümler giriş
+/// dosyasının projesinden ya da projenin üst klasörlerindeki `paketler/` klasörlerinden
+/// okunur. Proje dışındaki bir dosya içe aktarılsa bile okunmaz, tanılara da taşınmaz.
+/// Giriş dosyasının kendisini her uç nokta ayrıca denetler.
+pub fn kaynak_oku(giris: &Path, yol: &Path) -> std::io::Result<String> {
+    let tam = std::fs::canonicalize(yol)?;
+    let giris = std::fs::canonicalize(giris).unwrap_or_else(|_| giris.to_path_buf());
+    if tam != giris {
+        let mut kok = derleme::proje_koku(&giris);
+        if derleme::proje_dosyasi(&kok).is_none() {
+            // Proje dosyası yoksa sınır, girişi içeren açık projedir.
+            if let Some(k) = izinli_kokler()
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|k| giris.starts_with(k))
+                .max_by_key(|k| k.as_os_str().len())
+            {
+                kok = k.clone();
+            }
+        }
+        let kok = std::fs::canonicalize(&kok).unwrap_or(kok);
+        let izinli = tam.starts_with(&kok)
+            || kok
+                .ancestors()
+                .any(|a| tam.starts_with(a.join(crate::paket::PAKET_KLASORU)));
+        if !izinli {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "proje dışındaki dosya Stüdyo'da içe aktarılamaz",
+            ));
+        }
+    }
+    if izinli_mi(&tam) {
+        // Proje tanıtıcısı üzerinden: denetimden sonra yol değişse de dışarı çıkılmaz.
+        dosya::sinirli_metin(&tam)
+    } else {
+        std::fs::read_to_string(&tam)
+    }
+}
+
 fn govde(istek: &Istek) -> Value {
     serde_json::from_slice(&istek.govde).unwrap_or(Value::Null)
 }
@@ -554,6 +595,10 @@ fn ders_denetle(g: &Value) -> Yanit {
     if !izinli_mi(&dosya) {
         return Yanit::hata(403, "bu dosyaya erişim yok");
     }
+    // Ders denetimi de programı derleyip çalıştırır: kısıtlı moddaki projede kapalıdır.
+    if let Some(y) = guven_gerekli(&dosya, "ders denetimi") {
+        return y;
+    }
     let beklenen = g["beklenen"].as_str();
     let Some(beklenen) = beklenen else {
         return match derleme::yukle(&dosya) {
@@ -590,49 +635,102 @@ fn ders_denetle(g: &Value) -> Yanit {
     }
 }
 
-/// Programı girdiyle çalıştırır; süre aşılırsa durdurur.
+/// Ders programının her çıktı akışından en çok bu kadarı tutulur.
+const EN_BUYUK_DERS_CIKTISI: u64 = 1024 * 1024;
+
+/// Programı girdiyle çalıştırır; süre aşılırsa durdurur. Süre, girdi yazımı dahil tüm
+/// çalışmayı kapsar: girdi ayrı iş parçacığında yazılır, program okumasa da beklenmez.
+/// Programın sıfır olmayan çıkış kodu hata çıktısına eklenir.
 fn sinirli_calistir(
     program: &Path,
     klasor: &Path,
     girdi: &str,
     sure: Duration,
 ) -> Result<(String, String), String> {
-    use std::io::{Read, Write};
-    let mut c = crate::komut(program)
+    use std::io::Write;
+    let bas = Instant::now();
+    let mut komut = crate::komut(program);
+    // Program kendi süreç grubunda başlar: bıraktığı alt süreçler de birlikte kapatılır.
+    #[cfg(unix)]
+    std::os::unix::process::CommandExt::process_group(&mut komut, 0);
+    let mut c = komut
         .current_dir(klasor)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
         .map_err(|e| format!("program başlatılamadı: {e}"))?;
+    let cikis = c.stdout.take().unwrap();
+    let hatalar = c.stderr.take().unwrap();
+    let (g1, o1) = std::sync::mpsc::channel();
+    let (g2, o2) = std::sync::mpsc::channel();
+    std::thread::spawn(move || g1.send(sinirli_topla(cikis)));
+    std::thread::spawn(move || g2.send(sinirli_topla(hatalar)));
     if let Some(mut s) = c.stdin.take() {
-        let _ = s.write_all(girdi.as_bytes());
+        let girdi = girdi.as_bytes().to_vec();
+        std::thread::spawn(move || {
+            let _ = s.write_all(&girdi);
+        });
     }
-    let mut cikis = c.stdout.take().unwrap();
-    let mut hatalar = c.stderr.take().unwrap();
-    let o1 = std::thread::spawn(move || {
-        let mut s = String::new();
-        let _ = cikis.read_to_string(&mut s);
-        s
-    });
-    let o2 = std::thread::spawn(move || {
-        let mut s = String::new();
-        let _ = hatalar.read_to_string(&mut s);
-        s
-    });
-    let bas = Instant::now();
-    loop {
+    let durum = loop {
         match c.try_wait() {
-            Ok(Some(_)) => break,
+            Ok(Some(d)) => break d,
             Ok(None) if bas.elapsed() < sure => std::thread::sleep(Duration::from_millis(20)),
             _ => {
+                grubu_kapat(&c);
                 let _ = c.kill();
                 let _ = c.wait();
-                return Err("program 10 saniyede bitmedi (sonsuz döngü olabilir)".into());
+                return Err(format!(
+                    "program {} saniyede bitmedi (sonsuz döngü olabilir)",
+                    sure.as_secs()
+                ));
             }
         }
+    };
+    grubu_kapat(&c);
+    // Programın bıraktığı alt süreçler boruları açık tutabilir: okuma da süreye dahildir.
+    let kalan = || {
+        sure.saturating_sub(bas.elapsed())
+            .max(Duration::from_millis(100))
+    };
+    let cikti = o1.recv_timeout(kalan()).unwrap_or_default();
+    let mut hata_ciktisi = o2.recv_timeout(kalan()).unwrap_or_default();
+    if !durum.success() {
+        if !hata_ciktisi.is_empty() && !hata_ciktisi.ends_with('\n') {
+            hata_ciktisi.push('\n');
+        }
+        hata_ciktisi.push_str(&match durum.code() {
+            Some(k) => format!("Program {k} çıkış koduyla bitti."),
+            None => "Program bir sinyalle durduruldu.".into(),
+        });
     }
-    Ok((o1.join().unwrap_or_default(), o2.join().unwrap_or_default()))
+    Ok((cikti, hata_ciktisi))
+}
+
+/// Programın süreç grubundaki tüm süreçleri durdurur (Unix). Windows'ta yalnız
+/// programın kendisi durdurulur.
+fn grubu_kapat(c: &std::process::Child) {
+    #[cfg(unix)]
+    let _ = std::process::Command::new("kill")
+        .args(["-KILL", "--", &format!("-{}", c.id())])
+        .stderr(std::process::Stdio::null())
+        .status();
+    #[cfg(not(unix))]
+    let _ = c;
+}
+
+/// Akışın ilk `EN_BUYUK_DERS_CIKTISI` baytını metin olarak döndürür; kalanını okuyup atar.
+fn sinirli_topla(mut akis: impl std::io::Read) -> String {
+    use std::io::Read;
+    let mut b = Vec::new();
+    // Sınırdan sonrası okunup atılır: program dolu boruda takılmasın.
+    let _ = (&mut akis).take(EN_BUYUK_DERS_CIKTISI).read_to_end(&mut b);
+    let tasti = std::io::copy(&mut akis, &mut std::io::sink()).unwrap_or(0) > 0;
+    let mut m = String::from_utf8_lossy(&b).into_owned();
+    if tasti {
+        m.push_str("\n… (çıktı 1 MB sınırında kesildi)");
+    }
+    m
 }
 
 /// Düzenleyicide `'` yazılınca: ifadenin her hâldeki doğru eki (ünlü uyumuyla).
@@ -954,8 +1052,10 @@ fn dosya_oku(yol: &str) -> Yanit {
     if !izinli_mi(p) {
         return Yanit::hata(403, "bu dosyaya erişim yok");
     }
-    match dosya::sinirli_oku(p) {
-        Ok(b) if b.len() > 2 * 1024 * 1024 => hata("Dosya düzenleyicide açılamayacak kadar büyük."),
+    match dosya::sinirli_oku(p, 2 * 1024 * 1024) {
+        Err(e) if e.kind() == std::io::ErrorKind::FileTooLarge => {
+            hata("Dosya düzenleyicide açılamayacak kadar büyük.")
+        }
         Ok(b) => match String::from_utf8(b) {
             Ok(m) => Yanit::json(
                 &json!({ "surum": dosya::surum(m.as_bytes()), "icerik": m, "zaman": degisim_zamani(p) }),
@@ -1072,8 +1172,10 @@ fn ham_dosya(yol: &str) -> Yanit {
         "ico" => "image/x-icon",
         _ => return hata("Bu dosya türü önizlenemez."),
     };
-    match dosya::sinirli_oku(p) {
-        Ok(b) if b.len() > 20 * 1024 * 1024 => hata("Dosya önizleme için çok büyük."),
+    match dosya::sinirli_oku(p, 20 * 1024 * 1024) {
+        Err(e) if e.kind() == std::io::ErrorKind::FileTooLarge => {
+            hata("Dosya önizleme için çok büyük.")
+        }
         Ok(govde) => Yanit {
             durum: 200,
             tur,
@@ -2250,5 +2352,119 @@ mod sinamalar {
         let (m, n) = metinde_degistir("aaa", "a", "aa", false);
         assert_eq!((m.as_str(), n), ("aaaaaa", 3));
         assert_eq!(metinde_degistir("abc", "x", "y", false).1, 0);
+    }
+
+    #[test]
+    fn ders_denetimi_kisitli_projede_calistirmaz() {
+        let k = derleme::gecici_klasor("ders-guven").unwrap();
+        let dosya = k.join("a.ohc");
+        std::fs::write(&dosya, "\"merhaba\"'yı yaz.\n").unwrap();
+        koke_izin_ver(&k);
+        let y = ders_denetle(&json!({ "dosya": dosya, "beklenen": "merhaba" }));
+        let v: Value = serde_json::from_slice(&y.govde).unwrap();
+        assert_eq!(v["guvensiz"], true, "{v}");
+        assert!(v["basarili"].is_null());
+        std::fs::remove_dir_all(k).unwrap();
+    }
+
+    #[test]
+    fn studyo_derlemesi_proje_disindaki_dosyayi_okumaz() {
+        let k = derleme::gecici_klasor("ice-aktarma")
+            .unwrap()
+            .canonicalize()
+            .unwrap();
+        let kok = k.join("proje");
+        std::fs::create_dir_all(kok.join("araclar")).unwrap();
+        std::fs::create_dir_all(k.join("paketler/ortak")).unwrap();
+        std::fs::write(k.join("dis.ohc"), "SAHTE_ANAHTAR = = \"gizli-123\"\n").unwrap();
+        std::fs::write(
+            k.join("paketler/ortak/ortak.ohc"),
+            "işlev bir() -> sayı:\n    döndür 1\n",
+        )
+        .unwrap();
+        std::fs::write(
+            kok.join("araclar/a.ohc"),
+            "işlev iki() -> sayı:\n    döndür 2\n",
+        )
+        .unwrap();
+        koke_izin_ver(&kok);
+        let ana = kok.join("ana.ohc");
+        let derle = |kod: &str| {
+            std::fs::write(&ana, kod).unwrap();
+            derleme::okuma_siniriyla(kaynak_oku, || derleme::yukle(&ana))
+        };
+        let h = derle("kullan \"../dis.ohc\"\n1'i yaz.\n")
+            .unwrap_err()
+            .metin;
+        assert!(!h.contains("gizli-123"), "{h}");
+        assert!(h.contains("içe aktarılamaz"), "{h}");
+        // Proje içi dosyalar ve üst klasördeki kurulu paketler kullanılabilir.
+        derle("kullan \"araclar/a.ohc\"\nkullan \"ortak\"\n1'i yaz.\n").unwrap();
+        // Sınır yalnızca Stüdyo içinde: komut aracı aynı dosyayı okur.
+        std::fs::write(&ana, "kullan \"../dis.ohc\"\n").unwrap();
+        assert!(derleme::yukle(&ana)
+            .unwrap_err()
+            .metin
+            .contains("gizli-123"));
+        std::fs::remove_dir_all(k).unwrap();
+    }
+
+    #[cfg(unix)]
+    fn betik(k: &Path, ad: &str, govde: &str) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+        let p = k.join(ad);
+        std::fs::write(&p, format!("#!/bin/sh\n{govde}\n")).unwrap();
+        std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755)).unwrap();
+        p
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn sinirli_calistirma_girdi_okunmasa_da_sureyi_asmaz() {
+        let k = derleme::gecici_klasor("ders-girdi").unwrap();
+        // Önce boruyu dolduracak kadar yazar, girdiyi hiç okumaz.
+        let p = betik(&k, "p", "head -c 200000 /dev/zero; sleep 30");
+        let bas = Instant::now();
+        let girdi = "x".repeat(1024 * 1024);
+        let s = sinirli_calistir(&p, &k, &girdi, Duration::from_secs(1));
+        assert!(s.is_err());
+        assert!(
+            bas.elapsed() < Duration::from_secs(5),
+            "{:?}",
+            bas.elapsed()
+        );
+        std::fs::remove_dir_all(k).unwrap();
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn sinirli_calistirma_cikis_kodunu_ve_cikti_sinirini_uygular() {
+        let k = derleme::gecici_klasor("ders-cikis").unwrap();
+        let p = betik(&k, "kod", "printf merhaba; exit 3");
+        let (c, h) = sinirli_calistir(&p, &k, "", Duration::from_secs(10)).unwrap();
+        assert_eq!(c, "merhaba");
+        assert!(h.contains("3 çıkış kodu"), "{h}");
+        let p = betik(&k, "buyuk", "head -c 5000000 /dev/zero | tr '\\0' a");
+        let (c, h) = sinirli_calistir(&p, &k, "", Duration::from_secs(10)).unwrap();
+        assert!(
+            c.len() < 2 * 1024 * 1024 && c.ends_with("kesildi)"),
+            "{}",
+            c.len()
+        );
+        assert!(h.is_empty());
+        // Arkada bırakılan süreç boruyu açık tutsa da sonuç süre içinde gelir.
+        let p = betik(&k, "arka", "(sleep 2; touch kaldi) & echo tamam");
+        let bas = Instant::now();
+        let s = sinirli_calistir(&p, &k, "", Duration::from_secs(1));
+        assert!(
+            bas.elapsed() < Duration::from_secs(5),
+            "{:?}",
+            bas.elapsed()
+        );
+        assert_eq!(s.unwrap().0, "tamam\n");
+        // Bırakılan alt süreç de kapatılmıştır.
+        std::thread::sleep(Duration::from_secs(3));
+        assert!(!k.join("kaldi").exists());
+        std::fs::remove_dir_all(k).unwrap();
     }
 }

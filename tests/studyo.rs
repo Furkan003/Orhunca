@@ -1299,6 +1299,35 @@ fn git_paneli() {
 }
 
 #[test]
+fn kisitli_proje_disari_okuyamaz_ve_ders_denetimiyle_calistiramaz() {
+    let s = baslat("kisitli");
+    let yabanci = s.ev.join("Indirilen");
+    std::fs::create_dir_all(&yabanci).unwrap();
+    std::fs::write(s.ev.join("dis.ohc"), "SAHTE_ANAHTAR = = \"gizli-123\"\n").unwrap();
+    let ana = yabanci.join("ana.ohc");
+    let kaynak = "kullan \"../dis.ohc\"\n1'i yaz.\n";
+    std::fs::write(&ana, kaynak).unwrap();
+    s.api("/api/proje/ac", serde_json::json!({ "yol": yabanci }));
+    // İçe aktarma proje dışına çıkamaz; dış dosyanın içeriği tanıya taşınmaz.
+    let r = s.api(
+        "/api/cevir",
+        serde_json::json!({ "dosya": ana, "icerik": kaynak, "dil": "python" }),
+    );
+    let h = r["hata"].as_str().unwrap_or_else(|| panic!("{r}"));
+    assert!(
+        !h.contains("gizli-123") && h.contains("içe aktarılamaz"),
+        "{h}"
+    );
+    // Ders denetimi de kısıtlı modda programı çalıştırmaz.
+    std::fs::write(&ana, "1'i yaz.\n").unwrap();
+    let r = s.api(
+        "/api/ders/denetle",
+        serde_json::json!({ "dosya": ana, "beklenen": "1" }),
+    );
+    assert_eq!(r["guvensiz"], true, "{r}");
+}
+
+#[test]
 fn kosullu_kesme_ve_gunluk_noktasi() {
     let s = baslat("kosullu");
     let konum = s.ev.join("Projeler");

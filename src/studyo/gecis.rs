@@ -133,22 +133,41 @@ fn sql_dogrula(sql: &str) -> Result<(), String> {
     }
     Ok(())
 }
+fn demo_hazirla(kok: &Path, hedef: &Path) -> Result<(), String> {
+    let mut dosyalar = arsiv::kopyala(kok, hedef, true, true).map_err(|e| e.to_string())?;
+    let ornek = kok.join("demo").join("veri");
+    if ornek.exists() {
+        arsiv::baglantisiz(kok, &ornek).map_err(|e| e.to_string())?;
+        for mut d in
+            arsiv::kopyala(&ornek, &hedef.join("veri"), false, false).map_err(|e| e.to_string())?
+        {
+            d["yol"] = json!(format!("veri/{}", d["yol"].as_str().unwrap_or("")));
+            dosyalar.push(d);
+        }
+    }
+    // Dosya adı süzgeci (.env, *.pem) yetmez: anahtar başka bir dosyaya da yazılmış olabilir.
+    gelistirme::demo_dogrula(kok, hedef, &dosyalar)?;
+    dosya::atomik_yaz(
+        &hedef.join(".env"),
+        b"ORHUNCA_VERITABANI=sqlite\nORHUNCA_DEMO=1\n",
+    )
+    .map_err(|e| e.to_string())?;
+    dosya::atomik_yaz(&hedef.join("DEMO.txt"),"Bu kopya özgün veriden ayrıdır. Örnek veriler demo/veri klasöründen alınır. Sıfırlamak için asıl projeden yeni demo oluşturun. WebAssembly çıktısı internet olmadan açılabilir; uzak API çağrıları için API senaryolarının benzetim kipini kullanın.\n".as_bytes()).map_err(|e|e.to_string())?;
+    Ok(())
+}
 pub fn islem(kok: &Path, g: &Value) -> Result<Value, String> {
     if g["islem"] == "demo" {
         let id = dosya::kimlik().map_err(|e| e.to_string())?;
         let hedef = kok.join(format!("kurtarilan-demo-{id}"));
-        arsiv::kopyala(kok, &hedef, true, true).map_err(|e| e.to_string())?;
-        let ornek = kok.join("demo").join("veri");
-        if ornek.exists() {
-            arsiv::baglantisiz(kok, &ornek).map_err(|e| e.to_string())?;
-            arsiv::kopyala(&ornek, &hedef.join("veri"), false, false).map_err(|e| e.to_string())?;
+        // Kopya önce gizli bir hazırlık klasöründe denetlenir; gizli değer bulunursa
+        // ortada yarım ya da sızdıran bir demo kalmaz.
+        let hazirlik = kok.join(format!(".orhunca-demo-{id}"));
+        let sonuc = demo_hazirla(kok, &hazirlik)
+            .and_then(|()| std::fs::rename(&hazirlik, &hedef).map_err(|e| e.to_string()));
+        if let Err(e) = sonuc {
+            let _ = std::fs::remove_dir_all(&hazirlik);
+            return Err(e);
         }
-        dosya::atomik_yaz(
-            &hedef.join(".env"),
-            b"ORHUNCA_VERITABANI=sqlite\nORHUNCA_DEMO=1\n",
-        )
-        .map_err(|e| e.to_string())?;
-        dosya::atomik_yaz(&hedef.join("DEMO.txt"),"Bu kopya özgün veriden ayrıdır. Örnek veriler demo/veri klasöründen alınır. Sıfırlamak için asıl projeden yeni demo oluşturun. WebAssembly çıktısı internet olmadan açılabilir; uzak API çağrıları için API senaryolarının benzetim kipini kullanın.\n".as_bytes()).map_err(|e|e.to_string())?;
         return Ok(json!({"yol":hedef,"tamam":true}));
     }
     let _kilit =
@@ -207,4 +226,45 @@ pub fn islem(kok: &Path, g: &Value) -> Result<Value, String> {
     )?;
     veritabani::sorgula(kok, &sql)?;
     Ok(json!({"tamam":true,"adet":secilen.len(),"yedek":yedek,"plan":plan(kok)?}))
+}
+
+#[cfg(test)]
+mod sinamalar {
+    use super::*;
+
+    fn kalanlar(kok: &Path) -> Vec<String> {
+        std::fs::read_dir(kok)
+            .unwrap()
+            .flatten()
+            .map(|g| g.file_name().to_string_lossy().into_owned())
+            .filter(|a| a.contains("demo"))
+            .collect()
+    }
+
+    #[test]
+    fn demo_baska_dosyaya_yazilmis_anahtari_tasimaz() {
+        let kok = crate::derleme::gecici_klasor("demo-gizli")
+            .unwrap()
+            .canonicalize()
+            .unwrap();
+        std::fs::write(kok.join(".env"), "API_KEY=sahte-anahtar-123456\n").unwrap();
+        std::fs::write(kok.join("ana.ohc"), "yaz(1)\n").unwrap();
+        std::fs::write(kok.join("config.json"), r#"{"k":"sahte-anahtar-123456"}"#).unwrap();
+        let h = islem(&kok, &json!({"islem":"demo"})).unwrap_err();
+        assert!(h.contains("config.json"), "{h}");
+        assert!(kalanlar(&kok).is_empty(), "{:?}", kalanlar(&kok));
+        // `.env.*` dosyalarındaki değerler de aranır.
+        std::fs::write(kok.join("config.json"), "{}").unwrap();
+        std::fs::write(kok.join(".env.uretim"), "TOKEN=uretim-gizli-987654\n").unwrap();
+        std::fs::write(kok.join("not.txt"), "uretim-gizli-987654").unwrap();
+        assert!(islem(&kok, &json!({"islem":"demo"})).is_err());
+        assert!(kalanlar(&kok).is_empty());
+        // Temiz projede demo oluşur ve gizli dosyalar kopyalanmaz.
+        std::fs::remove_file(kok.join("not.txt")).unwrap();
+        let v = islem(&kok, &json!({"islem":"demo"})).unwrap();
+        let hedef = Path::new(v["yol"].as_str().unwrap());
+        assert!(hedef.join("ana.ohc").exists() && hedef.join("DEMO.txt").exists());
+        assert!(!hedef.join(".env.uretim").exists());
+        std::fs::remove_dir_all(kok).unwrap();
+    }
 }

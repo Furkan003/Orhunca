@@ -5623,8 +5623,20 @@ static void istegi_isle(Yanit *y, char *v, size_t n, size_t govde_basi, const ch
     double bas_zaman = ondalik(ohc_zaman());
     (void)n;
     const char *baslik_sonu = v + govde_basi - 4;
-    /* İstek satırı: YÖNTEM HEDEF SÜRÜM */
-    char *satir_sonu = strstr(v, "\r\n");
+    /* Başlıklar C metni olarak işlenir: içlerindeki NUL baytı ayrıştırmayı bölerdi.
+     * Böyle bir istek yalnız kendi bağlantısını kapatır, sunucu çalışmayı sürdürür. */
+    char *satir_sonu = memchr(v, 0, govde_basi) ? NULL : strstr(v, "\r\n");
+    if (!satir_sonu) {
+        y->acik_kalsin = 0;
+        hata_sayfasi(y, 400, "Geçersiz istek", NULL);
+        return;
+    }
+    for (const char *c = v; c < satir_sonu; c++)
+        if ((unsigned char)*c < 0x20 || *c == 0x7f) {
+            y->acik_kalsin = 0;
+            hata_sayfasi(y, 400, "Geçersiz istek", NULL);
+            return;
+        }
     *satir_sonu = 0;
     char yontem[16] = {0};
     char *bosluk1 = strchr(v, ' ');

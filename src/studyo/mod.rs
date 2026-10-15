@@ -247,9 +247,22 @@ fn dinle(dinleyici: TcpListener, anahtar: String) {
     const EN_COK_ES_ZAMANLI: usize = 32;
     let aktif = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
     for baglanti in dinleyici.incoming() {
-        let Ok(akis) = baglanti else { continue };
-        while aktif.load(std::sync::atomic::Ordering::Acquire) >= EN_COK_ES_ZAMANLI {
+        let Ok(mut akis) = baglanti else { continue };
+        // Tüm işçiler doluysa kısa bir süre beklenir, ardından bağlantı hemen
+        // reddedilir: yarım bırakılan bağlantılar kabul döngüsünü durduramaz.
+        let bas = std::time::Instant::now();
+        while aktif.load(std::sync::atomic::Ordering::Acquire) >= EN_COK_ES_ZAMANLI
+            && bas.elapsed() < std::time::Duration::from_secs(2)
+        {
             std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        if aktif.load(std::sync::atomic::Ordering::Acquire) >= EN_COK_ES_ZAMANLI {
+            let _ = akis.set_nonblocking(true);
+            http::yaz(
+                &mut akis,
+                &http::Yanit::hata(503, "Stüdyo meşgul; biraz sonra yeniden deneyin."),
+            );
+            continue;
         }
         aktif.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
         let anahtar = anahtar.clone();
@@ -258,8 +271,15 @@ fn dinle(dinleyici: TcpListener, anahtar: String) {
         let baslatildi = std::thread::Builder::new()
             .stack_size(crate::YIGIN)
             .spawn(move || {
+                // Sayaç her çıkışta (panik dahil) bırakılır; yoksa işçi yeri kalıcı kaybolur.
+                struct Birak(std::sync::Arc<std::sync::atomic::AtomicUsize>);
+                impl Drop for Birak {
+                    fn drop(&mut self) {
+                        self.0.fetch_sub(1, std::sync::atomic::Ordering::AcqRel);
+                    }
+                }
+                let _birak = Birak(sayac);
                 isle(akis, &anahtar, kapi);
-                sayac.fetch_sub(1, std::sync::atomic::Ordering::AcqRel);
             });
         if baslatildi.is_err() {
             aktif.fetch_sub(1, std::sync::atomic::Ordering::AcqRel);
@@ -292,7 +312,7 @@ fn isle(mut akis: TcpStream, anahtar: &str, kapi: u16) {
             bilgi("Stüdyo kapatıldı.");
             std::process::exit(0);
         } else {
-            api::yonlendir(&istek)
+            crate::derleme::okuma_siniriyla(api::kaynak_oku, || api::yonlendir(&istek))
         }
     } else if let Some(ad) = istek.yol.strip_prefix("/eklenti/") {
         // Kullanıcının kurduğu Stüdyo eklentileri (CSP yalnızca aynı kaynaktan betiğe izin verir).
@@ -319,5 +339,41 @@ fn statik(yol: &str) -> http::Yanit {
             csp: a.ends_with(".html"),
         },
         None => http::Yanit::hata(404, "bulunamadı"),
+    }
+}
+
+#[cfg(test)]
+mod sinamalar {
+    use super::*;
+    use std::io::{Read, Write};
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn yarim_baglantilar_doluyken_yeni_istek_hemen_yanit_alir() {
+        let dinleyici = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let adres = dinleyici.local_addr().unwrap();
+        std::thread::spawn(move || dinle(dinleyici, "anahtar".into()));
+        // Başlığını hiç bitirmeyen 32 bağlantı tüm işçileri tutar.
+        let yarimlar: Vec<_> = (0..32)
+            .map(|_| {
+                let mut c = std::net::TcpStream::connect(adres).unwrap();
+                c.write_all(b"GET / HTTP/1.1\r\n").unwrap();
+                c
+            })
+            .collect();
+        std::thread::sleep(Duration::from_millis(300));
+        let bas = Instant::now();
+        let mut c = std::net::TcpStream::connect(adres).unwrap();
+        c.set_read_timeout(Some(Duration::from_secs(8))).unwrap();
+        let _ = c.write_all(b"GET /api/durum HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n");
+        let mut yanit = String::new();
+        let _ = c.read_to_string(&mut yanit);
+        assert!(yanit.starts_with("HTTP/1.1 503"), "{yanit:?}");
+        assert!(
+            bas.elapsed() < Duration::from_secs(5),
+            "{:?}",
+            bas.elapsed()
+        );
+        drop(yarimlar);
     }
 }

@@ -269,8 +269,11 @@ fn profil(kok: &Path, ad: &str) -> Sonuc {
 }
 fn ortam(kok: &Path) -> BTreeMap<String, String> {
     let mut sonuc: BTreeMap<String, String> = std::env::vars().collect();
-    let p = kok.join(".env");
-    if arsiv::baglantisiz(kok, &p).is_ok() {
+    env_ekle(kok, &kok.join(".env"), &mut sonuc);
+    sonuc
+}
+fn env_ekle(kok: &Path, p: &Path, sonuc: &mut BTreeMap<String, String>) {
+    if arsiv::baglantisiz(kok, p).is_ok() {
         if let Ok(s) = std::fs::read_to_string(p) {
             for l in s.lines().map(str::trim).filter(|l| !l.starts_with('#')) {
                 if let Some((k, v)) = l.trim_start_matches("export ").split_once('=') {
@@ -288,7 +291,25 @@ fn ortam(kok: &Path) -> BTreeMap<String, String> {
             }
         }
     }
-    sonuc
+}
+/// Demo kopyasında projenin gizli değerlerinden (`.env`, `.env.*`, ortam) biri ya da
+/// özel anahtar bulunursa hata verir.
+pub fn demo_dogrula(kok: &Path, hedef: &Path, dosyalar: &[Value]) -> Result<(), String> {
+    let mut o = ortam(kok);
+    if let Ok(girdiler) = std::fs::read_dir(kok) {
+        for g in girdiler.flatten() {
+            let ad = g.file_name().to_string_lossy().to_lowercase();
+            if ad.starts_with(".env.") {
+                let mut ek = BTreeMap::new();
+                env_ekle(kok, &g.path(), &mut ek);
+                // Aynı ad farklı dosyalarda farklı değer taşıyabilir: hepsi denetlenir.
+                for (k, v) in ek {
+                    o.insert(format!("{k}#{ad}"), v);
+                }
+            }
+        }
+    }
+    paylasimi_dogrula(hedef, dosyalar, &o).map_err(|e| e.replace("Teslim", "Demo"))
 }
 fn yerlestir(s: &str, ortam: &BTreeMap<String, String>) -> Result<String, String> {
     let mut sonuc = String::new();

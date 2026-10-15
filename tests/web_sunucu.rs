@@ -416,6 +416,16 @@ fn kotu_niyetli_istekler() {
     // Bozuk istek satırı
     let y = istek(s.kapi, "BOZUK\r\n\r\n");
     assert_eq!(y.durum, 400);
+    // İstek satırında ya da başlıkta NUL / denetim baytı: yalnız bu istek reddedilir.
+    for bozuk in [
+        "GET /\0x HTTP/1.1\r\nHost: x\r\n\r\n",
+        "\0\r\n\r\n",
+        "GET / HTTP/1.1\r\nHost: x\0y\r\n\r\n",
+        "GET /\u{1}a HTTP/1.1\r\nHost: x\r\n\r\n",
+    ] {
+        assert_eq!(istek(s.kapi, bozuk).durum, 400, "{bozuk:?}");
+        assert_eq!(al(s.kapi, "/alt/a.txt", None).metin(), "açık");
+    }
     // Sunucu hâlâ çalışıyor
     assert_eq!(al(s.kapi, "/alt/a.txt", None).metin(), "açık");
 }

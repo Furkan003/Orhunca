@@ -14,7 +14,10 @@ use crate::derleme;
 
 /// Projenin `.env` dosyasındaki (yoksa ortamdaki) `ORHUNCA_VERITABANI` değeri.
 fn adres(kok: &Path) -> String {
-    if let Ok(icerik) = std::fs::read_to_string(kok.join(".env")) {
+    let env = kok
+        .canonicalize()
+        .and_then(|k| super::dosya::sinirli_metin(k.join(".env")));
+    if let Ok(icerik) = env {
         for satir in icerik.lines() {
             let s = satir.trim().trim_start_matches("export ").trim();
             if let Some(d) = s.strip_prefix("ORHUNCA_VERITABANI") {
@@ -107,8 +110,11 @@ pub fn json_kayitlari(kok: &Path, model: &str) -> Result<Value, String> {
     if model.is_empty() || model.contains(['/', '\\', '.']) {
         return Err("geçersiz model adı".into());
     }
-    let yol = veri_klasoru(kok).join(format!("{model}.json"));
-    let icerik = std::fs::read_to_string(&yol).map_err(|e| format!("{}: {e}", yol.display()))?;
+    // Proje tanıtıcısı üzerinden okunur: `veri` ya da dosya dışarıya bağlantı olamaz.
+    let kok = kok.canonicalize().map_err(|e| e.to_string())?;
+    let yol = veri_klasoru(&kok).join(format!("{model}.json"));
+    let icerik =
+        super::dosya::sinirli_metin(&yol).map_err(|e| format!("{}: {e}", yol.display()))?;
     let deger: Value = serde_json::from_str(&icerik).map_err(|e| format!("JSON okunamadı: {e}"))?;
     Ok(match deger {
         Value::Array(_) => deger,
@@ -180,5 +186,26 @@ mod sinamalar {
         assert_eq!(tur("postgresql://a@b/c"), "postgresql");
         assert_eq!(tur("mysql://a@b/c"), "mysql");
         assert_eq!(tur("sqlserver://b/c"), "sqlserver");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn json_kayitlari_baglantiyla_proje_disini_okumaz() {
+        let k = derleme::gecici_klasor("vt-baglanti").unwrap();
+        let kok = k.join("proje");
+        std::fs::create_dir_all(kok.join("veri")).unwrap();
+        std::fs::write(k.join("dis.json"), r#"[{"gizli":"dis"}]"#).unwrap();
+        std::fs::write(kok.join("veri/uye.json"), r#"[{"ad":"a"}]"#).unwrap();
+        std::os::unix::fs::symlink(k.join("dis.json"), kok.join("veri/kayit.json")).unwrap();
+        super::super::dosya::kok_ac(&kok.canonicalize().unwrap()).unwrap();
+        assert_eq!(json_kayitlari(&kok, "uye").unwrap()[0]["ad"], "a");
+        assert!(json_kayitlari(&kok, "kayit").is_err());
+        // `veri` klasörünün kendisi de dışarıya bağlanamaz.
+        std::fs::rename(kok.join("veri"), kok.join("eski")).unwrap();
+        std::fs::create_dir(k.join("dis")).unwrap();
+        std::fs::write(k.join("dis/uye.json"), r#"[{"gizli":"dis"}]"#).unwrap();
+        std::os::unix::fs::symlink(k.join("dis"), kok.join("veri")).unwrap();
+        assert!(json_kayitlari(&kok, "uye").is_err());
+        std::fs::remove_dir_all(k).unwrap();
     }
 }

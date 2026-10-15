@@ -171,10 +171,33 @@ pub fn sabitle(p: &Path) -> io::Result<(cap_std::fs::Dir, PathBuf)> {
         ),
     ))
 }
-pub fn sinirli_oku(p: &Path) -> io::Result<Vec<u8>> {
+/// Proje içindeki normal dosyayı en çok `sinir` bayt olarak okur. Daha büyükse
+/// `FileTooLarge` döner; dosya belleğe bütünüyle alınmaz. FIFO gibi özel dosyalar
+/// açılmaz (okuma sonsuza dek beklerdi).
+pub fn sinirli_oku(p: &Path, sinir: u64) -> io::Result<Vec<u8>> {
+    use std::io::Read;
     let (d, ad) = sabitle(p)?;
-    d.read(ad)
+    if !d.metadata(&ad)?.is_file() {
+        return Err(io::Error::other("Normal bir dosya değil."));
+    }
+    let f = d.open(&ad)?;
+    if !f.metadata()?.is_file() {
+        return Err(io::Error::other("Normal bir dosya değil."));
+    }
+    let mut b = Vec::new();
+    // Dosya okunurken büyüyebilir: boyut bilgisine değil okunan bayta güvenilir.
+    f.take(sinir.saturating_add(1)).read_to_end(&mut b)?;
+    if b.len() as u64 > sinir {
+        return Err(io::Error::new(
+            io::ErrorKind::FileTooLarge,
+            "Dosya çok büyük.",
+        ));
+    }
+    Ok(b)
 }
+
+/// Metin olarak okunan proje dosyaları (arama, notlar, Git dalı) için üst sınır.
+pub const EN_BUYUK_METIN: u64 = 8 * 1024 * 1024;
 pub fn sabit_yaz(d: &cap_std::fs::Dir, ad: &Path, veri: &[u8]) -> io::Result<()> {
     let gecici = format!(".orhunca-kayit-{}", kimlik()?);
     let sonuc = (|| {
@@ -274,7 +297,7 @@ pub fn tasi_yollari(eski: &Path, yeni: &Path) -> io::Result<()> {
 }
 
 pub fn sinirli_metin(p: impl AsRef<Path>) -> io::Result<String> {
-    String::from_utf8(sinirli_oku(p.as_ref())?)
+    String::from_utf8(sinirli_oku(p.as_ref(), EN_BUYUK_METIN)?)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
 }
 
@@ -295,10 +318,31 @@ mod sinamalar {
         kok_ac(&kok).unwrap();
         std::fs::rename(&kok, k.join("eski")).unwrap();
         std::os::unix::fs::symlink(&dis, &kok).unwrap();
-        assert_eq!(sinirli_oku(&kok.join("a")).unwrap(), b"proje");
+        assert_eq!(sinirli_oku(&kok.join("a"), 100).unwrap(), b"proje");
         let (d, ad) = sabitle(&kok.join("a")).unwrap();
         sabit_yaz(&d, &ad, b"yeni").unwrap();
         assert_eq!(std::fs::read(dis.join("a")).unwrap(), b"gizli");
+        std::fs::remove_dir_all(k).unwrap();
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn sinirli_okuma_buyuk_ve_ozel_dosyayi_bellege_almaz() {
+        let k = crate::derleme::gecici_klasor("sinirli-oku")
+            .unwrap()
+            .canonicalize()
+            .unwrap();
+        std::fs::write(k.join("a"), vec![b'x'; 4096]).unwrap();
+        kok_ac(&k).unwrap();
+        assert_eq!(sinirli_oku(&k.join("a"), 4096).unwrap().len(), 4096);
+        let e = sinirli_oku(&k.join("a"), 4095).unwrap_err();
+        assert_eq!(e.kind(), io::ErrorKind::FileTooLarge);
+        // FIFO açılmaz: okuma yazan biri gelene dek takılırdı.
+        let fifo = k.join("boru");
+        let durum = std::process::Command::new("mkfifo").arg(&fifo).status();
+        if durum.is_ok_and(|d| d.success()) {
+            assert!(sinirli_oku(&fifo, 10).is_err());
+        }
         std::fs::remove_dir_all(k).unwrap();
     }
 

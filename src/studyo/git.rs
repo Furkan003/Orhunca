@@ -158,8 +158,13 @@ pub fn fark(kok: &Path, yol: &str, hazir: bool) -> Result<String, String> {
     if !f.is_empty() || hazir {
         return Ok(f);
     }
-    // Takip edilmeyen dosya
-    let icerik = std::fs::read_to_string(kok.join(yol)).unwrap_or_default();
+    // Takip edilmeyen dosya: proje tanıtıcısı üzerinden okunur, bağlantı dışarı çıkamaz.
+    let tam = kok.canonicalize().map_err(|e| e.to_string())?.join(yol);
+    let icerik = match super::dosya::sinirli_metin(&tam) {
+        Ok(m) => m,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(e) => return Err(format!("{yol}: {e}")),
+    };
     let mut m = format!(
         "--- /dev/null\n+++ b/{yol}\n@@ -0,0 +1,{} @@\n",
         icerik.lines().count()
@@ -194,7 +199,10 @@ pub fn hazirla(kok: &Path, yollar: &[String], geri: bool) -> Result<(), String> 
 pub fn degisikligi_at(kok: &Path, yol: &str, takipsiz: bool) -> Result<(), String> {
     guvenli_yol(yol)?;
     let tam = kok.join(yol);
-    if let Ok(icerik) = std::fs::read_to_string(&tam) {
+    let icerik = kok
+        .canonicalize()
+        .and_then(|k| super::dosya::sinirli_metin(k.join(yol)));
+    if let Ok(icerik) = icerik {
         super::gecmis::ilk_hali_sakla(&tam).map_err(|e| format!("Geçmiş korunamadı: {e}"))?;
         super::gecmis::kaydet(&tam, &icerik).map_err(|e| format!("Geçmiş korunamadı: {e}"))?;
     }
@@ -356,4 +364,30 @@ pub fn gecmis(kok: &Path) -> Value {
             })
             .collect(),
     )
+}
+
+#[cfg(test)]
+mod sinamalar {
+    use super::*;
+
+    #[test]
+    #[cfg(unix)]
+    fn takipsiz_dosya_farki_baglantiyla_proje_disini_okumaz() {
+        let k = crate::derleme::gecici_klasor("git-baglanti").unwrap();
+        let kok = k.join("proje");
+        std::fs::create_dir(&kok).unwrap();
+        if git(&kok, &["init", "-q"]).is_err() {
+            // Git kurulu değilse sınanacak bir şey yok.
+            std::fs::remove_dir_all(k).unwrap();
+            return;
+        }
+        std::fs::write(k.join("dis.json"), "dis-gizli\n").unwrap();
+        std::fs::write(kok.join("yeni.ohc"), "yaz(1)\n").unwrap();
+        std::os::unix::fs::symlink(k.join("dis.json"), kok.join("bag.json")).unwrap();
+        super::super::dosya::kok_ac(&kok.canonicalize().unwrap()).unwrap();
+        assert!(fark(&kok, "yeni.ohc", false).unwrap().contains("+yaz(1)"));
+        let f = fark(&kok, "bag.json", false);
+        assert!(!f.as_deref().unwrap_or("").contains("dis-gizli"), "{f:?}");
+        std::fs::remove_dir_all(k).unwrap();
+    }
 }

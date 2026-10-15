@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
+use std::time::{Duration, Instant};
 
 const EN_BUYUK_GOVDE: usize = 32 * 1024 * 1024;
 
@@ -82,11 +83,45 @@ pub fn yuzde_coz(s: &str) -> String {
 }
 
 const EN_BUYUK_BASLIK: u64 = 64 * 1024;
+/// İstek satırı ve başlıklar bu sürede gelmeli; gövde dahil tüm istek için üst sınır
+/// `GOVDE_SURESI`. Zaman aşımı her okumaya değil isteğin tamamına uygulanır: baytları
+/// tek tek yollayan bağlantı da işçiyi bu süreden uzun tutamaz.
+const BASLIK_SURESI: Duration = Duration::from_secs(10);
+const GOVDE_SURESI: Duration = Duration::from_secs(60);
+/// Yanıtı okumayan istemci de işçiyi sonsuza dek tutmasın.
+const YAZMA_SURESI: Duration = Duration::from_secs(30);
+
+/// Her okumadan önce kalan süreyi zaman aşımı yapar; süre bitince okuma hata verir.
+struct SureliAkis {
+    akis: TcpStream,
+    son: Instant,
+}
+
+impl Read for SureliAkis {
+    fn read(&mut self, b: &mut [u8]) -> std::io::Result<usize> {
+        let kalan = self.son.saturating_duration_since(Instant::now());
+        if kalan.is_zero() {
+            return Err(std::io::ErrorKind::TimedOut.into());
+        }
+        self.akis.set_read_timeout(Some(kalan))?;
+        self.akis.read(b)
+    }
+}
 
 pub fn oku(akis: &mut TcpStream) -> Option<Istek> {
-    // Yarım bırakılan bağlantı iş parçacığını sonsuza dek tutmasın.
-    let _ = akis.set_read_timeout(Some(std::time::Duration::from_secs(30)));
-    let mut okuyucu = BufReader::new(akis.try_clone().ok()?);
+    sureli_oku(akis, BASLIK_SURESI, GOVDE_SURESI)
+}
+
+fn sureli_oku(
+    akis: &mut TcpStream,
+    baslik_suresi: Duration,
+    govde_suresi: Duration,
+) -> Option<Istek> {
+    let bas = Instant::now();
+    let mut okuyucu = BufReader::new(SureliAkis {
+        akis: akis.try_clone().ok()?,
+        son: bas + baslik_suresi,
+    });
     // İstek satırı ve başlıklar en çok 64 KB
     let mut sinirli = (&mut okuyucu).take(EN_BUYUK_BASLIK);
     let mut ilk = String::new();
@@ -117,6 +152,7 @@ pub fn oku(akis: &mut TcpStream) -> Option<Istek> {
     if uzunluk > EN_BUYUK_GOVDE {
         return None;
     }
+    okuyucu.get_mut().son = bas + govde_suresi;
     let mut govde = vec![0; uzunluk];
     okuyucu.read_exact(&mut govde).ok()?;
 
@@ -144,6 +180,7 @@ pub fn yaz(akis: &mut TcpStream, y: &Yanit) {
         400 => "Bad Request",
         403 => "Forbidden",
         404 => "Not Found",
+        503 => "Service Unavailable",
         _ => "Error",
     };
     // Betik yalnızca Stüdyo'nun kendi dosyalarından yüklenir (sayfaya sızan bir betik
@@ -165,6 +202,7 @@ pub fn yaz(akis: &mut TcpStream, y: &Yanit) {
         y.tur,
         y.govde.len()
     );
+    let _ = akis.set_write_timeout(Some(YAZMA_SURESI));
     let _ = akis.write_all(baslik.as_bytes());
     let _ = akis.write_all(&y.govde);
     let _ = akis.flush();
@@ -185,6 +223,59 @@ pub fn icerik_turu(yol: &str) -> &'static str {
 
 #[cfg(test)]
 mod testler {
+    use std::io::Write;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn bayt_bayt_gelen_istek_sure_sinirini_asamaz() {
+        let l = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let adres = l.local_addr().unwrap();
+        let yollayici = std::thread::spawn(move || {
+            let mut c = TcpStream::connect(adres).unwrap();
+            // Her okuma zaman aşımından kısa aralıklarla tek bayt: eski kodda hiç bitmezdi.
+            for b in b"GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nX: "
+                .iter()
+                .cycle()
+                .take(40)
+            {
+                if c.write_all(&[*b]).is_err() {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(100));
+            }
+        });
+        let (mut akis, _) = l.accept().unwrap();
+        let bas = Instant::now();
+        let istek = sureli_oku(&mut akis, Duration::from_secs(1), Duration::from_secs(2));
+        assert!(istek.is_none());
+        assert!(
+            bas.elapsed() < Duration::from_secs(3),
+            "{:?}",
+            bas.elapsed()
+        );
+        drop(akis);
+        yollayici.join().unwrap();
+    }
+
+    #[test]
+    fn tam_istek_govdesiyle_okunur() {
+        let l = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let adres = l.local_addr().unwrap();
+        std::thread::spawn(move || {
+            let mut c = TcpStream::connect(adres).unwrap();
+            c.write_all(b"POST /api/a?x=1 HTTP/1.1\r\nContent-Length: 2\r\n\r\n{}")
+                .unwrap();
+            std::thread::sleep(Duration::from_millis(200));
+        });
+        let (mut akis, _) = l.accept().unwrap();
+        let i = oku(&mut akis).unwrap();
+        assert_eq!(
+            (i.yontem.as_str(), i.yol.as_str(), i.sorgu("x")),
+            ("POST", "/api/a", "1")
+        );
+        assert_eq!(i.govde, b"{}");
+    }
+
     use super::*;
 
     #[test]

@@ -79,6 +79,41 @@ impl From<String> for DerlemeHatasi {
     }
 }
 
+/// Kaynak dosyaları (giriş, `kullan` ile eklenenler, görünümler) okuyan işlev:
+/// `(giriş dosyası, okunacak dosya)`.
+type KaynakOkuyucu = dyn Fn(&Path, &Path) -> std::io::Result<String>;
+
+thread_local! {
+    static OKUYUCU: std::cell::RefCell<Option<std::rc::Rc<KaynakOkuyucu>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// `f` süresince bu iş parçacığındaki derlemeler kaynakları diskten doğrudan değil
+/// `okuyucu` ile okur. Stüdyo, projenin dışındaki dosyaların okunup tanılara
+/// taşınmaması için kullanır; komut aracında sınır yoktur.
+pub fn okuma_siniriyla<T>(
+    okuyucu: impl Fn(&Path, &Path) -> std::io::Result<String> + 'static,
+    f: impl FnOnce() -> T,
+) -> T {
+    struct Geri(Option<std::rc::Rc<KaynakOkuyucu>>);
+    impl Drop for Geri {
+        fn drop(&mut self) {
+            let eski = self.0.take();
+            OKUYUCU.with(|o| *o.borrow_mut() = eski);
+        }
+    }
+    let eski = OKUYUCU.with(|o| o.borrow_mut().replace(std::rc::Rc::new(okuyucu)));
+    let _geri = Geri(eski);
+    f()
+}
+
+fn kaynak_oku(giris: &Path, yol: &Path) -> std::io::Result<String> {
+    match OKUYUCU.with(|o| o.borrow().clone()) {
+        Some(okuyucu) => okuyucu(giris, yol),
+        None => std::fs::read_to_string(yol),
+    }
+}
+
 /// Ana dosyayı ve `kullan` ile eklenen tüm dosyaları okur, ayrıştırır ve denetler.
 pub fn yukle(dosya: &Path) -> Result<agac::Program, DerlemeHatasi> {
     yukle_ortulu(dosya, &HashMap::new())
@@ -124,13 +159,15 @@ pub fn yukle_kesmeli(
         }
         let okunan = match ortulu.get(&tam) {
             Some(icerik) => Ok(icerik.clone()),
-            None => std::fs::read_to_string(&yol),
+            None => kaynak_oku(dosya, &yol),
         };
         let kaynak = match okunan {
             Ok(k) => k,
             Err(e) => {
                 let neden = match e.kind() {
                     std::io::ErrorKind::NotFound => "dosya bulunamadı".to_string(),
+                    // Stüdyo'nun okuma sınırı kendi açıklamasını taşır.
+                    std::io::ErrorKind::PermissionDenied if e.get_ref().is_some() => e.to_string(),
                     std::io::ErrorKind::PermissionDenied => "okuma izni yok".to_string(),
                     _ => e.to_string(),
                 };
@@ -182,7 +219,7 @@ pub fn yukle_kesmeli(
             let tam = std::fs::canonicalize(&yol).unwrap_or_else(|_| yol.clone());
             let kaynak = match ortulu.get(&tam) {
                 Some(icerik) => icerik.clone(),
-                None => std::fs::read_to_string(&yol).map_err(|e| {
+                None => kaynak_oku(dosya, &yol).map_err(|e| {
                     DerlemeHatasi::duz(format!("'{}' okunamadı: {e}", yol.display()))
                 })?,
             };
